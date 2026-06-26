@@ -54,6 +54,7 @@ TASK_BOARD_ALLOWED_STATUSES = {
 }
 TASK_BOARD_READY_STATUSES = {"ready"}
 TASK_BOARD_DONE_STATUSES = {"done"}
+TASK_BOARD_BLOCKED_STATUSES = {"blocked"}
 TASK_BOARD_EMPTY_VALUES = {"", "-", "tbd", "todo", "n/a", "na", "none"}
 MARKDOWN_LINK_RE = re.compile(r"(?<!!)\[[^\]]*]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 MARKDOWN_REFERENCE_DEFINITION_RE = re.compile(r"^\s{0,3}\[[^\]]+]:\s*(\S+)", re.MULTILINE)
@@ -518,6 +519,11 @@ def _check_task_board(root: Path, report: VerificationReport) -> None:
             for message in reference_errors:
                 report.add_error("task_board_trace_reference_missing", message, rel)
             continue
+        blocked_errors = _task_board_blocked_unresolved_errors(root, row, task_id)
+        if blocked_errors:
+            for code, message in blocked_errors:
+                report.add_error(code, message, rel)
+            continue
         evidence_errors = _task_board_done_evidence_errors(root, row, task_id)
         if evidence_errors:
             for message in evidence_errors:
@@ -647,6 +653,56 @@ def _task_board_done_evidence_errors(root: Path, row: dict[str, str], task_id: s
         for reference in references
         if not reference.exists
     ]
+
+
+def _task_board_blocked_unresolved_errors(root: Path, row: dict[str, str], task_id: str) -> list[tuple[str, str]]:
+    if _normalize_cell(row.get("status", "")) not in TASK_BOARD_BLOCKED_STATUSES:
+        return []
+    cited_id = _task_board_cited_unresolved_id(root, row)
+    if cited_id is None:
+        return [
+            (
+                "task_board_blocked_unresolved_missing",
+                f"task board row {task_id} is Blocked but does not cite an existing unresolved item ID",
+            )
+        ]
+    if not _task_board_links_unresolved_registry(root, row):
+        return [
+            (
+                "task_board_blocked_unresolved_link_missing",
+                f"task board row {task_id} is Blocked but does not link to docs/unresolved.md",
+            )
+        ]
+    return []
+
+
+def _task_board_cited_unresolved_id(root: Path, row: dict[str, str]) -> str | None:
+    haystack = " ".join(row.get(column, "") for column in ("task", "verification"))
+    for item_id in _unresolved_item_ids(root):
+        if _text_contains_identifier(haystack, item_id):
+            return item_id
+    return None
+
+
+def _task_board_links_unresolved_registry(root: Path, row: dict[str, str]) -> bool:
+    references = []
+    references.extend(_task_board_local_references(root, row.get("task", "")))
+    references.extend(_task_board_local_references(root, row.get("verification", "")))
+    return any(reference.rel == "docs/unresolved.md" for reference in references)
+
+
+def _unresolved_item_ids(root: Path) -> list[str]:
+    path = root / "docs/unresolved.md"
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return []
+    return [row["id"].strip() for row in _rows_with_columns(text, ("id",)) if row.get("id", "").strip()]
+
+
+def _text_contains_identifier(text: str, identifier: str) -> bool:
+    pattern = rf"(?<![A-Za-z0-9_-]){re.escape(identifier)}(?![A-Za-z0-9_-])"
+    return re.search(pattern, text, flags=re.IGNORECASE) is not None
 
 
 def _task_board_local_references(root: Path, value: str) -> list[LocalMarkdownReference]:

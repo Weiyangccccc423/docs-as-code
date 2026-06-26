@@ -66,6 +66,7 @@ Load:
    - roadmap tables with `ID` and `Status` columns agree with same-ID task board statuses
    - task board items have `ID`, `Status`, `Task`, `Product`, `Design`, `API`, `Acceptance`, and `Verification`
    - task board `Status` values are one of `Backlog`, `Ready`, `In Progress`, `Blocked`, `Done`, or `Deferred`
+   - task board items marked `Blocked` cite an existing unresolved item ID and link to `docs/unresolved.md`
    - task board items marked `Done` link to existing local Markdown verification evidence
    - task board item IDs are unique
    - task board `Product`, `Design`, `API`, and `Acceptance` fields point to existing local Markdown files

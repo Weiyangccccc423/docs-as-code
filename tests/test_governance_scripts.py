@@ -598,6 +598,13 @@ class GovernanceScriptsTest(unittest.TestCase):
             _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
             _write_indexed_doc(root, "docs/tests/01-strategy.md", "# Test Strategy\n")
             _write_indexed_doc(root, "docs/development/03-verification-log.md", "# Verification Log\n")
+            (root / "docs/unresolved.md").write_text(
+                "# Unresolved Items\n\n"
+                "| ID | Domain | Description | Blocking Scope | Owner | Date |\n"
+                "| --- | --- | --- | --- | --- | --- |\n"
+                "| U-001 | Backend | Confirm edge-case owner | non-blocking | TBD | 2026-06-26 |\n",
+                encoding="utf-8",
+            )
 
             task_board = root / "docs/development/02-task-board.md"
             task_board.write_text(
@@ -607,9 +614,132 @@ class GovernanceScriptsTest(unittest.TestCase):
                 "| TASK-001 | Backlog | Scope goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | make test |\n"
                 "| TASK-002 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | make test |\n"
                 "| TASK-003 | In Progress | Wire goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | make test |\n"
-                "| TASK-004 | Blocked | Resolve goal edge case | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | make test |\n"
+                "| TASK-004 | Blocked | Resolve goal edge case | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | Blocked by [U-001](../unresolved.md) |\n"
                 "| TASK-005 | Done | Verify goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | docs/development/03-verification-log.md |\n"
                 "| TASK-006 | Deferred | Later goal audit | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | make test |\n",
+                encoding="utf-8",
+            )
+            _append_index(root / "docs/development/README.md", "02-task-board.md")
+
+            report = verify(root)
+
+            self.assertEqual([], report.errors)
+
+    def test_verify_reports_blocked_task_without_unresolved_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(root, "docs/product/01-goals.md", "# Goals\n\nSource: [PRD](core/PRD.md).\n")
+            _append_product_meta_chapter(root, "01-goals.md")
+            _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
+            _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+            _write_indexed_doc(root, "docs/tests/01-strategy.md", "# Test Strategy\n")
+            (root / "docs/unresolved.md").write_text(
+                "# Unresolved Items\n\n"
+                "| ID | Domain | Description | Blocking Scope | Owner | Date |\n"
+                "| --- | --- | --- | --- | --- | --- |\n"
+                "| U-001 | Backend | Confirm edge-case owner | non-blocking | TBD | 2026-06-26 |\n",
+                encoding="utf-8",
+            )
+
+            task_board = root / "docs/development/02-task-board.md"
+            task_board.write_text(
+                "# Task Board\n\n"
+                "| ID | Status | Task | Product | Design | API | Acceptance | Verification |\n"
+                "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | make test |\n"
+                "| TASK-002 | Blocked | Resolve goal edge case | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | Waiting for decision |\n",
+                encoding="utf-8",
+            )
+            _append_index(root / "docs/development/README.md", "02-task-board.md")
+
+            report = verify(root)
+
+            self.assertIn(
+                "task board row TASK-002 is Blocked but does not cite an existing unresolved item ID",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "task_board_blocked_unresolved_missing",
+                    "severity": "error",
+                    "path": "docs/development/02-task-board.md",
+                    "message": "task board row TASK-002 is Blocked but does not cite an existing unresolved item ID",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_blocked_task_without_unresolved_link(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(root, "docs/product/01-goals.md", "# Goals\n\nSource: [PRD](core/PRD.md).\n")
+            _append_product_meta_chapter(root, "01-goals.md")
+            _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
+            _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+            _write_indexed_doc(root, "docs/tests/01-strategy.md", "# Test Strategy\n")
+            (root / "docs/unresolved.md").write_text(
+                "# Unresolved Items\n\n"
+                "| ID | Domain | Description | Blocking Scope | Owner | Date |\n"
+                "| --- | --- | --- | --- | --- | --- |\n"
+                "| U-001 | Backend | Confirm edge-case owner | non-blocking | TBD | 2026-06-26 |\n",
+                encoding="utf-8",
+            )
+
+            task_board = root / "docs/development/02-task-board.md"
+            task_board.write_text(
+                "# Task Board\n\n"
+                "| ID | Status | Task | Product | Design | API | Acceptance | Verification |\n"
+                "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | make test |\n"
+                "| TASK-002 | Blocked | Resolve goal edge case | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | Blocked by U-001 |\n",
+                encoding="utf-8",
+            )
+            _append_index(root / "docs/development/README.md", "02-task-board.md")
+
+            report = verify(root)
+
+            self.assertIn("task board row TASK-002 is Blocked but does not link to docs/unresolved.md", report.errors)
+            self.assertIn(
+                {
+                    "code": "task_board_blocked_unresolved_link_missing",
+                    "severity": "error",
+                    "path": "docs/development/02-task-board.md",
+                    "message": "task board row TASK-002 is Blocked but does not link to docs/unresolved.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_allows_blocked_task_with_unresolved_reference(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(root, "docs/product/01-goals.md", "# Goals\n\nSource: [PRD](core/PRD.md).\n")
+            _append_product_meta_chapter(root, "01-goals.md")
+            _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
+            _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+            _write_indexed_doc(root, "docs/tests/01-strategy.md", "# Test Strategy\n")
+            (root / "docs/unresolved.md").write_text(
+                "# Unresolved Items\n\n"
+                "| ID | Domain | Description | Blocking Scope | Owner | Date |\n"
+                "| --- | --- | --- | --- | --- | --- |\n"
+                "| U-001 | Backend | Confirm edge-case owner | non-blocking | TBD | 2026-06-26 |\n",
+                encoding="utf-8",
+            )
+
+            task_board = root / "docs/development/02-task-board.md"
+            task_board.write_text(
+                "# Task Board\n\n"
+                "| ID | Status | Task | Product | Design | API | Acceptance | Verification |\n"
+                "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | make test |\n"
+                "| TASK-002 | Blocked | Resolve goal edge case | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | Blocked by [U-001](../unresolved.md) |\n",
                 encoding="utf-8",
             )
             _append_index(root / "docs/development/README.md", "02-task-board.md")

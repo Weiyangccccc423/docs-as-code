@@ -38,6 +38,7 @@ Treat `unresolved_row_missing_fields` and `unresolved_duplicate_id` as ambiguity
 Treat `roadmap_task_status_conflict` as a delivery-planning blocker.
 Treat `task_board_*` findings as implementation-readiness blockers.
 Treat `task_board_invalid_status` as a task-routing blocker: normalize the row to the standard status vocabulary before implementation.
+Treat `task_board_blocked_unresolved_missing` and `task_board_blocked_unresolved_link_missing` as ambiguity-trace blockers: either unblock the task or cite the unresolved item ID and link `docs/unresolved.md`.
 Treat `task_board_done_evidence_missing` as a completion-evidence blocker: keep the task open or link the `Verification` field to existing local Markdown evidence.
 Treat `task_board_duplicate_id` as a task-routing blocker.
 Treat `task_board_trace_reference_missing` as a source-traceability blocker: repair the task board or create/index the referenced Markdown source before implementation.
@@ -67,6 +68,7 @@ make ci
 - roadmap tables with `ID` and `Status` columns agree with same-ID task board statuses
 - implementation tasks use `ID`, `Status`, `Task`, `Product`, `Design`, `API`, `Acceptance`, and `Verification`
 - task board `Status` values are `Backlog`, `Ready`, `In Progress`, `Blocked`, `Done`, or `Deferred`
+- task board items marked `Blocked` cite an existing unresolved item ID and link `docs/unresolved.md`
 - task board items marked `Done` link to existing local Markdown verification evidence
 - task board IDs are unique
 - task board `Product`, `Design`, `API`, and `Acceptance` fields contain existing local Markdown references
