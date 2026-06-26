@@ -41,6 +41,25 @@ def _backend_external_services_doc() -> str:
     )
 
 
+def _backend_modules_doc() -> str:
+    return (
+        "# Backend Modules\n\n"
+        "## Product Links\n\n"
+        "- [Acceptance](../product/08-acceptance-criteria.md)\n\n"
+        "## Architecture Links\n\n"
+        "- [Architecture context](../architecture/01-context.md)\n\n"
+        "## Modules\n\n"
+        "- Workflow module owns the primary goal-flow runtime behavior.\n\n"
+        "## API Ownership\n\n"
+        "- Workflow API behavior follows [API conventions](../api/00-conventions.md).\n\n"
+        "## Failure Modes\n\n"
+        "- Persistence failures follow [Data model](02-data-model.md).\n"
+        "- Dependency failures follow [External services](03-external-services.md).\n\n"
+        "## Open Decisions\n\n"
+        "- none\n"
+    )
+
+
 def _test_strategy_doc() -> str:
     return (
         "# Test Strategy\n\n"
@@ -641,11 +660,7 @@ class GovernanceCliTest(unittest.TestCase):
                 encoding="utf-8",
             )
             (target / "docs/backend/01-modules.md").write_text(
-                "# Backend Modules\n\n"
-                "API: [API conventions](../api/00-conventions.md).\n"
-                "Data: [Data model](02-data-model.md).\n"
-                "External services: [External services](03-external-services.md).\n"
-                "Acceptance: [Acceptance](../product/08-acceptance-criteria.md).\n",
+                _backend_modules_doc(),
                 encoding="utf-8",
             )
             for filename in ("02-data-model.md", "03-external-services.md"):

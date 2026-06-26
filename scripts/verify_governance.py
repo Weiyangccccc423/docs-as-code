@@ -68,6 +68,14 @@ ARCHITECTURE_QUALITY_ATTRIBUTE_REQUIRED_SECTIONS = {
     "tradeoffs": "Tradeoffs",
 }
 BACKEND_MODULES_REL = Path("docs/backend/01-modules.md")
+BACKEND_MODULE_REQUIRED_SECTIONS = {
+    "product links": "Product Links",
+    "architecture links": "Architecture Links",
+    "modules": "Modules",
+    "api ownership": "API Ownership",
+    "failure modes": "Failure Modes",
+    "open decisions": "Open Decisions",
+}
 BACKEND_DATA_MODEL_REL = Path("docs/backend/02-data-model.md")
 BACKEND_DATA_MODEL_REQUIRED_SECTIONS = {
     "product links": "Product Links",
@@ -664,7 +672,40 @@ def _check_backend_module_traceability(root: Path, report: VerificationReport) -
     if SCAFFOLD_PLACEHOLDER in text:
         return
 
+    sections = _markdown_sections(text)
+    missing = [
+        label
+        for key, label in BACKEND_MODULE_REQUIRED_SECTIONS.items()
+        if key not in sections
+    ]
+    if missing:
+        report.add_error(
+            "backend_module_missing_sections",
+            f"{rel} is missing backend module sections: {', '.join(missing)}",
+            rel,
+        )
+        return
+    empty = [
+        label
+        for key, label in BACKEND_MODULE_REQUIRED_SECTIONS.items()
+        if not _section_has_authored_content(sections[key])
+    ]
+    if empty:
+        report.add_error(
+            "backend_module_empty_sections",
+            f"{rel} has empty backend module sections: {', '.join(empty)}",
+            rel,
+        )
+
     references = _local_markdown_references(root, path, text, include_bare=True, strip_code=False)
+    _check_design_reference_group(
+        report,
+        rel,
+        references,
+        "backend_module_trace_reference_missing",
+        "Architecture",
+        _is_architecture_reference,
+    )
     _check_design_reference_group(report, rel, references, "backend_module_trace_reference_missing", "API", _is_api_reference)
     _check_design_reference_group(
         report,
@@ -1696,6 +1737,11 @@ def _is_product_scope_reference(reference: LocalMarkdownReference) -> bool:
 def _is_api_reference(reference: LocalMarkdownReference) -> bool:
     path = Path(reference.rel)
     return len(path.parts) >= 2 and path.parts[0] == "docs" and path.parts[1] == "api"
+
+
+def _is_architecture_reference(reference: LocalMarkdownReference) -> bool:
+    path = Path(reference.rel)
+    return len(path.parts) >= 2 and path.parts[0] == "docs" and path.parts[1] == "architecture"
 
 
 def _is_ui_reference(reference: LocalMarkdownReference) -> bool:

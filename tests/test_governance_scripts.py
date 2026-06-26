@@ -53,6 +53,7 @@ def _write_frontend_consumer_doc(root: Path) -> None:
 
 def _write_backend_trace_docs(root: Path) -> None:
     _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+    _write_indexed_doc(root, "docs/architecture/01-system-context.md", _architecture_system_context_doc())
     _write_indexed_doc(root, "docs/backend/02-data-model.md", _backend_data_model_doc())
     _write_indexed_doc(root, "docs/backend/03-external-services.md", _backend_external_services_doc())
     _write_acceptance_chapter(root)
@@ -190,13 +191,28 @@ def _backend_external_services_doc(
     )
 
 
-def _backend_modules_doc() -> str:
+def _backend_modules_doc(
+    architecture: str = "[System context](../architecture/01-system-context.md)",
+    api: str = "[API conventions](../api/00-conventions.md)",
+    data_model: str = "[Data model](02-data-model.md)",
+    external_services: str = "[External services](03-external-services.md)",
+    acceptance: str = "[Acceptance](../product/08-acceptance-criteria.md)",
+) -> str:
     return (
         "# Backend Modules\n\n"
-        "API: [API conventions](../api/00-conventions.md).\n"
-        "Data: [Data model](02-data-model.md).\n"
-        "External services: [External services](03-external-services.md).\n"
-        "Acceptance: [Acceptance](../product/08-acceptance-criteria.md).\n"
+        "## Product Links\n\n"
+        f"- {acceptance}\n\n"
+        "## Architecture Links\n\n"
+        f"- {architecture}\n\n"
+        "## Modules\n\n"
+        "- Workflow module owns the primary goal-flow runtime behavior.\n\n"
+        "## API Ownership\n\n"
+        f"- Workflow API behavior follows {api}.\n\n"
+        "## Failure Modes\n\n"
+        f"- Persistence failures follow {data_model}.\n"
+        f"- Dependency failures follow {external_services}.\n\n"
+        "## Open Decisions\n\n"
+        "- none\n"
     )
 
 
@@ -1368,16 +1384,79 @@ class GovernanceScriptsTest(unittest.TestCase):
             _write_indexed_doc(
                 root,
                 "docs/backend/01-modules.md",
-                "# Backend Modules\n\n"
-                "API: [API conventions](../api/00-conventions.md).\n"
-                "Data: [Data model](02-data-model.md).\n"
-                "External services: [External services](03-external-services.md).\n"
-                "Acceptance: [Acceptance](../product/08-acceptance-criteria.md).\n",
+                _backend_modules_doc(),
             )
 
             report = verify(root)
 
             self.assertEqual([], report.errors)
+
+    def test_verify_reports_backend_module_missing_required_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(
+                root,
+                "docs/backend/01-modules.md",
+                "# Backend Modules\n\n"
+                "## Product Links\n\n"
+                "- [Acceptance](../product/08-acceptance-criteria.md)\n",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/backend/01-modules.md is missing backend module sections: "
+                "Architecture Links, Modules, API Ownership, Failure Modes, Open Decisions",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "backend_module_missing_sections",
+                    "severity": "error",
+                    "path": "docs/backend/01-modules.md",
+                    "message": "docs/backend/01-modules.md is missing backend module sections: "
+                    "Architecture Links, Modules, API Ownership, Failure Modes, Open Decisions",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_backend_module_empty_required_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_backend_trace_docs(root)
+            _write_indexed_doc(
+                root,
+                "docs/backend/01-modules.md",
+                _backend_modules_doc().replace(
+                    "## Failure Modes\n\n"
+                    "- Persistence failures follow [Data model](02-data-model.md).\n"
+                    "- Dependency failures follow [External services](03-external-services.md).\n\n",
+                    "## Failure Modes\n\n- TBD\n\n",
+                ),
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/backend/01-modules.md has empty backend module sections: Failure Modes",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "backend_module_empty_sections",
+                    "severity": "error",
+                    "path": "docs/backend/01-modules.md",
+                    "message": "docs/backend/01-modules.md has empty backend module sections: Failure Modes",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
 
     def test_verify_reports_backend_module_missing_trace_references(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1388,13 +1467,19 @@ class GovernanceScriptsTest(unittest.TestCase):
             _write_indexed_doc(
                 root,
                 "docs/backend/01-modules.md",
-                "# Backend Modules\n\n"
-                "The service module owns the goal flow runtime behavior.\n",
+                _backend_modules_doc(
+                    architecture="System context",
+                    api="API conventions",
+                    data_model="Data model",
+                    external_services="External services",
+                    acceptance="Acceptance criteria",
+                ),
             )
 
             report = verify(root)
 
             expected = [
+                "docs/backend/01-modules.md must reference existing Architecture docs",
                 "docs/backend/01-modules.md must reference existing API docs",
                 "docs/backend/01-modules.md must reference docs/backend/02-data-model.md",
                 "docs/backend/01-modules.md must reference docs/backend/03-external-services.md",
@@ -1407,7 +1492,7 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "code": "backend_module_trace_reference_missing",
                     "severity": "error",
                     "path": "docs/backend/01-modules.md",
-                    "message": "docs/backend/01-modules.md must reference existing API docs",
+                    "message": "docs/backend/01-modules.md must reference existing Architecture docs",
                 },
                 [finding.to_dict() for finding in report.findings],
             )
@@ -1421,16 +1506,16 @@ class GovernanceScriptsTest(unittest.TestCase):
             _write_indexed_doc(
                 root,
                 "docs/backend/01-modules.md",
-                "# Backend Modules\n\n"
-                "API: [Missing API](../api/missing.md).\n"
-                "Data: [Data model](02-data-model.md).\n"
-                "External services: [External services](03-external-services.md).\n"
-                "Acceptance: [Acceptance](../product/08-acceptance-criteria.md).\n",
+                _backend_modules_doc(
+                    architecture="[Missing architecture](../architecture/missing.md)",
+                    api="[Missing API](../api/missing.md)",
+                ),
             )
 
             report = verify(root)
 
             expected = [
+                "docs/backend/01-modules.md references missing Architecture target: docs/architecture/missing.md",
                 "docs/backend/01-modules.md references missing API target: docs/api/missing.md",
                 "docs/backend/01-modules.md references missing Data Model target: docs/backend/02-data-model.md",
                 "docs/backend/01-modules.md references missing External Services target: docs/backend/03-external-services.md",
@@ -1443,7 +1528,7 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "code": "backend_module_trace_reference_missing",
                     "severity": "error",
                     "path": "docs/backend/01-modules.md",
-                    "message": "docs/backend/01-modules.md references missing API target: docs/api/missing.md",
+                    "message": "docs/backend/01-modules.md references missing Architecture target: docs/architecture/missing.md",
                 },
                 [finding.to_dict() for finding in report.findings],
             )
@@ -1456,6 +1541,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             bootstrap(root, product)
             _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+            _write_indexed_doc(root, "docs/architecture/01-system-context.md", _architecture_system_context_doc())
             _write_indexed_doc(root, "docs/backend/01-modules.md", _backend_modules_doc())
             _write_indexed_doc(root, "docs/backend/02-data-model.md", _backend_data_model_doc())
             _write_indexed_doc(root, "docs/backend/03-external-services.md", _backend_external_services_doc())
@@ -1505,6 +1591,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             bootstrap(root, product)
             _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+            _write_indexed_doc(root, "docs/architecture/01-system-context.md", _architecture_system_context_doc())
             _write_indexed_doc(root, "docs/backend/01-modules.md", _backend_modules_doc())
             _write_indexed_doc(root, "docs/backend/03-external-services.md", _backend_external_services_doc())
             _write_indexed_doc(
@@ -1603,6 +1690,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             bootstrap(root, product)
             _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+            _write_indexed_doc(root, "docs/architecture/01-system-context.md", _architecture_system_context_doc())
             _write_indexed_doc(root, "docs/backend/01-modules.md", _backend_modules_doc())
             _write_indexed_doc(root, "docs/backend/02-data-model.md", _backend_data_model_doc())
             _write_indexed_doc(root, "docs/backend/03-external-services.md", _backend_external_services_doc())
@@ -1652,6 +1740,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             bootstrap(root, product)
             _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+            _write_indexed_doc(root, "docs/architecture/01-system-context.md", _architecture_system_context_doc())
             _write_indexed_doc(root, "docs/backend/01-modules.md", _backend_modules_doc())
             _write_indexed_doc(root, "docs/backend/02-data-model.md", _backend_data_model_doc())
             _write_indexed_doc(
