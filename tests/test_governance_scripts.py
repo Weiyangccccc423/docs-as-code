@@ -35,6 +35,28 @@ def _write_acceptance_chapter(root: Path) -> None:
     _write_product_chapter(root, "08-acceptance-criteria.md", "Acceptance Criteria")
 
 
+def _endpoint_contract_doc(title: str) -> str:
+    return (
+        f"# {title}\n\n"
+        "## Method and Path\n\n"
+        "GET /example\n\n"
+        "## Auth\n\n"
+        "Required.\n\n"
+        "## Idempotency\n\n"
+        "Safe retry.\n\n"
+        "## Request Fields\n\n"
+        "- none\n\n"
+        "## Response Fields\n\n"
+        "- id\n\n"
+        "## Error Codes\n\n"
+        "- E_EXAMPLE\n\n"
+        "## Upstream Links\n\n"
+        "- TBD\n\n"
+        "## Frontend Consumers\n\n"
+        "- TBD\n"
+    )
+
+
 class GovernanceScriptsTest(unittest.TestCase):
     def test_bootstrap_archives_markdown_product_doc_and_passes_verification(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -666,12 +688,53 @@ class GovernanceScriptsTest(unittest.TestCase):
                 "- `02-list-users.md` - list users endpoint\n",
                 encoding="utf-8",
             )
-            (endpoint_readme.parent / "01-create-user.md").write_text("# Create User\n", encoding="utf-8")
-            (endpoint_readme.parent / "02-list-users.md").write_text("# List Users\n", encoding="utf-8")
+            (endpoint_readme.parent / "01-create-user.md").write_text(
+                _endpoint_contract_doc("Create User"),
+                encoding="utf-8",
+            )
+            (endpoint_readme.parent / "02-list-users.md").write_text(
+                _endpoint_contract_doc("List Users"),
+                encoding="utf-8",
+            )
 
             report = verify(root)
 
             self.assertEqual([], report.errors)
+
+    def test_verify_reports_api_endpoint_missing_required_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            endpoint_readme = root / "docs/api/endpoints/README.md"
+            endpoint_readme.parent.mkdir(parents=True, exist_ok=True)
+            endpoint_readme.write_text("# API Endpoints\n\n- `01-create-user.md` - create user endpoint\n", encoding="utf-8")
+            (endpoint_readme.parent / "01-create-user.md").write_text(
+                "# Create User\n\n"
+                "## Method and Path\n\n"
+                "POST /users\n",
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/api/endpoints/01-create-user.md is missing endpoint contract sections: "
+                "Auth, Idempotency, Request Fields, Response Fields, Error Codes, Upstream Links, Frontend Consumers",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "api_endpoint_missing_sections",
+                    "severity": "error",
+                    "path": "docs/api/endpoints/01-create-user.md",
+                    "message": "docs/api/endpoints/01-create-user.md is missing endpoint contract sections: "
+                    "Auth, Idempotency, Request Fields, Response Fields, Error Codes, Upstream Links, Frontend Consumers",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
 
     def test_verify_reports_invalid_api_endpoint_filename(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -717,7 +780,10 @@ class GovernanceScriptsTest(unittest.TestCase):
                 encoding="utf-8",
             )
             for filename in ("01-create-user.md", "01-list-users.md"):
-                (endpoint_readme.parent / filename).write_text("# Endpoint\n", encoding="utf-8")
+                (endpoint_readme.parent / filename).write_text(
+                    _endpoint_contract_doc("Endpoint"),
+                    encoding="utf-8",
+                )
 
             report = verify(root)
 

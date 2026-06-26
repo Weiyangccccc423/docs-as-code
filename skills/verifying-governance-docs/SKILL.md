@@ -36,6 +36,7 @@ Treat `workflow_pack_file_hash_mismatch` and `workflow_pack_file_missing` as wor
 Treat `docs_local_markdown_link_missing` as a document-integrity blocker: repair the link or create/index the referenced Markdown file.
 Treat `product_chapter_invalid_filename`, `product_chapter_duplicate_prefix`, `product_chapter_missing_prd_link`, and `product_meta_missing_chapter_link` as product-structuring blockers.
 Treat `api_endpoint_invalid_filename` and `api_endpoint_duplicate_prefix` as API-contract routing blockers: rename endpoint files under `docs/api/endpoints/` to unique `NN-<slug>.md` names and update indexes/links.
+Treat `api_endpoint_missing_sections` as an API-contract completeness blocker: add the required endpoint contract headings before implementation handoff.
 Treat `glossary_*` findings as product-terminology blockers: fill required fields, remove duplicate terms, or link `Source` to existing local Markdown.
 Treat `unresolved_row_missing_fields` and `unresolved_duplicate_id` as ambiguity-registry blockers.
 Treat `roadmap_task_status_conflict` as a delivery-planning blocker.
@@ -70,6 +71,7 @@ make ci
 - a dedicated `NN-*acceptance*.md` product chapter exists before design derivation
 - product chapters link back to `core/PRD.md`, and `product-meta.md` links to every product chapter
 - API endpoint contract files under `docs/api/endpoints/` use `NN-<slug>.md` with unique `NN` prefixes
+- API endpoint contract files include method/path, auth, idempotency, request, response, errors, upstream links, and frontend consumers sections
 - glossary rows have unique `Term` values and filled `Meaning` and `Source` fields; `Source` links to existing local Markdown
 - unresolved rows have unique IDs and filled `Domain` and `Description`
 - unresolved items use `none`, `-`, `n/a`, `non-blocking`, or `resolved` for non-blocking scope; any other `Blocking Scope` fails verification

@@ -38,6 +38,16 @@ WORKFLOW_PACK_SNAPSHOT_ROOT = "docs/agent-workflow/workflow-pack"
 ROADMAP_REL = Path("docs/development/01-roadmap.md")
 PRODUCT_CHAPTER_RE = re.compile(r"^(?P<prefix>[0-9]{2})-[a-z0-9][a-z0-9-]*\.md$")
 API_ENDPOINT_CONTRACT_RE = re.compile(r"^(?P<prefix>[0-9]{2})-[a-z0-9][a-z0-9-]*\.md$")
+API_ENDPOINT_REQUIRED_SECTIONS = {
+    "method and path": "Method and Path",
+    "auth": "Auth",
+    "idempotency": "Idempotency",
+    "request fields": "Request Fields",
+    "response fields": "Response Fields",
+    "error codes": "Error Codes",
+    "upstream links": "Upstream Links",
+    "frontend consumers": "Frontend Consumers",
+}
 TASK_BOARD_REL = Path("docs/development/02-task-board.md")
 TASK_BOARD_REQUIRED_COLUMNS = {
     "id": "ID",
@@ -65,6 +75,7 @@ TASK_BOARD_BLOCKED_STATUSES = {"blocked"}
 TASK_BOARD_EMPTY_VALUES = {"", "-", "tbd", "todo", "n/a", "na", "none"}
 MARKDOWN_LINK_RE = re.compile(r"(?<!!)\[[^\]]*]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 MARKDOWN_REFERENCE_DEFINITION_RE = re.compile(r"^\s{0,3}\[[^\]]+]:\s*(\S+)", re.MULTILINE)
+MARKDOWN_HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$", re.MULTILINE)
 BARE_MARKDOWN_REFERENCE_RE = re.compile(
     r"((?:\.{1,2}/)?docs/[^\s`<>\]),;]+\.md(?:#[^\s`<>\]),;]+)?|"
     r"(?:\.{1,2}/)[^\s`<>\]),;]+\.md(?:#[^\s`<>\]),;]+)?)"
@@ -337,6 +348,7 @@ def _check_api_endpoint_contract_filenames(root: Path, report: VerificationRepor
             )
             continue
         prefix_paths.setdefault(match.group("prefix"), []).append(path)
+        _check_api_endpoint_contract_sections(root, path, report)
     for prefix, paths in prefix_paths.items():
         if len(paths) <= 1:
             continue
@@ -345,6 +357,26 @@ def _check_api_endpoint_contract_filenames(root: Path, report: VerificationRepor
             "api_endpoint_duplicate_prefix",
             f"duplicate API endpoint contract prefix {prefix}: {', '.join(rels)}",
             rels[-1],
+        )
+
+
+def _check_api_endpoint_contract_sections(root: Path, path: Path, report: VerificationReport) -> None:
+    rel = path.relative_to(root).as_posix()
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return
+    headings = _markdown_heading_labels(text)
+    missing = [
+        label
+        for key, label in API_ENDPOINT_REQUIRED_SECTIONS.items()
+        if key not in headings
+    ]
+    if missing:
+        report.add_error(
+            "api_endpoint_missing_sections",
+            f"{rel} is missing endpoint contract sections: {', '.join(missing)}",
+            rel,
         )
 
 
@@ -950,6 +982,10 @@ def _strip_markdown_code(text: str) -> str:
     text = re.sub(r"(?s)```.*?```", "", text)
     text = re.sub(r"(?s)~~~.*?~~~", "", text)
     return re.sub(r"`[^`\n]*`", "", text)
+
+
+def _markdown_heading_labels(text: str) -> set[str]:
+    return {_normalize_cell(match.group(1)) for match in MARKDOWN_HEADING_RE.finditer(text)}
 
 
 def _is_external_reference_target(target: str) -> bool:

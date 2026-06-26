@@ -17,18 +17,18 @@ API contracts are shared truth between frontend, backend, tests, and agents.
 
 Endpoint files under `docs/api/endpoints/` must use `NN-<slug>.md` with unique `NN` prefixes.
 
-## Endpoint Skeleton
+## Endpoint Sections
 
-Each endpoint must define:
+Each endpoint file must include these headings:
 
-- method and path
-- auth
-- idempotency
-- request fields
-- response fields
-- error codes
-- upstream product/design links
-- frontend consumer links
+- `## Method and Path`
+- `## Auth`
+- `## Idempotency`
+- `## Request Fields`
+- `## Response Fields`
+- `## Error Codes`
+- `## Upstream Links`
+- `## Frontend Consumers`
 
 ## Procedure
 
