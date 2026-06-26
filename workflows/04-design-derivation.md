@@ -84,7 +84,7 @@ Design documents sufficient for creating a task board without guessing product m
 - API endpoint `Error Codes` sections reference `docs/api/error-codes.md`.
 - API endpoint `Upstream Links` sections reference existing local source Markdown.
 - API endpoint `Frontend Consumers` sections reference existing local UI or frontend API-consumption Markdown.
-- `docs/architecture/01-system-context.md` links to product scope and product acceptance criteria.
+- `docs/architecture/01-system-context.md` has non-placeholder Product Links, Actors, External Systems, Trust Boundaries, and Open Decisions sections, and links to product scope plus product acceptance criteria.
 - `docs/architecture/02-containers.md` links to `docs/architecture/01-system-context.md` and product acceptance criteria.
 - `docs/architecture/03-quality-attributes.md` has non-placeholder Product Links, Availability, Performance, Security, Observability, and Tradeoffs sections, and links to containers plus product acceptance criteria.
 - Backend modules link to API, schema, external services, and acceptance criteria.

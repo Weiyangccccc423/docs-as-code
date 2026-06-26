@@ -93,7 +93,9 @@ def _architecture_system_context_doc(
         "## External Systems\n\n"
         "- none\n\n"
         "## Trust Boundaries\n\n"
-        "- User browser to application boundary\n"
+        "- User browser to application boundary\n\n"
+        "## Open Decisions\n\n"
+        "- none\n"
     )
 
 
@@ -2159,7 +2161,7 @@ class GovernanceScriptsTest(unittest.TestCase):
 
             self.assertEqual([], report.errors)
 
-    def test_verify_reports_architecture_system_context_missing_trace_references(self) -> None:
+    def test_verify_reports_architecture_system_context_missing_required_sections(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             product = root / "product.md"
@@ -2169,7 +2171,71 @@ class GovernanceScriptsTest(unittest.TestCase):
                 root,
                 "docs/architecture/01-system-context.md",
                 "# System Context\n\n"
-                "Actors, external systems, and boundaries for the goal flow.\n",
+                "## Product Links\n\n"
+                "- [PRD](../product/core/PRD.md)\n",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/architecture/01-system-context.md is missing system context sections: "
+                "Actors, External Systems, Trust Boundaries, Open Decisions",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "architecture_system_context_missing_sections",
+                    "severity": "error",
+                    "path": "docs/architecture/01-system-context.md",
+                    "message": "docs/architecture/01-system-context.md is missing system context sections: "
+                    "Actors, External Systems, Trust Boundaries, Open Decisions",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_architecture_system_context_empty_required_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(
+                root,
+                "docs/architecture/01-system-context.md",
+                _architecture_system_context_doc().replace(
+                    "## Actors\n\n"
+                    "- Primary user\n\n",
+                    "## Actors\n\n- TBD\n\n",
+                ),
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/architecture/01-system-context.md has empty system context sections: Actors",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "architecture_system_context_empty_sections",
+                    "severity": "error",
+                    "path": "docs/architecture/01-system-context.md",
+                    "message": "docs/architecture/01-system-context.md has empty system context sections: Actors",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_architecture_system_context_missing_trace_references(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(
+                root,
+                "docs/architecture/01-system-context.md",
+                _architecture_system_context_doc("Product scope and acceptance criteria"),
             )
 
             report = verify(root)

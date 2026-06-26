@@ -57,6 +57,13 @@ API_ENDPOINT_REQUIRED_SECTIONS = {
 }
 API_ERROR_CODES_REL = Path("docs/api/error-codes.md")
 ARCHITECTURE_SYSTEM_CONTEXT_REL = Path("docs/architecture/01-system-context.md")
+ARCHITECTURE_SYSTEM_CONTEXT_REQUIRED_SECTIONS = {
+    "product links": "Product Links",
+    "actors": "Actors",
+    "external systems": "External Systems",
+    "trust boundaries": "Trust Boundaries",
+    "open decisions": "Open Decisions",
+}
 ARCHITECTURE_CONTAINERS_REL = Path("docs/architecture/02-containers.md")
 ARCHITECTURE_QUALITY_ATTRIBUTES_REL = Path("docs/architecture/03-quality-attributes.md")
 ARCHITECTURE_QUALITY_ATTRIBUTE_REQUIRED_SECTIONS = {
@@ -559,6 +566,31 @@ def _check_architecture_system_context_traceability(root: Path, report: Verifica
         return
     if SCAFFOLD_PLACEHOLDER in text:
         return
+
+    sections = _markdown_sections(text)
+    missing = [
+        label
+        for key, label in ARCHITECTURE_SYSTEM_CONTEXT_REQUIRED_SECTIONS.items()
+        if key not in sections
+    ]
+    if missing:
+        report.add_error(
+            "architecture_system_context_missing_sections",
+            f"{rel} is missing system context sections: {', '.join(missing)}",
+            rel,
+        )
+        return
+    empty = [
+        label
+        for key, label in ARCHITECTURE_SYSTEM_CONTEXT_REQUIRED_SECTIONS.items()
+        if not _section_has_authored_content(sections[key])
+    ]
+    if empty:
+        report.add_error(
+            "architecture_system_context_empty_sections",
+            f"{rel} has empty system context sections: {', '.join(empty)}",
+            rel,
+        )
 
     references = _local_markdown_references(root, path, text, include_bare=True, strip_code=False)
     _check_design_reference_group(
