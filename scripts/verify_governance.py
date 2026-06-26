@@ -53,6 +53,8 @@ API_ERROR_CODES_REL = Path("docs/api/error-codes.md")
 BACKEND_MODULES_REL = Path("docs/backend/01-modules.md")
 BACKEND_DATA_MODEL_REL = Path("docs/backend/02-data-model.md")
 BACKEND_EXTERNAL_SERVICES_REL = Path("docs/backend/03-external-services.md")
+FRONTEND_MODULES_REL = Path("docs/frontend/01-modules.md")
+FRONTEND_API_CONSUMPTION_REL = Path("docs/frontend/02-api-consumption.md")
 HTTP_METHOD_PATH_RE = re.compile(
     r"(?<![A-Za-z])(?:GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD)\s+/[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%{}-]*",
     re.IGNORECASE,
@@ -180,6 +182,7 @@ def verify(root: Path) -> VerificationReport:
     _check_product_chapter_links(root, report)
     _check_api_endpoint_contract_filenames(root, report)
     _check_backend_module_traceability(root, report)
+    _check_frontend_module_traceability(root, report)
     _check_unresolved_items(root, report)
     _check_glossary_items(root, report)
     _check_readme_indexes(root, report)
@@ -476,30 +479,74 @@ def _check_backend_module_traceability(root: Path, report: VerificationReport) -
         return
 
     references = _local_markdown_references(root, path, text, include_bare=True, strip_code=False)
-    _check_backend_reference_group(report, rel, references, "API", _is_api_reference)
-    _check_backend_reference_group(
+    _check_design_reference_group(report, rel, references, "backend_module_trace_reference_missing", "API", _is_api_reference)
+    _check_design_reference_group(
         report,
         rel,
         references,
+        "backend_module_trace_reference_missing",
         "Data Model",
         lambda reference: reference.rel == BACKEND_DATA_MODEL_REL.as_posix(),
         required_rel=BACKEND_DATA_MODEL_REL.as_posix(),
     )
-    _check_backend_reference_group(
+    _check_design_reference_group(
         report,
         rel,
         references,
+        "backend_module_trace_reference_missing",
         "External Services",
         lambda reference: reference.rel == BACKEND_EXTERNAL_SERVICES_REL.as_posix(),
         required_rel=BACKEND_EXTERNAL_SERVICES_REL.as_posix(),
     )
-    _check_backend_reference_group(report, rel, references, "Acceptance", _is_product_acceptance_reference_path)
+    _check_design_reference_group(
+        report,
+        rel,
+        references,
+        "backend_module_trace_reference_missing",
+        "Acceptance",
+        _is_product_acceptance_reference_path,
+    )
 
 
-def _check_backend_reference_group(
+def _check_frontend_module_traceability(root: Path, report: VerificationReport) -> None:
+    path = root / FRONTEND_MODULES_REL
+    rel = FRONTEND_MODULES_REL.as_posix()
+    if not path.exists():
+        return
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return
+    if SCAFFOLD_PLACEHOLDER in text:
+        return
+
+    references = _local_markdown_references(root, path, text, include_bare=True, strip_code=False)
+    _check_design_reference_group(report, rel, references, "frontend_module_trace_reference_missing", "UI", _is_ui_reference)
+    _check_design_reference_group(report, rel, references, "frontend_module_trace_reference_missing", "API", _is_api_reference)
+    _check_design_reference_group(
+        report,
+        rel,
+        references,
+        "frontend_module_trace_reference_missing",
+        "API Consumption",
+        lambda reference: reference.rel == FRONTEND_API_CONSUMPTION_REL.as_posix(),
+        required_rel=FRONTEND_API_CONSUMPTION_REL.as_posix(),
+    )
+    _check_design_reference_group(
+        report,
+        rel,
+        references,
+        "frontend_module_trace_reference_missing",
+        "Acceptance",
+        _is_product_acceptance_reference_path,
+    )
+
+
+def _check_design_reference_group(
     report: VerificationReport,
     source_rel: str,
     references: list[LocalMarkdownReference],
+    code: str,
     label: str,
     predicate: Callable[[LocalMarkdownReference], bool],
     *,
@@ -513,12 +560,12 @@ def _check_backend_reference_group(
             message = f"{source_rel} must reference a product acceptance chapter"
         else:
             message = f"{source_rel} must reference existing {label} docs"
-        report.add_error("backend_module_trace_reference_missing", message, source_rel)
+        report.add_error(code, message, source_rel)
         return
     for reference in matching:
         if not reference.exists:
             report.add_error(
-                "backend_module_trace_reference_missing",
+                code,
                 f"{source_rel} references missing {label} target: {reference.rel}",
                 source_rel,
             )
@@ -993,6 +1040,11 @@ def _is_product_acceptance_reference_path(reference: LocalMarkdownReference) -> 
 def _is_api_reference(reference: LocalMarkdownReference) -> bool:
     path = Path(reference.rel)
     return len(path.parts) >= 2 and path.parts[0] == "docs" and path.parts[1] == "api"
+
+
+def _is_ui_reference(reference: LocalMarkdownReference) -> bool:
+    path = Path(reference.rel)
+    return len(path.parts) >= 2 and path.parts[0] == "docs" and path.parts[1] == "ui"
 
 
 def _task_board_done_evidence_errors(root: Path, row: dict[str, str], task_id: str) -> list[str]:

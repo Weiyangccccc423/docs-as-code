@@ -85,6 +85,7 @@ Design documents sufficient for creating a task board without guessing product m
 - Backend modules link to API, schema, external services, and acceptance criteria.
 - `docs/backend/01-modules.md` links to API docs, `docs/backend/02-data-model.md`, `docs/backend/03-external-services.md`, and product acceptance criteria.
 - Frontend modules link to UI, API, state, and acceptance criteria.
+- `docs/frontend/01-modules.md` links to UI docs, API docs, `docs/frontend/02-api-consumption.md`, and product acceptance criteria.
 - ADRs have context, decision, consequences, and references.
 - Each non-template Markdown document is indexed by the README in the same directory.
 - No document contains `governance:scaffold-placeholder`.

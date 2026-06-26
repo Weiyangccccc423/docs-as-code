@@ -54,6 +54,13 @@ def _write_backend_trace_docs(root: Path) -> None:
     _write_acceptance_chapter(root)
 
 
+def _write_frontend_trace_docs(root: Path) -> None:
+    _write_indexed_doc(root, "docs/ui/01-interaction-model.md", "# Interaction Model\n")
+    _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+    _write_indexed_doc(root, "docs/frontend/02-api-consumption.md", "# API Consumption\n")
+    _write_acceptance_chapter(root)
+
+
 def _endpoint_contract_doc(
     title: str,
     upstream_links: str = "- [Product goals](../../product/01-goals.md)",
@@ -1211,6 +1218,96 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "severity": "error",
                     "path": "docs/backend/01-modules.md",
                     "message": "docs/backend/01-modules.md references missing API target: docs/api/missing.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_allows_traceable_frontend_module_design(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_frontend_trace_docs(root)
+            _write_indexed_doc(
+                root,
+                "docs/frontend/01-modules.md",
+                "# Frontend Modules\n\n"
+                "UI: [Interaction model](../ui/01-interaction-model.md).\n"
+                "API: [API conventions](../api/00-conventions.md).\n"
+                "State and API consumption: [API consumption](02-api-consumption.md).\n"
+                "Acceptance: [Acceptance](../product/08-acceptance-criteria.md).\n",
+            )
+
+            report = verify(root)
+
+            self.assertEqual([], report.errors)
+
+    def test_verify_reports_frontend_module_missing_trace_references(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(
+                root,
+                "docs/frontend/01-modules.md",
+                "# Frontend Modules\n\n"
+                "The web module owns the primary goal flow screens.\n",
+            )
+
+            report = verify(root)
+
+            expected = [
+                "docs/frontend/01-modules.md must reference existing UI docs",
+                "docs/frontend/01-modules.md must reference existing API docs",
+                "docs/frontend/01-modules.md must reference docs/frontend/02-api-consumption.md",
+                "docs/frontend/01-modules.md must reference a product acceptance chapter",
+            ]
+            for message in expected:
+                self.assertIn(message, report.errors)
+            self.assertIn(
+                {
+                    "code": "frontend_module_trace_reference_missing",
+                    "severity": "error",
+                    "path": "docs/frontend/01-modules.md",
+                    "message": "docs/frontend/01-modules.md must reference existing UI docs",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_frontend_module_missing_trace_targets(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(
+                root,
+                "docs/frontend/01-modules.md",
+                "# Frontend Modules\n\n"
+                "UI: [Missing UI](../ui/missing.md).\n"
+                "API: [Missing API](../api/missing.md).\n"
+                "State and API consumption: [API consumption](02-api-consumption.md).\n"
+                "Acceptance: [Acceptance](../product/08-acceptance-criteria.md).\n",
+            )
+
+            report = verify(root)
+
+            expected = [
+                "docs/frontend/01-modules.md references missing UI target: docs/ui/missing.md",
+                "docs/frontend/01-modules.md references missing API target: docs/api/missing.md",
+                "docs/frontend/01-modules.md references missing API Consumption target: docs/frontend/02-api-consumption.md",
+                "docs/frontend/01-modules.md references missing Acceptance target: docs/product/08-acceptance-criteria.md",
+            ]
+            for message in expected:
+                self.assertIn(message, report.errors)
+            self.assertIn(
+                {
+                    "code": "frontend_module_trace_reference_missing",
+                    "severity": "error",
+                    "path": "docs/frontend/01-modules.md",
+                    "message": "docs/frontend/01-modules.md references missing UI target: docs/ui/missing.md",
                 },
                 [finding.to_dict() for finding in report.findings],
             )
