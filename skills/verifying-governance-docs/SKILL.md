@@ -15,6 +15,7 @@ bin/governance env --strict --repair --target <target>
 bin/governance gate product-structuring <target>
 bin/governance gate design-derivation <target>
 bin/governance gate implementation <target>
+bin/governance advance implementation <target>
 ```
 
 For agent automation, use JSON and branch on `ok`:
@@ -23,10 +24,12 @@ For agent automation, use JSON and branch on `ok`:
 bin/governance verify <target> --json
 bin/governance env --strict --repair --target <target> --json
 bin/governance gate implementation <target> --json
+bin/governance advance implementation <target> --json
 ```
 
 Use `verify --json` `findings[].code` and `findings[].path` for deterministic repair routing. Use `errors` and `warnings` only for human-facing summaries.
 Use `gate --json` `requirements[].code` for phase-transition repair routing; `verification.findings[]` contains the embedded structural verification result.
+Use `advance --json` when the phase should be recorded in `.governance/state.json`.
 Treat `governance_scaffold_placeholder` as a design-authoring blocker, not a formatting issue.
 Treat `workflow_pack_file_hash_mismatch` and `workflow_pack_file_missing` as workflow-pack integrity blockers.
 

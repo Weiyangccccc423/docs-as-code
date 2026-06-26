@@ -23,7 +23,7 @@ Load according to the design track:
 1. Confirm product structure is ready for design derivation:
 
    ```bash
-   bin/governance gate design-derivation <target> --json
+   bin/governance advance design-derivation <target> --json
    ```
 
 2. Create the standard design document scaffold when files are missing:

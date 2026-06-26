@@ -22,7 +22,7 @@ Read `references/backend-design-checklist.md` when the module touches data, asyn
 1. Run the design gate:
 
    ```bash
-   bin/governance gate design-derivation <target> --json
+   bin/governance advance design-derivation <target> --json
    ```
 
    Stop on `ok: false` and repair by `requirements[].code`.

@@ -16,6 +16,7 @@ from check_env import (
     write_repair_plan,
 )
 from gates import GATE_NAMES, evaluate_gate
+from phases import PHASE_NAMES, advance_phase
 from scaffold import scaffold_design
 from state import load_state, merge_state
 from verify_governance import verify
@@ -261,6 +262,26 @@ def _cmd_scaffold(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_advance(args: argparse.Namespace) -> int:
+    target = Path(args.target)
+    result = advance_phase(target, args.phase)
+    if args.json:
+        _print_json(result.to_dict())
+        return 0 if result.ok else 1
+    if result.ok:
+        print(f"Advanced phase: {args.phase}")
+        return 0
+    print(f"Advance failed: {args.phase}")
+    for error in result.errors:
+        print(f"- ERROR: {error}")
+    for requirement in result.gate.get("requirements", []):
+        if isinstance(requirement, dict) and not requirement.get("ok"):
+            path = requirement.get("path")
+            suffix = f" ({path})" if path else ""
+            print(f"- {requirement.get('code')}: {requirement.get('message')}{suffix}")
+    return 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="docs-as-code governance workflow CLI")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -303,6 +324,12 @@ def build_parser() -> argparse.ArgumentParser:
     scaffold.add_argument("target", nargs="?", default=".")
     scaffold.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     scaffold.set_defaults(func=_cmd_scaffold)
+
+    advance = sub.add_parser("advance", help="Advance workflow phase after the matching gate passes.")
+    advance.add_argument("phase", choices=PHASE_NAMES)
+    advance.add_argument("target", nargs="?", default=".")
+    advance.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    advance.set_defaults(func=_cmd_advance)
 
     return parser
 

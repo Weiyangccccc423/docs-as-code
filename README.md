@@ -47,11 +47,12 @@ bin/governance env --repair --target /path/to/new-project --json
 `verify --json` includes human-compatible `errors` and `warnings` plus structured `findings` with `code`, `severity`, `path`, and `message`.
 
 Use `gate --json` before phase transitions. Supported gates are `product-structuring`, `design-derivation`, and `implementation`.
+Use `advance --json` when actually moving phases; it runs the matching gate and records `phase_history` in `.governance/state.json`.
 
 Use `scaffold design --json` after the design-derivation gate to create standard architecture, API, UI, backend, frontend, test, and development document shells. Scaffolded files contain `governance:scaffold-placeholder`; verification fails until the placeholders are replaced with product-derived content.
 
 ```bash
-bin/governance gate design-derivation /path/to/new-project --json
+bin/governance advance design-derivation /path/to/new-project --json
 bin/governance scaffold design /path/to/new-project --json
 ```
 

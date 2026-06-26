@@ -22,7 +22,7 @@ Turn a preserved PRD into navigable product truth without changing its meaning.
 1. Run the product gate:
 
    ```bash
-   bin/governance gate product-structuring <target> --json
+   bin/governance advance product-structuring <target> --json
    ```
 
    Stop on `ok: false` and repair by `requirements[].code`.

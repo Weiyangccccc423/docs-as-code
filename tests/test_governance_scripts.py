@@ -122,6 +122,7 @@ class GovernanceScriptsTest(unittest.TestCase):
 
             self.assertTrue((root / "bin/governance").exists())
             self.assertTrue((root / "scripts/governance_cli.py").exists())
+            self.assertTrue((root / "scripts/phases.py").exists())
             self.assertTrue((root / "scripts/scaffold.py").exists())
             self.assertTrue((root / "scripts/verify_governance.py").exists())
             self.assertTrue((root / "docs/agent-workflow/workflow-pack/manifest.json").exists())

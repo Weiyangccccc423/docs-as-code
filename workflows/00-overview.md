@@ -46,6 +46,14 @@ bin/governance gate design-derivation <target> --json
 bin/governance gate implementation <target> --json
 ```
 
+When the phase is actually changing, prefer `advance`; it runs the matching gate and records the transition in `.governance/state.json`:
+
+```bash
+bin/governance advance product-structuring <target> --json
+bin/governance advance design-derivation <target> --json
+bin/governance advance implementation <target> --json
+```
+
 After the design-derivation gate passes, use the deterministic design scaffold when standard design files are missing:
 
 ```bash

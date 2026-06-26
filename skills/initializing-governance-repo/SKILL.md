@@ -38,7 +38,7 @@ Create the minimum structure needed for reliable docs-as-code work.
 5. Check the first downstream phase gate:
 
    ```bash
-   bin/governance gate product-structuring <target> --json
+   bin/governance advance product-structuring <target> --json
    ```
 
    Stop on `ok: false` and repair by `requirements[].code`.

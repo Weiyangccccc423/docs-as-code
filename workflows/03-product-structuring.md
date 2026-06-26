@@ -20,7 +20,7 @@ Load:
 1. Confirm the product is ready for structuring:
 
    ```bash
-   bin/governance gate product-structuring <target> --json
+   bin/governance advance product-structuring <target> --json
    ```
 
 2. Build a product chapter map in `product-meta.md`.
