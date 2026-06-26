@@ -48,6 +48,10 @@ API_ENDPOINT_REQUIRED_SECTIONS = {
     "upstream links": "Upstream Links",
     "frontend consumers": "Frontend Consumers",
 }
+HTTP_METHOD_PATH_RE = re.compile(
+    r"(?<![A-Za-z])(?:GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD)\s+/[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%{}-]*",
+    re.IGNORECASE,
+)
 TASK_BOARD_REL = Path("docs/development/02-task-board.md")
 TASK_BOARD_REQUIRED_COLUMNS = {
     "id": "ID",
@@ -389,6 +393,13 @@ def _check_api_endpoint_contract_sections(root: Path, path: Path, report: Verifi
         report.add_error(
             "api_endpoint_empty_sections",
             f"{rel} has empty endpoint contract sections: {', '.join(empty)}",
+            rel,
+        )
+    method_and_path = sections["method and path"]
+    if _section_has_authored_content(method_and_path) and not _api_endpoint_method_path_valid(method_and_path):
+        report.add_error(
+            "api_endpoint_method_path_invalid",
+            f"{rel} Method and Path section must include an HTTP method and absolute path",
             rel,
         )
 
@@ -1020,6 +1031,10 @@ def _section_has_authored_content(text: str) -> bool:
         if _normalize_cell(line) not in SECTION_PLACEHOLDER_VALUES:
             return True
     return False
+
+
+def _api_endpoint_method_path_valid(text: str) -> bool:
+    return HTTP_METHOD_PATH_RE.search(text) is not None
 
 
 def _is_external_reference_target(target: str) -> bool:

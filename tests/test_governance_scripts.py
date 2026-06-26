@@ -783,6 +783,37 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_api_endpoint_invalid_method_and_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            endpoint_readme = root / "docs/api/endpoints/README.md"
+            endpoint_readme.parent.mkdir(parents=True, exist_ok=True)
+            endpoint_readme.write_text("# API Endpoints\n\n- `01-create-user.md` - create user endpoint\n", encoding="utf-8")
+            (endpoint_readme.parent / "01-create-user.md").write_text(
+                _endpoint_contract_doc("Create User").replace("GET /example", "Create a user endpoint"),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/api/endpoints/01-create-user.md Method and Path section must include an HTTP method and absolute path",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "api_endpoint_method_path_invalid",
+                    "severity": "error",
+                    "path": "docs/api/endpoints/01-create-user.md",
+                    "message": "docs/api/endpoints/01-create-user.md Method and Path section must include an HTTP method and absolute path",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_invalid_api_endpoint_filename(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

@@ -31,6 +31,7 @@ Each endpoint file must include these headings:
 - `## Frontend Consumers`
 
 Do not leave required sections empty or as `TBD`/`TODO`; register unknown contract decisions in `docs/unresolved.md`.
+Write `Method and Path` as an HTTP method plus absolute path, for example `POST /users`.
 
 ## Procedure
 
