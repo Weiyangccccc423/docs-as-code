@@ -228,6 +228,65 @@ class GovernanceScriptsTest(unittest.TestCase):
             report = verify(root)
             self.assertEqual([], report.errors)
 
+    def test_verify_reports_incomplete_unresolved_row(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            unresolved = root / "docs/unresolved.md"
+            unresolved.write_text(
+                "# Unresolved Items\n\n"
+                "| ID | Domain | Description | Blocking Scope | Owner | Date |\n"
+                "| --- | --- | --- | --- | --- | --- |\n"
+                "|  | API |  | none | TBD | 2026-06-26 |\n",
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn("docs/unresolved.md row (missing id) is missing required fields: ID, Description", report.errors)
+            self.assertIn(
+                {
+                    "code": "unresolved_row_missing_fields",
+                    "severity": "error",
+                    "path": "docs/unresolved.md",
+                    "message": "docs/unresolved.md row (missing id) is missing required fields: ID, Description",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_duplicate_unresolved_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            unresolved = root / "docs/unresolved.md"
+            unresolved.write_text(
+                "# Unresolved Items\n\n"
+                "| ID | Domain | Description | Blocking Scope | Owner | Date |\n"
+                "| --- | --- | --- | --- | --- | --- |\n"
+                "| U-001 | API | Confirm auth model | none | TBD | 2026-06-26 |\n"
+                "| U-001 | Backend | Confirm persistence model | none | TBD | 2026-06-26 |\n",
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn("duplicate unresolved item ID: U-001", report.errors)
+            self.assertIn(
+                {
+                    "code": "unresolved_duplicate_id",
+                    "severity": "error",
+                    "path": "docs/unresolved.md",
+                    "message": "duplicate unresolved item ID: U-001",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_unindexed_docs_markdown_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

@@ -59,6 +59,7 @@ Load:
    - no stale reserved markers
    - no `governance:scaffold-placeholder` markers
    - no `docs/unresolved.md` rows with a blocking `Blocking Scope`
+   - no `docs/unresolved.md` rows with missing `ID`, `Domain`, or `Description`, and no duplicate unresolved IDs
    - no non-template Markdown files missing from their same-directory README
    - no explicit local Markdown link pointing to a missing file
    - product, API, architecture, backend, frontend, tests, and development docs link to each other

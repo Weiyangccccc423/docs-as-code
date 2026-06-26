@@ -57,7 +57,7 @@ Use only chapters that the source document supports. Do not create empty decorat
 - Every product chapter links back to `core/PRD.md`.
 - `README.md` lists every product chapter.
 - `product-meta.md` links to every product chapter.
-- `docs/unresolved.md` contains every ambiguity, and no blocking rows remain before design derivation.
+- `docs/unresolved.md` contains every ambiguity with unique IDs, filled `Domain` and `Description`, and no blocking rows before design derivation.
 
 Run:
 

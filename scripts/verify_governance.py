@@ -22,6 +22,12 @@ DOC_DIRS = {
 }
 
 NON_BLOCKING_SCOPES = {"", "-", "none", "n/a", "na", "non-blocking", "non blocking", "resolved"}
+UNRESOLVED_REQUIRED_COLUMNS = {
+    "id": "ID",
+    "domain": "Domain",
+    "description": "Description",
+    "blocking scope": "Blocking Scope",
+}
 SCAFFOLD_PLACEHOLDER = "governance:scaffold-placeholder"
 WORKFLOW_PACK_SNAPSHOT_ROOT = "docs/agent-workflow/workflow-pack"
 TASK_BOARD_REL = Path("docs/development/02-task-board.md")
@@ -264,7 +270,7 @@ def _check_unresolved_items(root: Path, report: VerificationReport) -> None:
     if not rows:
         return
     header = [_normalize_cell(cell) for cell in rows[0]]
-    required = ["id", "domain", "description", "blocking scope"]
+    required = list(UNRESOLVED_REQUIRED_COLUMNS)
     missing = [name for name in required if name not in header]
     if missing:
         report.add_error(
@@ -273,15 +279,36 @@ def _check_unresolved_items(root: Path, report: VerificationReport) -> None:
             "docs/unresolved.md",
         )
         return
-    id_index = header.index("id")
-    scope_index = header.index("blocking scope")
+    column_index = {name: header.index(name) for name in required}
+    seen_ids: set[str] = set()
     for row in rows[1:]:
         if _is_separator_row(row):
             continue
-        if len(row) <= max(id_index, scope_index):
+        if not any(cell.strip() for cell in row):
             continue
-        item_id = row[id_index].strip() or "(missing id)"
-        blocking_scope = row[scope_index].strip()
+        item_id = _table_cell(row, column_index["id"]) or "(missing id)"
+        missing_fields = [
+            UNRESOLVED_REQUIRED_COLUMNS[name]
+            for name in ("id", "domain", "description")
+            if not _table_cell(row, column_index[name])
+        ]
+        if missing_fields:
+            report.add_error(
+                "unresolved_row_missing_fields",
+                f"docs/unresolved.md row {item_id} is missing required fields: {', '.join(missing_fields)}",
+                "docs/unresolved.md",
+            )
+        if item_id != "(missing id)":
+            item_key = _normalize_cell(item_id)
+            if item_key in seen_ids:
+                report.add_error(
+                    "unresolved_duplicate_id",
+                    f"duplicate unresolved item ID: {item_id}",
+                    "docs/unresolved.md",
+                )
+            else:
+                seen_ids.add(item_key)
+        blocking_scope = _table_cell(row, column_index["blocking scope"])
         if _normalize_cell(blocking_scope) in NON_BLOCKING_SCOPES:
             continue
         report.add_error(
@@ -612,6 +639,10 @@ def _markdown_table(text: str) -> list[list[str]]:
             continue
         rows.append([cell.strip() for cell in stripped.strip("|").split("|")])
     return rows
+
+
+def _table_cell(row: list[str], index: int) -> str:
+    return row[index].strip() if len(row) > index else ""
 
 
 def _normalize_cell(value: str) -> str:
