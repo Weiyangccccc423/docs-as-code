@@ -73,6 +73,7 @@ Load:
    - task board items marked `Done` link to existing local Markdown verification evidence
    - task board item IDs are unique
    - task board `Product`, `Design`, `API`, and `Acceptance` fields point to existing local Markdown files
+   - task board `Acceptance` fields include a product acceptance chapter reference matching `docs/product/NN-*acceptance*.md`
    - at least one task board item is `Ready` before implementation starts
 
 ## Output

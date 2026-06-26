@@ -26,6 +26,15 @@ def _append_product_meta_chapter(root: Path, filename: str) -> None:
     meta.write_text(meta.read_text(encoding="utf-8") + f"\n- [{filename}](../{filename})\n", encoding="utf-8")
 
 
+def _write_product_chapter(root: Path, filename: str, title: str) -> None:
+    _write_indexed_doc(root, f"docs/product/{filename}", f"# {title}\n\nSource: [PRD](core/PRD.md).\n")
+    _append_product_meta_chapter(root, filename)
+
+
+def _write_acceptance_chapter(root: Path) -> None:
+    _write_product_chapter(root, "08-acceptance-criteria.md", "Acceptance Criteria")
+
+
 class GovernanceScriptsTest(unittest.TestCase):
     def test_bootstrap_archives_markdown_product_doc_and_passes_verification(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -654,7 +663,7 @@ class GovernanceScriptsTest(unittest.TestCase):
                 "# Task Board\n\n"
                 "| ID | Status | Task | Product | Design | API | Acceptance | Verification |\n"
                 "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
-                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | TBD | docs/tests/01-strategy.md | make test |\n",
+                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | TBD | docs/product/08-acceptance-criteria.md | make test |\n",
                 encoding="utf-8",
             )
             readme = root / "docs/development/README.md"
@@ -681,6 +690,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             bootstrap(root, product)
             _write_indexed_doc(root, "docs/product/01-goals.md", "# Goals\n\nSource: [PRD](core/PRD.md).\n")
             _append_product_meta_chapter(root, "01-goals.md")
+            _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
             _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
             _write_indexed_doc(root, "docs/tests/01-strategy.md", "# Test Strategy\n")
@@ -690,7 +700,7 @@ class GovernanceScriptsTest(unittest.TestCase):
                 "# Task Board\n\n"
                 "| ID | Status | Task | Product | Design | API | Acceptance | Verification |\n"
                 "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
-                "| TASK-001 | Ready | Implement goal flow | [Goals](../product/01-goals.md) | docs/architecture/01-context.md#actors | `docs/api/00-conventions.md` | [Strategy](../tests/01-strategy.md) | make test |\n",
+                "| TASK-001 | Ready | Implement goal flow | [Goals](../product/01-goals.md) | docs/architecture/01-context.md#actors | `docs/api/00-conventions.md` | [Acceptance](../product/08-acceptance-criteria.md) | make test |\n",
                 encoding="utf-8",
             )
             readme = root / "docs/development/README.md"
@@ -700,12 +710,14 @@ class GovernanceScriptsTest(unittest.TestCase):
 
             self.assertEqual([], report.errors)
 
-    def test_verify_reports_task_board_missing_trace_reference(self) -> None:
+    def test_verify_reports_task_board_acceptance_without_product_acceptance_reference(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             product = root / "product.md"
             product.write_text("# Demo\n", encoding="utf-8")
             bootstrap(root, product)
+            _write_product_chapter(root, "01-goals.md", "Goals")
+            _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
             _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
             _write_indexed_doc(root, "docs/tests/01-strategy.md", "# Test Strategy\n")
@@ -715,7 +727,44 @@ class GovernanceScriptsTest(unittest.TestCase):
                 "# Task Board\n\n"
                 "| ID | Status | Task | Product | Design | API | Acceptance | Verification |\n"
                 "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
-                "| TASK-001 | Ready | Implement goal flow | docs/product/missing.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | make test |\n",
+                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | make test |\n",
+                encoding="utf-8",
+            )
+            _append_index(root / "docs/development/README.md", "02-task-board.md")
+
+            report = verify(root)
+
+            self.assertIn(
+                "task board row TASK-001 Acceptance field must reference a product acceptance chapter",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "task_board_acceptance_reference_missing",
+                    "severity": "error",
+                    "path": "docs/development/02-task-board.md",
+                    "message": "task board row TASK-001 Acceptance field must reference a product acceptance chapter",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_task_board_missing_trace_reference(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
+            _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+            _write_indexed_doc(root, "docs/tests/01-strategy.md", "# Test Strategy\n")
+
+            task_board = root / "docs/development/02-task-board.md"
+            task_board.write_text(
+                "# Task Board\n\n"
+                "| ID | Status | Task | Product | Design | API | Acceptance | Verification |\n"
+                "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+                "| TASK-001 | Ready | Implement goal flow | docs/product/missing.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | make test |\n",
                 encoding="utf-8",
             )
             _append_index(root / "docs/development/README.md", "02-task-board.md")
@@ -741,6 +790,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             bootstrap(root, product)
             _write_indexed_doc(root, "docs/product/01-goals.md", "# Goals\n\nSource: [PRD](core/PRD.md).\n")
             _append_product_meta_chapter(root, "01-goals.md")
+            _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
             _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
             _write_indexed_doc(root, "docs/tests/01-strategy.md", "# Test Strategy\n")
@@ -750,8 +800,8 @@ class GovernanceScriptsTest(unittest.TestCase):
                 "# Task Board\n\n"
                 "| ID | Status | Task | Product | Design | API | Acceptance | Verification |\n"
                 "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
-                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | make test |\n"
-                "| TASK-001 | Ready | Implement goal audit | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | make test |\n",
+                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | make test |\n"
+                "| TASK-001 | Ready | Implement goal audit | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | make test |\n",
                 encoding="utf-8",
             )
             _append_index(root / "docs/development/README.md", "02-task-board.md")
@@ -777,6 +827,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             bootstrap(root, product)
             _write_indexed_doc(root, "docs/product/01-goals.md", "# Goals\n\nSource: [PRD](core/PRD.md).\n")
             _append_product_meta_chapter(root, "01-goals.md")
+            _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
             _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
             _write_indexed_doc(root, "docs/tests/01-strategy.md", "# Test Strategy\n")
@@ -786,7 +837,7 @@ class GovernanceScriptsTest(unittest.TestCase):
                 "# Task Board\n\n"
                 "| ID | Status | Task | Product | Design | API | Acceptance | Verification |\n"
                 "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
-                "| TASK-001 | Raedy | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | make test |\n",
+                "| TASK-001 | Raedy | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | make test |\n",
                 encoding="utf-8",
             )
             _append_index(root / "docs/development/README.md", "02-task-board.md")
@@ -812,6 +863,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             bootstrap(root, product)
             _write_indexed_doc(root, "docs/product/01-goals.md", "# Goals\n\nSource: [PRD](core/PRD.md).\n")
             _append_product_meta_chapter(root, "01-goals.md")
+            _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
             _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
             _write_indexed_doc(root, "docs/tests/01-strategy.md", "# Test Strategy\n")
@@ -829,12 +881,12 @@ class GovernanceScriptsTest(unittest.TestCase):
                 "# Task Board\n\n"
                 "| ID | Status | Task | Product | Design | API | Acceptance | Verification |\n"
                 "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
-                "| TASK-001 | Backlog | Scope goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | make test |\n"
-                "| TASK-002 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | make test |\n"
-                "| TASK-003 | In Progress | Wire goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | make test |\n"
-                "| TASK-004 | Blocked | Resolve goal edge case | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | Blocked by [U-001](../unresolved.md) |\n"
-                "| TASK-005 | Done | Verify goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | docs/development/03-verification-log.md |\n"
-                "| TASK-006 | Deferred | Later goal audit | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | make test |\n",
+                "| TASK-001 | Backlog | Scope goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | make test |\n"
+                "| TASK-002 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | make test |\n"
+                "| TASK-003 | In Progress | Wire goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | make test |\n"
+                "| TASK-004 | Blocked | Resolve goal edge case | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | Blocked by [U-001](../unresolved.md) |\n"
+                "| TASK-005 | Done | Verify goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | docs/development/03-verification-log.md |\n"
+                "| TASK-006 | Deferred | Later goal audit | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | make test |\n",
                 encoding="utf-8",
             )
             _append_index(root / "docs/development/README.md", "02-task-board.md")
@@ -851,6 +903,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             bootstrap(root, product)
             _write_indexed_doc(root, "docs/product/01-goals.md", "# Goals\n\nSource: [PRD](core/PRD.md).\n")
             _append_product_meta_chapter(root, "01-goals.md")
+            _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
             _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
             _write_indexed_doc(root, "docs/tests/01-strategy.md", "# Test Strategy\n")
@@ -867,8 +920,8 @@ class GovernanceScriptsTest(unittest.TestCase):
                 "# Task Board\n\n"
                 "| ID | Status | Task | Product | Design | API | Acceptance | Verification |\n"
                 "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
-                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | make test |\n"
-                "| TASK-002 | Blocked | Resolve goal edge case | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | Waiting for decision |\n",
+                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | make test |\n"
+                "| TASK-002 | Blocked | Resolve goal edge case | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | Waiting for decision |\n",
                 encoding="utf-8",
             )
             _append_index(root / "docs/development/README.md", "02-task-board.md")
@@ -897,6 +950,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             bootstrap(root, product)
             _write_indexed_doc(root, "docs/product/01-goals.md", "# Goals\n\nSource: [PRD](core/PRD.md).\n")
             _append_product_meta_chapter(root, "01-goals.md")
+            _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
             _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
             _write_indexed_doc(root, "docs/tests/01-strategy.md", "# Test Strategy\n")
@@ -913,8 +967,8 @@ class GovernanceScriptsTest(unittest.TestCase):
                 "# Task Board\n\n"
                 "| ID | Status | Task | Product | Design | API | Acceptance | Verification |\n"
                 "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
-                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | make test |\n"
-                "| TASK-002 | Blocked | Resolve goal edge case | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | Blocked by U-001 |\n",
+                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | make test |\n"
+                "| TASK-002 | Blocked | Resolve goal edge case | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | Blocked by U-001 |\n",
                 encoding="utf-8",
             )
             _append_index(root / "docs/development/README.md", "02-task-board.md")
@@ -940,6 +994,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             bootstrap(root, product)
             _write_indexed_doc(root, "docs/product/01-goals.md", "# Goals\n\nSource: [PRD](core/PRD.md).\n")
             _append_product_meta_chapter(root, "01-goals.md")
+            _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
             _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
             _write_indexed_doc(root, "docs/tests/01-strategy.md", "# Test Strategy\n")
@@ -956,8 +1011,8 @@ class GovernanceScriptsTest(unittest.TestCase):
                 "# Task Board\n\n"
                 "| ID | Status | Task | Product | Design | API | Acceptance | Verification |\n"
                 "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
-                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | make test |\n"
-                "| TASK-002 | Blocked | Resolve goal edge case | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | Blocked by [U-001](../unresolved.md) |\n",
+                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | make test |\n"
+                "| TASK-002 | Blocked | Resolve goal edge case | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | Blocked by [U-001](../unresolved.md) |\n",
                 encoding="utf-8",
             )
             _append_index(root / "docs/development/README.md", "02-task-board.md")
@@ -974,6 +1029,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             bootstrap(root, product)
             _write_indexed_doc(root, "docs/product/01-goals.md", "# Goals\n\nSource: [PRD](core/PRD.md).\n")
             _append_product_meta_chapter(root, "01-goals.md")
+            _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
             _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
             _write_indexed_doc(root, "docs/tests/01-strategy.md", "# Test Strategy\n")
@@ -983,8 +1039,8 @@ class GovernanceScriptsTest(unittest.TestCase):
                 "# Task Board\n\n"
                 "| ID | Status | Task | Product | Design | API | Acceptance | Verification |\n"
                 "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
-                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | make test |\n"
-                "| TASK-002 | Done | Verify goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | make test |\n",
+                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | make test |\n"
+                "| TASK-002 | Done | Verify goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | make test |\n",
                 encoding="utf-8",
             )
             _append_index(root / "docs/development/README.md", "02-task-board.md")
@@ -1010,6 +1066,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             bootstrap(root, product)
             _write_indexed_doc(root, "docs/product/01-goals.md", "# Goals\n\nSource: [PRD](core/PRD.md).\n")
             _append_product_meta_chapter(root, "01-goals.md")
+            _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
             _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
             _write_indexed_doc(root, "docs/tests/01-strategy.md", "# Test Strategy\n")
@@ -1020,8 +1077,8 @@ class GovernanceScriptsTest(unittest.TestCase):
                 "# Task Board\n\n"
                 "| ID | Status | Task | Product | Design | API | Acceptance | Verification |\n"
                 "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
-                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | make test |\n"
-                "| TASK-002 | Done | Verify goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | [verification log](03-verification-log.md) |\n",
+                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | make test |\n"
+                "| TASK-002 | Done | Verify goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | [verification log](03-verification-log.md) |\n",
                 encoding="utf-8",
             )
             _append_index(root / "docs/development/README.md", "02-task-board.md")
@@ -1038,6 +1095,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             bootstrap(root, product)
             _write_indexed_doc(root, "docs/product/01-goals.md", "# Goals\n\nSource: [PRD](core/PRD.md).\n")
             _append_product_meta_chapter(root, "01-goals.md")
+            _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
             _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
             _write_indexed_doc(root, "docs/tests/01-strategy.md", "# Test Strategy\n")
@@ -1047,8 +1105,8 @@ class GovernanceScriptsTest(unittest.TestCase):
                 "# Task Board\n\n"
                 "| ID | Status | Task | Product | Design | API | Acceptance | Verification |\n"
                 "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
-                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | make test |\n"
-                "| TASK-002 | Done | Verify goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | docs/development/missing-log.md |\n",
+                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | make test |\n"
+                "| TASK-002 | Done | Verify goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | docs/development/missing-log.md |\n",
                 encoding="utf-8",
             )
             _append_index(root / "docs/development/README.md", "02-task-board.md")
@@ -1077,6 +1135,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             bootstrap(root, product)
             _write_indexed_doc(root, "docs/product/01-goals.md", "# Goals\n\nSource: [PRD](core/PRD.md).\n")
             _append_product_meta_chapter(root, "01-goals.md")
+            _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
             _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
             _write_indexed_doc(root, "docs/tests/01-strategy.md", "# Test Strategy\n")
@@ -1094,7 +1153,7 @@ class GovernanceScriptsTest(unittest.TestCase):
                 "# Task Board\n\n"
                 "| ID | Status | Task | Product | Design | API | Acceptance | Verification |\n"
                 "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
-                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | make test |\n",
+                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | make test |\n",
                 encoding="utf-8",
             )
             _append_index(root / "docs/development/README.md", "02-task-board.md")
@@ -1120,6 +1179,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             bootstrap(root, product)
             _write_indexed_doc(root, "docs/product/01-goals.md", "# Goals\n\nSource: [PRD](core/PRD.md).\n")
             _append_product_meta_chapter(root, "01-goals.md")
+            _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
             _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
             _write_indexed_doc(root, "docs/tests/01-strategy.md", "# Test Strategy\n")
@@ -1137,7 +1197,7 @@ class GovernanceScriptsTest(unittest.TestCase):
                 "# Task Board\n\n"
                 "| ID | Status | Task | Product | Design | API | Acceptance | Verification |\n"
                 "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
-                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | make test |\n",
+                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | make test |\n",
                 encoding="utf-8",
             )
             _append_index(root / "docs/development/README.md", "02-task-board.md")

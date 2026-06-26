@@ -627,8 +627,8 @@ def _check_task_board(root: Path, report: VerificationReport) -> None:
         seen_ids.add(task_key)
         reference_errors = _task_board_row_trace_reference_errors(root, row, task_id)
         if reference_errors:
-            for message in reference_errors:
-                report.add_error("task_board_trace_reference_missing", message, rel)
+            for code, message in reference_errors:
+                report.add_error(code, message, rel)
             continue
         blocked_errors = _task_board_blocked_unresolved_errors(root, row, task_id)
         if blocked_errors:
@@ -739,18 +739,45 @@ def _task_board_row_trace_references_valid(root: Path, row: dict[str, str]) -> b
     return not _task_board_row_trace_reference_errors(root, row, task_id)
 
 
-def _task_board_row_trace_reference_errors(root: Path, row: dict[str, str], task_id: str) -> list[str]:
-    errors: list[str] = []
+def _task_board_row_trace_reference_errors(root: Path, row: dict[str, str], task_id: str) -> list[tuple[str, str]]:
+    errors: list[tuple[str, str]] = []
     for column in TASK_BOARD_REFERENCE_COLUMNS:
         label = TASK_BOARD_REQUIRED_COLUMNS[column]
         references = _task_board_local_references(root, row.get(column, ""))
         if not references:
-            errors.append(f"task board row {task_id} {label} field has no local Markdown reference")
+            errors.append((
+                "task_board_trace_reference_missing",
+                f"task board row {task_id} {label} field has no local Markdown reference",
+            ))
             continue
         for reference in references:
             if not reference.exists:
-                errors.append(f"task board row {task_id} references missing {label} target: {reference.rel}")
+                errors.append((
+                    "task_board_trace_reference_missing",
+                    f"task board row {task_id} references missing {label} target: {reference.rel}",
+                ))
+        if (
+            column == "acceptance"
+            and all(reference.exists for reference in references)
+            and not any(_is_product_acceptance_reference(reference) for reference in references)
+        ):
+            errors.append((
+                "task_board_acceptance_reference_missing",
+                f"task board row {task_id} Acceptance field must reference a product acceptance chapter",
+            ))
     return errors
+
+
+def _is_product_acceptance_reference(reference: LocalMarkdownReference) -> bool:
+    path = Path(reference.rel)
+    return (
+        reference.exists
+        and len(path.parts) == 3
+        and path.parts[0] == "docs"
+        and path.parts[1] == "product"
+        and PRODUCT_CHAPTER_RE.fullmatch(path.parts[2]) is not None
+        and "acceptance" in path.stem.lower()
+    )
 
 
 def _task_board_done_evidence_errors(root: Path, row: dict[str, str], task_id: str) -> list[str]:

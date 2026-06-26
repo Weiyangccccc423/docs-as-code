@@ -610,7 +610,7 @@ class GovernanceCliTest(unittest.TestCase):
                 "# Task Board\n\n"
                 "| ID | Status | Task | Product | Design | API | Acceptance | Verification |\n"
                 "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
-                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/missing.md | docs/tests/01-strategy.md | make test |\n",
+                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/missing.md | docs/product/08-acceptance-criteria.md | make test |\n",
                 encoding="utf-8",
             )
             _append_index(target / "docs/development/README.md", "02-task-board.md")
@@ -640,7 +640,7 @@ class GovernanceCliTest(unittest.TestCase):
                 "# Task Board\n\n"
                 "| ID | Status | Task | Product | Design | API | Acceptance | Verification |\n"
                 "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
-                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | make test |\n",
+                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | make test |\n",
                 encoding="utf-8",
             )
 
