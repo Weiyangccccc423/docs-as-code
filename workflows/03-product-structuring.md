@@ -27,7 +27,7 @@ Load:
 3. Split stable sections into `docs/product/NN-<slug>.md`.
 4. Extract acceptance criteria into a dedicated product chapter.
 5. Extract success metrics into a dedicated product chapter when present.
-6. Add cross-domain terms to `docs/glossary.md`.
+6. Add cross-domain terms to `docs/glossary.md` with filled `Term`, `Meaning`, and `Source`; `Source` must link to the local Markdown document that defines the term.
 7. Register unresolved product or interaction questions in `docs/unresolved.md`.
 8. Update `docs/product/README.md` so every product chapter file is indexed.
 
@@ -57,6 +57,7 @@ Use only chapters that the source document supports. Do not create empty decorat
 - Every product chapter links back to `core/PRD.md`.
 - `README.md` lists every product chapter.
 - `product-meta.md` links to every product chapter.
+- `docs/glossary.md` terms are unique, complete, and traceable to local Markdown sources.
 - `docs/unresolved.md` contains every ambiguity with unique IDs, filled `Domain` and `Description`, and no blocking rows before design derivation.
 
 Run:

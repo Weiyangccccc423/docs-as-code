@@ -35,7 +35,7 @@ Turn a preserved PRD into navigable product truth without changing its meaning.
 7. Link every `NN-*.md` chapter from `core/product-meta.md`.
 8. Extract acceptance criteria into a stable chapter.
 9. Extract success metrics when present.
-10. Add cross-domain terms to glossary.
+10. Add cross-domain terms to glossary with unique `Term`, filled `Meaning`, and a `Source` link to the local Markdown definition.
 11. Register ambiguous requirements before deriving design. Use unique IDs and fill `Domain` and `Description`; use `none`, `-`, `n/a`, `non-blocking`, or `resolved` only for items that do not block downstream work.
 
 ## Stop Conditions

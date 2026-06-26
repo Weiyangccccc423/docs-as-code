@@ -287,6 +287,172 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_incomplete_glossary_row(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            glossary = root / "docs/glossary.md"
+            glossary.write_text(
+                "# Glossary\n\n"
+                "| Term | Meaning | Source |\n"
+                "| --- | --- | --- |\n"
+                "|  |  |  |\n",
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn("docs/glossary.md row (missing term) is missing required fields: Term, Meaning, Source", report.errors)
+            self.assertIn(
+                {
+                    "code": "glossary_row_missing_fields",
+                    "severity": "error",
+                    "path": "docs/glossary.md",
+                    "message": "docs/glossary.md row (missing term) is missing required fields: Term, Meaning, Source",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_glossary_missing_required_columns(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            glossary = root / "docs/glossary.md"
+            glossary.write_text(
+                "# Glossary\n\n"
+                "| Term | Meaning |\n"
+                "| --- | --- |\n"
+                "| Account | User account |\n",
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn("docs/glossary.md table is missing required columns: source", report.errors)
+            self.assertIn(
+                {
+                    "code": "glossary_table_missing_columns",
+                    "severity": "error",
+                    "path": "docs/glossary.md",
+                    "message": "docs/glossary.md table is missing required columns: source",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_duplicate_glossary_term(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            glossary = root / "docs/glossary.md"
+            glossary.write_text(
+                "# Glossary\n\n"
+                "| Term | Meaning | Source |\n"
+                "| --- | --- | --- |\n"
+                "| Account | User account | docs/product/core/PRD.md |\n"
+                "| account | Duplicate spelling | docs/product/core/PRD.md |\n",
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn("duplicate glossary term: account", report.errors)
+            self.assertIn(
+                {
+                    "code": "glossary_duplicate_term",
+                    "severity": "error",
+                    "path": "docs/glossary.md",
+                    "message": "duplicate glossary term: account",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_glossary_source_without_local_reference(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            glossary = root / "docs/glossary.md"
+            glossary.write_text(
+                "# Glossary\n\n"
+                "| Term | Meaning | Source |\n"
+                "| --- | --- | --- |\n"
+                "| Account | User account | PRD |\n",
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn("glossary row Account Source field has no local Markdown reference", report.errors)
+            self.assertIn(
+                {
+                    "code": "glossary_source_reference_missing",
+                    "severity": "error",
+                    "path": "docs/glossary.md",
+                    "message": "glossary row Account Source field has no local Markdown reference",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_glossary_missing_source_target(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            glossary = root / "docs/glossary.md"
+            glossary.write_text(
+                "# Glossary\n\n"
+                "| Term | Meaning | Source |\n"
+                "| --- | --- | --- |\n"
+                "| Account | User account | docs/product/missing.md |\n",
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn("glossary row Account references missing Source target: docs/product/missing.md", report.errors)
+            self.assertIn(
+                {
+                    "code": "glossary_source_reference_missing",
+                    "severity": "error",
+                    "path": "docs/glossary.md",
+                    "message": "glossary row Account references missing Source target: docs/product/missing.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_allows_traceable_glossary_terms(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            glossary = root / "docs/glossary.md"
+            glossary.write_text(
+                "# Glossary\n\n"
+                "| Term | Meaning | Source |\n"
+                "| --- | --- | --- |\n"
+                "| Account | User account | [PRD](product/core/PRD.md) |\n",
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertEqual([], report.errors)
+
     def test_verify_reports_unindexed_docs_markdown_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

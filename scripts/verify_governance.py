@@ -28,6 +28,11 @@ UNRESOLVED_REQUIRED_COLUMNS = {
     "description": "Description",
     "blocking scope": "Blocking Scope",
 }
+GLOSSARY_REQUIRED_COLUMNS = {
+    "term": "Term",
+    "meaning": "Meaning",
+    "source": "Source",
+}
 SCAFFOLD_PLACEHOLDER = "governance:scaffold-placeholder"
 WORKFLOW_PACK_SNAPSHOT_ROOT = "docs/agent-workflow/workflow-pack"
 ROADMAP_REL = Path("docs/development/01-roadmap.md")
@@ -151,6 +156,7 @@ def verify(root: Path) -> VerificationReport:
     _check_product_source_manifest(root, report)
     _check_product_chapter_links(root, report)
     _check_unresolved_items(root, report)
+    _check_glossary_items(root, report)
     _check_readme_indexes(root, report)
     _check_local_markdown_links(root, report)
     _check_scaffold_placeholders(root, report)
@@ -328,6 +334,74 @@ def _check_unresolved_items(root: Path, report: VerificationReport) -> None:
             f"blocking unresolved item {item_id} affects {blocking_scope}",
             "docs/unresolved.md",
         )
+
+
+def _check_glossary_items(root: Path, report: VerificationReport) -> None:
+    path = root / "docs/glossary.md"
+    if not path.exists():
+        return
+    rows = _markdown_table(path.read_text(encoding="utf-8"))
+    if not rows:
+        return
+    header = [_normalize_cell(cell) for cell in rows[0]]
+    required = list(GLOSSARY_REQUIRED_COLUMNS)
+    missing = [name for name in required if name not in header]
+    if missing:
+        report.add_error(
+            "glossary_table_missing_columns",
+            f"docs/glossary.md table is missing required columns: {', '.join(missing)}",
+            "docs/glossary.md",
+        )
+        return
+    column_index = {name: header.index(name) for name in required}
+    seen_terms: set[str] = set()
+    for row in rows[1:]:
+        if _is_separator_row(row):
+            continue
+        term = _table_cell(row, column_index["term"])
+        row_label = term or "(missing term)"
+        missing_fields = [
+            GLOSSARY_REQUIRED_COLUMNS[name]
+            for name in required
+            if not _table_cell(row, column_index[name])
+        ]
+        if missing_fields:
+            report.add_error(
+                "glossary_row_missing_fields",
+                f"docs/glossary.md row {row_label} is missing required fields: {', '.join(missing_fields)}",
+                "docs/glossary.md",
+            )
+            continue
+        term_key = _normalize_cell(term)
+        if term_key in seen_terms:
+            report.add_error(
+                "glossary_duplicate_term",
+                f"duplicate glossary term: {term}",
+                "docs/glossary.md",
+            )
+            continue
+        seen_terms.add(term_key)
+        references = _local_markdown_references(
+            root,
+            path,
+            _table_cell(row, column_index["source"]),
+            include_bare=True,
+            strip_code=False,
+        )
+        if not references:
+            report.add_error(
+                "glossary_source_reference_missing",
+                f"glossary row {term} Source field has no local Markdown reference",
+                "docs/glossary.md",
+            )
+            continue
+        for reference in references:
+            if not reference.exists:
+                report.add_error(
+                    "glossary_source_reference_missing",
+                    f"glossary row {term} references missing Source target: {reference.rel}",
+                    "docs/glossary.md",
+                )
 
 
 def _check_readme_indexes(root: Path, report: VerificationReport) -> None:
