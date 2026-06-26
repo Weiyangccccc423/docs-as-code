@@ -73,6 +73,7 @@ TASK_BOARD_READY_STATUSES = {"ready"}
 TASK_BOARD_DONE_STATUSES = {"done"}
 TASK_BOARD_BLOCKED_STATUSES = {"blocked"}
 TASK_BOARD_EMPTY_VALUES = {"", "-", "tbd", "todo", "n/a", "na", "none"}
+SECTION_PLACEHOLDER_VALUES = {"", "-", "tbd", "todo", "n/a", "na"}
 MARKDOWN_LINK_RE = re.compile(r"(?<!!)\[[^\]]*]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 MARKDOWN_REFERENCE_DEFINITION_RE = re.compile(r"^\s{0,3}\[[^\]]+]:\s*(\S+)", re.MULTILINE)
 MARKDOWN_HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$", re.MULTILINE)
@@ -366,16 +367,28 @@ def _check_api_endpoint_contract_sections(root: Path, path: Path, report: Verifi
         text = path.read_text(encoding="utf-8")
     except UnicodeDecodeError:
         return
-    headings = _markdown_heading_labels(text)
+    sections = _markdown_sections(text)
     missing = [
         label
         for key, label in API_ENDPOINT_REQUIRED_SECTIONS.items()
-        if key not in headings
+        if key not in sections
     ]
     if missing:
         report.add_error(
             "api_endpoint_missing_sections",
             f"{rel} is missing endpoint contract sections: {', '.join(missing)}",
+            rel,
+        )
+        return
+    empty = [
+        label
+        for key, label in API_ENDPOINT_REQUIRED_SECTIONS.items()
+        if not _section_has_authored_content(sections[key])
+    ]
+    if empty:
+        report.add_error(
+            "api_endpoint_empty_sections",
+            f"{rel} has empty endpoint contract sections: {', '.join(empty)}",
             rel,
         )
 
@@ -984,8 +997,29 @@ def _strip_markdown_code(text: str) -> str:
     return re.sub(r"`[^`\n]*`", "", text)
 
 
-def _markdown_heading_labels(text: str) -> set[str]:
-    return {_normalize_cell(match.group(1)) for match in MARKDOWN_HEADING_RE.finditer(text)}
+def _markdown_sections(text: str) -> dict[str, str]:
+    matches = list(MARKDOWN_HEADING_RE.finditer(text))
+    sections: dict[str, str] = {}
+    for index, match in enumerate(matches):
+        heading = _normalize_cell(match.group(1))
+        start = match.end()
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+        sections[heading] = text[start:end]
+    return sections
+
+
+def _section_has_authored_content(text: str) -> bool:
+    text = _strip_markdown_code(text)
+    text = re.sub(r"(?s)<!--.*?-->", "", text)
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        line = re.sub(r"^>\s*", "", line)
+        line = re.sub(r"^(?:[-*+]|\d+[.)])\s+", "", line).strip()
+        if _normalize_cell(line) not in SECTION_PLACEHOLDER_VALUES:
+            return True
+    return False
 
 
 def _is_external_reference_target(target: str) -> bool:

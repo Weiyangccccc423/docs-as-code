@@ -51,9 +51,9 @@ def _endpoint_contract_doc(title: str) -> str:
         "## Error Codes\n\n"
         "- E_EXAMPLE\n\n"
         "## Upstream Links\n\n"
-        "- TBD\n\n"
+        "- Product goals and architecture context\n\n"
         "## Frontend Consumers\n\n"
-        "- TBD\n"
+        "- Web client goal flow\n"
     )
 
 
@@ -732,6 +732,53 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "path": "docs/api/endpoints/01-create-user.md",
                     "message": "docs/api/endpoints/01-create-user.md is missing endpoint contract sections: "
                     "Auth, Idempotency, Request Fields, Response Fields, Error Codes, Upstream Links, Frontend Consumers",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_api_endpoint_empty_required_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            endpoint_readme = root / "docs/api/endpoints/README.md"
+            endpoint_readme.parent.mkdir(parents=True, exist_ok=True)
+            endpoint_readme.write_text("# API Endpoints\n\n- `01-create-user.md` - create user endpoint\n", encoding="utf-8")
+            (endpoint_readme.parent / "01-create-user.md").write_text(
+                "# Create User\n\n"
+                "## Method and Path\n\n"
+                "POST /users\n\n"
+                "## Auth\n\n"
+                "- TBD\n\n"
+                "## Idempotency\n\n"
+                "Use Idempotency-Key.\n\n"
+                "## Request Fields\n\n"
+                "- email\n\n"
+                "## Response Fields\n\n"
+                "- id\n\n"
+                "## Error Codes\n\n"
+                "TODO\n\n"
+                "## Upstream Links\n\n"
+                "- Product goals\n\n"
+                "## Frontend Consumers\n\n"
+                "- Web app\n",
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/api/endpoints/01-create-user.md has empty endpoint contract sections: Auth, Error Codes",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "api_endpoint_empty_sections",
+                    "severity": "error",
+                    "path": "docs/api/endpoints/01-create-user.md",
+                    "message": "docs/api/endpoints/01-create-user.md has empty endpoint contract sections: Auth, Error Codes",
                 },
                 [finding.to_dict() for finding in report.findings],
             )

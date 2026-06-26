@@ -30,6 +30,8 @@ Each endpoint file must include these headings:
 - `## Upstream Links`
 - `## Frontend Consumers`
 
+Do not leave required sections empty or as `TBD`/`TODO`; register unknown contract decisions in `docs/unresolved.md`.
+
 ## Procedure
 
 1. Run the design gate:

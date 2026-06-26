@@ -66,7 +66,7 @@ Load:
    - product chapter filenames use `NN-<slug>.md` with unique `NN` prefixes
    - a dedicated `NN-*acceptance*.md` product chapter exists before design derivation or implementation handoff
    - API endpoint contract filenames under `docs/api/endpoints/` use `NN-<slug>.md` with unique `NN` prefixes
-   - API endpoint contract files include required method/path, auth, idempotency, request, response, error, upstream link, and frontend consumer sections
+   - API endpoint contract files include non-placeholder method/path, auth, idempotency, request, response, error, upstream link, and frontend consumer sections
    - product, API, architecture, backend, frontend, tests, and development docs link to each other
    - roadmap tables with `ID` and `Status` columns agree with same-ID task board statuses
    - task board items have `ID`, `Status`, `Task`, `Product`, `Design`, `API`, `Acceptance`, and `Verification`
