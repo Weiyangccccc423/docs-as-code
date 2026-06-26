@@ -15,6 +15,7 @@ from check_env import (
     detect_package_manager,
     write_repair_plan,
 )
+from gates import GATE_NAMES, evaluate_gate
 from state import load_state, merge_state
 from verify_governance import verify
 
@@ -219,6 +220,23 @@ def _cmd_env(args: argparse.Namespace) -> int:
     return 0 if ok else 1
 
 
+def _cmd_gate(args: argparse.Namespace) -> int:
+    target = Path(args.target)
+    result = evaluate_gate(target, args.gate)
+    if args.json:
+        _print_json(result.to_dict())
+        return 0 if result.ok else 1
+    if result.ok:
+        print(f"Gate passed: {args.gate}")
+        return 0
+    print(f"Gate failed: {args.gate}")
+    for requirement in result.requirements:
+        if not requirement.ok:
+            suffix = f" ({requirement.path})" if requirement.path else ""
+            print(f"- {requirement.code}: {requirement.message}{suffix}")
+    return 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="docs-as-code governance workflow CLI")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -249,6 +267,12 @@ def build_parser() -> argparse.ArgumentParser:
     env.add_argument("--target", default=".")
     env.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     env.set_defaults(func=_cmd_env)
+
+    gate = sub.add_parser("gate", help="Check whether a workflow phase gate can be entered.")
+    gate.add_argument("gate", choices=GATE_NAMES)
+    gate.add_argument("target", nargs="?", default=".")
+    gate.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    gate.set_defaults(func=_cmd_gate)
 
     return parser
 

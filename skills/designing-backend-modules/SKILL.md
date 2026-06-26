@@ -19,13 +19,21 @@ Read `references/backend-design-checklist.md` when the module touches data, asyn
 
 ## Procedure
 
-1. Identify module responsibility and boundaries.
-2. Name upstream and downstream modules.
-3. Link owned API endpoints from `docs/api/`.
-4. Define data ownership and lifecycle states.
-5. Document external dependencies, retries, timeouts, and failure modes.
-6. Define observability and auth behavior.
-7. Link acceptance criteria and test strategy.
+1. Run the design gate:
+
+   ```bash
+   bin/governance gate design-derivation <target> --json
+   ```
+
+   Stop on `ok: false` and repair by `requirements[].code`.
+
+2. Identify module responsibility and boundaries.
+3. Name upstream and downstream modules.
+4. Link owned API endpoints from `docs/api/`.
+5. Define data ownership and lifecycle states.
+6. Document external dependencies, retries, timeouts, and failure modes.
+7. Define observability and auth behavior.
+8. Link acceptance criteria and test strategy.
 
 ## Stop Conditions
 

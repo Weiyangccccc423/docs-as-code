@@ -32,6 +32,7 @@ bin/governance env --repair --target /path/to/new-project
 bin/governance init --check --target /path/to/new-project --product /path/to/product.md --json
 bin/governance init --target /path/to/new-project --product /path/to/product.md --profile web-app --project-name "Project Name"
 bin/governance verify /path/to/new-project
+bin/governance gate product-structuring /path/to/new-project --json
 bin/governance status /path/to/new-project
 ```
 
@@ -43,6 +44,8 @@ bin/governance env --repair --target /path/to/new-project --json
 ```
 
 `verify --json` includes human-compatible `errors` and `warnings` plus structured `findings` with `code`, `severity`, `path`, and `message`.
+
+Use `gate --json` before phase transitions. Supported gates are `product-structuring`, `design-derivation`, and `implementation`.
 
 ## Workflow Order
 

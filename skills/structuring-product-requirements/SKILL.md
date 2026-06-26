@@ -19,14 +19,22 @@ Turn a preserved PRD into navigable product truth without changing its meaning.
 
 ## Procedure
 
-1. Read `core/source/source-manifest.json`.
-2. Stop if `can_derive_design` is not true or the manifest hash does not verify.
-3. Build the chapter map in `product-meta.md`.
-4. Create only chapters supported by the PRD.
-5. Extract acceptance criteria into a stable chapter.
-6. Extract success metrics when present.
-7. Add cross-domain terms to glossary.
-8. Register ambiguous requirements before deriving design. Use `none`, `-`, `n/a`, `non-blocking`, or `resolved` only for items that do not block downstream work.
+1. Run the product gate:
+
+   ```bash
+   bin/governance gate product-structuring <target> --json
+   ```
+
+   Stop on `ok: false` and repair by `requirements[].code`.
+
+2. Read `core/source/source-manifest.json`.
+3. Stop if `can_derive_design` is not true or the manifest hash does not verify.
+4. Build the chapter map in `product-meta.md`.
+5. Create only chapters supported by the PRD.
+6. Extract acceptance criteria into a stable chapter.
+7. Extract success metrics when present.
+8. Add cross-domain terms to glossary.
+9. Register ambiguous requirements before deriving design. Use `none`, `-`, `n/a`, `non-blocking`, or `resolved` only for items that do not block downstream work.
 
 ## Stop Conditions
 

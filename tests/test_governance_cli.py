@@ -10,6 +10,10 @@ ROOT = Path(__file__).resolve().parents[1]
 CLI = ROOT / "scripts" / "governance_cli.py"
 
 
+def _append_index(readme: Path, filename: str) -> None:
+    readme.write_text(readme.read_text(encoding="utf-8") + f"\n- `{filename}` - generated for test\n", encoding="utf-8")
+
+
 class GovernanceCliTest(unittest.TestCase):
     def test_env_repair_writes_repair_plan(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -320,6 +324,152 @@ class GovernanceCliTest(unittest.TestCase):
                 },
                 payload["findings"],
             )
+
+    def test_gate_product_structuring_allows_ready_markdown_product(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+
+            gate_result = subprocess.run(
+                [sys.executable, str(CLI), "gate", "product-structuring", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, gate_result.returncode, gate_result.stderr)
+            payload = json.loads(gate_result.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertEqual("product-structuring", payload["gate"])
+            requirements = {item["code"]: item for item in payload["requirements"]}
+            self.assertTrue(requirements["product_import_ready"]["ok"])
+
+    def test_gate_product_structuring_uses_manifest_after_conversion(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.docx"
+            product.write_bytes(b"fake docx bytes")
+
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+
+            state = json.loads((target / ".governance/state.json").read_text(encoding="utf-8"))
+            self.assertEqual("conversion_required", state["product_import_status"])
+
+            (target / "docs/product/core/PRD.md").write_text("# Converted Product\n", encoding="utf-8")
+            manifest_path = target / "docs/product/core/source/source-manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["import"]["status"] = "ready_for_structuring"
+            manifest["import"]["conversion_method"] = "manual-reviewed-markdown"
+            manifest["import"]["can_derive_design"] = True
+            manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+            gate_result = subprocess.run(
+                [sys.executable, str(CLI), "gate", "product-structuring", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, gate_result.returncode, gate_result.stderr)
+            payload = json.loads(gate_result.stdout)
+            requirements = {item["code"]: item for item in payload["requirements"]}
+            self.assertTrue(requirements["product_import_ready"]["ok"])
+
+    def test_gate_design_derivation_requires_product_chapter(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+
+            blocked = subprocess.run(
+                [sys.executable, str(CLI), "gate", "design-derivation", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(1, blocked.returncode)
+            blocked_payload = json.loads(blocked.stdout)
+            blocked_requirements = {item["code"]: item for item in blocked_payload["requirements"]}
+            self.assertFalse(blocked_requirements["product_chapters_present"]["ok"])
+
+            (target / "docs/product/01-goals.md").write_text("# Goals\n", encoding="utf-8")
+            _append_index(target / "docs/product/README.md", "01-goals.md")
+
+            allowed = subprocess.run(
+                [sys.executable, str(CLI), "gate", "design-derivation", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, allowed.returncode, allowed.stderr)
+            self.assertTrue(json.loads(allowed.stdout)["ok"])
+
+    def test_gate_implementation_requires_design_and_delivery_docs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            (target / "docs/product/01-goals.md").write_text("# Goals\n", encoding="utf-8")
+            _append_index(target / "docs/product/README.md", "01-goals.md")
+
+            blocked = subprocess.run(
+                [sys.executable, str(CLI), "gate", "implementation", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(1, blocked.returncode)
+            blocked_requirements = {item["code"]: item for item in json.loads(blocked.stdout)["requirements"]}
+            self.assertFalse(blocked_requirements["architecture_docs_present"]["ok"])
+
+            for domain, filename in [
+                ("architecture", "01-context.md"),
+                ("api", "00-conventions.md"),
+                ("backend", "01-modules.md"),
+                ("tests", "01-strategy.md"),
+                ("development", "01-roadmap.md"),
+            ]:
+                path = target / "docs" / domain / filename
+                path.write_text(f"# {domain}\n", encoding="utf-8")
+                _append_index(target / "docs" / domain / "README.md", filename)
+
+            allowed = subprocess.run(
+                [sys.executable, str(CLI), "gate", "implementation", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, allowed.returncode, allowed.stderr)
+            self.assertTrue(json.loads(allowed.stdout)["ok"])
 
 
 if __name__ == "__main__":

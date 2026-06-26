@@ -18,15 +18,23 @@ Read `references/architecture-methods.md` before producing architecture document
 - quality attributes
 - deployment assumptions
 - major risks
- - ADR candidates
+- ADR candidates
 
 ## Procedure
 
-1. Read product scope and acceptance criteria.
-2. Identify actors, systems, and external services.
-3. Define containers without committing to unnecessary internal classes.
-4. Record cross-module decisions as ADRs.
-5. Link every architecture claim to product, API, or decision sources.
+1. Run the design gate:
+
+   ```bash
+   bin/governance gate design-derivation <target> --json
+   ```
+
+   Stop on `ok: false` and repair by `requirements[].code`.
+
+2. Read product scope and acceptance criteria.
+3. Identify actors, systems, and external services.
+4. Define containers without committing to unnecessary internal classes.
+5. Record cross-module decisions as ADRs.
+6. Link every architecture claim to product, API, or decision sources.
 
 ## Stop Conditions
 

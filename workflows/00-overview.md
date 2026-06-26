@@ -36,6 +36,14 @@ Node.js tooling is an optional project-specific enhancement layer. Rust is reser
 | 04 | Design derivation | `designing-system-architecture`, `designing-api-contracts` |
 | 05 | Verification and drift control | `verifying-governance-docs` |
 
+Before moving between phases, run the matching gate:
+
+```bash
+bin/governance gate product-structuring <target> --json
+bin/governance gate design-derivation <target> --json
+bin/governance gate implementation <target> --json
+```
+
 ## Source-of-Truth Flow
 
 ```text

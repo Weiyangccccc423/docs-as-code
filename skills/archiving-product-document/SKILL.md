@@ -15,6 +15,7 @@ Archive first, interpret second.
 4. Record source, conversion method, hash evidence, and review status in `product-meta.md`.
 5. Preserve tables, acceptance rules, diagrams, and field names.
 6. Register conversion losses in `docs/unresolved.md`.
+7. Run `bin/governance verify <target> --json`, then `bin/governance gate product-structuring <target> --json`.
 
 ## Conversion Rules
 

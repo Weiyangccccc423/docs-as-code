@@ -35,7 +35,15 @@ Create the minimum structure needed for reliable docs-as-code work.
    bin/governance verify <target>
    ```
 
-5. When working inside the initialized target, switch to the copied target-local runtime:
+5. Check the first downstream phase gate:
+
+   ```bash
+   bin/governance gate product-structuring <target> --json
+   ```
+
+   Stop on `ok: false` and repair by `requirements[].code`.
+
+6. When working inside the initialized target, switch to the copied target-local runtime:
 
    ```bash
    bin/governance verify .

@@ -20,10 +20,10 @@ Load according to the design track:
 
 ## Procedure
 
-1. Run governance verification and stop if `docs/unresolved.md` contains blocking rows:
+1. Confirm product structure is ready for design derivation:
 
    ```bash
-   bin/governance verify <target> --json
+   bin/governance gate design-derivation <target> --json
    ```
 
 2. Create `docs/architecture/` views:

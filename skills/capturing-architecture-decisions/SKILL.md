@@ -28,5 +28,6 @@ Create an ADR when a decision:
 
 - Keep ADRs short.
 - Include rejected alternatives.
+- For product-derived design decisions, run `bin/governance gate design-derivation <target> --json` first.
 - Keep accepted ADR bodies stable; supersede with a new ADR when the decision changes.
 - Add reverse links from module docs that cite the ADR.

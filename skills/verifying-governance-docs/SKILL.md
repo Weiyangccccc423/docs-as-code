@@ -12,6 +12,9 @@ Prefer deterministic checks before manual review.
 ```bash
 bin/governance verify <target>
 bin/governance env --strict --repair --target <target>
+bin/governance gate product-structuring <target>
+bin/governance gate design-derivation <target>
+bin/governance gate implementation <target>
 ```
 
 For agent automation, use JSON and branch on `ok`:
@@ -19,9 +22,11 @@ For agent automation, use JSON and branch on `ok`:
 ```bash
 bin/governance verify <target> --json
 bin/governance env --strict --repair --target <target> --json
+bin/governance gate implementation <target> --json
 ```
 
 Use `verify --json` `findings[].code` and `findings[].path` for deterministic repair routing. Use `errors` and `warnings` only for human-facing summaries.
+Use `gate --json` `requirements[].code` for phase-transition repair routing; `verification.findings[]` contains the embedded structural verification result.
 
 Treat `ok: false` as blocking. Treat `needs_escalation: true` as requiring explicit approval before running the reported package-manager command.
 

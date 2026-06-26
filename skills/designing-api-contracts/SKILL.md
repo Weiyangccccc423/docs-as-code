@@ -28,6 +28,20 @@ Each endpoint must define:
 - upstream product/design links
 - frontend consumer links
 
+## Procedure
+
+1. Run the design gate:
+
+   ```bash
+   bin/governance gate design-derivation <target> --json
+   ```
+
+   Stop on `ok: false` and repair by `requirements[].code`.
+
+2. Derive endpoints from structured product chapters and architecture docs.
+3. Keep field names, auth rules, idempotency, and error behavior traceable.
+4. Update `docs/api/README.md` and endpoint indexes for every new Markdown file.
+
 ## Stop Conditions
 
 - A field cannot be traced to product, UI, backend design, or an explicit decision.

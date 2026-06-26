@@ -17,6 +17,18 @@ Use this as the router skill for the workflow pack.
 | Product is structured and design is needed | `designing-system-architecture`, then `designing-api-contracts` |
 | Any phase claims completion | `verifying-governance-docs` |
 
+## Phase Gates
+
+Before loading downstream skills or changing phase, run the target-local gate when available:
+
+```bash
+bin/governance gate product-structuring <target> --json
+bin/governance gate design-derivation <target> --json
+bin/governance gate implementation <target> --json
+```
+
+Stop on `ok: false`. Use `requirements[].code` to choose the repair skill, then rerun the gate.
+
 ## Rules
 
 - Do not derive design from an unarchived product source.

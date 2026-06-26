@@ -49,6 +49,7 @@ Load:
 
 ```bash
 bin/governance verify <target> --json
+bin/governance gate product-structuring <target> --json
 ```
 
 Verification checks that the archived source still matches the manifest hash and that `can_derive_design` is true. Manual review must confirm that `PRD.md` preserves the original meaning.

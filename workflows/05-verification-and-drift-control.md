@@ -48,7 +48,13 @@ Load:
    make verify-governance
    ```
 
-4. Before implementation starts, confirm:
+4. Before implementation starts, run the implementation gate:
+
+   ```bash
+   bin/governance gate implementation <target> --json
+   ```
+
+5. Before implementation starts, confirm:
    - no unregistered docs directories
    - no stale reserved markers
    - no `docs/unresolved.md` rows with a blocking `Blocking Scope`

@@ -36,6 +36,7 @@ RUNTIME_SCRIPT_FILES = [
     "__init__.py",
     "bootstrap_tree.py",
     "check_env.py",
+    "gates.py",
     "governance_cli.py",
     "state.py",
     "verify_governance.py",

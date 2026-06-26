@@ -17,13 +17,19 @@ Load:
 
 ## Procedure
 
-1. Build a product chapter map in `product-meta.md`.
-2. Split stable sections into `docs/product/NN-<slug>.md`.
-3. Extract acceptance criteria into a dedicated product chapter.
-4. Extract success metrics into a dedicated product chapter when present.
-5. Add cross-domain terms to `docs/glossary.md`.
-6. Register unresolved product or interaction questions in `docs/unresolved.md`.
-7. Update `docs/product/README.md` so every product chapter file is indexed.
+1. Confirm the product is ready for structuring:
+
+   ```bash
+   bin/governance gate product-structuring <target> --json
+   ```
+
+2. Build a product chapter map in `product-meta.md`.
+3. Split stable sections into `docs/product/NN-<slug>.md`.
+4. Extract acceptance criteria into a dedicated product chapter.
+5. Extract success metrics into a dedicated product chapter when present.
+6. Add cross-domain terms to `docs/glossary.md`.
+7. Register unresolved product or interaction questions in `docs/unresolved.md`.
+8. Update `docs/product/README.md` so every product chapter file is indexed.
 
 Use `none`, `-`, `n/a`, `non-blocking`, or `resolved` in `Blocking Scope` only when the item does not block downstream work. Any other value blocks governance verification.
 

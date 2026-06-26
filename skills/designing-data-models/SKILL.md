@@ -19,11 +19,19 @@ Data design must preserve product semantics and make runtime behavior testable.
 
 ## Procedure
 
-1. Start from product nouns and backend module ownership.
-2. Define state machines before writing fields.
-3. Add constraints for idempotency and cross-user isolation.
-4. Document query paths that justify indexes.
-5. Link schema choices to API contracts and acceptance criteria.
+1. Run the design gate:
+
+   ```bash
+   bin/governance gate design-derivation <target> --json
+   ```
+
+   Stop on `ok: false` and repair by `requirements[].code`.
+
+2. Start from product nouns and backend module ownership.
+3. Define state machines before writing fields.
+4. Add constraints for idempotency and cross-user isolation.
+5. Document query paths that justify indexes.
+6. Link schema choices to API contracts and acceptance criteria.
 
 ## Stop Conditions
 
