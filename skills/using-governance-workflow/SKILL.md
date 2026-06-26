@@ -20,7 +20,7 @@ Use this as the router skill for the workflow pack.
 ## Rules
 
 - Do not derive design from an unarchived product source.
-- Do not continue past a blocking item in `docs/unresolved.md`.
+- Do not continue past a `docs/unresolved.md` row whose `Blocking Scope` is not empty, `-`, `none`, `n/a`, `non-blocking`, or `resolved`.
 - Do not create a new docs directory unless it is registered in `docs/AGENTS.md`.
 - Prefer scripts for deterministic checks; use skills for judgment-heavy classification.
 - After initialization, prefer the target-local `bin/governance` runtime copied into the generated repository.

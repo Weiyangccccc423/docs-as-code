@@ -26,7 +26,7 @@ Turn a preserved PRD into navigable product truth without changing its meaning.
 5. Extract acceptance criteria into a stable chapter.
 6. Extract success metrics when present.
 7. Add cross-domain terms to glossary.
-8. Register ambiguous requirements before deriving design.
+8. Register ambiguous requirements before deriving design. Use `none`, `-`, `n/a`, `non-blocking`, or `resolved` only for items that do not block downstream work.
 
 ## Stop Conditions
 
@@ -34,3 +34,4 @@ Turn a preserved PRD into navigable product truth without changing its meaning.
 - Two terms appear to refer to the same concept with different names.
 - Acceptance criteria and functional text conflict.
 - The archived source manifest reports `conversion_required`.
+- `docs/unresolved.md` has any row with a blocking `Blocking Scope`.

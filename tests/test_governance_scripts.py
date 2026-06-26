@@ -144,6 +144,44 @@ class GovernanceScriptsTest(unittest.TestCase):
             report = verify(root)
             self.assertIn("reserved marker references non-empty docs/api", report.errors)
 
+    def test_verify_reports_blocking_unresolved_item(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            unresolved = root / "docs/unresolved.md"
+            unresolved.write_text(
+                "# Unresolved Items\n\n"
+                "| ID | Domain | Description | Blocking Scope | Owner | Date |\n"
+                "| --- | --- | --- | --- | --- | --- |\n"
+                "| U-001 | API | Need auth model | API and backend design | TBD | 2026-06-26 |\n",
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+            self.assertIn("blocking unresolved item U-001 affects API and backend design", report.errors)
+
+    def test_verify_allows_non_blocking_unresolved_item(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            unresolved = root / "docs/unresolved.md"
+            unresolved.write_text(
+                "# Unresolved Items\n\n"
+                "| ID | Domain | Description | Blocking Scope | Owner | Date |\n"
+                "| --- | --- | --- | --- | --- | --- |\n"
+                "| U-002 | Copy | Confirm button label | none | TBD | 2026-06-26 |\n",
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+            self.assertEqual([], report.errors)
+
     def test_install_plan_respects_strict_scope(self) -> None:
         statuses = [
             ToolStatus(

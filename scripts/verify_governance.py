@@ -21,6 +21,8 @@ DOC_DIRS = {
     "agent-workflow",
 }
 
+NON_BLOCKING_SCOPES = {"", "-", "none", "n/a", "na", "non-blocking", "non blocking", "resolved"}
+
 
 @dataclass
 class VerificationReport:
@@ -75,6 +77,7 @@ def verify(root: Path) -> VerificationReport:
             _check_reserved_markers(root, path, report)
 
     _check_product_source_manifest(root, report)
+    _check_unresolved_items(root, report)
 
     return report
 
@@ -134,6 +137,51 @@ def _check_product_source_manifest(root: Path, report: VerificationReport) -> No
 
     if imported.get("can_derive_design") is not True:
         report.errors.append(f"product source requires conversion before design derivation: {archived_rel}")
+
+
+def _check_unresolved_items(root: Path, report: VerificationReport) -> None:
+    path = root / "docs/unresolved.md"
+    if not path.exists():
+        return
+    rows = _markdown_table(path.read_text(encoding="utf-8"))
+    if not rows:
+        return
+    header = [_normalize_cell(cell) for cell in rows[0]]
+    required = ["id", "domain", "description", "blocking scope"]
+    missing = [name for name in required if name not in header]
+    if missing:
+        report.errors.append(f"docs/unresolved.md table is missing required columns: {', '.join(missing)}")
+        return
+    id_index = header.index("id")
+    scope_index = header.index("blocking scope")
+    for row in rows[1:]:
+        if _is_separator_row(row):
+            continue
+        if len(row) <= max(id_index, scope_index):
+            continue
+        item_id = row[id_index].strip() or "(missing id)"
+        blocking_scope = row[scope_index].strip()
+        if _normalize_cell(blocking_scope) in NON_BLOCKING_SCOPES:
+            continue
+        report.errors.append(f"blocking unresolved item {item_id} affects {blocking_scope}")
+
+
+def _markdown_table(text: str) -> list[list[str]]:
+    rows: list[list[str]] = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("|") or not stripped.endswith("|"):
+            continue
+        rows.append([cell.strip() for cell in stripped.strip("|").split("|")])
+    return rows
+
+
+def _normalize_cell(value: str) -> str:
+    return re.sub(r"\s+", " ", value.strip().lower())
+
+
+def _is_separator_row(row: list[str]) -> bool:
+    return all(re.fullmatch(r":?-{3,}:?", cell.strip()) for cell in row)
 
 
 def _sha256(path: Path) -> str:

@@ -49,7 +49,7 @@ Load:
 4. Before implementation starts, confirm:
    - no unregistered docs directories
    - no stale reserved markers
-   - no blocking unresolved items
+   - no `docs/unresolved.md` rows with a blocking `Blocking Scope`
    - product, API, architecture, backend, frontend, tests, and development docs link to each other
    - task board items have product/design/API/acceptance reverse links
 

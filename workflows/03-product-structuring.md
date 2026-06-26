@@ -25,6 +25,8 @@ Load:
 6. Register unresolved product or interaction questions in `docs/unresolved.md`.
 7. Update `docs/product/README.md`.
 
+Use `none`, `-`, `n/a`, `non-blocking`, or `resolved` in `Blocking Scope` only when the item does not block downstream work. Any other value blocks governance verification.
+
 ## Output Pattern
 
 ```text
@@ -49,12 +51,12 @@ Use only chapters that the source document supports. Do not create empty decorat
 - Every product chapter links back to `core/PRD.md`.
 - `README.md` lists every product chapter.
 - `product-meta.md` links to every product chapter.
-- `docs/unresolved.md` contains every blocking ambiguity.
+- `docs/unresolved.md` contains every ambiguity, and no blocking rows remain before design derivation.
 
 Run:
 
 ```bash
-python3 scripts/verify_governance.py <target>
+bin/governance verify <target> --json
 ```
 
 ## Stop Conditions
@@ -62,3 +64,4 @@ python3 scripts/verify_governance.py <target>
 - A derived chapter would require inventing missing product meaning.
 - Acceptance criteria conflict with functional requirements.
 - A term has different meanings across product, UI, API, or implementation text.
+- `docs/unresolved.md` contains any row with a blocking scope.

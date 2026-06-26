@@ -36,7 +36,7 @@ make ci
 - no unregistered `docs/` directories
 - no stale reserved markers
 - non-empty docs directories have `README.md` and `AGENTS.md`
-- unresolved items are either empty or explicitly blocking
+- unresolved items use `none`, `-`, `n/a`, `non-blocking`, or `resolved` for non-blocking scope; any other `Blocking Scope` fails verification
 - roadmap and task board status agree
 - implementation tasks link to product, design, API, and acceptance sources
 
