@@ -56,6 +56,7 @@ Load according to the design track:
    - error action map
 8. Create ADRs in `docs/decisions/` for cross-module or high-cost decisions.
 9. Keep all design documents linked to product and acceptance sources.
+10. Update the same-directory `README.md` for every new Markdown document, except underscore-prefixed templates such as `_template.md`.
 
 ## Output
 
@@ -67,6 +68,7 @@ Design documents sufficient for creating a task board without guessing product m
 - Backend modules link to API, schema, external services, and acceptance criteria.
 - Frontend modules link to UI, API, state, and acceptance criteria.
 - ADRs have context, decision, consequences, and references.
+- Each non-template Markdown document is indexed by the README in the same directory.
 
 Run:
 

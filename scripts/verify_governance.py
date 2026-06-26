@@ -78,6 +78,7 @@ def verify(root: Path) -> VerificationReport:
 
     _check_product_source_manifest(root, report)
     _check_unresolved_items(root, report)
+    _check_readme_indexes(root, report)
 
     return report
 
@@ -164,6 +165,23 @@ def _check_unresolved_items(root: Path, report: VerificationReport) -> None:
         if _normalize_cell(blocking_scope) in NON_BLOCKING_SCOPES:
             continue
         report.errors.append(f"blocking unresolved item {item_id} affects {blocking_scope}")
+
+
+def _check_readme_indexes(root: Path, report: VerificationReport) -> None:
+    docs_root = root / "docs"
+    if not docs_root.exists():
+        return
+    for readme in sorted(docs_root.rglob("README.md")):
+        directory = readme.parent
+        readme_text = readme.read_text(encoding="utf-8")
+        for child in sorted(directory.glob("*.md")):
+            if child.name in {"README.md", "AGENTS.md"} or child.name.startswith("_"):
+                continue
+            if child.name in readme_text:
+                continue
+            rel_child = child.relative_to(root).as_posix()
+            rel_readme = readme.relative_to(root).as_posix()
+            report.errors.append(f"{rel_child} is not indexed in {rel_readme}")
 
 
 def _markdown_table(text: str) -> list[list[str]]:

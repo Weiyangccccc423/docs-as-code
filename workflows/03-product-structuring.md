@@ -23,7 +23,7 @@ Load:
 4. Extract success metrics into a dedicated product chapter when present.
 5. Add cross-domain terms to `docs/glossary.md`.
 6. Register unresolved product or interaction questions in `docs/unresolved.md`.
-7. Update `docs/product/README.md`.
+7. Update `docs/product/README.md` so every product chapter file is indexed.
 
 Use `none`, `-`, `n/a`, `non-blocking`, or `resolved` in `Blocking Scope` only when the item does not block downstream work. Any other value blocks governance verification.
 

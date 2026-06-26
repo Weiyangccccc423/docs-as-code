@@ -182,6 +182,34 @@ class GovernanceScriptsTest(unittest.TestCase):
             report = verify(root)
             self.assertEqual([], report.errors)
 
+    def test_verify_reports_unindexed_docs_markdown_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            chapter = root / "docs/product/01-goals.md"
+            chapter.write_text("# Goals\n", encoding="utf-8")
+
+            report = verify(root)
+            self.assertIn("docs/product/01-goals.md is not indexed in docs/product/README.md", report.errors)
+
+    def test_verify_allows_indexed_docs_markdown_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            chapter = root / "docs/product/01-goals.md"
+            chapter.write_text("# Goals\n", encoding="utf-8")
+            readme = root / "docs/product/README.md"
+            readme.write_text(readme.read_text(encoding="utf-8") + "\n- `01-goals.md` - goals\n", encoding="utf-8")
+
+            report = verify(root)
+            self.assertEqual([], report.errors)
+
     def test_install_plan_respects_strict_scope(self) -> None:
         statuses = [
             ToolStatus(

@@ -479,6 +479,14 @@ def _docs_agents() -> str:
 
 
 def _domain_readme(name: str, title: str) -> str:
+    if name == "agent-workflow":
+        return (
+            f"# docs/{name}\n\n"
+            f"{title}。\n\n"
+            "> Governance: `AGENTS.md`.\n\n"
+            "## Index\n\n"
+            "- `task-handoff.md` - agent task handoff and completion criteria\n"
+        )
     return f"# docs/{name}\n\n{title}。\n\n> Governance: `AGENTS.md`.\n"
 
 
