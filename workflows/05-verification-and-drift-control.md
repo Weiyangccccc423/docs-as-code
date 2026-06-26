@@ -72,6 +72,7 @@ Load:
    - API endpoint `Upstream Links` sections reference existing local source Markdown
    - API endpoint `Frontend Consumers` sections reference existing local UI or frontend API-consumption Markdown
    - product, API, architecture, backend, frontend, tests, and development docs link to each other
+   - `docs/backend/01-modules.md` links to API docs, `docs/backend/02-data-model.md`, `docs/backend/03-external-services.md`, and product acceptance criteria
    - roadmap tables with `ID` and `Status` columns agree with same-ID task board statuses
    - task board items have `ID`, `Status`, `Task`, `Product`, `Design`, `API`, `Acceptance`, and `Verification`
    - task board `Status` values are one of `Backlog`, `Ready`, `In Progress`, `Blocked`, `Done`, or `Deferred`

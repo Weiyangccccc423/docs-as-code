@@ -32,10 +32,12 @@ Read `references/backend-design-checklist.md` when the module touches data, asyn
 4. Identify module responsibility and boundaries.
 5. Name upstream and downstream modules.
 6. Link owned API endpoints from `docs/api/`.
-7. Define data ownership and lifecycle states.
-8. Document external dependencies, retries, timeouts, and failure modes.
-9. Define observability and auth behavior.
-10. Link acceptance criteria and test strategy.
+7. Link `docs/backend/01-modules.md` to `docs/backend/02-data-model.md`.
+8. Link `docs/backend/01-modules.md` to `docs/backend/03-external-services.md`, even when the document states there are no external services.
+9. Define data ownership and lifecycle states.
+10. Document external dependencies, retries, timeouts, and failure modes.
+11. Define observability and auth behavior.
+12. Link acceptance criteria and test strategy.
 
 ## Stop Conditions
 

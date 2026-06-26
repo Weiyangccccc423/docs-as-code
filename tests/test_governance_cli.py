@@ -595,6 +595,19 @@ class GovernanceCliTest(unittest.TestCase):
                 path.write_text(f"# {domain}\n", encoding="utf-8")
                 _append_index(target / "docs" / domain / "README.md", filename)
 
+            (target / "docs/backend/01-modules.md").write_text(
+                "# Backend Modules\n\n"
+                "API: [API conventions](../api/00-conventions.md).\n"
+                "Data: [Data model](02-data-model.md).\n"
+                "External services: [External services](03-external-services.md).\n"
+                "Acceptance: [Acceptance](../product/08-acceptance-criteria.md).\n",
+                encoding="utf-8",
+            )
+            for filename in ("02-data-model.md", "03-external-services.md"):
+                path = target / "docs/backend" / filename
+                path.write_text(f"# {filename}\n", encoding="utf-8")
+                _append_index(target / "docs/backend/README.md", filename)
+
             missing_task = subprocess.run(
                 [sys.executable, str(CLI), "gate", "implementation", str(target), "--json"],
                 text=True,

@@ -6,6 +6,7 @@ import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Callable
 
 
 DOC_DIRS = {
@@ -49,6 +50,9 @@ API_ENDPOINT_REQUIRED_SECTIONS = {
     "frontend consumers": "Frontend Consumers",
 }
 API_ERROR_CODES_REL = Path("docs/api/error-codes.md")
+BACKEND_MODULES_REL = Path("docs/backend/01-modules.md")
+BACKEND_DATA_MODEL_REL = Path("docs/backend/02-data-model.md")
+BACKEND_EXTERNAL_SERVICES_REL = Path("docs/backend/03-external-services.md")
 HTTP_METHOD_PATH_RE = re.compile(
     r"(?<![A-Za-z])(?:GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD)\s+/[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%{}-]*",
     re.IGNORECASE,
@@ -175,6 +179,7 @@ def verify(root: Path) -> VerificationReport:
     _check_product_source_manifest(root, report)
     _check_product_chapter_links(root, report)
     _check_api_endpoint_contract_filenames(root, report)
+    _check_backend_module_traceability(root, report)
     _check_unresolved_items(root, report)
     _check_glossary_items(root, report)
     _check_readme_indexes(root, report)
@@ -456,6 +461,67 @@ def _check_api_endpoint_contract_sections(root: Path, path: Path, report: Verifi
                     f"{rel} references missing Frontend Consumers target: {reference.rel}",
                     rel,
                 )
+
+
+def _check_backend_module_traceability(root: Path, report: VerificationReport) -> None:
+    path = root / BACKEND_MODULES_REL
+    rel = BACKEND_MODULES_REL.as_posix()
+    if not path.exists():
+        return
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return
+    if SCAFFOLD_PLACEHOLDER in text:
+        return
+
+    references = _local_markdown_references(root, path, text, include_bare=True, strip_code=False)
+    _check_backend_reference_group(report, rel, references, "API", _is_api_reference)
+    _check_backend_reference_group(
+        report,
+        rel,
+        references,
+        "Data Model",
+        lambda reference: reference.rel == BACKEND_DATA_MODEL_REL.as_posix(),
+        required_rel=BACKEND_DATA_MODEL_REL.as_posix(),
+    )
+    _check_backend_reference_group(
+        report,
+        rel,
+        references,
+        "External Services",
+        lambda reference: reference.rel == BACKEND_EXTERNAL_SERVICES_REL.as_posix(),
+        required_rel=BACKEND_EXTERNAL_SERVICES_REL.as_posix(),
+    )
+    _check_backend_reference_group(report, rel, references, "Acceptance", _is_product_acceptance_reference_path)
+
+
+def _check_backend_reference_group(
+    report: VerificationReport,
+    source_rel: str,
+    references: list[LocalMarkdownReference],
+    label: str,
+    predicate: Callable[[LocalMarkdownReference], bool],
+    *,
+    required_rel: str = "",
+) -> None:
+    matching = [reference for reference in references if predicate(reference)]
+    if not matching:
+        if required_rel:
+            message = f"{source_rel} must reference {required_rel}"
+        elif label == "Acceptance":
+            message = f"{source_rel} must reference a product acceptance chapter"
+        else:
+            message = f"{source_rel} must reference existing {label} docs"
+        report.add_error("backend_module_trace_reference_missing", message, source_rel)
+        return
+    for reference in matching:
+        if not reference.exists:
+            report.add_error(
+                "backend_module_trace_reference_missing",
+                f"{source_rel} references missing {label} target: {reference.rel}",
+                source_rel,
+            )
 
 
 def _check_unresolved_items(root: Path, report: VerificationReport) -> None:
@@ -910,15 +976,23 @@ def _task_board_row_trace_reference_errors(root: Path, row: dict[str, str], task
 
 
 def _is_product_acceptance_reference(reference: LocalMarkdownReference) -> bool:
+    return reference.exists and _is_product_acceptance_reference_path(reference)
+
+
+def _is_product_acceptance_reference_path(reference: LocalMarkdownReference) -> bool:
     path = Path(reference.rel)
     return (
-        reference.exists
-        and len(path.parts) == 3
+        len(path.parts) == 3
         and path.parts[0] == "docs"
         and path.parts[1] == "product"
         and PRODUCT_CHAPTER_RE.fullmatch(path.parts[2]) is not None
         and "acceptance" in path.stem.lower()
     )
+
+
+def _is_api_reference(reference: LocalMarkdownReference) -> bool:
+    path = Path(reference.rel)
+    return len(path.parts) >= 2 and path.parts[0] == "docs" and path.parts[1] == "api"
 
 
 def _task_board_done_evidence_errors(root: Path, row: dict[str, str], task_id: str) -> list[str]:

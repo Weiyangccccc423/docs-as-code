@@ -47,6 +47,13 @@ def _write_frontend_consumer_doc(root: Path) -> None:
     )
 
 
+def _write_backend_trace_docs(root: Path) -> None:
+    _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+    _write_indexed_doc(root, "docs/backend/02-data-model.md", "# Data Model\n")
+    _write_indexed_doc(root, "docs/backend/03-external-services.md", "# External Services\n")
+    _write_acceptance_chapter(root)
+
+
 def _endpoint_contract_doc(
     title: str,
     upstream_links: str = "- [Product goals](../../product/01-goals.md)",
@@ -1114,6 +1121,96 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "path": "docs/api/endpoints/01-list-users.md",
                     "message": "duplicate API endpoint contract prefix 01: "
                     "docs/api/endpoints/01-create-user.md, docs/api/endpoints/01-list-users.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_allows_traceable_backend_module_design(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_backend_trace_docs(root)
+            _write_indexed_doc(
+                root,
+                "docs/backend/01-modules.md",
+                "# Backend Modules\n\n"
+                "API: [API conventions](../api/00-conventions.md).\n"
+                "Data: [Data model](02-data-model.md).\n"
+                "External services: [External services](03-external-services.md).\n"
+                "Acceptance: [Acceptance](../product/08-acceptance-criteria.md).\n",
+            )
+
+            report = verify(root)
+
+            self.assertEqual([], report.errors)
+
+    def test_verify_reports_backend_module_missing_trace_references(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(
+                root,
+                "docs/backend/01-modules.md",
+                "# Backend Modules\n\n"
+                "The service module owns the goal flow runtime behavior.\n",
+            )
+
+            report = verify(root)
+
+            expected = [
+                "docs/backend/01-modules.md must reference existing API docs",
+                "docs/backend/01-modules.md must reference docs/backend/02-data-model.md",
+                "docs/backend/01-modules.md must reference docs/backend/03-external-services.md",
+                "docs/backend/01-modules.md must reference a product acceptance chapter",
+            ]
+            for message in expected:
+                self.assertIn(message, report.errors)
+            self.assertIn(
+                {
+                    "code": "backend_module_trace_reference_missing",
+                    "severity": "error",
+                    "path": "docs/backend/01-modules.md",
+                    "message": "docs/backend/01-modules.md must reference existing API docs",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_backend_module_missing_trace_targets(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(
+                root,
+                "docs/backend/01-modules.md",
+                "# Backend Modules\n\n"
+                "API: [Missing API](../api/missing.md).\n"
+                "Data: [Data model](02-data-model.md).\n"
+                "External services: [External services](03-external-services.md).\n"
+                "Acceptance: [Acceptance](../product/08-acceptance-criteria.md).\n",
+            )
+
+            report = verify(root)
+
+            expected = [
+                "docs/backend/01-modules.md references missing API target: docs/api/missing.md",
+                "docs/backend/01-modules.md references missing Data Model target: docs/backend/02-data-model.md",
+                "docs/backend/01-modules.md references missing External Services target: docs/backend/03-external-services.md",
+                "docs/backend/01-modules.md references missing Acceptance target: docs/product/08-acceptance-criteria.md",
+            ]
+            for message in expected:
+                self.assertIn(message, report.errors)
+            self.assertIn(
+                {
+                    "code": "backend_module_trace_reference_missing",
+                    "severity": "error",
+                    "path": "docs/backend/01-modules.md",
+                    "message": "docs/backend/01-modules.md references missing API target: docs/api/missing.md",
                 },
                 [finding.to_dict() for finding in report.findings],
             )
