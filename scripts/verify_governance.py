@@ -90,6 +90,13 @@ BACKEND_EXTERNAL_SERVICES_REQUIRED_SECTIONS = {
 }
 FRONTEND_MODULES_REL = Path("docs/frontend/01-modules.md")
 FRONTEND_API_CONSUMPTION_REL = Path("docs/frontend/02-api-consumption.md")
+FRONTEND_API_CONSUMPTION_REQUIRED_SECTIONS = {
+    "product links": "Product Links",
+    "api links": "API Links",
+    "consumption map": "Consumption Map",
+    "loading states": "Loading States",
+    "error actions": "Error Actions",
+}
 TEST_STRATEGY_REL = Path("docs/tests/01-strategy.md")
 ACCEPTANCE_MATRIX_REL = Path("docs/tests/02-acceptance-matrix.md")
 ACCEPTANCE_MATRIX_REQUIRED_COLUMNS = {
@@ -231,6 +238,7 @@ def verify(root: Path) -> VerificationReport:
     _check_backend_data_model(root, report)
     _check_backend_external_services(root, report)
     _check_frontend_module_traceability(root, report)
+    _check_frontend_api_consumption(root, report)
     _check_test_strategy_traceability(root, report)
     _check_acceptance_matrix_traceability(root, report)
     _check_architecture_decisions(root, report)
@@ -831,6 +839,71 @@ def _check_frontend_module_traceability(root: Path, report: VerificationReport) 
         rel,
         references,
         "frontend_module_trace_reference_missing",
+        "Acceptance",
+        _is_product_acceptance_reference_path,
+    )
+
+
+def _check_frontend_api_consumption(root: Path, report: VerificationReport) -> None:
+    path = root / FRONTEND_API_CONSUMPTION_REL
+    rel = FRONTEND_API_CONSUMPTION_REL.as_posix()
+    if not path.exists():
+        return
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return
+    if SCAFFOLD_PLACEHOLDER in text:
+        return
+
+    sections = _markdown_sections(text)
+    missing = [
+        label
+        for key, label in FRONTEND_API_CONSUMPTION_REQUIRED_SECTIONS.items()
+        if key not in sections
+    ]
+    if missing:
+        report.add_error(
+            "frontend_api_consumption_missing_sections",
+            f"{rel} is missing API consumption sections: {', '.join(missing)}",
+            rel,
+        )
+        return
+    empty = [
+        label
+        for key, label in FRONTEND_API_CONSUMPTION_REQUIRED_SECTIONS.items()
+        if not _section_has_authored_content(sections[key])
+    ]
+    if empty:
+        report.add_error(
+            "frontend_api_consumption_empty_sections",
+            f"{rel} has empty API consumption sections: {', '.join(empty)}",
+            rel,
+        )
+
+    references = _local_markdown_references(root, path, text, include_bare=True, strip_code=False)
+    _check_design_reference_group(
+        report,
+        rel,
+        references,
+        "frontend_api_consumption_trace_reference_missing",
+        "Frontend Modules",
+        lambda reference: reference.rel == FRONTEND_MODULES_REL.as_posix(),
+        required_rel=FRONTEND_MODULES_REL.as_posix(),
+    )
+    _check_design_reference_group(
+        report,
+        rel,
+        references,
+        "frontend_api_consumption_trace_reference_missing",
+        "API",
+        _is_api_reference,
+    )
+    _check_design_reference_group(
+        report,
+        rel,
+        references,
+        "frontend_api_consumption_trace_reference_missing",
         "Acceptance",
         _is_product_acceptance_reference_path,
     )

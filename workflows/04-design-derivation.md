@@ -93,6 +93,7 @@ Design documents sufficient for creating a task board without guessing product m
 - `docs/backend/03-external-services.md` has non-placeholder Product Links, Dependencies, Contracts, Retries, Timeouts, Authentication, and Observability sections, and links to backend modules, API docs, and product acceptance criteria.
 - Frontend modules link to UI, API, state, and acceptance criteria.
 - `docs/frontend/01-modules.md` links to UI docs, API docs, `docs/frontend/02-api-consumption.md`, and product acceptance criteria.
+- `docs/frontend/02-api-consumption.md` has non-placeholder Product Links, API Links, Consumption Map, Loading States, and Error Actions sections, and links to frontend modules, API docs, and product acceptance criteria.
 - `docs/tests/01-strategy.md` links to product acceptance criteria, API docs, and architecture/backend/frontend design docs.
 - `docs/tests/02-acceptance-matrix.md` maps acceptance criteria to design, API, and test sources with local Markdown links.
 - ADRs have context, decision, consequences, and references.

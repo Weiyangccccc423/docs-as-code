@@ -40,10 +40,14 @@ def _write_api_error_codes_doc(root: Path) -> None:
 
 
 def _write_frontend_consumer_doc(root: Path) -> None:
+    _write_acceptance_chapter(root)
+    _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+    _write_indexed_doc(root, "docs/ui/01-interaction-model.md", "# Interaction Model\n")
+    _write_indexed_doc(root, "docs/frontend/01-modules.md", _frontend_modules_doc())
     _write_indexed_doc(
         root,
         "docs/frontend/02-api-consumption.md",
-        "# API Consumption\n\n## Consumption Map\n\nWeb client goal flow consumes the example endpoint.\n",
+        _frontend_api_consumption_doc(),
     )
 
 
@@ -57,7 +61,7 @@ def _write_backend_trace_docs(root: Path) -> None:
 def _write_frontend_trace_docs(root: Path) -> None:
     _write_indexed_doc(root, "docs/ui/01-interaction-model.md", "# Interaction Model\n")
     _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
-    _write_indexed_doc(root, "docs/frontend/02-api-consumption.md", "# API Consumption\n")
+    _write_indexed_doc(root, "docs/frontend/02-api-consumption.md", _frontend_api_consumption_doc())
     _write_acceptance_chapter(root)
 
 
@@ -196,6 +200,37 @@ def _backend_modules_doc() -> str:
         "Data: [Data model](02-data-model.md).\n"
         "External services: [External services](03-external-services.md).\n"
         "Acceptance: [Acceptance](../product/08-acceptance-criteria.md).\n"
+    )
+
+
+def _frontend_modules_doc() -> str:
+    return (
+        "# Frontend Modules\n\n"
+        "UI: [Interaction model](../ui/01-interaction-model.md).\n"
+        "API: [API conventions](../api/00-conventions.md).\n"
+        "State and API consumption: [API consumption](02-api-consumption.md).\n"
+        "Acceptance: [Acceptance](../product/08-acceptance-criteria.md).\n"
+    )
+
+
+def _frontend_api_consumption_doc(
+    frontend_modules: str = "[Frontend modules](01-modules.md)",
+    api: str = "[API conventions](../api/00-conventions.md)",
+    acceptance: str = "[Acceptance](../product/08-acceptance-criteria.md)",
+) -> str:
+    return (
+        "# API Consumption\n\n"
+        "## Product Links\n\n"
+        f"- {acceptance}\n"
+        f"- {frontend_modules}\n\n"
+        "## API Links\n\n"
+        f"- {api}\n\n"
+        "## Consumption Map\n\n"
+        "- Goal flow screens consume the documented API contract through the frontend module boundary.\n\n"
+        "## Loading States\n\n"
+        "- Loading states keep the primary goal flow responsive while API requests are in flight.\n\n"
+        "## Error Actions\n\n"
+        "- Recoverable API errors show user-visible retry or correction actions.\n"
     )
 
 
@@ -1697,11 +1732,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             _write_indexed_doc(
                 root,
                 "docs/frontend/01-modules.md",
-                "# Frontend Modules\n\n"
-                "UI: [Interaction model](../ui/01-interaction-model.md).\n"
-                "API: [API conventions](../api/00-conventions.md).\n"
-                "State and API consumption: [API consumption](02-api-consumption.md).\n"
-                "Acceptance: [Acceptance](../product/08-acceptance-criteria.md).\n",
+                _frontend_modules_doc(),
             )
 
             report = verify(root)
@@ -1773,6 +1804,153 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "severity": "error",
                     "path": "docs/frontend/01-modules.md",
                     "message": "docs/frontend/01-modules.md references missing UI target: docs/ui/missing.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_allows_complete_frontend_api_consumption(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+            _write_indexed_doc(root, "docs/ui/01-interaction-model.md", "# Interaction Model\n")
+            _write_indexed_doc(root, "docs/frontend/01-modules.md", _frontend_modules_doc())
+            _write_indexed_doc(root, "docs/frontend/02-api-consumption.md", _frontend_api_consumption_doc())
+
+            report = verify(root)
+
+            self.assertEqual([], report.errors)
+
+    def test_verify_reports_frontend_api_consumption_missing_required_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(
+                root,
+                "docs/frontend/02-api-consumption.md",
+                "# API Consumption\n\n"
+                "## Product Links\n\n"
+                "- [Acceptance](../product/08-acceptance-criteria.md)\n",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/frontend/02-api-consumption.md is missing API consumption sections: "
+                "API Links, Consumption Map, Loading States, Error Actions",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "frontend_api_consumption_missing_sections",
+                    "severity": "error",
+                    "path": "docs/frontend/02-api-consumption.md",
+                    "message": "docs/frontend/02-api-consumption.md is missing API consumption sections: "
+                    "API Links, Consumption Map, Loading States, Error Actions",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_frontend_api_consumption_empty_required_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+            _write_indexed_doc(root, "docs/ui/01-interaction-model.md", "# Interaction Model\n")
+            _write_indexed_doc(root, "docs/frontend/01-modules.md", _frontend_modules_doc())
+            _write_indexed_doc(
+                root,
+                "docs/frontend/02-api-consumption.md",
+                _frontend_api_consumption_doc().replace(
+                    "## Loading States\n\n"
+                    "- Loading states keep the primary goal flow responsive while API requests are in flight.\n\n",
+                    "## Loading States\n\n- TBD\n\n",
+                ),
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/frontend/02-api-consumption.md has empty API consumption sections: Loading States",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "frontend_api_consumption_empty_sections",
+                    "severity": "error",
+                    "path": "docs/frontend/02-api-consumption.md",
+                    "message": "docs/frontend/02-api-consumption.md has empty API consumption sections: Loading States",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_frontend_api_consumption_missing_trace_references(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(
+                root,
+                "docs/frontend/02-api-consumption.md",
+                _frontend_api_consumption_doc(
+                    frontend_modules="Frontend modules",
+                    api="API conventions",
+                    acceptance="Acceptance criteria",
+                ),
+            )
+
+            report = verify(root)
+
+            expected = [
+                "docs/frontend/02-api-consumption.md must reference docs/frontend/01-modules.md",
+                "docs/frontend/02-api-consumption.md must reference existing API docs",
+                "docs/frontend/02-api-consumption.md must reference a product acceptance chapter",
+            ]
+            for message in expected:
+                self.assertIn(message, report.errors)
+            self.assertIn(
+                {
+                    "code": "frontend_api_consumption_trace_reference_missing",
+                    "severity": "error",
+                    "path": "docs/frontend/02-api-consumption.md",
+                    "message": "docs/frontend/02-api-consumption.md must reference docs/frontend/01-modules.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_frontend_api_consumption_missing_trace_targets(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(root, "docs/frontend/02-api-consumption.md", _frontend_api_consumption_doc())
+
+            report = verify(root)
+
+            expected = [
+                "docs/frontend/02-api-consumption.md references missing Frontend Modules target: docs/frontend/01-modules.md",
+                "docs/frontend/02-api-consumption.md references missing API target: docs/api/00-conventions.md",
+                "docs/frontend/02-api-consumption.md references missing Acceptance target: docs/product/08-acceptance-criteria.md",
+            ]
+            for message in expected:
+                self.assertIn(message, report.errors)
+            self.assertIn(
+                {
+                    "code": "frontend_api_consumption_trace_reference_missing",
+                    "severity": "error",
+                    "path": "docs/frontend/02-api-consumption.md",
+                    "message": "docs/frontend/02-api-consumption.md references missing Frontend Modules target: docs/frontend/01-modules.md",
                 },
                 [finding.to_dict() for finding in report.findings],
             )
