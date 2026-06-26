@@ -61,6 +61,22 @@ def _write_frontend_trace_docs(root: Path) -> None:
     _write_acceptance_chapter(root)
 
 
+def _adr_doc(references: str = "- [System context](../architecture/01-system-context.md)") -> str:
+    return (
+        "# ADR-001: Choose Runtime Boundary\n\n"
+        "- Status: accepted\n"
+        "- Date: 2026-06-26\n\n"
+        "## Context\n\n"
+        "The runtime boundary affects API, backend, and frontend delivery.\n\n"
+        "## Decision\n\n"
+        "Use a modular monolith boundary for the first implementation slice.\n\n"
+        "## Consequences\n\n"
+        "Deployment stays simple while module boundaries remain documented.\n\n"
+        "## References\n\n"
+        f"{references.rstrip()}\n"
+    )
+
+
 def _endpoint_contract_doc(
     title: str,
     upstream_links: str = "- [Product goals](../../product/01-goals.md)",
@@ -1308,6 +1324,141 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "severity": "error",
                     "path": "docs/frontend/01-modules.md",
                     "message": "docs/frontend/01-modules.md references missing UI target: docs/ui/missing.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_allows_traceable_adr(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(root, "docs/architecture/01-system-context.md", "# System Context\n")
+            _write_indexed_doc(root, "docs/decisions/001-runtime-boundary.md", _adr_doc())
+
+            report = verify(root)
+
+            self.assertEqual([], report.errors)
+
+    def test_verify_reports_adr_missing_required_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(
+                root,
+                "docs/decisions/001-runtime-boundary.md",
+                "# ADR-001: Choose Runtime Boundary\n\n"
+                "## Context\n\n"
+                "Runtime boundary context.\n",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/decisions/001-runtime-boundary.md is missing ADR sections: Decision, Consequences, References",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "adr_missing_sections",
+                    "severity": "error",
+                    "path": "docs/decisions/001-runtime-boundary.md",
+                    "message": "docs/decisions/001-runtime-boundary.md is missing ADR sections: Decision, Consequences, References",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_adr_empty_required_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(
+                root,
+                "docs/decisions/001-runtime-boundary.md",
+                "# ADR-001: Choose Runtime Boundary\n\n"
+                "## Context\n\n"
+                "TBD\n\n"
+                "## Decision\n\n"
+                "Use a modular monolith boundary.\n\n"
+                "## Consequences\n\n"
+                "Deployment remains simple.\n\n"
+                "## References\n\n"
+                "- [System context](../architecture/01-system-context.md)\n",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/decisions/001-runtime-boundary.md has empty ADR sections: Context",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "adr_empty_sections",
+                    "severity": "error",
+                    "path": "docs/decisions/001-runtime-boundary.md",
+                    "message": "docs/decisions/001-runtime-boundary.md has empty ADR sections: Context",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_adr_missing_reference(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(
+                root,
+                "docs/decisions/001-runtime-boundary.md",
+                _adr_doc("- System context and module tradeoffs"),
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/decisions/001-runtime-boundary.md References section must reference existing local Markdown sources",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "adr_reference_missing",
+                    "severity": "error",
+                    "path": "docs/decisions/001-runtime-boundary.md",
+                    "message": "docs/decisions/001-runtime-boundary.md References section must reference existing local Markdown sources",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_adr_missing_reference_target(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(
+                root,
+                "docs/decisions/001-runtime-boundary.md",
+                _adr_doc("- [Missing source](../architecture/missing.md)"),
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/decisions/001-runtime-boundary.md references missing ADR References target: docs/architecture/missing.md",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "adr_reference_missing",
+                    "severity": "error",
+                    "path": "docs/decisions/001-runtime-boundary.md",
+                    "message": "docs/decisions/001-runtime-boundary.md references missing ADR References target: docs/architecture/missing.md",
                 },
                 [finding.to_dict() for finding in report.findings],
             )

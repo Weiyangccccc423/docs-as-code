@@ -28,6 +28,7 @@ Create an ADR when a decision:
 
 - Keep ADRs short.
 - Include rejected alternatives.
+- Link `References` to existing local Markdown product, architecture, API, backend/frontend, or unresolved sources.
 - For product-derived design decisions, run `bin/governance gate design-derivation <target> --json` first.
 - Keep accepted ADR bodies stable; supersede with a new ADR when the decision changes.
 - Add reverse links from module docs that cite the ADR.

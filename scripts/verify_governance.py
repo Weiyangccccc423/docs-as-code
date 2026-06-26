@@ -34,6 +34,12 @@ GLOSSARY_REQUIRED_COLUMNS = {
     "meaning": "Meaning",
     "source": "Source",
 }
+ADR_REQUIRED_SECTIONS = {
+    "context": "Context",
+    "decision": "Decision",
+    "consequences": "Consequences",
+    "references": "References",
+}
 SCAFFOLD_PLACEHOLDER = "governance:scaffold-placeholder"
 WORKFLOW_PACK_SNAPSHOT_ROOT = "docs/agent-workflow/workflow-pack"
 ROADMAP_REL = Path("docs/development/01-roadmap.md")
@@ -183,6 +189,7 @@ def verify(root: Path) -> VerificationReport:
     _check_api_endpoint_contract_filenames(root, report)
     _check_backend_module_traceability(root, report)
     _check_frontend_module_traceability(root, report)
+    _check_architecture_decisions(root, report)
     _check_unresolved_items(root, report)
     _check_glossary_items(root, report)
     _check_readme_indexes(root, report)
@@ -569,6 +576,66 @@ def _check_design_reference_group(
                 f"{source_rel} references missing {label} target: {reference.rel}",
                 source_rel,
             )
+
+
+def _check_architecture_decisions(root: Path, report: VerificationReport) -> None:
+    decisions_root = root / "docs/decisions"
+    if not decisions_root.exists():
+        return
+    for path in sorted(decisions_root.glob("*.md")):
+        if path.name in {"README.md", "AGENTS.md"} or path.name.startswith("_"):
+            continue
+        _check_architecture_decision(root, path, report)
+
+
+def _check_architecture_decision(root: Path, path: Path, report: VerificationReport) -> None:
+    rel = path.relative_to(root).as_posix()
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return
+    if SCAFFOLD_PLACEHOLDER in text:
+        return
+    sections = _markdown_sections(text)
+    missing = [
+        label
+        for key, label in ADR_REQUIRED_SECTIONS.items()
+        if key not in sections
+    ]
+    if missing:
+        report.add_error(
+            "adr_missing_sections",
+            f"{rel} is missing ADR sections: {', '.join(missing)}",
+            rel,
+        )
+        return
+    empty = [
+        label
+        for key, label in ADR_REQUIRED_SECTIONS.items()
+        if not _section_has_authored_content(sections[key])
+    ]
+    if empty:
+        report.add_error(
+            "adr_empty_sections",
+            f"{rel} has empty ADR sections: {', '.join(empty)}",
+            rel,
+        )
+    references_section = sections["references"]
+    if _section_has_authored_content(references_section):
+        references = _local_markdown_references(root, path, references_section, include_bare=True, strip_code=False)
+        if not references:
+            report.add_error(
+                "adr_reference_missing",
+                f"{rel} References section must reference existing local Markdown sources",
+                rel,
+            )
+        for reference in references:
+            if not reference.exists:
+                report.add_error(
+                    "adr_reference_missing",
+                    f"{rel} references missing ADR References target: {reference.rel}",
+                    rel,
+                )
 
 
 def _check_unresolved_items(root: Path, report: VerificationReport) -> None:
