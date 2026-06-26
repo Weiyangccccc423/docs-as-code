@@ -15,6 +15,8 @@ API contracts are shared truth between frontend, backend, tests, and agents.
 - `docs/api/error-codes.md`
 - `docs/api/changelog.md`
 
+Endpoint files under `docs/api/endpoints/` must use `NN-<slug>.md` with unique `NN` prefixes.
+
 ## Endpoint Skeleton
 
 Each endpoint must define:
@@ -41,8 +43,9 @@ Each endpoint must define:
 2. Run `bin/governance scaffold design <target> --json` when standard API files are missing.
 3. Replace scaffold placeholders in API files with product-derived content.
 4. Derive endpoints from structured product chapters and architecture docs.
-5. Keep field names, auth rules, idempotency, and error behavior traceable.
-6. Update `docs/api/README.md` and endpoint indexes for every new Markdown file.
+5. Name endpoint files with the next unique `NN-<slug>.md` prefix.
+6. Keep field names, auth rules, idempotency, and error behavior traceable.
+7. Update `docs/api/README.md` and endpoint indexes for every new Markdown file.
 
 ## Stop Conditions
 

@@ -76,6 +76,7 @@ Design documents sufficient for creating a task board without guessing product m
 ## Verification
 
 - API endpoints have request, response, error code, auth, and idempotency notes.
+- API endpoint contract files under `docs/api/endpoints/` use `NN-<slug>.md` with unique `NN` prefixes.
 - Backend modules link to API, schema, external services, and acceptance criteria.
 - Frontend modules link to UI, API, state, and acceptance criteria.
 - ADRs have context, decision, consequences, and references.

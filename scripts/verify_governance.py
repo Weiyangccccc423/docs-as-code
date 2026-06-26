@@ -37,6 +37,7 @@ SCAFFOLD_PLACEHOLDER = "governance:scaffold-placeholder"
 WORKFLOW_PACK_SNAPSHOT_ROOT = "docs/agent-workflow/workflow-pack"
 ROADMAP_REL = Path("docs/development/01-roadmap.md")
 PRODUCT_CHAPTER_RE = re.compile(r"^(?P<prefix>[0-9]{2})-[a-z0-9][a-z0-9-]*\.md$")
+API_ENDPOINT_CONTRACT_RE = re.compile(r"^(?P<prefix>[0-9]{2})-[a-z0-9][a-z0-9-]*\.md$")
 TASK_BOARD_REL = Path("docs/development/02-task-board.md")
 TASK_BOARD_REQUIRED_COLUMNS = {
     "id": "ID",
@@ -156,6 +157,7 @@ def verify(root: Path) -> VerificationReport:
 
     _check_product_source_manifest(root, report)
     _check_product_chapter_links(root, report)
+    _check_api_endpoint_contract_filenames(root, report)
     _check_unresolved_items(root, report)
     _check_glossary_items(root, report)
     _check_readme_indexes(root, report)
@@ -315,6 +317,35 @@ def _product_chapters(product_root: Path) -> list[Path]:
         for path in sorted(product_root.glob("*.md"))
         if path.is_file() and PRODUCT_CHAPTER_RE.fullmatch(path.name)
     ]
+
+
+def _check_api_endpoint_contract_filenames(root: Path, report: VerificationReport) -> None:
+    endpoint_root = root / "docs/api/endpoints"
+    if not endpoint_root.exists():
+        return
+    prefix_paths: dict[str, list[Path]] = {}
+    for path in sorted(endpoint_root.glob("*.md")):
+        if path.name in {"README.md", "AGENTS.md"} or path.name.startswith("_"):
+            continue
+        rel = path.relative_to(root).as_posix()
+        match = API_ENDPOINT_CONTRACT_RE.fullmatch(path.name)
+        if not match:
+            report.add_error(
+                "api_endpoint_invalid_filename",
+                f"{rel} must use NN-<slug>.md endpoint contract naming",
+                rel,
+            )
+            continue
+        prefix_paths.setdefault(match.group("prefix"), []).append(path)
+    for prefix, paths in prefix_paths.items():
+        if len(paths) <= 1:
+            continue
+        rels = [path.relative_to(root).as_posix() for path in paths]
+        report.add_error(
+            "api_endpoint_duplicate_prefix",
+            f"duplicate API endpoint contract prefix {prefix}: {', '.join(rels)}",
+            rels[-1],
+        )
 
 
 def _check_unresolved_items(root: Path, report: VerificationReport) -> None:

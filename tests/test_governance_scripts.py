@@ -651,6 +651,92 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_allows_api_endpoint_contract_filenames(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            endpoint_readme = root / "docs/api/endpoints/README.md"
+            endpoint_readme.parent.mkdir(parents=True, exist_ok=True)
+            endpoint_readme.write_text(
+                "# API Endpoints\n\n"
+                "- `01-create-user.md` - create user endpoint\n"
+                "- `02-list-users.md` - list users endpoint\n",
+                encoding="utf-8",
+            )
+            (endpoint_readme.parent / "01-create-user.md").write_text("# Create User\n", encoding="utf-8")
+            (endpoint_readme.parent / "02-list-users.md").write_text("# List Users\n", encoding="utf-8")
+
+            report = verify(root)
+
+            self.assertEqual([], report.errors)
+
+    def test_verify_reports_invalid_api_endpoint_filename(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            endpoint_readme = root / "docs/api/endpoints/README.md"
+            endpoint_readme.parent.mkdir(parents=True, exist_ok=True)
+            endpoint_readme.write_text("# API Endpoints\n\n- `create-user.md` - create user endpoint\n", encoding="utf-8")
+            (endpoint_readme.parent / "create-user.md").write_text("# Create User\n", encoding="utf-8")
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/api/endpoints/create-user.md must use NN-<slug>.md endpoint contract naming",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "api_endpoint_invalid_filename",
+                    "severity": "error",
+                    "path": "docs/api/endpoints/create-user.md",
+                    "message": "docs/api/endpoints/create-user.md must use NN-<slug>.md endpoint contract naming",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_duplicate_api_endpoint_prefix(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            endpoint_readme = root / "docs/api/endpoints/README.md"
+            endpoint_readme.parent.mkdir(parents=True, exist_ok=True)
+            endpoint_readme.write_text(
+                "# API Endpoints\n\n"
+                "- `01-create-user.md` - create user endpoint\n"
+                "- `01-list-users.md` - list users endpoint\n",
+                encoding="utf-8",
+            )
+            for filename in ("01-create-user.md", "01-list-users.md"):
+                (endpoint_readme.parent / filename).write_text("# Endpoint\n", encoding="utf-8")
+
+            report = verify(root)
+
+            self.assertIn(
+                "duplicate API endpoint contract prefix 01: "
+                "docs/api/endpoints/01-create-user.md, docs/api/endpoints/01-list-users.md",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "api_endpoint_duplicate_prefix",
+                    "severity": "error",
+                    "path": "docs/api/endpoints/01-list-users.md",
+                    "message": "duplicate API endpoint contract prefix 01: "
+                    "docs/api/endpoints/01-create-user.md, docs/api/endpoints/01-list-users.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_task_board_missing_trace_fields(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
