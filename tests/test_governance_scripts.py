@@ -21,6 +21,11 @@ def _write_indexed_doc(root: Path, rel: str, text: str = "# Test\n") -> None:
     _append_index(path.parent / "README.md", path.name)
 
 
+def _append_product_meta_chapter(root: Path, filename: str) -> None:
+    meta = root / "docs/product/core/product-meta.md"
+    meta.write_text(meta.read_text(encoding="utf-8") + f"\n- [{filename}](../{filename})\n", encoding="utf-8")
+
+
 class GovernanceScriptsTest(unittest.TestCase):
     def test_bootstrap_archives_markdown_product_doc_and_passes_verification(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -253,9 +258,10 @@ class GovernanceScriptsTest(unittest.TestCase):
             bootstrap(root, product)
 
             chapter = root / "docs/product/01-goals.md"
-            chapter.write_text("# Goals\n", encoding="utf-8")
+            chapter.write_text("# Goals\n\nSource: [PRD](core/PRD.md).\n", encoding="utf-8")
             readme = root / "docs/product/README.md"
             readme.write_text(readme.read_text(encoding="utf-8") + "\n- `01-goals.md` - goals\n", encoding="utf-8")
+            _append_product_meta_chapter(root, "01-goals.md")
 
             report = verify(root)
             self.assertEqual([], report.errors)
@@ -295,12 +301,65 @@ class GovernanceScriptsTest(unittest.TestCase):
                 root,
                 "docs/product/01-goals.md",
                 "# Goals\n\n"
+                "Source: [PRD](core/PRD.md).\n"
                 "See [API](../api/00-conventions.md#http) and [external](https://example.com/spec.md).\n\n"
                 "```md\n"
                 "[Example](../api/missing-example.md)\n"
                 "```\n",
             )
             _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+            _append_product_meta_chapter(root, "01-goals.md")
+
+            report = verify(root)
+
+            self.assertEqual([], report.errors)
+
+    def test_verify_reports_product_chapter_missing_source_links(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            chapter = root / "docs/product/01-goals.md"
+            chapter.write_text("# Goals\n\nDerived goals.\n", encoding="utf-8")
+            _append_index(root / "docs/product/README.md", "01-goals.md")
+
+            report = verify(root)
+
+            self.assertIn("docs/product/01-goals.md must link back to docs/product/core/PRD.md", report.errors)
+            self.assertIn("docs/product/core/product-meta.md must link to product chapter: docs/product/01-goals.md", report.errors)
+            self.assertIn(
+                {
+                    "code": "product_chapter_missing_prd_link",
+                    "severity": "error",
+                    "path": "docs/product/01-goals.md",
+                    "message": "docs/product/01-goals.md must link back to docs/product/core/PRD.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+            self.assertIn(
+                {
+                    "code": "product_meta_missing_chapter_link",
+                    "severity": "error",
+                    "path": "docs/product/core/product-meta.md",
+                    "message": "docs/product/core/product-meta.md must link to product chapter: docs/product/01-goals.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_allows_product_chapter_source_links(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            chapter = root / "docs/product/01-goals.md"
+            chapter.write_text("# Goals\n\nSource: [PRD](core/PRD.md).\n", encoding="utf-8")
+            _append_index(root / "docs/product/README.md", "01-goals.md")
+            meta = root / "docs/product/core/product-meta.md"
+            meta.write_text(meta.read_text(encoding="utf-8") + "\n- [Goals](../01-goals.md)\n", encoding="utf-8")
 
             report = verify(root)
 
@@ -343,7 +402,8 @@ class GovernanceScriptsTest(unittest.TestCase):
             product = root / "product.md"
             product.write_text("# Demo\n", encoding="utf-8")
             bootstrap(root, product)
-            _write_indexed_doc(root, "docs/product/01-goals.md", "# Goals\n")
+            _write_indexed_doc(root, "docs/product/01-goals.md", "# Goals\n\nSource: [PRD](core/PRD.md).\n")
+            _append_product_meta_chapter(root, "01-goals.md")
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
             _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
             _write_indexed_doc(root, "docs/tests/01-strategy.md", "# Test Strategy\n")

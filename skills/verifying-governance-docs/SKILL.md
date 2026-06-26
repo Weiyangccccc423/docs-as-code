@@ -33,6 +33,7 @@ Use `advance --json` when the phase should be recorded in `.governance/state.jso
 Treat `governance_scaffold_placeholder` as a design-authoring blocker, not a formatting issue.
 Treat `workflow_pack_file_hash_mismatch` and `workflow_pack_file_missing` as workflow-pack integrity blockers.
 Treat `docs_local_markdown_link_missing` as a document-integrity blocker: repair the link or create/index the referenced Markdown file.
+Treat `product_chapter_missing_prd_link` and `product_meta_missing_chapter_link` as product-structuring blockers.
 Treat `task_board_*` findings as implementation-readiness blockers.
 Treat `task_board_trace_reference_missing` as a source-traceability blocker: repair the task board or create/index the referenced Markdown source before implementation.
 
@@ -55,6 +56,7 @@ make ci
 - non-empty docs directories have `README.md` and `AGENTS.md`
 - non-template Markdown files are indexed in the README in the same directory
 - explicit local Markdown links resolve to existing files
+- product chapters link back to `core/PRD.md`, and `product-meta.md` links to every product chapter
 - unresolved items use `none`, `-`, `n/a`, `non-blocking`, or `resolved` for non-blocking scope; any other `Blocking Scope` fails verification
 - roadmap and task board status agree
 - implementation tasks use `ID`, `Status`, `Task`, `Product`, `Design`, `API`, `Acceptance`, and `Verification`

@@ -132,6 +132,7 @@ def verify(root: Path) -> VerificationReport:
             _check_reserved_markers(root, path, report)
 
     _check_product_source_manifest(root, report)
+    _check_product_chapter_links(root, report)
     _check_unresolved_items(root, report)
     _check_readme_indexes(root, report)
     _check_local_markdown_links(root, report)
@@ -221,6 +222,38 @@ def _check_product_source_manifest(root: Path, report: VerificationReport) -> No
             f"product source requires conversion before design derivation: {archived_rel}",
             archived_rel,
         )
+
+
+def _check_product_chapter_links(root: Path, report: VerificationReport) -> None:
+    product_root = root / "docs/product"
+    if not product_root.exists():
+        return
+    chapters = [path for path in sorted(product_root.glob("[0-9][0-9]-*.md")) if path.is_file()]
+    if not chapters:
+        return
+
+    prd_rel = "docs/product/core/PRD.md"
+    prd_path = root / prd_rel
+    for chapter in chapters:
+        rel = chapter.relative_to(root).as_posix()
+        if not _markdown_file_references_path(root, chapter, prd_path):
+            report.add_error(
+                "product_chapter_missing_prd_link",
+                f"{rel} must link back to {prd_rel}",
+                rel,
+            )
+
+    meta = root / "docs/product/core/product-meta.md"
+    if not meta.exists():
+        return
+    for chapter in chapters:
+        rel = chapter.relative_to(root).as_posix()
+        if not _markdown_file_references_path(root, meta, chapter):
+            report.add_error(
+                "product_meta_missing_chapter_link",
+                f"docs/product/core/product-meta.md must link to product chapter: {rel}",
+                "docs/product/core/product-meta.md",
+            )
 
 
 def _check_unresolved_items(root: Path, report: VerificationReport) -> None:
@@ -506,6 +539,18 @@ def _local_markdown_references(
         references.append(reference)
         seen.add(reference.rel)
     return references
+
+
+def _markdown_file_references_path(root: Path, source_path: Path, target_path: Path) -> bool:
+    try:
+        text = source_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return False
+    try:
+        expected = target_path.resolve().relative_to(root.resolve()).as_posix()
+    except ValueError:
+        return False
+    return any(reference.rel == expected for reference in _local_markdown_references(root, source_path, text))
 
 
 def _extract_local_markdown_reference_targets(text: str, *, include_bare: bool, strip_code: bool) -> list[str]:

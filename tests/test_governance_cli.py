@@ -14,6 +14,11 @@ def _append_index(readme: Path, filename: str) -> None:
     readme.write_text(readme.read_text(encoding="utf-8") + f"\n- `{filename}` - generated for test\n", encoding="utf-8")
 
 
+def _append_product_meta_chapter(root: Path, filename: str) -> None:
+    meta = root / "docs/product/core/product-meta.md"
+    meta.write_text(meta.read_text(encoding="utf-8") + f"\n- [{filename}](../{filename})\n", encoding="utf-8")
+
+
 class GovernanceCliTest(unittest.TestCase):
     def test_env_repair_writes_repair_plan(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -473,8 +478,9 @@ class GovernanceCliTest(unittest.TestCase):
             blocked_requirements = {item["code"]: item for item in blocked_payload["requirements"]}
             self.assertFalse(blocked_requirements["product_chapters_present"]["ok"])
 
-            (target / "docs/product/01-goals.md").write_text("# Goals\n", encoding="utf-8")
+            (target / "docs/product/01-goals.md").write_text("# Goals\n\nSource: [PRD](core/PRD.md).\n", encoding="utf-8")
             _append_index(target / "docs/product/README.md", "01-goals.md")
+            _append_product_meta_chapter(target, "01-goals.md")
 
             allowed = subprocess.run(
                 [sys.executable, str(CLI), "gate", "design-derivation", str(target), "--json"],
@@ -504,8 +510,9 @@ class GovernanceCliTest(unittest.TestCase):
                 check=False,
             )
             self.assertEqual(0, first.returncode, first.stderr)
-            (target / "docs/product/01-goals.md").write_text("# Goals\n", encoding="utf-8")
+            (target / "docs/product/01-goals.md").write_text("# Goals\n\nSource: [PRD](core/PRD.md).\n", encoding="utf-8")
             _append_index(target / "docs/product/README.md", "01-goals.md")
+            _append_product_meta_chapter(target, "01-goals.md")
 
             second = subprocess.run(
                 [sys.executable, str(CLI), "advance", "design-derivation", str(target), "--json"],
@@ -534,8 +541,9 @@ class GovernanceCliTest(unittest.TestCase):
                 check=False,
             )
             self.assertEqual(0, init_result.returncode, init_result.stderr)
-            (target / "docs/product/01-goals.md").write_text("# Goals\n", encoding="utf-8")
+            (target / "docs/product/01-goals.md").write_text("# Goals\n\nSource: [PRD](core/PRD.md).\n", encoding="utf-8")
             _append_index(target / "docs/product/README.md", "01-goals.md")
+            _append_product_meta_chapter(target, "01-goals.md")
 
             blocked = subprocess.run(
                 [sys.executable, str(CLI), "gate", "implementation", str(target), "--json"],
@@ -654,8 +662,9 @@ class GovernanceCliTest(unittest.TestCase):
                 check=False,
             )
             self.assertEqual(0, init_result.returncode, init_result.stderr)
-            (target / "docs/product/01-goals.md").write_text("# Goals\n", encoding="utf-8")
+            (target / "docs/product/01-goals.md").write_text("# Goals\n\nSource: [PRD](core/PRD.md).\n", encoding="utf-8")
             _append_index(target / "docs/product/README.md", "01-goals.md")
+            _append_product_meta_chapter(target, "01-goals.md")
 
             scaffold = subprocess.run(
                 [sys.executable, str(CLI), "scaffold", "design", str(target), "--json"],

@@ -31,10 +31,12 @@ Turn a preserved PRD into navigable product truth without changing its meaning.
 3. Stop if `can_derive_design` is not true or the manifest hash does not verify.
 4. Build the chapter map in `product-meta.md`.
 5. Create only chapters supported by the PRD.
-6. Extract acceptance criteria into a stable chapter.
-7. Extract success metrics when present.
-8. Add cross-domain terms to glossary.
-9. Register ambiguous requirements before deriving design. Use `none`, `-`, `n/a`, `non-blocking`, or `resolved` only for items that do not block downstream work.
+6. Link every chapter back to `core/PRD.md`.
+7. Link every `NN-*.md` chapter from `core/product-meta.md`.
+8. Extract acceptance criteria into a stable chapter.
+9. Extract success metrics when present.
+10. Add cross-domain terms to glossary.
+11. Register ambiguous requirements before deriving design. Use `none`, `-`, `n/a`, `non-blocking`, or `resolved` only for items that do not block downstream work.
 
 ## Stop Conditions
 
