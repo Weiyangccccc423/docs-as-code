@@ -216,13 +216,26 @@ def _backend_modules_doc(
     )
 
 
-def _frontend_modules_doc() -> str:
+def _frontend_modules_doc(
+    ui: str = "[Interaction model](../ui/01-interaction-model.md)",
+    api: str = "[API conventions](../api/00-conventions.md)",
+    api_consumption: str = "[API consumption](02-api-consumption.md)",
+    acceptance: str = "[Acceptance](../product/08-acceptance-criteria.md)",
+) -> str:
     return (
         "# Frontend Modules\n\n"
-        "UI: [Interaction model](../ui/01-interaction-model.md).\n"
-        "API: [API conventions](../api/00-conventions.md).\n"
-        "State and API consumption: [API consumption](02-api-consumption.md).\n"
-        "Acceptance: [Acceptance](../product/08-acceptance-criteria.md).\n"
+        "## Product Links\n\n"
+        f"- {acceptance}\n\n"
+        "## UI Links\n\n"
+        f"- {ui}\n\n"
+        "## Modules\n\n"
+        "- Goal flow module owns the primary interaction screens.\n\n"
+        "## State Ownership\n\n"
+        f"- API-backed state follows {api_consumption}.\n\n"
+        "## Routes\n\n"
+        f"- Goal flow routes call APIs defined by {api}.\n\n"
+        "## Open Decisions\n\n"
+        "- none\n"
     )
 
 
@@ -1848,6 +1861,72 @@ class GovernanceScriptsTest(unittest.TestCase):
 
             self.assertEqual([], report.errors)
 
+    def test_verify_reports_frontend_module_missing_required_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(
+                root,
+                "docs/frontend/01-modules.md",
+                "# Frontend Modules\n\n"
+                "## Product Links\n\n"
+                "- [Acceptance](../product/08-acceptance-criteria.md)\n",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/frontend/01-modules.md is missing frontend module sections: "
+                "UI Links, Modules, State Ownership, Routes, Open Decisions",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "frontend_module_missing_sections",
+                    "severity": "error",
+                    "path": "docs/frontend/01-modules.md",
+                    "message": "docs/frontend/01-modules.md is missing frontend module sections: "
+                    "UI Links, Modules, State Ownership, Routes, Open Decisions",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_frontend_module_empty_required_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_frontend_trace_docs(root)
+            _write_indexed_doc(
+                root,
+                "docs/frontend/01-modules.md",
+                _frontend_modules_doc().replace(
+                    "## State Ownership\n\n"
+                    "- API-backed state follows [API consumption](02-api-consumption.md).\n\n",
+                    "## State Ownership\n\n- TBD\n\n",
+                ),
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/frontend/01-modules.md has empty frontend module sections: State Ownership",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "frontend_module_empty_sections",
+                    "severity": "error",
+                    "path": "docs/frontend/01-modules.md",
+                    "message": "docs/frontend/01-modules.md has empty frontend module sections: State Ownership",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_frontend_module_missing_trace_references(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -1857,8 +1936,12 @@ class GovernanceScriptsTest(unittest.TestCase):
             _write_indexed_doc(
                 root,
                 "docs/frontend/01-modules.md",
-                "# Frontend Modules\n\n"
-                "The web module owns the primary goal flow screens.\n",
+                _frontend_modules_doc(
+                    ui="Interaction model",
+                    api="API conventions",
+                    api_consumption="API consumption",
+                    acceptance="Acceptance criteria",
+                ),
             )
 
             report = verify(root)
@@ -1890,11 +1973,10 @@ class GovernanceScriptsTest(unittest.TestCase):
             _write_indexed_doc(
                 root,
                 "docs/frontend/01-modules.md",
-                "# Frontend Modules\n\n"
-                "UI: [Missing UI](../ui/missing.md).\n"
-                "API: [Missing API](../api/missing.md).\n"
-                "State and API consumption: [API consumption](02-api-consumption.md).\n"
-                "Acceptance: [Acceptance](../product/08-acceptance-criteria.md).\n",
+                _frontend_modules_doc(
+                    ui="[Missing UI](../ui/missing.md)",
+                    api="[Missing API](../api/missing.md)",
+                ),
             )
 
             report = verify(root)

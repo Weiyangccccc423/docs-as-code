@@ -97,6 +97,14 @@ BACKEND_EXTERNAL_SERVICES_REQUIRED_SECTIONS = {
     "observability": "Observability",
 }
 FRONTEND_MODULES_REL = Path("docs/frontend/01-modules.md")
+FRONTEND_MODULE_REQUIRED_SECTIONS = {
+    "product links": "Product Links",
+    "ui links": "UI Links",
+    "modules": "Modules",
+    "state ownership": "State Ownership",
+    "routes": "Routes",
+    "open decisions": "Open Decisions",
+}
 FRONTEND_API_CONSUMPTION_REL = Path("docs/frontend/02-api-consumption.md")
 FRONTEND_API_CONSUMPTION_REQUIRED_SECTIONS = {
     "product links": "Product Links",
@@ -869,6 +877,31 @@ def _check_frontend_module_traceability(root: Path, report: VerificationReport) 
         return
     if SCAFFOLD_PLACEHOLDER in text:
         return
+
+    sections = _markdown_sections(text)
+    missing = [
+        label
+        for key, label in FRONTEND_MODULE_REQUIRED_SECTIONS.items()
+        if key not in sections
+    ]
+    if missing:
+        report.add_error(
+            "frontend_module_missing_sections",
+            f"{rel} is missing frontend module sections: {', '.join(missing)}",
+            rel,
+        )
+        return
+    empty = [
+        label
+        for key, label in FRONTEND_MODULE_REQUIRED_SECTIONS.items()
+        if not _section_has_authored_content(sections[key])
+    ]
+    if empty:
+        report.add_error(
+            "frontend_module_empty_sections",
+            f"{rel} has empty frontend module sections: {', '.join(empty)}",
+            rel,
+        )
 
     references = _local_markdown_references(root, path, text, include_bare=True, strip_code=False)
     _check_design_reference_group(report, rel, references, "frontend_module_trace_reference_missing", "UI", _is_ui_reference)
