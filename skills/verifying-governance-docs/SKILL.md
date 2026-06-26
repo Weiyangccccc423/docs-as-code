@@ -39,6 +39,7 @@ Treat `api_endpoint_invalid_filename` and `api_endpoint_duplicate_prefix` as API
 Treat `api_endpoint_missing_sections` as an API-contract completeness blocker: add the required endpoint contract headings before implementation handoff.
 Treat `api_endpoint_empty_sections` as an API-contract content blocker: replace `TBD`/`TODO` placeholders with sourced contract decisions or unresolved items.
 Treat `api_endpoint_method_path_invalid` as an API-contract syntax blocker: write `Method and Path` as `METHOD /absolute-path`.
+Treat `api_endpoint_error_codes_reference_missing` as an API-contract registry blocker: link `Error Codes` to `docs/api/error-codes.md` and define the referenced codes there.
 Treat `api_endpoint_upstream_reference_missing` as an API-contract traceability blocker: link `Upstream Links` to existing local Markdown source documents.
 Treat `glossary_*` findings as product-terminology blockers: fill required fields, remove duplicate terms, or link `Source` to existing local Markdown.
 Treat `unresolved_row_missing_fields` and `unresolved_duplicate_id` as ambiguity-registry blockers.
@@ -76,6 +77,7 @@ make ci
 - API endpoint contract files under `docs/api/endpoints/` use `NN-<slug>.md` with unique `NN` prefixes
 - API endpoint contract files include non-placeholder method/path, auth, idempotency, request, response, errors, upstream links, and frontend consumers sections
 - API endpoint `Method and Path` sections contain an HTTP method and an absolute path
+- API endpoint `Error Codes` sections reference `docs/api/error-codes.md`
 - API endpoint `Upstream Links` sections reference existing local Markdown source documents
 - glossary rows have unique `Term` values and filled `Meaning` and `Source` fields; `Source` links to existing local Markdown
 - unresolved rows have unique IDs and filled `Domain` and `Description`

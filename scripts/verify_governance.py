@@ -48,6 +48,7 @@ API_ENDPOINT_REQUIRED_SECTIONS = {
     "upstream links": "Upstream Links",
     "frontend consumers": "Frontend Consumers",
 }
+API_ERROR_CODES_REL = Path("docs/api/error-codes.md")
 HTTP_METHOD_PATH_RE = re.compile(
     r"(?<![A-Za-z])(?:GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD)\s+/[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%{}-]*",
     re.IGNORECASE,
@@ -402,6 +403,27 @@ def _check_api_endpoint_contract_sections(root: Path, path: Path, report: Verifi
             f"{rel} Method and Path section must include an HTTP method and absolute path",
             rel,
         )
+    error_codes = sections["error codes"]
+    if _section_has_authored_content(error_codes):
+        references = _local_markdown_references(root, path, error_codes, include_bare=True, strip_code=False)
+        registry_references = [
+            reference
+            for reference in references
+            if reference.rel == API_ERROR_CODES_REL.as_posix()
+        ]
+        if not registry_references:
+            report.add_error(
+                "api_endpoint_error_codes_reference_missing",
+                f"{rel} Error Codes section must reference {API_ERROR_CODES_REL.as_posix()}",
+                rel,
+            )
+        for reference in registry_references:
+            if not reference.exists:
+                report.add_error(
+                    "api_endpoint_error_codes_reference_missing",
+                    f"{rel} references missing Error Codes registry target: {reference.rel}",
+                    rel,
+                )
     upstream_links = sections["upstream links"]
     if _section_has_authored_content(upstream_links):
         references = _local_markdown_references(root, path, upstream_links, include_bare=True, strip_code=False)

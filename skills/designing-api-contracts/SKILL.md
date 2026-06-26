@@ -32,6 +32,7 @@ Each endpoint file must include these headings:
 
 Do not leave required sections empty or as `TBD`/`TODO`; register unknown contract decisions in `docs/unresolved.md`.
 Write `Method and Path` as an HTTP method plus absolute path, for example `POST /users`.
+Link `Error Codes` to `docs/api/error-codes.md` so endpoint errors stay in the central registry.
 Link `Upstream Links` to existing local product, architecture, UI, backend/frontend, decision, or unresolved Markdown sources.
 
 ## Procedure
