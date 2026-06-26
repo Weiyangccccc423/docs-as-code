@@ -32,6 +32,7 @@ Use `gate --json` `requirements[].code` for phase-transition repair routing; `ve
 Use `advance --json` when the phase should be recorded in `.governance/state.json`.
 Treat `governance_scaffold_placeholder` as a design-authoring blocker, not a formatting issue.
 Treat `workflow_pack_file_hash_mismatch` and `workflow_pack_file_missing` as workflow-pack integrity blockers.
+Treat `task_board_*` findings as implementation-readiness blockers.
 
 Treat `ok: false` as blocking. Treat `needs_escalation: true` as requiring explicit approval before running the reported package-manager command.
 
@@ -53,7 +54,8 @@ make ci
 - non-template Markdown files are indexed in the README in the same directory
 - unresolved items use `none`, `-`, `n/a`, `non-blocking`, or `resolved` for non-blocking scope; any other `Blocking Scope` fails verification
 - roadmap and task board status agree
-- implementation tasks link to product, design, API, and acceptance sources
+- implementation tasks use `ID`, `Status`, `Task`, `Product`, `Design`, `API`, `Acceptance`, and `Verification`
+- at least one implementation task is `Ready`
 
 ## Red Lines
 

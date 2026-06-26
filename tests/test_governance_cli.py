@@ -558,6 +558,26 @@ class GovernanceCliTest(unittest.TestCase):
                 path.write_text(f"# {domain}\n", encoding="utf-8")
                 _append_index(target / "docs" / domain / "README.md", filename)
 
+            missing_task = subprocess.run(
+                [sys.executable, str(CLI), "gate", "implementation", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(1, missing_task.returncode)
+            missing_task_requirements = {item["code"]: item for item in json.loads(missing_task.stdout)["requirements"]}
+            self.assertFalse(missing_task_requirements["task_board_ready_task_present"]["ok"])
+
+            task_board = target / "docs/development/02-task-board.md"
+            task_board.write_text(
+                "# Task Board\n\n"
+                "| ID | Status | Task | Product | Design | API | Acceptance | Verification |\n"
+                "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | make test |\n",
+                encoding="utf-8",
+            )
+            _append_index(target / "docs/development/README.md", "02-task-board.md")
+
             allowed = subprocess.run(
                 [sys.executable, str(CLI), "gate", "implementation", str(target), "--json"],
                 text=True,

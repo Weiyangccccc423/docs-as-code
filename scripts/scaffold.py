@@ -164,8 +164,8 @@ DESIGN_SCAFFOLD: tuple[ScaffoldSpec, ...] = (
     ScaffoldSpec(
         "docs/development/02-task-board.md",
         "Task Board",
-        "Track tasks with product, design, API, acceptance, and verification links.",
-        ("Ready", "In Progress", "Review", "Done"),
+        "Track tasks with required columns: ID, Status, Task, Product, Design, API, Acceptance, Verification.",
+        ("Task Table", "Status Policy", "Traceability Rules"),
         "traceable implementation task board",
     ),
 )

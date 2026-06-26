@@ -249,6 +249,59 @@ class GovernanceScriptsTest(unittest.TestCase):
             report = verify(root)
             self.assertEqual([], report.errors)
 
+    def test_verify_reports_task_board_missing_trace_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            task_board = root / "docs/development/02-task-board.md"
+            task_board.write_text(
+                "# Task Board\n\n"
+                "| ID | Status | Task | Product | Design | API | Acceptance | Verification |\n"
+                "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | TBD | docs/tests/01-strategy.md | make test |\n",
+                encoding="utf-8",
+            )
+            readme = root / "docs/development/README.md"
+            readme.write_text(readme.read_text(encoding="utf-8") + "\n- `02-task-board.md` - task board\n", encoding="utf-8")
+
+            report = verify(root)
+
+            self.assertIn("task board row TASK-001 is missing required fields: API", report.errors)
+            self.assertIn(
+                {
+                    "code": "task_board_row_missing_fields",
+                    "severity": "error",
+                    "path": "docs/development/02-task-board.md",
+                    "message": "task board row TASK-001 is missing required fields: API",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_allows_traceable_task_board(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            task_board = root / "docs/development/02-task-board.md"
+            task_board.write_text(
+                "# Task Board\n\n"
+                "| ID | Status | Task | Product | Design | API | Acceptance | Verification |\n"
+                "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | make test |\n",
+                encoding="utf-8",
+            )
+            readme = root / "docs/development/README.md"
+            readme.write_text(readme.read_text(encoding="utf-8") + "\n- `02-task-board.md` - task board\n", encoding="utf-8")
+
+            report = verify(root)
+
+            self.assertEqual([], report.errors)
+
     def test_install_plan_respects_strict_scope(self) -> None:
         statuses = [
             ToolStatus(

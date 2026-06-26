@@ -7,10 +7,10 @@ from typing import Any
 
 try:
     from .state import load_state
-    from .verify_governance import verify
+    from .verify_governance import task_board_ready_tasks, verify
 except ImportError:  # pragma: no cover - direct script execution
     from state import load_state
-    from verify_governance import verify
+    from verify_governance import task_board_ready_tasks, verify
 
 
 GATE_NAMES = ("product-structuring", "design-derivation", "implementation")
@@ -127,6 +127,13 @@ def _add_implementation_requirements(requirements: list[GateRequirement], root: 
         ("development", "development plan docs exist"),
     ]:
         _add(requirements, f"{domain}_docs_present", _has_authored_markdown(root / "docs" / domain), f"docs/{domain}", message)
+    _add(
+        requirements,
+        "task_board_ready_task_present",
+        bool(task_board_ready_tasks(root)),
+        "docs/development/02-task-board.md",
+        "task board has at least one Ready task with product/design/API/acceptance/verification links",
+    )
 
 
 def _has_product_chapter(root: Path) -> bool:

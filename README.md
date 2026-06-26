@@ -48,6 +48,7 @@ bin/governance env --repair --target /path/to/new-project --json
 
 Use `gate --json` before phase transitions. Supported gates are `product-structuring`, `design-derivation`, and `implementation`.
 Use `advance --json` when actually moving phases; it runs the matching gate and records `phase_history` in `.governance/state.json`.
+The `implementation` gate requires a traceable task board with at least one `Ready` task.
 
 Use `scaffold design --json` after the design-derivation gate to create standard architecture, API, UI, backend, frontend, test, and development document shells. Scaffolded files contain `governance:scaffold-placeholder`; verification fails until the placeholders are replaced with product-derived content.
 

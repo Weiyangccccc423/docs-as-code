@@ -61,7 +61,8 @@ Load:
    - no `docs/unresolved.md` rows with a blocking `Blocking Scope`
    - no non-template Markdown files missing from their same-directory README
    - product, API, architecture, backend, frontend, tests, and development docs link to each other
-   - task board items have product/design/API/acceptance reverse links
+   - task board items have `ID`, `Status`, `Task`, `Product`, `Design`, `API`, `Acceptance`, and `Verification`
+   - at least one task board item is `Ready` before implementation starts
 
 ## Output
 
