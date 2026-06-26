@@ -14,6 +14,13 @@ bin/governance verify <target>
 bin/governance env --strict --repair --target <target>
 ```
 
+For agent automation, use JSON and branch on `ok`:
+
+```bash
+bin/governance verify <target> --json
+bin/governance env --strict --repair --target <target> --json
+```
+
 When already inside an initialized target repository, prefer target-local checks:
 
 ```bash

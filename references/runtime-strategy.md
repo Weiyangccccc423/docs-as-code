@@ -18,6 +18,7 @@ Core runtime includes:
 - governance structure verification
 - environment inventory
 - workflow state updates
+- machine-readable status and verification output
 
 Generated target repositories receive their own copy of this core runtime under:
 
@@ -32,6 +33,8 @@ After initialization, prefer the target-local CLI:
 bin/governance verify .
 bin/governance env --repair --target .
 ```
+
+Append `--json` when an agent needs stable output for branching or repair planning. JSON payloads must include an `ok` field whose value matches the command's success semantics.
 
 ## Node.js Layer
 

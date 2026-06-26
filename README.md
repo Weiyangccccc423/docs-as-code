@@ -33,6 +33,13 @@ bin/governance verify /path/to/new-project
 bin/governance status /path/to/new-project
 ```
 
+For agent automation, append `--json` to `init`, `verify`, `status`, or `env`:
+
+```bash
+bin/governance verify /path/to/new-project --json
+bin/governance env --repair --target /path/to/new-project --json
+```
+
 ## Workflow Order
 
 1. `workflows/01-empty-repo-initialization.md`

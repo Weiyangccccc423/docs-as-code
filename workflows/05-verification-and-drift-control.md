@@ -20,6 +20,12 @@ Load:
    bin/governance verify <target>
    ```
 
+   For agent-controlled verification, prefer machine-readable output:
+
+   ```bash
+   bin/governance verify <target> --json
+   ```
+
    When already inside an initialized target repository, prefer:
 
    ```bash
@@ -31,6 +37,8 @@ Load:
    ```bash
    bin/governance env --strict --repair --target <target>
    ```
+
+   Agents may use `--json` and must treat `ok: false` as a stop condition.
 
 3. If the target project has a Makefile, run its verification entry:
 
