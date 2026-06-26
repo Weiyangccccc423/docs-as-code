@@ -41,6 +41,25 @@ def _backend_external_services_doc() -> str:
     )
 
 
+def _test_strategy_doc() -> str:
+    return (
+        "# Test Strategy\n\n"
+        "## Product Links\n\n"
+        "- [Acceptance](../product/08-acceptance-criteria.md)\n"
+        "- [API conventions](../api/00-conventions.md)\n"
+        "- [Architecture context](../architecture/01-context.md)\n\n"
+        "## Acceptance Links\n\n"
+        "- [Acceptance](../product/08-acceptance-criteria.md)\n\n"
+        "## Test Layers\n\n"
+        "- Unit tests cover isolated validation rules and state transitions.\n"
+        "- Integration tests cover API contract and persistence behavior.\n\n"
+        "## Risk Coverage\n\n"
+        "- Goal-flow risks are mapped back to acceptance and design sources before implementation.\n\n"
+        "## Non-Functional Checks\n\n"
+        "- Performance, security, and observability checks are planned for implementation handoff.\n"
+    )
+
+
 class GovernanceCliTest(unittest.TestCase):
     def test_env_repair_writes_repair_plan(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -618,10 +637,7 @@ class GovernanceCliTest(unittest.TestCase):
                 _append_index(target / "docs" / domain / "README.md", filename)
 
             (target / "docs/tests/01-strategy.md").write_text(
-                "# Test Strategy\n\n"
-                "Product acceptance: [Acceptance](../product/08-acceptance-criteria.md).\n"
-                "API contracts: [API conventions](../api/00-conventions.md).\n"
-                "Design basis: [Architecture context](../architecture/01-context.md).\n",
+                _test_strategy_doc(),
                 encoding="utf-8",
             )
             (target / "docs/backend/01-modules.md").write_text(

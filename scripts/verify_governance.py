@@ -98,6 +98,13 @@ FRONTEND_API_CONSUMPTION_REQUIRED_SECTIONS = {
     "error actions": "Error Actions",
 }
 TEST_STRATEGY_REL = Path("docs/tests/01-strategy.md")
+TEST_STRATEGY_REQUIRED_SECTIONS = {
+    "product links": "Product Links",
+    "acceptance links": "Acceptance Links",
+    "test layers": "Test Layers",
+    "risk coverage": "Risk Coverage",
+    "non-functional checks": "Non-Functional Checks",
+}
 ACCEPTANCE_MATRIX_REL = Path("docs/tests/02-acceptance-matrix.md")
 ACCEPTANCE_MATRIX_REQUIRED_COLUMNS = {
     "acceptance": "Acceptance",
@@ -920,6 +927,31 @@ def _check_test_strategy_traceability(root: Path, report: VerificationReport) ->
         return
     if SCAFFOLD_PLACEHOLDER in text:
         return
+
+    sections = _markdown_sections(text)
+    missing = [
+        label
+        for key, label in TEST_STRATEGY_REQUIRED_SECTIONS.items()
+        if key not in sections
+    ]
+    if missing:
+        report.add_error(
+            "test_strategy_missing_sections",
+            f"{rel} is missing test strategy sections: {', '.join(missing)}",
+            rel,
+        )
+        return
+    empty = [
+        label
+        for key, label in TEST_STRATEGY_REQUIRED_SECTIONS.items()
+        if not _section_has_authored_content(sections[key])
+    ]
+    if empty:
+        report.add_error(
+            "test_strategy_empty_sections",
+            f"{rel} has empty test strategy sections: {', '.join(empty)}",
+            rel,
+        )
 
     references = _local_markdown_references(root, path, text, include_bare=True, strip_code=False)
     _check_design_reference_group(

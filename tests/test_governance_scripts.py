@@ -76,10 +76,7 @@ def _write_traceable_test_strategy(root: Path) -> None:
     _write_indexed_doc(
         root,
         "docs/tests/01-strategy.md",
-        "# Test Strategy\n\n"
-        "Product acceptance: [Acceptance](../product/08-acceptance-criteria.md).\n"
-        "API contracts: [API conventions](../api/00-conventions.md).\n"
-        "Design basis: [System context](../architecture/01-system-context.md).\n",
+        _test_strategy_doc(),
     )
 
 
@@ -248,6 +245,29 @@ def _acceptance_matrix_doc(
         f"| {acceptance} | {design} | {api} | {test} |\n\n"
         "## Uncovered Criteria\n\n"
         "- none\n"
+    )
+
+
+def _test_strategy_doc(
+    acceptance: str = "[Acceptance](../product/08-acceptance-criteria.md)",
+    api: str = "[API conventions](../api/00-conventions.md)",
+    design: str = "[System context](../architecture/01-system-context.md)",
+) -> str:
+    return (
+        "# Test Strategy\n\n"
+        "## Product Links\n\n"
+        f"- {acceptance}\n"
+        f"- {api}\n"
+        f"- {design}\n\n"
+        "## Acceptance Links\n\n"
+        f"- {acceptance}\n\n"
+        "## Test Layers\n\n"
+        "- Unit tests cover isolated validation rules and state transitions.\n"
+        "- Integration tests cover API contract and persistence behavior.\n\n"
+        "## Risk Coverage\n\n"
+        "- Goal-flow risks are mapped back to acceptance and design sources before implementation.\n\n"
+        "## Non-Functional Checks\n\n"
+        "- Performance, security, and observability checks are planned for implementation handoff.\n"
     )
 
 
@@ -2251,15 +2271,78 @@ class GovernanceScriptsTest(unittest.TestCase):
             _write_indexed_doc(
                 root,
                 "docs/tests/01-strategy.md",
-                "# Test Strategy\n\n"
-                "Product acceptance: [Acceptance](../product/08-acceptance-criteria.md).\n"
-                "API contracts: [API conventions](../api/00-conventions.md).\n"
-                "Design basis: [System context](../architecture/01-system-context.md).\n",
+                _test_strategy_doc(),
             )
 
             report = verify(root)
 
             self.assertEqual([], report.errors)
+
+    def test_verify_reports_test_strategy_missing_required_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(
+                root,
+                "docs/tests/01-strategy.md",
+                "# Test Strategy\n\n"
+                "## Product Links\n\n"
+                "- [Acceptance](../product/08-acceptance-criteria.md)\n",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/tests/01-strategy.md is missing test strategy sections: "
+                "Acceptance Links, Test Layers, Risk Coverage, Non-Functional Checks",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "test_strategy_missing_sections",
+                    "severity": "error",
+                    "path": "docs/tests/01-strategy.md",
+                    "message": "docs/tests/01-strategy.md is missing test strategy sections: "
+                    "Acceptance Links, Test Layers, Risk Coverage, Non-Functional Checks",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_test_strategy_empty_required_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_test_strategy_trace_docs(root)
+            _write_indexed_doc(
+                root,
+                "docs/tests/01-strategy.md",
+                _test_strategy_doc().replace(
+                    "## Risk Coverage\n\n"
+                    "- Goal-flow risks are mapped back to acceptance and design sources before implementation.\n\n",
+                    "## Risk Coverage\n\n- TBD\n\n",
+                ),
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/tests/01-strategy.md has empty test strategy sections: Risk Coverage",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "test_strategy_empty_sections",
+                    "severity": "error",
+                    "path": "docs/tests/01-strategy.md",
+                    "message": "docs/tests/01-strategy.md has empty test strategy sections: Risk Coverage",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
 
     def test_verify_reports_test_strategy_missing_trace_references(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -2270,8 +2353,11 @@ class GovernanceScriptsTest(unittest.TestCase):
             _write_indexed_doc(
                 root,
                 "docs/tests/01-strategy.md",
-                "# Test Strategy\n\n"
-                "The goal flow needs unit, integration, and acceptance checks.\n",
+                _test_strategy_doc(
+                    acceptance="Acceptance criteria",
+                    api="API conventions",
+                    design="System context",
+                ),
             )
 
             report = verify(root)
@@ -2302,10 +2388,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             _write_indexed_doc(
                 root,
                 "docs/tests/01-strategy.md",
-                "# Test Strategy\n\n"
-                "Product acceptance: [Acceptance](../product/08-acceptance-criteria.md).\n"
-                "API contracts: [API conventions](../api/00-conventions.md).\n"
-                "Design basis: [System context](../architecture/01-system-context.md).\n",
+                _test_strategy_doc(),
             )
 
             report = verify(root)
