@@ -23,6 +23,7 @@ DOC_DIRS = {
 
 NON_BLOCKING_SCOPES = {"", "-", "none", "n/a", "na", "non-blocking", "non blocking", "resolved"}
 SCAFFOLD_PLACEHOLDER = "governance:scaffold-placeholder"
+WORKFLOW_PACK_SNAPSHOT_ROOT = "docs/agent-workflow/workflow-pack"
 
 
 @dataclass
@@ -106,6 +107,7 @@ def verify(root: Path) -> VerificationReport:
     _check_unresolved_items(root, report)
     _check_readme_indexes(root, report)
     _check_scaffold_placeholders(root, report)
+    _check_workflow_pack_manifest(root, report)
 
     return report
 
@@ -248,18 +250,57 @@ def _check_scaffold_placeholders(root: Path, report: VerificationReport) -> None
     if not docs_root.exists():
         return
     for path in sorted(docs_root.rglob("*.md")):
+        rel = path.relative_to(root).as_posix()
+        if rel.startswith(f"{WORKFLOW_PACK_SNAPSHOT_ROOT}/"):
+            continue
         try:
             text = path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
             continue
         if SCAFFOLD_PLACEHOLDER not in text:
             continue
-        rel = path.relative_to(root).as_posix()
         report.add_error(
             "governance_scaffold_placeholder",
             f"{rel} still contains a governance scaffold placeholder",
             rel,
         )
+
+
+def _check_workflow_pack_manifest(root: Path, report: VerificationReport) -> None:
+    manifest_path = root / WORKFLOW_PACK_SNAPSHOT_ROOT / "manifest.json"
+    manifest_rel = f"{WORKFLOW_PACK_SNAPSHOT_ROOT}/manifest.json"
+    if not manifest_path.exists():
+        report.add_error("workflow_pack_manifest_missing", f"missing workflow pack manifest: {manifest_rel}", manifest_rel)
+        return
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        report.add_error("workflow_pack_manifest_invalid_json", f"invalid workflow pack manifest: {error.msg}", manifest_rel)
+        return
+    files = manifest.get("files")
+    if not isinstance(files, list):
+        report.add_error("workflow_pack_manifest_invalid_schema", "invalid workflow pack manifest: files must be a list", manifest_rel)
+        return
+    snapshot_root = root / WORKFLOW_PACK_SNAPSHOT_ROOT
+    for item in files:
+        if not isinstance(item, dict):
+            report.add_error("workflow_pack_manifest_invalid_schema", "invalid workflow pack manifest: file entry must be an object", manifest_rel)
+            continue
+        rel = item.get("path")
+        expected_hash = item.get("sha256")
+        if not isinstance(rel, str) or not rel or Path(rel).is_absolute() or ".." in Path(rel).parts:
+            report.add_error("workflow_pack_manifest_invalid_path", f"invalid workflow pack file path: {rel}", manifest_rel)
+            continue
+        path = snapshot_root / rel
+        file_rel = f"{WORKFLOW_PACK_SNAPSHOT_ROOT}/{rel}"
+        if not path.exists():
+            report.add_error("workflow_pack_file_missing", f"workflow pack file is missing: {file_rel}", file_rel)
+            continue
+        if not isinstance(expected_hash, str) or not expected_hash:
+            report.add_error("workflow_pack_manifest_hash_missing", f"workflow pack file hash is missing: {file_rel}", manifest_rel)
+            continue
+        if _sha256(path) != expected_hash:
+            report.add_error("workflow_pack_file_hash_mismatch", f"workflow pack file hash mismatch: {file_rel}", file_rel)
 
 
 def _markdown_table(text: str) -> list[list[str]]:

@@ -54,6 +54,15 @@ ROOT_GENERATED_FILES = [
     "Makefile",
 ]
 
+WORKFLOW_PACK_SNAPSHOT_ROOT = "docs/agent-workflow/workflow-pack"
+WORKFLOW_PACK_RESOURCE_PATHS = [
+    "README.md",
+    "workflows",
+    "skills",
+    "references",
+    "templates",
+]
+
 
 def _safe_write(path: Path, content: str, force: bool = False) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -77,6 +86,79 @@ def _install_runtime(root: Path, force: bool = False) -> None:
         _copy_runtime_file(pack_root / "bin" / name, root / "bin" / name, force)
     for name in RUNTIME_SCRIPT_FILES:
         _copy_runtime_file(pack_root / "scripts" / name, root / "scripts" / name, force)
+
+
+def _source_workflow_pack_root() -> Path:
+    pack_root = Path(__file__).resolve().parents[1]
+    if all((pack_root / path).exists() for path in ("workflows", "skills", "references")):
+        return pack_root
+    snapshot = pack_root / WORKFLOW_PACK_SNAPSHOT_ROOT
+    if snapshot.exists():
+        return snapshot
+    return pack_root
+
+
+def _is_ignored_pack_file(path: Path) -> bool:
+    parts = set(path.parts)
+    return (
+        "__pycache__" in parts
+        or ".git" in parts
+        or path.suffix == ".pyc"
+        or path.name in {".DS_Store", "manifest.json"}
+    )
+
+
+def _iter_workflow_pack_files() -> list[Path]:
+    source_root = _source_workflow_pack_root()
+    files: list[Path] = []
+    for rel in WORKFLOW_PACK_RESOURCE_PATHS:
+        source = source_root / rel
+        if not source.exists():
+            continue
+        if source.is_file():
+            if not _is_ignored_pack_file(source):
+                files.append(Path(rel))
+            continue
+        for path in sorted(source.rglob("*")):
+            if path.is_file() and not _is_ignored_pack_file(path):
+                files.append(path.relative_to(source_root))
+    return sorted(files, key=lambda path: path.as_posix())
+
+
+def _install_workflow_pack_snapshot(root: Path, force: bool = False) -> str:
+    source_root = _source_workflow_pack_root()
+    snapshot_root = root / WORKFLOW_PACK_SNAPSHOT_ROOT
+    copied: list[Path] = []
+    for rel in _iter_workflow_pack_files():
+        source = source_root / rel
+        target = snapshot_root / rel
+        _copy_runtime_file(source, target, force)
+        copied.append(rel)
+    manifest = _workflow_pack_manifest(snapshot_root, copied)
+    manifest_path = snapshot_root / "manifest.json"
+    _write_json(manifest_path, manifest, force=True)
+    return manifest_path.relative_to(root).as_posix()
+
+
+def _workflow_pack_manifest(snapshot_root: Path, files: list[Path]) -> dict[str, object]:
+    entries = []
+    for rel in files:
+        path = snapshot_root / rel
+        if not path.exists():
+            continue
+        entries.append(
+            {
+                "path": rel.as_posix(),
+                "size_bytes": path.stat().st_size,
+                "sha256": _sha256(path),
+            }
+        )
+    return {
+        "schema_version": 1,
+        "created_at": utc_now(),
+        "source": "docs-as-code workflow pack",
+        "files": entries,
+    }
 
 
 @dataclass
@@ -121,6 +203,7 @@ def generated_file_paths(product_doc: Path | None = None) -> list[str]:
     paths = list(ROOT_GENERATED_FILES)
     paths.extend(f"bin/{name}" for name in RUNTIME_BIN_FILES)
     paths.extend(f"scripts/{name}" for name in RUNTIME_SCRIPT_FILES)
+    paths.extend(f"{WORKFLOW_PACK_SNAPSHOT_ROOT}/{path.as_posix()}" for path in _iter_workflow_pack_files())
     paths.extend(
         [
             "docs/README.md",
@@ -134,6 +217,7 @@ def generated_file_paths(product_doc: Path | None = None) -> list[str]:
             "docs/product/core/source/source-manifest.json",
             "docs/decisions/_template.md",
             "docs/agent-workflow/task-handoff.md",
+            f"{WORKFLOW_PACK_SNAPSHOT_ROOT}/manifest.json",
             ".governance/state.json",
         ]
     )
@@ -310,6 +394,7 @@ def bootstrap(
         "- Product source: `docs/product/core/PRD.md`\n"
         "- Documentation entry: `docs/README.md`\n"
         "- Governance rules: `AGENTS.md` and `docs/AGENTS.md`\n"
+        "- Workflow pack snapshot: `docs/agent-workflow/workflow-pack/`\n"
         "- Open questions: `docs/unresolved.md`\n"
         "- Delivery plan: `docs/development/README.md`\n",
         force,
@@ -400,6 +485,7 @@ def bootstrap(
 
     _safe_write(root / "docs/decisions/_template.md", _adr_template(), force)
     _safe_write(root / "docs/agent-workflow/task-handoff.md", _task_handoff(), force)
+    workflow_pack_manifest = _install_workflow_pack_snapshot(root, force)
 
     product_source = None
     archived_rel = None
@@ -433,6 +519,7 @@ def bootstrap(
         archived_product=archived_rel,
         product_import_status=manifest["import"]["status"],
         product_can_derive_design=manifest["import"]["can_derive_design"],
+        workflow_pack_manifest=workflow_pack_manifest,
         generated_by="docs-as-code workflow pack",
     )
 
@@ -488,6 +575,7 @@ def _domain_readme(name: str, title: str) -> str:
             "> Governance: `AGENTS.md`.\n\n"
             "## Index\n\n"
             "- `task-handoff.md` - agent task handoff and completion criteria\n"
+            "- `workflow-pack/` - local workflow, skill, reference, and template snapshot\n"
         )
     return f"# docs/{name}\n\n{title}。\n\n> Governance: `AGENTS.md`.\n"
 

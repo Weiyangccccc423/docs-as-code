@@ -8,6 +8,7 @@ Create reliable project governance before implementation starts:
 
 - archive the original product document
 - record product archive manifest metadata and SHA-256 evidence
+- copy a target-local workflow, skill, reference, and template snapshot
 - derive structured product, architecture, API, UI, backend, frontend, test, and delivery documents
 - keep unresolved decisions explicit
 - verify documentation structure and drift
@@ -78,6 +79,8 @@ make verify-pack
 ## Runtime Strategy
 
 Core governance commands use POSIX shell wrappers and Python standard-library scripts so empty target folders can be initialized without package installation. Generated targets receive their own `bin/` and `scripts/` runtime; after initialization, run checks from the target repository with `bin/governance verify .` or `make verify-governance`.
+
+Generated targets also receive `docs/agent-workflow/workflow-pack/`, a manifest-verified snapshot of this pack's workflows, skills, references, and templates. `verify` fails if a manifest-listed snapshot file is missing or modified.
 
 Node.js belongs in project-specific documentation and frontend tooling. Rust is reserved for optional stable accelerators after verification rules mature. See `references/runtime-strategy.md`.
 

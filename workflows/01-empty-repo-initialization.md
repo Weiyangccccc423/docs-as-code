@@ -49,6 +49,7 @@ Load:
    - `Makefile`
    - `bin/governance`
    - `scripts/governance_cli.py`
+   - `docs/agent-workflow/workflow-pack/manifest.json`
 
 5. Inspect generated docs domains:
 
@@ -74,7 +75,7 @@ Load:
 
 A repository skeleton with governance entry points, product core files, unresolved item registry, glossary, and domain-level docs entrances.
 
-The target receives a local governance runtime under `bin/` and `scripts/`. After initialization, use target-local commands when working inside the generated repository:
+The target receives a local governance runtime under `bin/` and `scripts/`, plus a workflow-pack snapshot under `docs/agent-workflow/workflow-pack/`. After initialization, use target-local commands when working inside the generated repository:
 
 ```bash
 bin/governance verify .

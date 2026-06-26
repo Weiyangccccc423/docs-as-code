@@ -102,6 +102,8 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertTrue(payload["ok"])
             self.assertEqual([], payload["conflicts"])
             self.assertIn("README.md", payload["would_write"])
+            self.assertIn("docs/agent-workflow/workflow-pack/manifest.json", payload["would_write"])
+            self.assertIn("docs/agent-workflow/workflow-pack/skills/using-governance-workflow/SKILL.md", payload["would_write"])
             self.assertFalse(target.exists())
 
     def test_init_json_reports_conflicts_without_writing(self) -> None:
@@ -169,6 +171,7 @@ class GovernanceCliTest(unittest.TestCase):
             payload = json.loads(result.stdout)
             self.assertTrue(payload["ok"])
             self.assertEqual("initialized", payload["state"]["phase"])
+            self.assertEqual("docs/agent-workflow/workflow-pack/manifest.json", payload["state"]["workflow_pack_manifest"])
             self.assertIn("# Forced Demo", (target / "README.md").read_text(encoding="utf-8"))
             self.assertTrue((target / "docs/README.md").exists())
 

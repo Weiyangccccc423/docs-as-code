@@ -28,6 +28,11 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertTrue((root / "AGENTS.md").exists())
             self.assertTrue((root / "docs/product/core/PRD.md").exists())
             self.assertTrue((root / "docs/product/core/source/input-product.md").exists())
+            self.assertTrue((root / "docs/agent-workflow/workflow-pack/workflows/00-overview.md").exists())
+            self.assertTrue((root / "docs/agent-workflow/workflow-pack/skills/using-governance-workflow/SKILL.md").exists())
+            self.assertTrue((root / "docs/agent-workflow/workflow-pack/references/architecture-methods.md").exists())
+            workflow_manifest = json.loads((root / "docs/agent-workflow/workflow-pack/manifest.json").read_text(encoding="utf-8"))
+            self.assertTrue(any(item["path"] == "workflows/00-overview.md" for item in workflow_manifest["files"]))
             self.assertIn("Demo Product", (root / "docs/product/core/PRD.md").read_text(encoding="utf-8"))
             manifest = json.loads((root / "docs/product/core/source/source-manifest.json").read_text(encoding="utf-8"))
             self.assertEqual("input-product.md", manifest["source"]["filename"])
@@ -51,6 +56,28 @@ class GovernanceScriptsTest(unittest.TestCase):
 
             report = verify(root)
             self.assertIn("archived product source hash mismatch: docs/product/core/source/product.md", report.errors)
+
+    def test_verify_rejects_tampered_workflow_pack_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            workflow = root / "docs/agent-workflow/workflow-pack/workflows/00-overview.md"
+            workflow.write_text(workflow.read_text(encoding="utf-8") + "\nTampered.\n", encoding="utf-8")
+
+            report = verify(root)
+            self.assertIn("workflow pack file hash mismatch: docs/agent-workflow/workflow-pack/workflows/00-overview.md", report.errors)
+            self.assertIn(
+                {
+                    "code": "workflow_pack_file_hash_mismatch",
+                    "severity": "error",
+                    "path": "docs/agent-workflow/workflow-pack/workflows/00-overview.md",
+                    "message": "workflow pack file hash mismatch: docs/agent-workflow/workflow-pack/workflows/00-overview.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
 
     def test_non_markdown_product_requires_conversion_before_verification_passes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -97,6 +124,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertTrue((root / "scripts/governance_cli.py").exists())
             self.assertTrue((root / "scripts/scaffold.py").exists())
             self.assertTrue((root / "scripts/verify_governance.py").exists())
+            self.assertTrue((root / "docs/agent-workflow/workflow-pack/manifest.json").exists())
             self.assertIn("bin/governance verify .", (root / "Makefile").read_text(encoding="utf-8"))
 
             verify_result = subprocess.run(

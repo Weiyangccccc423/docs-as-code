@@ -31,6 +31,8 @@ Stop on `ok: false`. Use `requirements[].code` to choose the repair skill, then 
 
 After `design-derivation` passes, run `bin/governance scaffold design <target> --json` if standard design files are missing. Do not enter implementation while any `governance:scaffold-placeholder` marker remains.
 
+When working inside a generated target without the source workflow-pack repository open, use `docs/agent-workflow/workflow-pack/` as the local copy of workflows, skills, references, and templates.
+
 ## Rules
 
 - Do not derive design from an unarchived product source.

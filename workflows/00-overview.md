@@ -24,6 +24,8 @@ bin/governance verify .
 bin/governance env --repair --target .
 ```
 
+Generated targets also receive `docs/agent-workflow/workflow-pack/`, a hash-manifested snapshot of this pack's workflows, skills, references, and templates. Use it as the target-local operating manual when the source pack repository is not open.
+
 Node.js tooling is an optional project-specific enhancement layer. Rust is reserved for future stable accelerators or single-binary distribution. See `references/runtime-strategy.md`.
 
 ## Phase Map
