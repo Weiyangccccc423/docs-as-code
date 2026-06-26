@@ -16,6 +16,7 @@ from check_env import (
     write_repair_plan,
 )
 from gates import GATE_NAMES, evaluate_gate
+from scaffold import scaffold_design
 from state import load_state, merge_state
 from verify_governance import verify
 
@@ -237,6 +238,29 @@ def _cmd_gate(args: argparse.Namespace) -> int:
     return 1
 
 
+def _cmd_scaffold(args: argparse.Namespace) -> int:
+    target = Path(args.target)
+    if args.scaffold == "design":
+        result = scaffold_design(target)
+    else:  # pragma: no cover - argparse choices prevent this
+        raise ValueError(f"unknown scaffold: {args.scaffold}")
+    payload = result.to_dict()
+    if args.json:
+        _print_json(payload)
+        return 0 if result.ok else 1
+    if not result.ok:
+        print(f"Scaffold failed: {args.scaffold}")
+        for error in result.errors:
+            print(f"- ERROR: {error}")
+        return 1
+    print(f"Scaffold created: {args.scaffold}")
+    for path in result.created:
+        print(f"- CREATED: {path}")
+    for path in result.skipped:
+        print(f"- SKIPPED: {path}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="docs-as-code governance workflow CLI")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -273,6 +297,12 @@ def build_parser() -> argparse.ArgumentParser:
     gate.add_argument("target", nargs="?", default=".")
     gate.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     gate.set_defaults(func=_cmd_gate)
+
+    scaffold = sub.add_parser("scaffold", help="Create standard governance document scaffolds.")
+    scaffold.add_argument("scaffold", choices=("design",))
+    scaffold.add_argument("target", nargs="?", default=".")
+    scaffold.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    scaffold.set_defaults(func=_cmd_scaffold)
 
     return parser
 

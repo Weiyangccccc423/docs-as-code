@@ -27,6 +27,7 @@ bin/governance gate implementation <target> --json
 
 Use `verify --json` `findings[].code` and `findings[].path` for deterministic repair routing. Use `errors` and `warnings` only for human-facing summaries.
 Use `gate --json` `requirements[].code` for phase-transition repair routing; `verification.findings[]` contains the embedded structural verification result.
+Treat `governance_scaffold_placeholder` as a design-authoring blocker, not a formatting issue.
 
 Treat `ok: false` as blocking. Treat `needs_escalation: true` as requiring explicit approval before running the reported package-manager command.
 
@@ -42,6 +43,7 @@ make ci
 
 - no unregistered `docs/` directories
 - no stale reserved markers
+- no `governance:scaffold-placeholder` markers
 - non-empty docs directories have `README.md` and `AGENTS.md`
 - non-template Markdown files are indexed in the README in the same directory
 - unresolved items use `none`, `-`, `n/a`, `non-blocking`, or `resolved` for non-blocking scope; any other `Blocking Scope` fails verification

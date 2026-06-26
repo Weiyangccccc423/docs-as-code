@@ -47,6 +47,13 @@ bin/governance env --repair --target /path/to/new-project --json
 
 Use `gate --json` before phase transitions. Supported gates are `product-structuring`, `design-derivation`, and `implementation`.
 
+Use `scaffold design --json` after the design-derivation gate to create standard architecture, API, UI, backend, frontend, test, and development document shells. Scaffolded files contain `governance:scaffold-placeholder`; verification fails until the placeholders are replaced with product-derived content.
+
+```bash
+bin/governance gate design-derivation /path/to/new-project --json
+bin/governance scaffold design /path/to/new-project --json
+```
+
 ## Workflow Order
 
 1. `workflows/01-empty-repo-initialization.md`

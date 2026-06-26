@@ -471,6 +471,86 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual(0, allowed.returncode, allowed.stderr)
             self.assertTrue(json.loads(allowed.stdout)["ok"])
 
+    def test_scaffold_design_requires_design_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+
+            scaffold = subprocess.run(
+                [sys.executable, str(CLI), "scaffold", "design", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, scaffold.returncode)
+            payload = json.loads(scaffold.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertIn("design-derivation gate failed", payload["errors"])
+            self.assertFalse((target / "docs/architecture/01-system-context.md").exists())
+
+    def test_scaffold_design_writes_indexed_placeholders_and_blocks_implementation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            (target / "docs/product/01-goals.md").write_text("# Goals\n", encoding="utf-8")
+            _append_index(target / "docs/product/README.md", "01-goals.md")
+
+            scaffold = subprocess.run(
+                [sys.executable, str(CLI), "scaffold", "design", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, scaffold.returncode, scaffold.stderr)
+            payload = json.loads(scaffold.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertIn("docs/architecture/01-system-context.md", payload["created"])
+            self.assertIn("docs/api/endpoints/README.md", payload["created"])
+            self.assertTrue((target / "docs/backend/02-data-model.md").exists())
+            self.assertIn("01-system-context.md", (target / "docs/architecture/README.md").read_text(encoding="utf-8"))
+            self.assertIn("00-conventions.md", (target / "docs/api/README.md").read_text(encoding="utf-8"))
+            self.assertNotIn("README.md", (target / "docs/api/endpoints/README.md").read_text(encoding="utf-8"))
+
+            verify_result = subprocess.run(
+                [sys.executable, str(CLI), "verify", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(1, verify_result.returncode)
+            verify_payload = json.loads(verify_result.stdout)
+            finding_codes = {item["code"] for item in verify_payload["findings"]}
+            self.assertIn("governance_scaffold_placeholder", finding_codes)
+            self.assertNotIn("docs_readme_unindexed_file", finding_codes)
+
+            gate = subprocess.run(
+                [sys.executable, str(CLI), "gate", "implementation", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(1, gate.returncode)
+            requirements = {item["code"]: item for item in json.loads(gate.stdout)["requirements"]}
+            self.assertFalse(requirements["verification_passed"]["ok"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -22,6 +22,7 @@ DOC_DIRS = {
 }
 
 NON_BLOCKING_SCOPES = {"", "-", "none", "n/a", "na", "non-blocking", "non blocking", "resolved"}
+SCAFFOLD_PLACEHOLDER = "governance:scaffold-placeholder"
 
 
 @dataclass
@@ -104,6 +105,7 @@ def verify(root: Path) -> VerificationReport:
     _check_product_source_manifest(root, report)
     _check_unresolved_items(root, report)
     _check_readme_indexes(root, report)
+    _check_scaffold_placeholders(root, report)
 
     return report
 
@@ -239,6 +241,25 @@ def _check_readme_indexes(root: Path, report: VerificationReport) -> None:
             rel_child = child.relative_to(root).as_posix()
             rel_readme = readme.relative_to(root).as_posix()
             report.add_error("docs_readme_unindexed_file", f"{rel_child} is not indexed in {rel_readme}", rel_child)
+
+
+def _check_scaffold_placeholders(root: Path, report: VerificationReport) -> None:
+    docs_root = root / "docs"
+    if not docs_root.exists():
+        return
+    for path in sorted(docs_root.rglob("*.md")):
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        if SCAFFOLD_PLACEHOLDER not in text:
+            continue
+        rel = path.relative_to(root).as_posix()
+        report.add_error(
+            "governance_scaffold_placeholder",
+            f"{rel} still contains a governance scaffold placeholder",
+            rel,
+        )
 
 
 def _markdown_table(text: str) -> list[list[str]]:

@@ -95,6 +95,7 @@ class GovernanceScriptsTest(unittest.TestCase):
 
             self.assertTrue((root / "bin/governance").exists())
             self.assertTrue((root / "scripts/governance_cli.py").exists())
+            self.assertTrue((root / "scripts/scaffold.py").exists())
             self.assertTrue((root / "scripts/verify_governance.py").exists())
             self.assertIn("bin/governance verify .", (root / "Makefile").read_text(encoding="utf-8"))
 

@@ -57,6 +57,7 @@ Load:
 5. Before implementation starts, confirm:
    - no unregistered docs directories
    - no stale reserved markers
+   - no `governance:scaffold-placeholder` markers
    - no `docs/unresolved.md` rows with a blocking `Blocking Scope`
    - no non-template Markdown files missing from their same-directory README
    - product, API, architecture, backend, frontend, tests, and development docs link to each other

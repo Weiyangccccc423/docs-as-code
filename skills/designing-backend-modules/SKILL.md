@@ -27,13 +27,15 @@ Read `references/backend-design-checklist.md` when the module touches data, asyn
 
    Stop on `ok: false` and repair by `requirements[].code`.
 
-2. Identify module responsibility and boundaries.
-3. Name upstream and downstream modules.
-4. Link owned API endpoints from `docs/api/`.
-5. Define data ownership and lifecycle states.
-6. Document external dependencies, retries, timeouts, and failure modes.
-7. Define observability and auth behavior.
-8. Link acceptance criteria and test strategy.
+2. Run `bin/governance scaffold design <target> --json` when standard backend files are missing.
+3. Replace scaffold placeholders in backend files with product-derived content.
+4. Identify module responsibility and boundaries.
+5. Name upstream and downstream modules.
+6. Link owned API endpoints from `docs/api/`.
+7. Define data ownership and lifecycle states.
+8. Document external dependencies, retries, timeouts, and failure modes.
+9. Define observability and auth behavior.
+10. Link acceptance criteria and test strategy.
 
 ## Stop Conditions
 

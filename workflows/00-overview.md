@@ -44,6 +44,14 @@ bin/governance gate design-derivation <target> --json
 bin/governance gate implementation <target> --json
 ```
 
+After the design-derivation gate passes, use the deterministic design scaffold when standard design files are missing:
+
+```bash
+bin/governance scaffold design <target> --json
+```
+
+Scaffold placeholders block verification until replaced with product-derived content.
+
 ## Source-of-Truth Flow
 
 ```text

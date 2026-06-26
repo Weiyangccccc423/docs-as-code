@@ -27,11 +27,13 @@ Data design must preserve product semantics and make runtime behavior testable.
 
    Stop on `ok: false` and repair by `requirements[].code`.
 
-2. Start from product nouns and backend module ownership.
-3. Define state machines before writing fields.
-4. Add constraints for idempotency and cross-user isolation.
-5. Document query paths that justify indexes.
-6. Link schema choices to API contracts and acceptance criteria.
+2. Run `bin/governance scaffold design <target> --json` when standard data-model files are missing.
+3. Replace scaffold placeholders in data-model files with product-derived content.
+4. Start from product nouns and backend module ownership.
+5. Define state machines before writing fields.
+6. Add constraints for idempotency and cross-user isolation.
+7. Document query paths that justify indexes.
+8. Link schema choices to API contracts and acceptance criteria.
 
 ## Stop Conditions
 

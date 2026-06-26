@@ -38,9 +38,11 @@ Each endpoint must define:
 
    Stop on `ok: false` and repair by `requirements[].code`.
 
-2. Derive endpoints from structured product chapters and architecture docs.
-3. Keep field names, auth rules, idempotency, and error behavior traceable.
-4. Update `docs/api/README.md` and endpoint indexes for every new Markdown file.
+2. Run `bin/governance scaffold design <target> --json` when standard API files are missing.
+3. Replace scaffold placeholders in API files with product-derived content.
+4. Derive endpoints from structured product chapters and architecture docs.
+5. Keep field names, auth rules, idempotency, and error behavior traceable.
+6. Update `docs/api/README.md` and endpoint indexes for every new Markdown file.
 
 ## Stop Conditions
 

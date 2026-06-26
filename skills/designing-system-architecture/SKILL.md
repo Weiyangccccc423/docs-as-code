@@ -31,10 +31,12 @@ Read `references/architecture-methods.md` before producing architecture document
    Stop on `ok: false` and repair by `requirements[].code`.
 
 2. Read product scope and acceptance criteria.
-3. Identify actors, systems, and external services.
-4. Define containers without committing to unnecessary internal classes.
-5. Record cross-module decisions as ADRs.
-6. Link every architecture claim to product, API, or decision sources.
+3. Run `bin/governance scaffold design <target> --json` when standard design files are missing.
+4. Replace scaffold placeholders in architecture files with product-derived content.
+5. Identify actors, systems, and external services.
+6. Define containers without committing to unnecessary internal classes.
+7. Record cross-module decisions as ADRs.
+8. Link every architecture claim to product, API, or decision sources.
 
 ## Stop Conditions
 
