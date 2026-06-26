@@ -61,6 +61,7 @@ BACKEND_DATA_MODEL_REL = Path("docs/backend/02-data-model.md")
 BACKEND_EXTERNAL_SERVICES_REL = Path("docs/backend/03-external-services.md")
 FRONTEND_MODULES_REL = Path("docs/frontend/01-modules.md")
 FRONTEND_API_CONSUMPTION_REL = Path("docs/frontend/02-api-consumption.md")
+TEST_STRATEGY_REL = Path("docs/tests/01-strategy.md")
 HTTP_METHOD_PATH_RE = re.compile(
     r"(?<![A-Za-z])(?:GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD)\s+/[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%{}-]*",
     re.IGNORECASE,
@@ -189,6 +190,7 @@ def verify(root: Path) -> VerificationReport:
     _check_api_endpoint_contract_filenames(root, report)
     _check_backend_module_traceability(root, report)
     _check_frontend_module_traceability(root, report)
+    _check_test_strategy_traceability(root, report)
     _check_architecture_decisions(root, report)
     _check_unresolved_items(root, report)
     _check_glossary_items(root, report)
@@ -546,6 +548,38 @@ def _check_frontend_module_traceability(root: Path, report: VerificationReport) 
         "frontend_module_trace_reference_missing",
         "Acceptance",
         _is_product_acceptance_reference_path,
+    )
+
+
+def _check_test_strategy_traceability(root: Path, report: VerificationReport) -> None:
+    path = root / TEST_STRATEGY_REL
+    rel = TEST_STRATEGY_REL.as_posix()
+    if not path.exists():
+        return
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return
+    if SCAFFOLD_PLACEHOLDER in text:
+        return
+
+    references = _local_markdown_references(root, path, text, include_bare=True, strip_code=False)
+    _check_design_reference_group(
+        report,
+        rel,
+        references,
+        "test_strategy_trace_reference_missing",
+        "Acceptance",
+        _is_product_acceptance_reference_path,
+    )
+    _check_design_reference_group(report, rel, references, "test_strategy_trace_reference_missing", "API", _is_api_reference)
+    _check_design_reference_group(
+        report,
+        rel,
+        references,
+        "test_strategy_trace_reference_missing",
+        "Design",
+        _is_design_reference,
     )
 
 
@@ -1112,6 +1146,11 @@ def _is_api_reference(reference: LocalMarkdownReference) -> bool:
 def _is_ui_reference(reference: LocalMarkdownReference) -> bool:
     path = Path(reference.rel)
     return len(path.parts) >= 2 and path.parts[0] == "docs" and path.parts[1] == "ui"
+
+
+def _is_design_reference(reference: LocalMarkdownReference) -> bool:
+    path = Path(reference.rel)
+    return len(path.parts) >= 2 and path.parts[0] == "docs" and path.parts[1] in {"architecture", "backend", "frontend"}
 
 
 def _task_board_done_evidence_errors(root: Path, row: dict[str, str], task_id: str) -> list[str]:

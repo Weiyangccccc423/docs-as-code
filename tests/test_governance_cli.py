@@ -595,6 +595,13 @@ class GovernanceCliTest(unittest.TestCase):
                 path.write_text(f"# {domain}\n", encoding="utf-8")
                 _append_index(target / "docs" / domain / "README.md", filename)
 
+            (target / "docs/tests/01-strategy.md").write_text(
+                "# Test Strategy\n\n"
+                "Product acceptance: [Acceptance](../product/08-acceptance-criteria.md).\n"
+                "API contracts: [API conventions](../api/00-conventions.md).\n"
+                "Design basis: [Architecture context](../architecture/01-context.md).\n",
+                encoding="utf-8",
+            )
             (target / "docs/backend/01-modules.md").write_text(
                 "# Backend Modules\n\n"
                 "API: [API conventions](../api/00-conventions.md).\n"

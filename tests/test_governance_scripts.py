@@ -61,6 +61,24 @@ def _write_frontend_trace_docs(root: Path) -> None:
     _write_acceptance_chapter(root)
 
 
+def _write_test_strategy_trace_docs(root: Path) -> None:
+    _write_acceptance_chapter(root)
+    _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+    _write_indexed_doc(root, "docs/architecture/01-system-context.md", "# System Context\n")
+
+
+def _write_traceable_test_strategy(root: Path) -> None:
+    _write_test_strategy_trace_docs(root)
+    _write_indexed_doc(
+        root,
+        "docs/tests/01-strategy.md",
+        "# Test Strategy\n\n"
+        "Product acceptance: [Acceptance](../product/08-acceptance-criteria.md).\n"
+        "API contracts: [API conventions](../api/00-conventions.md).\n"
+        "Design basis: [System context](../architecture/01-system-context.md).\n",
+    )
+
+
 def _adr_doc(references: str = "- [System context](../architecture/01-system-context.md)") -> str:
     return (
         "# ADR-001: Choose Runtime Boundary\n\n"
@@ -1328,6 +1346,92 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_allows_traceable_test_strategy(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_test_strategy_trace_docs(root)
+            _write_indexed_doc(
+                root,
+                "docs/tests/01-strategy.md",
+                "# Test Strategy\n\n"
+                "Product acceptance: [Acceptance](../product/08-acceptance-criteria.md).\n"
+                "API contracts: [API conventions](../api/00-conventions.md).\n"
+                "Design basis: [System context](../architecture/01-system-context.md).\n",
+            )
+
+            report = verify(root)
+
+            self.assertEqual([], report.errors)
+
+    def test_verify_reports_test_strategy_missing_trace_references(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(
+                root,
+                "docs/tests/01-strategy.md",
+                "# Test Strategy\n\n"
+                "The goal flow needs unit, integration, and acceptance checks.\n",
+            )
+
+            report = verify(root)
+
+            expected = [
+                "docs/tests/01-strategy.md must reference a product acceptance chapter",
+                "docs/tests/01-strategy.md must reference existing API docs",
+                "docs/tests/01-strategy.md must reference existing Design docs",
+            ]
+            for message in expected:
+                self.assertIn(message, report.errors)
+            self.assertIn(
+                {
+                    "code": "test_strategy_trace_reference_missing",
+                    "severity": "error",
+                    "path": "docs/tests/01-strategy.md",
+                    "message": "docs/tests/01-strategy.md must reference a product acceptance chapter",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_test_strategy_missing_trace_targets(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(
+                root,
+                "docs/tests/01-strategy.md",
+                "# Test Strategy\n\n"
+                "Product acceptance: [Acceptance](../product/08-acceptance-criteria.md).\n"
+                "API contracts: [API conventions](../api/00-conventions.md).\n"
+                "Design basis: [System context](../architecture/01-system-context.md).\n",
+            )
+
+            report = verify(root)
+
+            expected = [
+                "docs/tests/01-strategy.md references missing Acceptance target: docs/product/08-acceptance-criteria.md",
+                "docs/tests/01-strategy.md references missing API target: docs/api/00-conventions.md",
+                "docs/tests/01-strategy.md references missing Design target: docs/architecture/01-system-context.md",
+            ]
+            for message in expected:
+                self.assertIn(message, report.errors)
+            self.assertIn(
+                {
+                    "code": "test_strategy_trace_reference_missing",
+                    "severity": "error",
+                    "path": "docs/tests/01-strategy.md",
+                    "message": "docs/tests/01-strategy.md references missing Acceptance target: docs/product/08-acceptance-criteria.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_allows_traceable_adr(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -1505,7 +1609,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
             _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
-            _write_indexed_doc(root, "docs/tests/01-strategy.md", "# Test Strategy\n")
+            _write_traceable_test_strategy(root)
 
             task_board = root / "docs/development/02-task-board.md"
             task_board.write_text(
@@ -1532,7 +1636,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
             _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
-            _write_indexed_doc(root, "docs/tests/01-strategy.md", "# Test Strategy\n")
+            _write_traceable_test_strategy(root)
 
             task_board = root / "docs/development/02-task-board.md"
             task_board.write_text(
@@ -1569,7 +1673,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
             _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
-            _write_indexed_doc(root, "docs/tests/01-strategy.md", "# Test Strategy\n")
+            _write_traceable_test_strategy(root)
 
             task_board = root / "docs/development/02-task-board.md"
             task_board.write_text(
@@ -1605,7 +1709,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
             _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
-            _write_indexed_doc(root, "docs/tests/01-strategy.md", "# Test Strategy\n")
+            _write_traceable_test_strategy(root)
 
             task_board = root / "docs/development/02-task-board.md"
             task_board.write_text(
@@ -1642,7 +1746,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
             _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
-            _write_indexed_doc(root, "docs/tests/01-strategy.md", "# Test Strategy\n")
+            _write_traceable_test_strategy(root)
 
             task_board = root / "docs/development/02-task-board.md"
             task_board.write_text(
@@ -1678,7 +1782,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
             _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
-            _write_indexed_doc(root, "docs/tests/01-strategy.md", "# Test Strategy\n")
+            _write_traceable_test_strategy(root)
             _write_indexed_doc(root, "docs/development/03-verification-log.md", "# Verification Log\n")
             (root / "docs/unresolved.md").write_text(
                 "# Unresolved Items\n\n"
@@ -1718,7 +1822,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
             _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
-            _write_indexed_doc(root, "docs/tests/01-strategy.md", "# Test Strategy\n")
+            _write_traceable_test_strategy(root)
             (root / "docs/unresolved.md").write_text(
                 "# Unresolved Items\n\n"
                 "| ID | Domain | Description | Blocking Scope | Owner | Date |\n"
@@ -1765,7 +1869,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
             _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
-            _write_indexed_doc(root, "docs/tests/01-strategy.md", "# Test Strategy\n")
+            _write_traceable_test_strategy(root)
             (root / "docs/unresolved.md").write_text(
                 "# Unresolved Items\n\n"
                 "| ID | Domain | Description | Blocking Scope | Owner | Date |\n"
@@ -1809,7 +1913,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
             _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
-            _write_indexed_doc(root, "docs/tests/01-strategy.md", "# Test Strategy\n")
+            _write_traceable_test_strategy(root)
             (root / "docs/unresolved.md").write_text(
                 "# Unresolved Items\n\n"
                 "| ID | Domain | Description | Blocking Scope | Owner | Date |\n"
@@ -1844,7 +1948,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
             _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
-            _write_indexed_doc(root, "docs/tests/01-strategy.md", "# Test Strategy\n")
+            _write_traceable_test_strategy(root)
 
             task_board = root / "docs/development/02-task-board.md"
             task_board.write_text(
@@ -1881,7 +1985,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
             _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
-            _write_indexed_doc(root, "docs/tests/01-strategy.md", "# Test Strategy\n")
+            _write_traceable_test_strategy(root)
             _write_indexed_doc(root, "docs/development/03-verification-log.md", "# Verification Log\n")
 
             task_board = root / "docs/development/02-task-board.md"
@@ -1910,7 +2014,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
             _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
-            _write_indexed_doc(root, "docs/tests/01-strategy.md", "# Test Strategy\n")
+            _write_traceable_test_strategy(root)
 
             task_board = root / "docs/development/02-task-board.md"
             task_board.write_text(
@@ -1950,7 +2054,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
             _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
-            _write_indexed_doc(root, "docs/tests/01-strategy.md", "# Test Strategy\n")
+            _write_traceable_test_strategy(root)
             _write_indexed_doc(
                 root,
                 "docs/development/01-roadmap.md",
@@ -1994,7 +2098,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
             _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
-            _write_indexed_doc(root, "docs/tests/01-strategy.md", "# Test Strategy\n")
+            _write_traceable_test_strategy(root)
             _write_indexed_doc(
                 root,
                 "docs/development/01-roadmap.md",
