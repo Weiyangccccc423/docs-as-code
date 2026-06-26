@@ -44,6 +44,14 @@ TASK_BOARD_REQUIRED_COLUMNS = {
 }
 TASK_BOARD_TRACE_COLUMNS = ("product", "design", "api", "acceptance", "verification")
 TASK_BOARD_REFERENCE_COLUMNS = ("product", "design", "api", "acceptance")
+TASK_BOARD_ALLOWED_STATUSES = {
+    "backlog",
+    "ready",
+    "in progress",
+    "blocked",
+    "done",
+    "deferred",
+}
 TASK_BOARD_READY_STATUSES = {"ready"}
 TASK_BOARD_EMPTY_VALUES = {"", "-", "tbd", "todo", "n/a", "na", "none"}
 MARKDOWN_LINK_RE = re.compile(r"(?<!!)\[[^\]]*]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
@@ -484,6 +492,14 @@ def _check_task_board(root: Path, report: VerificationReport) -> None:
             report.add_error(
                 "task_board_row_missing_fields",
                 f"task board row {task_id} is missing required fields: {', '.join(missing_fields)}",
+                rel,
+            )
+            continue
+        status = row.get("status", "").strip()
+        if _normalize_cell(status) not in TASK_BOARD_ALLOWED_STATUSES:
+            report.add_error(
+                "task_board_invalid_status",
+                f"task board row {task_id} has invalid Status: {status}",
                 rel,
             )
             continue
