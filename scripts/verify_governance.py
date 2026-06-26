@@ -30,6 +30,7 @@ UNRESOLVED_REQUIRED_COLUMNS = {
 }
 SCAFFOLD_PLACEHOLDER = "governance:scaffold-placeholder"
 WORKFLOW_PACK_SNAPSHOT_ROOT = "docs/agent-workflow/workflow-pack"
+ROADMAP_REL = Path("docs/development/01-roadmap.md")
 TASK_BOARD_REL = Path("docs/development/02-task-board.md")
 TASK_BOARD_REQUIRED_COLUMNS = {
     "id": "ID",
@@ -145,6 +146,7 @@ def verify(root: Path) -> VerificationReport:
     _check_scaffold_placeholders(root, report)
     _check_workflow_pack_manifest(root, report)
     _check_task_board(root, report)
+    _check_roadmap_task_board_status(root, report)
 
     return report
 
@@ -505,6 +507,44 @@ def _check_task_board(root: Path, report: VerificationReport) -> None:
         report.add_error("task_board_ready_task_missing", f"{rel} must contain at least one Ready task", rel)
 
 
+def _check_roadmap_task_board_status(root: Path, report: VerificationReport) -> None:
+    roadmap_path = root / ROADMAP_REL
+    task_board_path = root / TASK_BOARD_REL
+    if not roadmap_path.exists() or not task_board_path.exists():
+        return
+    try:
+        roadmap_text = roadmap_path.read_text(encoding="utf-8")
+        task_board_text = task_board_path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return
+    if SCAFFOLD_PLACEHOLDER in roadmap_text or SCAFFOLD_PLACEHOLDER in task_board_text:
+        return
+
+    roadmap_rows = _rows_with_columns(roadmap_text, ("id", "status"))
+    if not roadmap_rows:
+        return
+    task_rows, task_missing = _task_board_rows(task_board_text)
+    if task_missing:
+        return
+
+    task_status_by_id = {_normalize_cell(row.get("id", "")): row.get("status", "").strip() for row in task_rows}
+    for row in roadmap_rows:
+        item_id = row.get("id", "").strip()
+        if not item_id:
+            continue
+        task_status = task_status_by_id.get(_normalize_cell(item_id))
+        if task_status is None:
+            continue
+        roadmap_status = row.get("status", "").strip()
+        if _normalize_cell(roadmap_status) == _normalize_cell(task_status):
+            continue
+        report.add_error(
+            "roadmap_task_status_conflict",
+            f"roadmap status for {item_id} is {roadmap_status} but task board status is {task_status}",
+            ROADMAP_REL.as_posix(),
+        )
+
+
 def _task_board_rows(text: str) -> tuple[list[dict[str, str]], list[str]]:
     table = _markdown_table(text)
     if not table:
@@ -530,6 +570,25 @@ def _task_board_rows(text: str) -> tuple[list[dict[str, str]], list[str]]:
             )
         return rows, []
     return [], list(TASK_BOARD_REQUIRED_COLUMNS)
+
+
+def _rows_with_columns(text: str, columns: tuple[str, ...]) -> list[dict[str, str]]:
+    table = _markdown_table(text)
+    if not table:
+        return []
+    for index, row in enumerate(table):
+        header = [_normalize_cell(cell) for cell in row]
+        if not all(column in header for column in columns):
+            continue
+        rows: list[dict[str, str]] = []
+        for data in table[index + 1 :]:
+            if _is_separator_row(data):
+                continue
+            if not any(cell.strip() for cell in data):
+                continue
+            rows.append({column: _table_cell(data, header.index(column)) for column in columns})
+        return rows
+    return []
 
 
 def _task_board_row_trace_complete(row: dict[str, str]) -> bool:

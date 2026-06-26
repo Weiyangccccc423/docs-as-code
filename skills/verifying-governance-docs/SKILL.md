@@ -35,6 +35,7 @@ Treat `workflow_pack_file_hash_mismatch` and `workflow_pack_file_missing` as wor
 Treat `docs_local_markdown_link_missing` as a document-integrity blocker: repair the link or create/index the referenced Markdown file.
 Treat `product_chapter_missing_prd_link` and `product_meta_missing_chapter_link` as product-structuring blockers.
 Treat `unresolved_row_missing_fields` and `unresolved_duplicate_id` as ambiguity-registry blockers.
+Treat `roadmap_task_status_conflict` as a delivery-planning blocker.
 Treat `task_board_*` findings as implementation-readiness blockers.
 Treat `task_board_duplicate_id` as a task-routing blocker.
 Treat `task_board_trace_reference_missing` as a source-traceability blocker: repair the task board or create/index the referenced Markdown source before implementation.
@@ -61,7 +62,7 @@ make ci
 - product chapters link back to `core/PRD.md`, and `product-meta.md` links to every product chapter
 - unresolved rows have unique IDs and filled `Domain` and `Description`
 - unresolved items use `none`, `-`, `n/a`, `non-blocking`, or `resolved` for non-blocking scope; any other `Blocking Scope` fails verification
-- roadmap and task board status agree
+- roadmap tables with `ID` and `Status` columns agree with same-ID task board statuses
 - implementation tasks use `ID`, `Status`, `Task`, `Product`, `Design`, `API`, `Acceptance`, and `Verification`
 - task board IDs are unique
 - task board `Product`, `Design`, `API`, and `Acceptance` fields contain existing local Markdown references

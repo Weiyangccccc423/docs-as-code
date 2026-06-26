@@ -63,6 +63,7 @@ Load:
    - no non-template Markdown files missing from their same-directory README
    - no explicit local Markdown link pointing to a missing file
    - product, API, architecture, backend, frontend, tests, and development docs link to each other
+   - roadmap tables with `ID` and `Status` columns agree with same-ID task board statuses
    - task board items have `ID`, `Status`, `Task`, `Product`, `Design`, `API`, `Acceptance`, and `Verification`
    - task board item IDs are unique
    - task board `Product`, `Design`, `API`, and `Acceptance` fields point to existing local Markdown files
