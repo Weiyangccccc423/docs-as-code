@@ -50,7 +50,7 @@ def _write_frontend_consumer_doc(root: Path) -> None:
 def _write_backend_trace_docs(root: Path) -> None:
     _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
     _write_indexed_doc(root, "docs/backend/02-data-model.md", _backend_data_model_doc())
-    _write_indexed_doc(root, "docs/backend/03-external-services.md", "# External Services\n")
+    _write_indexed_doc(root, "docs/backend/03-external-services.md", _backend_external_services_doc())
     _write_acceptance_chapter(root)
 
 
@@ -160,6 +160,32 @@ def _backend_data_model_doc(
         "- Owner and status indexes support primary goal list queries.\n\n"
         "## Migrations\n\n"
         "- Add owner-scoped goal tables before enabling API writes.\n"
+    )
+
+
+def _backend_external_services_doc(
+    backend_modules: str = "[Backend modules](01-modules.md)",
+    api: str = "[API conventions](../api/00-conventions.md)",
+    acceptance: str = "[Acceptance](../product/08-acceptance-criteria.md)",
+) -> str:
+    return (
+        "# External Services\n\n"
+        "## Product Links\n\n"
+        f"- {acceptance}\n"
+        f"- {api}\n"
+        f"- {backend_modules}\n\n"
+        "## Dependencies\n\n"
+        "- No external runtime dependency is required for the first goal flow.\n\n"
+        "## Contracts\n\n"
+        "- Internal module contracts remain documented in backend modules and API docs.\n\n"
+        "## Retries\n\n"
+        "- Retry behavior must be idempotent for API writes.\n\n"
+        "## Timeouts\n\n"
+        "- Timeouts must fail fast enough to preserve the user workflow.\n\n"
+        "## Authentication\n\n"
+        "- Authenticated service calls must preserve user ownership boundaries.\n\n"
+        "## Observability\n\n"
+        "- Dependency failures must emit traceable error events.\n"
     )
 
 
@@ -1377,7 +1403,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
             _write_indexed_doc(root, "docs/backend/01-modules.md", _backend_modules_doc())
             _write_indexed_doc(root, "docs/backend/02-data-model.md", _backend_data_model_doc())
-            _write_indexed_doc(root, "docs/backend/03-external-services.md", "# External Services\n")
+            _write_indexed_doc(root, "docs/backend/03-external-services.md", _backend_external_services_doc())
 
             report = verify(root)
 
@@ -1425,7 +1451,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
             _write_indexed_doc(root, "docs/backend/01-modules.md", _backend_modules_doc())
-            _write_indexed_doc(root, "docs/backend/03-external-services.md", "# External Services\n")
+            _write_indexed_doc(root, "docs/backend/03-external-services.md", _backend_external_services_doc())
             _write_indexed_doc(
                 root,
                 "docs/backend/02-data-model.md",
@@ -1510,6 +1536,153 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "severity": "error",
                     "path": "docs/backend/02-data-model.md",
                     "message": "docs/backend/02-data-model.md references missing Backend Modules target: docs/backend/01-modules.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_allows_complete_backend_external_services(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+            _write_indexed_doc(root, "docs/backend/01-modules.md", _backend_modules_doc())
+            _write_indexed_doc(root, "docs/backend/02-data-model.md", _backend_data_model_doc())
+            _write_indexed_doc(root, "docs/backend/03-external-services.md", _backend_external_services_doc())
+
+            report = verify(root)
+
+            self.assertEqual([], report.errors)
+
+    def test_verify_reports_backend_external_services_missing_required_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(
+                root,
+                "docs/backend/03-external-services.md",
+                "# External Services\n\n"
+                "## Product Links\n\n"
+                "- [Acceptance](../product/08-acceptance-criteria.md)\n",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/backend/03-external-services.md is missing external services sections: "
+                "Dependencies, Contracts, Retries, Timeouts, Authentication, Observability",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "backend_external_services_missing_sections",
+                    "severity": "error",
+                    "path": "docs/backend/03-external-services.md",
+                    "message": "docs/backend/03-external-services.md is missing external services sections: "
+                    "Dependencies, Contracts, Retries, Timeouts, Authentication, Observability",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_backend_external_services_empty_required_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+            _write_indexed_doc(root, "docs/backend/01-modules.md", _backend_modules_doc())
+            _write_indexed_doc(root, "docs/backend/02-data-model.md", _backend_data_model_doc())
+            _write_indexed_doc(
+                root,
+                "docs/backend/03-external-services.md",
+                _backend_external_services_doc().replace(
+                    "## Contracts\n\n"
+                    "- Internal module contracts remain documented in backend modules and API docs.\n\n",
+                    "## Contracts\n\n- TBD\n\n",
+                ),
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/backend/03-external-services.md has empty external services sections: Contracts",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "backend_external_services_empty_sections",
+                    "severity": "error",
+                    "path": "docs/backend/03-external-services.md",
+                    "message": "docs/backend/03-external-services.md has empty external services sections: Contracts",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_backend_external_services_missing_trace_references(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(
+                root,
+                "docs/backend/03-external-services.md",
+                _backend_external_services_doc(
+                    backend_modules="Backend modules",
+                    api="API conventions",
+                    acceptance="Acceptance criteria",
+                ),
+            )
+
+            report = verify(root)
+
+            expected = [
+                "docs/backend/03-external-services.md must reference docs/backend/01-modules.md",
+                "docs/backend/03-external-services.md must reference existing API docs",
+                "docs/backend/03-external-services.md must reference a product acceptance chapter",
+            ]
+            for message in expected:
+                self.assertIn(message, report.errors)
+            self.assertIn(
+                {
+                    "code": "backend_external_services_trace_reference_missing",
+                    "severity": "error",
+                    "path": "docs/backend/03-external-services.md",
+                    "message": "docs/backend/03-external-services.md must reference docs/backend/01-modules.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_backend_external_services_missing_trace_targets(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(root, "docs/backend/03-external-services.md", _backend_external_services_doc())
+
+            report = verify(root)
+
+            expected = [
+                "docs/backend/03-external-services.md references missing Backend Modules target: docs/backend/01-modules.md",
+                "docs/backend/03-external-services.md references missing API target: docs/api/00-conventions.md",
+                "docs/backend/03-external-services.md references missing Acceptance target: docs/product/08-acceptance-criteria.md",
+            ]
+            for message in expected:
+                self.assertIn(message, report.errors)
+            self.assertIn(
+                {
+                    "code": "backend_external_services_trace_reference_missing",
+                    "severity": "error",
+                    "path": "docs/backend/03-external-services.md",
+                    "message": "docs/backend/03-external-services.md references missing Backend Modules target: docs/backend/01-modules.md",
                 },
                 [finding.to_dict() for finding in report.findings],
             )

@@ -79,6 +79,15 @@ BACKEND_DATA_MODEL_REQUIRED_SECTIONS = {
     "migrations": "Migrations",
 }
 BACKEND_EXTERNAL_SERVICES_REL = Path("docs/backend/03-external-services.md")
+BACKEND_EXTERNAL_SERVICES_REQUIRED_SECTIONS = {
+    "product links": "Product Links",
+    "dependencies": "Dependencies",
+    "contracts": "Contracts",
+    "retries": "Retries",
+    "timeouts": "Timeouts",
+    "authentication": "Authentication",
+    "observability": "Observability",
+}
 FRONTEND_MODULES_REL = Path("docs/frontend/01-modules.md")
 FRONTEND_API_CONSUMPTION_REL = Path("docs/frontend/02-api-consumption.md")
 TEST_STRATEGY_REL = Path("docs/tests/01-strategy.md")
@@ -220,6 +229,7 @@ def verify(root: Path) -> VerificationReport:
     _check_architecture_quality_attributes(root, report)
     _check_backend_module_traceability(root, report)
     _check_backend_data_model(root, report)
+    _check_backend_external_services(root, report)
     _check_frontend_module_traceability(root, report)
     _check_test_strategy_traceability(root, report)
     _check_acceptance_matrix_traceability(root, report)
@@ -722,6 +732,71 @@ def _check_backend_data_model(root: Path, report: VerificationReport) -> None:
         rel,
         references,
         "backend_data_model_trace_reference_missing",
+        "Acceptance",
+        _is_product_acceptance_reference_path,
+    )
+
+
+def _check_backend_external_services(root: Path, report: VerificationReport) -> None:
+    path = root / BACKEND_EXTERNAL_SERVICES_REL
+    rel = BACKEND_EXTERNAL_SERVICES_REL.as_posix()
+    if not path.exists():
+        return
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return
+    if SCAFFOLD_PLACEHOLDER in text:
+        return
+
+    sections = _markdown_sections(text)
+    missing = [
+        label
+        for key, label in BACKEND_EXTERNAL_SERVICES_REQUIRED_SECTIONS.items()
+        if key not in sections
+    ]
+    if missing:
+        report.add_error(
+            "backend_external_services_missing_sections",
+            f"{rel} is missing external services sections: {', '.join(missing)}",
+            rel,
+        )
+        return
+    empty = [
+        label
+        for key, label in BACKEND_EXTERNAL_SERVICES_REQUIRED_SECTIONS.items()
+        if not _section_has_authored_content(sections[key])
+    ]
+    if empty:
+        report.add_error(
+            "backend_external_services_empty_sections",
+            f"{rel} has empty external services sections: {', '.join(empty)}",
+            rel,
+        )
+
+    references = _local_markdown_references(root, path, text, include_bare=True, strip_code=False)
+    _check_design_reference_group(
+        report,
+        rel,
+        references,
+        "backend_external_services_trace_reference_missing",
+        "Backend Modules",
+        lambda reference: reference.rel == BACKEND_MODULES_REL.as_posix(),
+        required_rel=BACKEND_MODULES_REL.as_posix(),
+    )
+    _check_design_reference_group(
+        report,
+        rel,
+        references,
+        "backend_external_services_trace_reference_missing",
+        "API",
+        _is_api_reference,
+    )
+    _check_design_reference_group(
+        report,
+        rel,
+        references,
+        "backend_external_services_trace_reference_missing",
         "Acceptance",
         _is_product_acceptance_reference_path,
     )

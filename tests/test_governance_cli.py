@@ -19,6 +19,28 @@ def _append_product_meta_chapter(root: Path, filename: str) -> None:
     meta.write_text(meta.read_text(encoding="utf-8") + f"\n- [{filename}](../{filename})\n", encoding="utf-8")
 
 
+def _backend_external_services_doc() -> str:
+    return (
+        "# External Services\n\n"
+        "## Product Links\n\n"
+        "- [Acceptance](../product/08-acceptance-criteria.md)\n"
+        "- [API conventions](../api/00-conventions.md)\n"
+        "- [Backend modules](01-modules.md)\n\n"
+        "## Dependencies\n\n"
+        "- No external runtime dependency is required for the first goal flow.\n\n"
+        "## Contracts\n\n"
+        "- Internal module contracts remain documented in backend modules and API docs.\n\n"
+        "## Retries\n\n"
+        "- Retry behavior must be idempotent for API writes.\n\n"
+        "## Timeouts\n\n"
+        "- Timeouts must fail fast enough to preserve the user workflow.\n\n"
+        "## Authentication\n\n"
+        "- Authenticated service calls must preserve user ownership boundaries.\n\n"
+        "## Observability\n\n"
+        "- Dependency failures must emit traceable error events.\n"
+    )
+
+
 class GovernanceCliTest(unittest.TestCase):
     def test_env_repair_writes_repair_plan(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -632,6 +654,10 @@ class GovernanceCliTest(unittest.TestCase):
                 "- Owner and status indexes support primary goal list queries.\n\n"
                 "## Migrations\n\n"
                 "- Add owner-scoped goal tables before enabling API writes.\n",
+                encoding="utf-8",
+            )
+            (target / "docs/backend/03-external-services.md").write_text(
+                _backend_external_services_doc(),
                 encoding="utf-8",
             )
 
