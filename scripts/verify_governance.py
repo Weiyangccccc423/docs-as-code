@@ -440,6 +440,22 @@ def _check_api_endpoint_contract_sections(root: Path, path: Path, report: Verifi
                     f"{rel} references missing Upstream Links target: {reference.rel}",
                     rel,
                 )
+    frontend_consumers = sections["frontend consumers"]
+    if _section_has_authored_content(frontend_consumers):
+        references = _local_markdown_references(root, path, frontend_consumers, include_bare=True, strip_code=False)
+        if not references:
+            report.add_error(
+                "api_endpoint_frontend_consumer_reference_missing",
+                f"{rel} Frontend Consumers section must reference existing local Markdown consumer docs",
+                rel,
+            )
+        for reference in references:
+            if not reference.exists:
+                report.add_error(
+                    "api_endpoint_frontend_consumer_reference_missing",
+                    f"{rel} references missing Frontend Consumers target: {reference.rel}",
+                    rel,
+                )
 
 
 def _check_unresolved_items(root: Path, report: VerificationReport) -> None:

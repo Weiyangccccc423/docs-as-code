@@ -41,6 +41,7 @@ Treat `api_endpoint_empty_sections` as an API-contract content blocker: replace 
 Treat `api_endpoint_method_path_invalid` as an API-contract syntax blocker: write `Method and Path` as `METHOD /absolute-path`.
 Treat `api_endpoint_error_codes_reference_missing` as an API-contract registry blocker: link `Error Codes` to `docs/api/error-codes.md` and define the referenced codes there.
 Treat `api_endpoint_upstream_reference_missing` as an API-contract traceability blocker: link `Upstream Links` to existing local Markdown source documents.
+Treat `api_endpoint_frontend_consumer_reference_missing` as an API-contract consumer-trace blocker: link `Frontend Consumers` to existing local UI or frontend API-consumption docs.
 Treat `glossary_*` findings as product-terminology blockers: fill required fields, remove duplicate terms, or link `Source` to existing local Markdown.
 Treat `unresolved_row_missing_fields` and `unresolved_duplicate_id` as ambiguity-registry blockers.
 Treat `roadmap_task_status_conflict` as a delivery-planning blocker.
@@ -79,6 +80,7 @@ make ci
 - API endpoint `Method and Path` sections contain an HTTP method and an absolute path
 - API endpoint `Error Codes` sections reference `docs/api/error-codes.md`
 - API endpoint `Upstream Links` sections reference existing local Markdown source documents
+- API endpoint `Frontend Consumers` sections reference existing local UI or frontend API-consumption docs
 - glossary rows have unique `Term` values and filled `Meaning` and `Source` fields; `Source` links to existing local Markdown
 - unresolved rows have unique IDs and filled `Domain` and `Description`
 - unresolved items use `none`, `-`, `n/a`, `non-blocking`, or `resolved` for non-blocking scope; any other `Blocking Scope` fails verification

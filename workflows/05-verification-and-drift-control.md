@@ -70,6 +70,7 @@ Load:
    - API endpoint `Method and Path` sections contain an HTTP method and absolute path
    - API endpoint `Error Codes` sections reference `docs/api/error-codes.md`
    - API endpoint `Upstream Links` sections reference existing local source Markdown
+   - API endpoint `Frontend Consumers` sections reference existing local UI or frontend API-consumption Markdown
    - product, API, architecture, backend, frontend, tests, and development docs link to each other
    - roadmap tables with `ID` and `Status` columns agree with same-ID task board statuses
    - task board items have `ID`, `Status`, `Task`, `Product`, `Design`, `API`, `Acceptance`, and `Verification`

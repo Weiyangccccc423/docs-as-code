@@ -39,10 +39,19 @@ def _write_api_error_codes_doc(root: Path) -> None:
     _write_indexed_doc(root, "docs/api/error-codes.md", "# API Error Codes\n\n## E_EXAMPLE\n\nExample error.\n")
 
 
+def _write_frontend_consumer_doc(root: Path) -> None:
+    _write_indexed_doc(
+        root,
+        "docs/frontend/02-api-consumption.md",
+        "# API Consumption\n\n## Consumption Map\n\nWeb client goal flow consumes the example endpoint.\n",
+    )
+
+
 def _endpoint_contract_doc(
     title: str,
     upstream_links: str = "- [Product goals](../../product/01-goals.md)",
     error_codes: str = "- [E_EXAMPLE](../error-codes.md#e-example)",
+    frontend_consumers: str = "- [API consumption map](../../frontend/02-api-consumption.md)",
 ) -> str:
     return (
         f"# {title}\n\n"
@@ -61,7 +70,7 @@ def _endpoint_contract_doc(
         "## Upstream Links\n\n"
         f"{upstream_links.rstrip()}\n\n"
         "## Frontend Consumers\n\n"
-        "- Web client goal flow\n"
+        f"{frontend_consumers.rstrip()}\n"
     )
 
 
@@ -689,6 +698,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             bootstrap(root, product)
             _write_product_chapter(root, "01-goals.md", "Goals")
             _write_api_error_codes_doc(root)
+            _write_frontend_consumer_doc(root)
 
             endpoint_readme = root / "docs/api/endpoints/README.md"
             endpoint_readme.parent.mkdir(parents=True, exist_ok=True)
@@ -755,6 +765,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             bootstrap(root, product)
             _write_product_chapter(root, "01-goals.md", "Goals")
             _write_api_error_codes_doc(root)
+            _write_frontend_consumer_doc(root)
 
             endpoint_readme = root / "docs/api/endpoints/README.md"
             endpoint_readme.parent.mkdir(parents=True, exist_ok=True)
@@ -776,7 +787,7 @@ class GovernanceScriptsTest(unittest.TestCase):
                 "## Upstream Links\n\n"
                 "- [Product goals](../../product/01-goals.md)\n\n"
                 "## Frontend Consumers\n\n"
-                "- Web app\n",
+                "- [API consumption map](../../frontend/02-api-consumption.md)\n",
                 encoding="utf-8",
             )
 
@@ -804,6 +815,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             bootstrap(root, product)
             _write_product_chapter(root, "01-goals.md", "Goals")
             _write_api_error_codes_doc(root)
+            _write_frontend_consumer_doc(root)
 
             endpoint_readme = root / "docs/api/endpoints/README.md"
             endpoint_readme.parent.mkdir(parents=True, exist_ok=True)
@@ -837,6 +849,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             bootstrap(root, product)
             _write_product_chapter(root, "01-goals.md", "Goals")
             _write_api_error_codes_doc(root)
+            _write_frontend_consumer_doc(root)
 
             endpoint_readme = root / "docs/api/endpoints/README.md"
             endpoint_readme.parent.mkdir(parents=True, exist_ok=True)
@@ -869,6 +882,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             product.write_text("# Demo\n", encoding="utf-8")
             bootstrap(root, product)
             _write_product_chapter(root, "01-goals.md", "Goals")
+            _write_frontend_consumer_doc(root)
 
             endpoint_readme = root / "docs/api/endpoints/README.md"
             endpoint_readme.parent.mkdir(parents=True, exist_ok=True)
@@ -902,6 +916,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             bootstrap(root, product)
             _write_product_chapter(root, "01-goals.md", "Goals")
             _write_api_error_codes_doc(root)
+            _write_frontend_consumer_doc(root)
 
             endpoint_readme = root / "docs/api/endpoints/README.md"
             endpoint_readme.parent.mkdir(parents=True, exist_ok=True)
@@ -935,6 +950,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             bootstrap(root, product)
             _write_product_chapter(root, "01-goals.md", "Goals")
             _write_api_error_codes_doc(root)
+            _write_frontend_consumer_doc(root)
 
             endpoint_readme = root / "docs/api/endpoints/README.md"
             endpoint_readme.parent.mkdir(parents=True, exist_ok=True)
@@ -960,6 +976,75 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_api_endpoint_missing_frontend_consumer_reference(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_product_chapter(root, "01-goals.md", "Goals")
+            _write_api_error_codes_doc(root)
+
+            endpoint_readme = root / "docs/api/endpoints/README.md"
+            endpoint_readme.parent.mkdir(parents=True, exist_ok=True)
+            endpoint_readme.write_text("# API Endpoints\n\n- `01-create-user.md` - create user endpoint\n", encoding="utf-8")
+            (endpoint_readme.parent / "01-create-user.md").write_text(
+                _endpoint_contract_doc("Create User", frontend_consumers="- Web client goal flow"),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/api/endpoints/01-create-user.md Frontend Consumers section must reference existing local Markdown consumer docs",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "api_endpoint_frontend_consumer_reference_missing",
+                    "severity": "error",
+                    "path": "docs/api/endpoints/01-create-user.md",
+                    "message": "docs/api/endpoints/01-create-user.md Frontend Consumers section must reference existing local Markdown consumer docs",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_api_endpoint_missing_frontend_consumer_target(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_product_chapter(root, "01-goals.md", "Goals")
+            _write_api_error_codes_doc(root)
+
+            endpoint_readme = root / "docs/api/endpoints/README.md"
+            endpoint_readme.parent.mkdir(parents=True, exist_ok=True)
+            endpoint_readme.write_text("# API Endpoints\n\n- `01-create-user.md` - create user endpoint\n", encoding="utf-8")
+            (endpoint_readme.parent / "01-create-user.md").write_text(
+                _endpoint_contract_doc(
+                    "Create User",
+                    frontend_consumers="- [Missing consumer](../../frontend/missing.md)",
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/api/endpoints/01-create-user.md references missing Frontend Consumers target: docs/frontend/missing.md",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "api_endpoint_frontend_consumer_reference_missing",
+                    "severity": "error",
+                    "path": "docs/api/endpoints/01-create-user.md",
+                    "message": "docs/api/endpoints/01-create-user.md references missing Frontend Consumers target: docs/frontend/missing.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_invalid_api_endpoint_filename(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -968,6 +1053,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             bootstrap(root, product)
             _write_product_chapter(root, "01-goals.md", "Goals")
             _write_api_error_codes_doc(root)
+            _write_frontend_consumer_doc(root)
 
             endpoint_readme = root / "docs/api/endpoints/README.md"
             endpoint_readme.parent.mkdir(parents=True, exist_ok=True)
@@ -998,6 +1084,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             bootstrap(root, product)
             _write_product_chapter(root, "01-goals.md", "Goals")
             _write_api_error_codes_doc(root)
+            _write_frontend_consumer_doc(root)
 
             endpoint_readme = root / "docs/api/endpoints/README.md"
             endpoint_readme.parent.mkdir(parents=True, exist_ok=True)
