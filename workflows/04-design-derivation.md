@@ -89,6 +89,7 @@ Design documents sufficient for creating a task board without guessing product m
 - `docs/architecture/03-quality-attributes.md` has non-placeholder Product Links, Availability, Performance, Security, Observability, and Tradeoffs sections, and links to containers plus product acceptance criteria.
 - Backend modules link to API, schema, external services, and acceptance criteria.
 - `docs/backend/01-modules.md` links to API docs, `docs/backend/02-data-model.md`, `docs/backend/03-external-services.md`, and product acceptance criteria.
+- `docs/backend/02-data-model.md` has non-placeholder Product Links, Owners, Entities, State Machines, Constraints, Indexes, and Migrations sections, and links to backend modules, API docs, and product acceptance criteria.
 - Frontend modules link to UI, API, state, and acceptance criteria.
 - `docs/frontend/01-modules.md` links to UI docs, API docs, `docs/frontend/02-api-consumption.md`, and product acceptance criteria.
 - `docs/tests/01-strategy.md` links to product acceptance criteria, API docs, and architecture/backend/frontend design docs.

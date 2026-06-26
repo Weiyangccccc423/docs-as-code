@@ -614,6 +614,26 @@ class GovernanceCliTest(unittest.TestCase):
                 path = target / "docs/backend" / filename
                 path.write_text(f"# {filename}\n", encoding="utf-8")
                 _append_index(target / "docs/backend/README.md", filename)
+            (target / "docs/backend/02-data-model.md").write_text(
+                "# Data Model\n\n"
+                "## Product Links\n\n"
+                "- [Acceptance](../product/08-acceptance-criteria.md)\n"
+                "- [API conventions](../api/00-conventions.md)\n"
+                "- [Backend modules](01-modules.md)\n\n"
+                "## Owners\n\n"
+                "- Goal state is owned by the workflow backend module.\n\n"
+                "## Entities\n\n"
+                "- Goal: user-owned workflow item with status and audit fields.\n\n"
+                "## State Machines\n\n"
+                "- Goal status moves from draft to active to archived.\n\n"
+                "## Constraints\n\n"
+                "- Goal identifiers are unique per owner and idempotency key.\n\n"
+                "## Indexes\n\n"
+                "- Owner and status indexes support primary goal list queries.\n\n"
+                "## Migrations\n\n"
+                "- Add owner-scoped goal tables before enabling API writes.\n",
+                encoding="utf-8",
+            )
 
             missing_task = subprocess.run(
                 [sys.executable, str(CLI), "gate", "implementation", str(target), "--json"],

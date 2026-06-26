@@ -49,7 +49,7 @@ def _write_frontend_consumer_doc(root: Path) -> None:
 
 def _write_backend_trace_docs(root: Path) -> None:
     _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
-    _write_indexed_doc(root, "docs/backend/02-data-model.md", "# Data Model\n")
+    _write_indexed_doc(root, "docs/backend/02-data-model.md", _backend_data_model_doc())
     _write_indexed_doc(root, "docs/backend/03-external-services.md", "# External Services\n")
     _write_acceptance_chapter(root)
 
@@ -134,6 +134,42 @@ def _architecture_quality_attributes_doc(
         "- Goal-flow failures should emit traceable error and audit events.\n\n"
         "## Tradeoffs\n\n"
         "- Simpler runtime boundaries are preferred until acceptance evidence requires separation.\n"
+    )
+
+
+def _backend_data_model_doc(
+    backend_modules: str = "[Backend modules](01-modules.md)",
+    api: str = "[API conventions](../api/00-conventions.md)",
+    acceptance: str = "[Acceptance](../product/08-acceptance-criteria.md)",
+) -> str:
+    return (
+        "# Data Model\n\n"
+        "## Product Links\n\n"
+        f"- {acceptance}\n"
+        f"- {api}\n"
+        f"- {backend_modules}\n\n"
+        "## Owners\n\n"
+        "- Goal state is owned by the workflow backend module.\n\n"
+        "## Entities\n\n"
+        "- Goal: user-owned workflow item with status and audit fields.\n\n"
+        "## State Machines\n\n"
+        "- Goal status moves from draft to active to archived.\n\n"
+        "## Constraints\n\n"
+        "- Goal identifiers are unique per owner and idempotency key.\n\n"
+        "## Indexes\n\n"
+        "- Owner and status indexes support primary goal list queries.\n\n"
+        "## Migrations\n\n"
+        "- Add owner-scoped goal tables before enabling API writes.\n"
+    )
+
+
+def _backend_modules_doc() -> str:
+    return (
+        "# Backend Modules\n\n"
+        "API: [API conventions](../api/00-conventions.md).\n"
+        "Data: [Data model](02-data-model.md).\n"
+        "External services: [External services](03-external-services.md).\n"
+        "Acceptance: [Acceptance](../product/08-acceptance-criteria.md).\n"
     )
 
 
@@ -1327,6 +1363,153 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "severity": "error",
                     "path": "docs/backend/01-modules.md",
                     "message": "docs/backend/01-modules.md references missing API target: docs/api/missing.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_allows_complete_backend_data_model(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+            _write_indexed_doc(root, "docs/backend/01-modules.md", _backend_modules_doc())
+            _write_indexed_doc(root, "docs/backend/02-data-model.md", _backend_data_model_doc())
+            _write_indexed_doc(root, "docs/backend/03-external-services.md", "# External Services\n")
+
+            report = verify(root)
+
+            self.assertEqual([], report.errors)
+
+    def test_verify_reports_backend_data_model_missing_required_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(
+                root,
+                "docs/backend/02-data-model.md",
+                "# Data Model\n\n"
+                "## Product Links\n\n"
+                "- [Acceptance](../product/08-acceptance-criteria.md)\n",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/backend/02-data-model.md is missing data model sections: "
+                "Owners, Entities, State Machines, Constraints, Indexes, Migrations",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "backend_data_model_missing_sections",
+                    "severity": "error",
+                    "path": "docs/backend/02-data-model.md",
+                    "message": "docs/backend/02-data-model.md is missing data model sections: "
+                    "Owners, Entities, State Machines, Constraints, Indexes, Migrations",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_backend_data_model_empty_required_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+            _write_indexed_doc(root, "docs/backend/01-modules.md", _backend_modules_doc())
+            _write_indexed_doc(root, "docs/backend/03-external-services.md", "# External Services\n")
+            _write_indexed_doc(
+                root,
+                "docs/backend/02-data-model.md",
+                _backend_data_model_doc().replace(
+                    "## Entities\n\n"
+                    "- Goal: user-owned workflow item with status and audit fields.\n\n",
+                    "## Entities\n\n- TBD\n\n",
+                ),
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/backend/02-data-model.md has empty data model sections: Entities",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "backend_data_model_empty_sections",
+                    "severity": "error",
+                    "path": "docs/backend/02-data-model.md",
+                    "message": "docs/backend/02-data-model.md has empty data model sections: Entities",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_backend_data_model_missing_trace_references(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(
+                root,
+                "docs/backend/02-data-model.md",
+                _backend_data_model_doc(
+                    backend_modules="Backend modules",
+                    api="API conventions",
+                    acceptance="Acceptance criteria",
+                ),
+            )
+
+            report = verify(root)
+
+            expected = [
+                "docs/backend/02-data-model.md must reference docs/backend/01-modules.md",
+                "docs/backend/02-data-model.md must reference existing API docs",
+                "docs/backend/02-data-model.md must reference a product acceptance chapter",
+            ]
+            for message in expected:
+                self.assertIn(message, report.errors)
+            self.assertIn(
+                {
+                    "code": "backend_data_model_trace_reference_missing",
+                    "severity": "error",
+                    "path": "docs/backend/02-data-model.md",
+                    "message": "docs/backend/02-data-model.md must reference docs/backend/01-modules.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_backend_data_model_missing_trace_targets(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(root, "docs/backend/02-data-model.md", _backend_data_model_doc())
+
+            report = verify(root)
+
+            expected = [
+                "docs/backend/02-data-model.md references missing Backend Modules target: docs/backend/01-modules.md",
+                "docs/backend/02-data-model.md references missing API target: docs/api/00-conventions.md",
+                "docs/backend/02-data-model.md references missing Acceptance target: docs/product/08-acceptance-criteria.md",
+            ]
+            for message in expected:
+                self.assertIn(message, report.errors)
+            self.assertIn(
+                {
+                    "code": "backend_data_model_trace_reference_missing",
+                    "severity": "error",
+                    "path": "docs/backend/02-data-model.md",
+                    "message": "docs/backend/02-data-model.md references missing Backend Modules target: docs/backend/01-modules.md",
                 },
                 [finding.to_dict() for finding in report.findings],
             )
