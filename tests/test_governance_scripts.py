@@ -95,6 +95,26 @@ def _architecture_system_context_doc(
     )
 
 
+def _architecture_containers_doc(
+    system_context: str = "[System context](01-system-context.md)",
+    acceptance: str = "[Acceptance](../product/08-acceptance-criteria.md)",
+) -> str:
+    return (
+        "# Containers\n\n"
+        "## Product Links\n\n"
+        f"- {acceptance}\n\n"
+        "## System Context\n\n"
+        f"- {system_context}\n\n"
+        "## Containers\n\n"
+        "- Web application: owns user interaction runtime.\n"
+        "- API service: owns product workflow operations.\n\n"
+        "## Runtime Responsibilities\n\n"
+        "- The API service validates and persists goal flow changes.\n\n"
+        "## Data Ownership\n\n"
+        "- The API service owns workflow state.\n"
+    )
+
+
 def _acceptance_matrix_doc(
     acceptance: str = "[A-001](../product/08-acceptance-criteria.md#a-001)",
     design: str = "[System context](../architecture/01-system-context.md)",
@@ -1452,6 +1472,77 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "severity": "error",
                     "path": "docs/architecture/01-system-context.md",
                     "message": "docs/architecture/01-system-context.md references missing Product target: docs/product/01-goals.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_allows_traceable_architecture_containers(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(root, "docs/architecture/01-system-context.md", _architecture_system_context_doc())
+            _write_indexed_doc(root, "docs/architecture/02-containers.md", _architecture_containers_doc())
+
+            report = verify(root)
+
+            self.assertEqual([], report.errors)
+
+    def test_verify_reports_architecture_containers_missing_trace_references(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(
+                root,
+                "docs/architecture/02-containers.md",
+                "# Containers\n\n"
+                "The web application and API service provide the runtime boundary.\n",
+            )
+
+            report = verify(root)
+
+            expected = [
+                "docs/architecture/02-containers.md must reference docs/architecture/01-system-context.md",
+                "docs/architecture/02-containers.md must reference a product acceptance chapter",
+            ]
+            for message in expected:
+                self.assertIn(message, report.errors)
+            self.assertIn(
+                {
+                    "code": "architecture_containers_trace_reference_missing",
+                    "severity": "error",
+                    "path": "docs/architecture/02-containers.md",
+                    "message": "docs/architecture/02-containers.md must reference docs/architecture/01-system-context.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_architecture_containers_missing_trace_targets(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(root, "docs/architecture/02-containers.md", _architecture_containers_doc())
+
+            report = verify(root)
+
+            expected = [
+                "docs/architecture/02-containers.md references missing System Context target: docs/architecture/01-system-context.md",
+                "docs/architecture/02-containers.md references missing Acceptance target: docs/product/08-acceptance-criteria.md",
+            ]
+            for message in expected:
+                self.assertIn(message, report.errors)
+            self.assertIn(
+                {
+                    "code": "architecture_containers_trace_reference_missing",
+                    "severity": "error",
+                    "path": "docs/architecture/02-containers.md",
+                    "message": "docs/architecture/02-containers.md references missing System Context target: docs/architecture/01-system-context.md",
                 },
                 [finding.to_dict() for finding in report.findings],
             )

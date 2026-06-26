@@ -57,6 +57,7 @@ API_ENDPOINT_REQUIRED_SECTIONS = {
 }
 API_ERROR_CODES_REL = Path("docs/api/error-codes.md")
 ARCHITECTURE_SYSTEM_CONTEXT_REL = Path("docs/architecture/01-system-context.md")
+ARCHITECTURE_CONTAINERS_REL = Path("docs/architecture/02-containers.md")
 BACKEND_MODULES_REL = Path("docs/backend/01-modules.md")
 BACKEND_DATA_MODEL_REL = Path("docs/backend/02-data-model.md")
 BACKEND_EXTERNAL_SERVICES_REL = Path("docs/backend/03-external-services.md")
@@ -197,6 +198,7 @@ def verify(root: Path) -> VerificationReport:
     _check_product_chapter_links(root, report)
     _check_api_endpoint_contract_filenames(root, report)
     _check_architecture_system_context_traceability(root, report)
+    _check_architecture_containers_traceability(root, report)
     _check_backend_module_traceability(root, report)
     _check_frontend_module_traceability(root, report)
     _check_test_strategy_traceability(root, report)
@@ -511,6 +513,38 @@ def _check_architecture_system_context_traceability(root: Path, report: Verifica
         rel,
         references,
         "architecture_system_context_trace_reference_missing",
+        "Acceptance",
+        _is_product_acceptance_reference_path,
+    )
+
+
+def _check_architecture_containers_traceability(root: Path, report: VerificationReport) -> None:
+    path = root / ARCHITECTURE_CONTAINERS_REL
+    rel = ARCHITECTURE_CONTAINERS_REL.as_posix()
+    if not path.exists():
+        return
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return
+    if SCAFFOLD_PLACEHOLDER in text:
+        return
+
+    references = _local_markdown_references(root, path, text, include_bare=True, strip_code=False)
+    _check_design_reference_group(
+        report,
+        rel,
+        references,
+        "architecture_containers_trace_reference_missing",
+        "System Context",
+        lambda reference: reference.rel == ARCHITECTURE_SYSTEM_CONTEXT_REL.as_posix(),
+        required_rel=ARCHITECTURE_SYSTEM_CONTEXT_REL.as_posix(),
+    )
+    _check_design_reference_group(
+        report,
+        rel,
+        references,
+        "architecture_containers_trace_reference_missing",
         "Acceptance",
         _is_product_acceptance_reference_path,
     )
