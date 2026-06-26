@@ -470,6 +470,7 @@ def _check_task_board(root: Path, report: VerificationReport) -> None:
         report.add_error("task_board_no_tasks", f"{rel} must contain at least one implementation task row", rel)
         return
     ready_count = 0
+    seen_ids: set[str] = set()
     for row in rows:
         task_id = row.get("id", "").strip() or "(missing id)"
         missing_fields = [
@@ -484,6 +485,15 @@ def _check_task_board(root: Path, report: VerificationReport) -> None:
                 rel,
             )
             continue
+        task_key = _normalize_cell(task_id)
+        if task_key in seen_ids:
+            report.add_error(
+                "task_board_duplicate_id",
+                f"duplicate task board ID: {task_id}",
+                rel,
+            )
+            continue
+        seen_ids.add(task_key)
         reference_errors = _task_board_row_trace_reference_errors(root, row, task_id)
         if reference_errors:
             for message in reference_errors:

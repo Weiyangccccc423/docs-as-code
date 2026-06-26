@@ -515,6 +515,42 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_duplicate_task_board_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(root, "docs/product/01-goals.md", "# Goals\n\nSource: [PRD](core/PRD.md).\n")
+            _append_product_meta_chapter(root, "01-goals.md")
+            _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
+            _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+            _write_indexed_doc(root, "docs/tests/01-strategy.md", "# Test Strategy\n")
+
+            task_board = root / "docs/development/02-task-board.md"
+            task_board.write_text(
+                "# Task Board\n\n"
+                "| ID | Status | Task | Product | Design | API | Acceptance | Verification |\n"
+                "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | make test |\n"
+                "| TASK-001 | Ready | Implement goal audit | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | make test |\n",
+                encoding="utf-8",
+            )
+            _append_index(root / "docs/development/README.md", "02-task-board.md")
+
+            report = verify(root)
+
+            self.assertIn("duplicate task board ID: TASK-001", report.errors)
+            self.assertIn(
+                {
+                    "code": "task_board_duplicate_id",
+                    "severity": "error",
+                    "path": "docs/development/02-task-board.md",
+                    "message": "duplicate task board ID: TASK-001",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_install_plan_respects_strict_scope(self) -> None:
         statuses = [
             ToolStatus(
