@@ -13,6 +13,19 @@ Each phase has:
 - **Verification:** deterministic checks or review gates
 - **Stop conditions:** cases where the agent must ask instead of guessing
 
+## Runtime Model
+
+Core governance commands are implemented as POSIX shell wrappers plus Python standard-library scripts. They must run without package installation or network access.
+
+Generated target repositories receive their own copy of `bin/` and `scripts/`. After initialization, prefer the target-local CLI:
+
+```bash
+bin/governance verify .
+bin/governance env --repair --target .
+```
+
+Node.js tooling is an optional project-specific enhancement layer. Rust is reserved for future stable accelerators or single-binary distribution. See `references/runtime-strategy.md`.
+
 ## Phase Map
 
 | Phase | Purpose | Primary skill |

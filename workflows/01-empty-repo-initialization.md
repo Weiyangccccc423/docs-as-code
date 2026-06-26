@@ -37,6 +37,8 @@ Load:
    - `GOVERNANCE.md`
    - `SECURITY.md`
    - `Makefile`
+   - `bin/governance`
+   - `scripts/governance_cli.py`
 
 4. Inspect generated docs domains:
 
@@ -61,6 +63,13 @@ Load:
 ## Output
 
 A repository skeleton with governance entry points, product core files, unresolved item registry, glossary, and domain-level docs entrances.
+
+The target receives a local governance runtime under `bin/` and `scripts/`. After initialization, use target-local commands when working inside the generated repository:
+
+```bash
+bin/governance verify .
+make verify-governance
+```
 
 The target also receives `.governance/state.json`, which records phase, profile, product source, archive path, and last verification status.
 

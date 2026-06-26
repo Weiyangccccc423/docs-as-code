@@ -23,12 +23,44 @@ DOC_DIRS = [
     "agent-workflow",
 ]
 
+RUNTIME_BIN_FILES = [
+    "governance",
+    "governance-init",
+    "governance-verify",
+]
+
+RUNTIME_SCRIPT_FILES = [
+    "__init__.py",
+    "bootstrap_tree.py",
+    "check_env.py",
+    "governance_cli.py",
+    "state.py",
+    "verify_governance.py",
+]
+
 
 def _safe_write(path: Path, content: str, force: bool = False) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists() and not force:
         return
     path.write_text(content, encoding="utf-8")
+
+
+def _copy_runtime_file(source: Path, target: Path, force: bool = False) -> None:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if source.resolve() == target.resolve():
+        return
+    if target.exists() and not force:
+        return
+    shutil.copy2(source, target)
+
+
+def _install_runtime(root: Path, force: bool = False) -> None:
+    pack_root = Path(__file__).resolve().parents[1]
+    for name in RUNTIME_BIN_FILES:
+        _copy_runtime_file(pack_root / "bin" / name, root / "bin" / name, force)
+    for name in RUNTIME_SCRIPT_FILES:
+        _copy_runtime_file(pack_root / "scripts" / name, root / "scripts" / name, force)
 
 
 def _copy_source(product_doc: Path, source_dir: Path, force: bool = False) -> Path:
@@ -63,6 +95,7 @@ def bootstrap(
     root = root.resolve()
     root.mkdir(parents=True, exist_ok=True)
     project_name = project_name or "Project Workspace"
+    _install_runtime(root, force)
 
     _safe_write(
         root / "README.md",
@@ -135,9 +168,9 @@ def bootstrap(
         root / "Makefile",
         ".PHONY: verify-governance check-env\n\n"
         "verify-governance:\n"
-        "\tpython3 scripts/verify_governance.py .\n\n"
+        "\tbin/governance verify .\n\n"
         "check-env:\n"
-        "\tpython3 scripts/check_env.py\n",
+        "\tbin/governance env --target .\n",
         force,
     )
 

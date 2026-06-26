@@ -20,6 +20,12 @@ Load:
    bin/governance verify <target>
    ```
 
+   When already inside an initialized target repository, prefer:
+
+   ```bash
+   bin/governance verify .
+   ```
+
 2. Run environment check:
 
    ```bash

@@ -20,6 +20,7 @@ class PackStructureTest(unittest.TestCase):
             "workflows/05-verification-and-drift-control.md",
             "references/architecture-methods.md",
             "references/backend-design-checklist.md",
+            "references/runtime-strategy.md",
             "templates/root/README.md",
             "templates/docs/product/core/PRD.md",
             "templates/docs/decisions/ADR-template.md",

@@ -10,13 +10,14 @@ Prefer deterministic checks before manual review.
 ## Commands
 
 ```bash
-python3 scripts/verify_governance.py <target>
-python3 scripts/check_env.py --strict
+bin/governance verify <target>
+bin/governance env --strict --repair --target <target>
 ```
 
-Run target project checks when available:
+When already inside an initialized target repository, prefer target-local checks:
 
 ```bash
+bin/governance verify .
 make verify-governance
 make ci
 ```

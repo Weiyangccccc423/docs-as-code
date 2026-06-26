@@ -23,3 +23,4 @@ Use this as the router skill for the workflow pack.
 - Do not continue past a blocking item in `docs/unresolved.md`.
 - Do not create a new docs directory unless it is registered in `docs/AGENTS.md`.
 - Prefer scripts for deterministic checks; use skills for judgment-heavy classification.
+- After initialization, prefer the target-local `bin/governance` runtime copied into the generated repository.

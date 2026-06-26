@@ -52,6 +52,12 @@ make verify-pack
 
 The current scripts intentionally avoid unsupervised system package installation. `bin/governance env --repair` creates `.governance/env-repair.md` and applies safe local repairs such as creating governance state directories. Project-specific dependency installation should be handled after the target stack is known.
 
+## Runtime Strategy
+
+Core governance commands use POSIX shell wrappers and Python standard-library scripts so empty target folders can be initialized without package installation. Generated targets receive their own `bin/` and `scripts/` runtime; after initialization, run checks from the target repository with `bin/governance verify .` or `make verify-governance`.
+
+Node.js belongs in project-specific documentation and frontend tooling. Rust is reserved for optional stable accelerators after verification rules mature. See `references/runtime-strategy.md`.
+
 ## State File
 
 Generated target repositories contain:

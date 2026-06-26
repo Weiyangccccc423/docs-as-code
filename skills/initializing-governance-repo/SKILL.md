@@ -12,24 +12,32 @@ Create the minimum structure needed for reliable docs-as-code work.
 1. Run environment check:
 
    ```bash
-   python3 scripts/check_env.py
+   bin/governance env --repair --target <target>
    ```
 
 2. Bootstrap the target:
 
    ```bash
-   python3 scripts/bootstrap_tree.py --target <target> --product <product-doc>
+   bin/governance init --target <target> --product <product-doc>
    ```
 
 3. Verify:
 
    ```bash
-   python3 scripts/verify_governance.py <target>
+   bin/governance verify <target>
+   ```
+
+4. When working inside the initialized target, switch to the copied target-local runtime:
+
+   ```bash
+   bin/governance verify .
+   make verify-governance
    ```
 
 ## Required Output
 
 - root `README.md`, `AGENTS.md`, `SPEC.md`
+- root `bin/governance` and `scripts/governance_cli.py`
 - `docs/README.md`, `docs/AGENTS.md`
 - `docs/product/core/PRD.md`
 - `docs/unresolved.md`
