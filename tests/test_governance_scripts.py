@@ -79,6 +79,23 @@ def _write_traceable_test_strategy(root: Path) -> None:
     )
 
 
+def _acceptance_matrix_doc(
+    acceptance: str = "[A-001](../product/08-acceptance-criteria.md#a-001)",
+    design: str = "[System context](../architecture/01-system-context.md)",
+    api: str = "[API conventions](../api/00-conventions.md)",
+    test: str = "[Test strategy](01-strategy.md)",
+) -> str:
+    return (
+        "# Acceptance Matrix\n\n"
+        "## Matrix\n\n"
+        "| Acceptance | Design | API | Test |\n"
+        "| --- | --- | --- | --- |\n"
+        f"| {acceptance} | {design} | {api} | {test} |\n\n"
+        "## Uncovered Criteria\n\n"
+        "- none\n"
+    )
+
+
 def _adr_doc(references: str = "- [System context](../architecture/01-system-context.md)") -> str:
     return (
         "# ADR-001: Choose Runtime Boundary\n\n"
@@ -1428,6 +1445,117 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "severity": "error",
                     "path": "docs/tests/01-strategy.md",
                     "message": "docs/tests/01-strategy.md references missing Acceptance target: docs/product/08-acceptance-criteria.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_allows_traceable_acceptance_matrix(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_traceable_test_strategy(root)
+            _write_indexed_doc(root, "docs/tests/02-acceptance-matrix.md", _acceptance_matrix_doc())
+
+            report = verify(root)
+
+            self.assertEqual([], report.errors)
+
+    def test_verify_reports_acceptance_matrix_missing_required_columns(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_traceable_test_strategy(root)
+            _write_indexed_doc(
+                root,
+                "docs/tests/02-acceptance-matrix.md",
+                "# Acceptance Matrix\n\n"
+                "| Acceptance | Design |\n"
+                "| --- | --- |\n"
+                "| [A-001](../product/08-acceptance-criteria.md#a-001) | [System context](../architecture/01-system-context.md) |\n",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/tests/02-acceptance-matrix.md table is missing required columns: API, Test",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "acceptance_matrix_missing_columns",
+                    "severity": "error",
+                    "path": "docs/tests/02-acceptance-matrix.md",
+                    "message": "docs/tests/02-acceptance-matrix.md table is missing required columns: API, Test",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_acceptance_matrix_missing_trace_references(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_traceable_test_strategy(root)
+            _write_indexed_doc(
+                root,
+                "docs/tests/02-acceptance-matrix.md",
+                _acceptance_matrix_doc(
+                    acceptance="A-001 acceptance criterion",
+                    design="System context",
+                    api="API conventions",
+                    test="Test strategy",
+                ),
+            )
+
+            report = verify(root)
+
+            expected = [
+                "acceptance matrix row A-001 acceptance criterion Acceptance field has no local Markdown reference",
+                "acceptance matrix row A-001 acceptance criterion Design field has no local Markdown reference",
+                "acceptance matrix row A-001 acceptance criterion API field has no local Markdown reference",
+                "acceptance matrix row A-001 acceptance criterion Test field has no local Markdown reference",
+            ]
+            for message in expected:
+                self.assertIn(message, report.errors)
+            self.assertIn(
+                {
+                    "code": "acceptance_matrix_trace_reference_missing",
+                    "severity": "error",
+                    "path": "docs/tests/02-acceptance-matrix.md",
+                    "message": "acceptance matrix row A-001 acceptance criterion Acceptance field has no local Markdown reference",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_acceptance_matrix_missing_trace_targets(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(root, "docs/tests/02-acceptance-matrix.md", _acceptance_matrix_doc())
+
+            report = verify(root)
+
+            expected = [
+                "acceptance matrix row docs/product/08-acceptance-criteria.md Acceptance references missing target: docs/product/08-acceptance-criteria.md",
+                "acceptance matrix row docs/product/08-acceptance-criteria.md Design references missing target: docs/architecture/01-system-context.md",
+                "acceptance matrix row docs/product/08-acceptance-criteria.md API references missing target: docs/api/00-conventions.md",
+                "acceptance matrix row docs/product/08-acceptance-criteria.md Test references missing target: docs/tests/01-strategy.md",
+            ]
+            for message in expected:
+                self.assertIn(message, report.errors)
+            self.assertIn(
+                {
+                    "code": "acceptance_matrix_trace_reference_missing",
+                    "severity": "error",
+                    "path": "docs/tests/02-acceptance-matrix.md",
+                    "message": "acceptance matrix row docs/product/08-acceptance-criteria.md Acceptance references missing target: docs/product/08-acceptance-criteria.md",
                 },
                 [finding.to_dict() for finding in report.findings],
             )

@@ -45,6 +45,7 @@ Treat `api_endpoint_frontend_consumer_reference_missing` as an API-contract cons
 Treat `backend_module_trace_reference_missing` as a backend-design traceability blocker: link `docs/backend/01-modules.md` to API docs, `docs/backend/02-data-model.md`, `docs/backend/03-external-services.md`, and a product acceptance chapter.
 Treat `frontend_module_trace_reference_missing` as a frontend-design traceability blocker: link `docs/frontend/01-modules.md` to UI docs, API docs, `docs/frontend/02-api-consumption.md`, and a product acceptance chapter.
 Treat `test_strategy_trace_reference_missing` as a verification-design traceability blocker: link `docs/tests/01-strategy.md` to product acceptance criteria, API docs, and architecture/backend/frontend design docs.
+Treat `acceptance_matrix_*` findings as acceptance-traceability blockers: make `docs/tests/02-acceptance-matrix.md` use `Acceptance`, `Design`, `API`, and `Test` columns with local Markdown links to the matching source docs.
 Treat `adr_missing_sections`, `adr_empty_sections`, and `adr_reference_missing` as ADR completeness blockers: add Context, Decision, Consequences, and References with local Markdown source links.
 Treat `glossary_*` findings as product-terminology blockers: fill required fields, remove duplicate terms, or link `Source` to existing local Markdown.
 Treat `unresolved_row_missing_fields` and `unresolved_duplicate_id` as ambiguity-registry blockers.
@@ -88,6 +89,7 @@ make ci
 - `docs/backend/01-modules.md` links to API docs, `docs/backend/02-data-model.md`, `docs/backend/03-external-services.md`, and product acceptance criteria
 - `docs/frontend/01-modules.md` links to UI docs, API docs, `docs/frontend/02-api-consumption.md`, and product acceptance criteria
 - `docs/tests/01-strategy.md` links to product acceptance criteria, API docs, and architecture/backend/frontend design docs
+- `docs/tests/02-acceptance-matrix.md` uses `Acceptance`, `Design`, `API`, and `Test` columns, and each row links to matching local source docs
 - ADRs under `docs/decisions/` include non-placeholder Context, Decision, Consequences, and References sections with local Markdown source links
 - glossary rows have unique `Term` values and filled `Meaning` and `Source` fields; `Source` links to existing local Markdown
 - unresolved rows have unique IDs and filled `Domain` and `Description`

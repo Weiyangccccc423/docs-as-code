@@ -62,6 +62,13 @@ BACKEND_EXTERNAL_SERVICES_REL = Path("docs/backend/03-external-services.md")
 FRONTEND_MODULES_REL = Path("docs/frontend/01-modules.md")
 FRONTEND_API_CONSUMPTION_REL = Path("docs/frontend/02-api-consumption.md")
 TEST_STRATEGY_REL = Path("docs/tests/01-strategy.md")
+ACCEPTANCE_MATRIX_REL = Path("docs/tests/02-acceptance-matrix.md")
+ACCEPTANCE_MATRIX_REQUIRED_COLUMNS = {
+    "acceptance": "Acceptance",
+    "design": "Design",
+    "api": "API",
+    "test": "Test",
+}
 HTTP_METHOD_PATH_RE = re.compile(
     r"(?<![A-Za-z])(?:GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD)\s+/[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%{}-]*",
     re.IGNORECASE,
@@ -191,6 +198,7 @@ def verify(root: Path) -> VerificationReport:
     _check_backend_module_traceability(root, report)
     _check_frontend_module_traceability(root, report)
     _check_test_strategy_traceability(root, report)
+    _check_acceptance_matrix_traceability(root, report)
     _check_architecture_decisions(root, report)
     _check_unresolved_items(root, report)
     _check_glossary_items(root, report)
@@ -581,6 +589,158 @@ def _check_test_strategy_traceability(root: Path, report: VerificationReport) ->
         "Design",
         _is_design_reference,
     )
+
+
+def _check_acceptance_matrix_traceability(root: Path, report: VerificationReport) -> None:
+    path = root / ACCEPTANCE_MATRIX_REL
+    rel = ACCEPTANCE_MATRIX_REL.as_posix()
+    if not path.exists():
+        return
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return
+    if SCAFFOLD_PLACEHOLDER in text:
+        return
+
+    rows, missing = _acceptance_matrix_rows(text)
+    if missing:
+        report.add_error(
+            "acceptance_matrix_missing_columns",
+            f"{rel} table is missing required columns: {', '.join(ACCEPTANCE_MATRIX_REQUIRED_COLUMNS[column] for column in missing)}",
+            rel,
+        )
+        return
+    if not rows:
+        report.add_error("acceptance_matrix_no_rows", f"{rel} must contain at least one acceptance mapping row", rel)
+        return
+
+    for row in rows:
+        row_label = _acceptance_matrix_row_label(root, path, row)
+        missing_fields = [
+            ACCEPTANCE_MATRIX_REQUIRED_COLUMNS[column]
+            for column in ACCEPTANCE_MATRIX_REQUIRED_COLUMNS
+            if _normalize_cell(row.get(column, "")) in SECTION_PLACEHOLDER_VALUES
+        ]
+        if missing_fields:
+            report.add_error(
+                "acceptance_matrix_row_missing_fields",
+                f"acceptance matrix row {row_label} is missing required fields: {', '.join(missing_fields)}",
+                rel,
+            )
+            continue
+        _check_acceptance_matrix_reference(
+            root,
+            path,
+            report,
+            row_label,
+            "acceptance",
+            row["acceptance"],
+            "a product acceptance chapter",
+            _is_product_acceptance_reference_path,
+        )
+        _check_acceptance_matrix_reference(
+            root,
+            path,
+            report,
+            row_label,
+            "design",
+            row["design"],
+            "existing Design docs",
+            _is_design_reference,
+        )
+        _check_acceptance_matrix_reference(
+            root,
+            path,
+            report,
+            row_label,
+            "api",
+            row["api"],
+            "existing API docs",
+            _is_api_reference,
+        )
+        _check_acceptance_matrix_reference(
+            root,
+            path,
+            report,
+            row_label,
+            "test",
+            row["test"],
+            "existing Test docs",
+            _is_test_reference,
+        )
+
+
+def _acceptance_matrix_rows(text: str) -> tuple[list[dict[str, str]], list[str]]:
+    table = _markdown_table(text)
+    if not table:
+        return [], list(ACCEPTANCE_MATRIX_REQUIRED_COLUMNS)
+    for index, row in enumerate(table):
+        header = [_normalize_cell(cell) for cell in row]
+        if "acceptance" not in header:
+            continue
+        missing = [column for column in ACCEPTANCE_MATRIX_REQUIRED_COLUMNS if column not in header]
+        if missing:
+            return [], missing
+        rows: list[dict[str, str]] = []
+        for data in table[index + 1 :]:
+            if _is_separator_row(data):
+                continue
+            if not any(cell.strip() for cell in data):
+                continue
+            rows.append(
+                {
+                    column: _table_cell(data, header.index(column))
+                    for column in ACCEPTANCE_MATRIX_REQUIRED_COLUMNS
+                }
+            )
+        return rows, []
+    return [], list(ACCEPTANCE_MATRIX_REQUIRED_COLUMNS)
+
+
+def _acceptance_matrix_row_label(root: Path, matrix_path: Path, row: dict[str, str]) -> str:
+    references = _local_markdown_references(root, matrix_path, row.get("acceptance", ""), include_bare=True, strip_code=False)
+    if references:
+        return references[0].rel
+    label = _plain_cell_label(row.get("acceptance", ""))
+    return label or "(missing acceptance)"
+
+
+def _check_acceptance_matrix_reference(
+    root: Path,
+    matrix_path: Path,
+    report: VerificationReport,
+    row_label: str,
+    column: str,
+    value: str,
+    expected: str,
+    predicate: Callable[[LocalMarkdownReference], bool],
+) -> None:
+    rel = ACCEPTANCE_MATRIX_REL.as_posix()
+    label = ACCEPTANCE_MATRIX_REQUIRED_COLUMNS[column]
+    references = _local_markdown_references(root, matrix_path, value, include_bare=True, strip_code=False)
+    if not references:
+        report.add_error(
+            "acceptance_matrix_trace_reference_missing",
+            f"acceptance matrix row {row_label} {label} field has no local Markdown reference",
+            rel,
+        )
+        return
+    for reference in references:
+        if not reference.exists:
+            report.add_error(
+                "acceptance_matrix_trace_reference_missing",
+                f"acceptance matrix row {row_label} {label} references missing target: {reference.rel}",
+                rel,
+            )
+    if any(not reference.exists for reference in references):
+        return
+    if not any(predicate(reference) for reference in references):
+        report.add_error(
+            "acceptance_matrix_trace_reference_missing",
+            f"acceptance matrix row {row_label} {label} field must reference {expected}",
+            rel,
+        )
 
 
 def _check_design_reference_group(
@@ -1153,6 +1313,11 @@ def _is_design_reference(reference: LocalMarkdownReference) -> bool:
     return len(path.parts) >= 2 and path.parts[0] == "docs" and path.parts[1] in {"architecture", "backend", "frontend"}
 
 
+def _is_test_reference(reference: LocalMarkdownReference) -> bool:
+    path = Path(reference.rel)
+    return len(path.parts) >= 2 and path.parts[0] == "docs" and path.parts[1] == "tests"
+
+
 def _task_board_done_evidence_errors(root: Path, row: dict[str, str], task_id: str) -> list[str]:
     if _normalize_cell(row.get("status", "")) not in TASK_BOARD_DONE_STATUSES:
         return []
@@ -1292,6 +1457,13 @@ def _strip_markdown_code(text: str) -> str:
     text = re.sub(r"(?s)```.*?```", "", text)
     text = re.sub(r"(?s)~~~.*?~~~", "", text)
     return re.sub(r"`[^`\n]*`", "", text)
+
+
+def _plain_cell_label(value: str) -> str:
+    value = _strip_markdown_code(value)
+    value = re.sub(r"\[([^\]]*)]\([^)]*\)", r"\1", value)
+    value = re.sub(r"\s+", " ", value)
+    return value.strip(" `*_")
 
 
 def _markdown_sections(text: str) -> dict[str, str]:
