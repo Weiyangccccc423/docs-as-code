@@ -402,6 +402,22 @@ def _check_api_endpoint_contract_sections(root: Path, path: Path, report: Verifi
             f"{rel} Method and Path section must include an HTTP method and absolute path",
             rel,
         )
+    upstream_links = sections["upstream links"]
+    if _section_has_authored_content(upstream_links):
+        references = _local_markdown_references(root, path, upstream_links, include_bare=True, strip_code=False)
+        if not references:
+            report.add_error(
+                "api_endpoint_upstream_reference_missing",
+                f"{rel} Upstream Links section must reference existing local Markdown source",
+                rel,
+            )
+        for reference in references:
+            if not reference.exists:
+                report.add_error(
+                    "api_endpoint_upstream_reference_missing",
+                    f"{rel} references missing Upstream Links target: {reference.rel}",
+                    rel,
+                )
 
 
 def _check_unresolved_items(root: Path, report: VerificationReport) -> None:

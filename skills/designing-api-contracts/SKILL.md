@@ -32,6 +32,7 @@ Each endpoint file must include these headings:
 
 Do not leave required sections empty or as `TBD`/`TODO`; register unknown contract decisions in `docs/unresolved.md`.
 Write `Method and Path` as an HTTP method plus absolute path, for example `POST /users`.
+Link `Upstream Links` to existing local product, architecture, UI, backend/frontend, decision, or unresolved Markdown sources.
 
 ## Procedure
 
@@ -47,7 +48,7 @@ Write `Method and Path` as an HTTP method plus absolute path, for example `POST 
 3. Replace scaffold placeholders in API files with product-derived content.
 4. Derive endpoints from structured product chapters and architecture docs.
 5. Name endpoint files with the next unique `NN-<slug>.md` prefix.
-6. Keep field names, auth rules, idempotency, and error behavior traceable.
+6. Keep field names, auth rules, idempotency, upstream links, and error behavior traceable.
 7. Update `docs/api/README.md` and endpoint indexes for every new Markdown file.
 
 ## Stop Conditions

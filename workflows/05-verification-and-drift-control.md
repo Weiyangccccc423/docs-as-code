@@ -68,6 +68,7 @@ Load:
    - API endpoint contract filenames under `docs/api/endpoints/` use `NN-<slug>.md` with unique `NN` prefixes
    - API endpoint contract files include non-placeholder method/path, auth, idempotency, request, response, error, upstream link, and frontend consumer sections
    - API endpoint `Method and Path` sections contain an HTTP method and absolute path
+   - API endpoint `Upstream Links` sections reference existing local source Markdown
    - product, API, architecture, backend, frontend, tests, and development docs link to each other
    - roadmap tables with `ID` and `Status` columns agree with same-ID task board statuses
    - task board items have `ID`, `Status`, `Task`, `Product`, `Design`, `API`, `Acceptance`, and `Verification`

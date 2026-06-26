@@ -35,7 +35,10 @@ def _write_acceptance_chapter(root: Path) -> None:
     _write_product_chapter(root, "08-acceptance-criteria.md", "Acceptance Criteria")
 
 
-def _endpoint_contract_doc(title: str) -> str:
+def _endpoint_contract_doc(
+    title: str,
+    upstream_links: str = "- [Product goals](../../product/01-goals.md)",
+) -> str:
     return (
         f"# {title}\n\n"
         "## Method and Path\n\n"
@@ -51,7 +54,7 @@ def _endpoint_contract_doc(title: str) -> str:
         "## Error Codes\n\n"
         "- E_EXAMPLE\n\n"
         "## Upstream Links\n\n"
-        "- Product goals and architecture context\n\n"
+        f"{upstream_links.rstrip()}\n\n"
         "## Frontend Consumers\n\n"
         "- Web client goal flow\n"
     )
@@ -679,6 +682,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             product = root / "product.md"
             product.write_text("# Demo\n", encoding="utf-8")
             bootstrap(root, product)
+            _write_product_chapter(root, "01-goals.md", "Goals")
 
             endpoint_readme = root / "docs/api/endpoints/README.md"
             endpoint_readme.parent.mkdir(parents=True, exist_ok=True)
@@ -707,6 +711,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             product = root / "product.md"
             product.write_text("# Demo\n", encoding="utf-8")
             bootstrap(root, product)
+            _write_product_chapter(root, "01-goals.md", "Goals")
 
             endpoint_readme = root / "docs/api/endpoints/README.md"
             endpoint_readme.parent.mkdir(parents=True, exist_ok=True)
@@ -742,6 +747,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             product = root / "product.md"
             product.write_text("# Demo\n", encoding="utf-8")
             bootstrap(root, product)
+            _write_product_chapter(root, "01-goals.md", "Goals")
 
             endpoint_readme = root / "docs/api/endpoints/README.md"
             endpoint_readme.parent.mkdir(parents=True, exist_ok=True)
@@ -761,7 +767,7 @@ class GovernanceScriptsTest(unittest.TestCase):
                 "## Error Codes\n\n"
                 "TODO\n\n"
                 "## Upstream Links\n\n"
-                "- Product goals\n\n"
+                "- [Product goals](../../product/01-goals.md)\n\n"
                 "## Frontend Consumers\n\n"
                 "- Web app\n",
                 encoding="utf-8",
@@ -789,6 +795,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             product = root / "product.md"
             product.write_text("# Demo\n", encoding="utf-8")
             bootstrap(root, product)
+            _write_product_chapter(root, "01-goals.md", "Goals")
 
             endpoint_readme = root / "docs/api/endpoints/README.md"
             endpoint_readme.parent.mkdir(parents=True, exist_ok=True)
@@ -814,12 +821,77 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_api_endpoint_missing_upstream_reference(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_product_chapter(root, "01-goals.md", "Goals")
+
+            endpoint_readme = root / "docs/api/endpoints/README.md"
+            endpoint_readme.parent.mkdir(parents=True, exist_ok=True)
+            endpoint_readme.write_text("# API Endpoints\n\n- `01-create-user.md` - create user endpoint\n", encoding="utf-8")
+            (endpoint_readme.parent / "01-create-user.md").write_text(
+                _endpoint_contract_doc("Create User", "- Product goals and architecture context"),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/api/endpoints/01-create-user.md Upstream Links section must reference existing local Markdown source",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "api_endpoint_upstream_reference_missing",
+                    "severity": "error",
+                    "path": "docs/api/endpoints/01-create-user.md",
+                    "message": "docs/api/endpoints/01-create-user.md Upstream Links section must reference existing local Markdown source",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_api_endpoint_missing_upstream_reference_target(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_product_chapter(root, "01-goals.md", "Goals")
+
+            endpoint_readme = root / "docs/api/endpoints/README.md"
+            endpoint_readme.parent.mkdir(parents=True, exist_ok=True)
+            endpoint_readme.write_text("# API Endpoints\n\n- `01-create-user.md` - create user endpoint\n", encoding="utf-8")
+            (endpoint_readme.parent / "01-create-user.md").write_text(
+                _endpoint_contract_doc("Create User", "- [Missing product source](../../product/missing.md)"),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/api/endpoints/01-create-user.md references missing Upstream Links target: docs/product/missing.md",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "api_endpoint_upstream_reference_missing",
+                    "severity": "error",
+                    "path": "docs/api/endpoints/01-create-user.md",
+                    "message": "docs/api/endpoints/01-create-user.md references missing Upstream Links target: docs/product/missing.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_invalid_api_endpoint_filename(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             product = root / "product.md"
             product.write_text("# Demo\n", encoding="utf-8")
             bootstrap(root, product)
+            _write_product_chapter(root, "01-goals.md", "Goals")
 
             endpoint_readme = root / "docs/api/endpoints/README.md"
             endpoint_readme.parent.mkdir(parents=True, exist_ok=True)
@@ -848,6 +920,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             product = root / "product.md"
             product.write_text("# Demo\n", encoding="utf-8")
             bootstrap(root, product)
+            _write_product_chapter(root, "01-goals.md", "Goals")
 
             endpoint_readme = root / "docs/api/endpoints/README.md"
             endpoint_readme.parent.mkdir(parents=True, exist_ok=True)
