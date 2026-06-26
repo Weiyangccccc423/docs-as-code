@@ -72,6 +72,7 @@ Load:
    - API endpoint `Upstream Links` sections reference existing local source Markdown
    - API endpoint `Frontend Consumers` sections reference existing local UI or frontend API-consumption Markdown
    - product, API, architecture, backend, frontend, tests, and development docs link to each other
+   - `docs/architecture/01-system-context.md` links to product scope and product acceptance criteria
    - `docs/backend/01-modules.md` links to API docs, `docs/backend/02-data-model.md`, `docs/backend/03-external-services.md`, and product acceptance criteria
    - `docs/frontend/01-modules.md` links to UI docs, API docs, `docs/frontend/02-api-consumption.md`, and product acceptance criteria
    - `docs/tests/01-strategy.md` links to product acceptance criteria, API docs, and architecture/backend/frontend design docs

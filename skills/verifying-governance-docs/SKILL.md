@@ -42,6 +42,7 @@ Treat `api_endpoint_method_path_invalid` as an API-contract syntax blocker: writ
 Treat `api_endpoint_error_codes_reference_missing` as an API-contract registry blocker: link `Error Codes` to `docs/api/error-codes.md` and define the referenced codes there.
 Treat `api_endpoint_upstream_reference_missing` as an API-contract traceability blocker: link `Upstream Links` to existing local Markdown source documents.
 Treat `api_endpoint_frontend_consumer_reference_missing` as an API-contract consumer-trace blocker: link `Frontend Consumers` to existing local UI or frontend API-consumption docs.
+Treat `architecture_system_context_trace_reference_missing` as an architecture-traceability blocker: link `docs/architecture/01-system-context.md` to product scope and product acceptance criteria.
 Treat `backend_module_trace_reference_missing` as a backend-design traceability blocker: link `docs/backend/01-modules.md` to API docs, `docs/backend/02-data-model.md`, `docs/backend/03-external-services.md`, and a product acceptance chapter.
 Treat `frontend_module_trace_reference_missing` as a frontend-design traceability blocker: link `docs/frontend/01-modules.md` to UI docs, API docs, `docs/frontend/02-api-consumption.md`, and a product acceptance chapter.
 Treat `test_strategy_trace_reference_missing` as a verification-design traceability blocker: link `docs/tests/01-strategy.md` to product acceptance criteria, API docs, and architecture/backend/frontend design docs.
@@ -86,6 +87,7 @@ make ci
 - API endpoint `Error Codes` sections reference `docs/api/error-codes.md`
 - API endpoint `Upstream Links` sections reference existing local Markdown source documents
 - API endpoint `Frontend Consumers` sections reference existing local UI or frontend API-consumption docs
+- `docs/architecture/01-system-context.md` links to product scope and product acceptance criteria
 - `docs/backend/01-modules.md` links to API docs, `docs/backend/02-data-model.md`, `docs/backend/03-external-services.md`, and product acceptance criteria
 - `docs/frontend/01-modules.md` links to UI docs, API docs, `docs/frontend/02-api-consumption.md`, and product acceptance criteria
 - `docs/tests/01-strategy.md` links to product acceptance criteria, API docs, and architecture/backend/frontend design docs

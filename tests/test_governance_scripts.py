@@ -64,7 +64,7 @@ def _write_frontend_trace_docs(root: Path) -> None:
 def _write_test_strategy_trace_docs(root: Path) -> None:
     _write_acceptance_chapter(root)
     _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
-    _write_indexed_doc(root, "docs/architecture/01-system-context.md", "# System Context\n")
+    _write_indexed_doc(root, "docs/architecture/01-system-context.md", _architecture_system_context_doc())
 
 
 def _write_traceable_test_strategy(root: Path) -> None:
@@ -76,6 +76,22 @@ def _write_traceable_test_strategy(root: Path) -> None:
         "Product acceptance: [Acceptance](../product/08-acceptance-criteria.md).\n"
         "API contracts: [API conventions](../api/00-conventions.md).\n"
         "Design basis: [System context](../architecture/01-system-context.md).\n",
+    )
+
+
+def _architecture_system_context_doc(
+    product_links: str = "[PRD](../product/core/PRD.md), [Acceptance](../product/08-acceptance-criteria.md)",
+) -> str:
+    return (
+        "# System Context\n\n"
+        "## Product Links\n\n"
+        f"- {product_links}\n\n"
+        "## Actors\n\n"
+        "- Primary user\n\n"
+        "## External Systems\n\n"
+        "- none\n\n"
+        "## Trust Boundaries\n\n"
+        "- User browser to application boundary\n"
     )
 
 
@@ -1363,6 +1379,83 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_allows_traceable_architecture_system_context(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(root, "docs/architecture/01-system-context.md", _architecture_system_context_doc())
+
+            report = verify(root)
+
+            self.assertEqual([], report.errors)
+
+    def test_verify_reports_architecture_system_context_missing_trace_references(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(
+                root,
+                "docs/architecture/01-system-context.md",
+                "# System Context\n\n"
+                "Actors, external systems, and boundaries for the goal flow.\n",
+            )
+
+            report = verify(root)
+
+            expected = [
+                "docs/architecture/01-system-context.md must reference existing Product docs",
+                "docs/architecture/01-system-context.md must reference a product acceptance chapter",
+            ]
+            for message in expected:
+                self.assertIn(message, report.errors)
+            self.assertIn(
+                {
+                    "code": "architecture_system_context_trace_reference_missing",
+                    "severity": "error",
+                    "path": "docs/architecture/01-system-context.md",
+                    "message": "docs/architecture/01-system-context.md must reference existing Product docs",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_architecture_system_context_missing_trace_targets(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(
+                root,
+                "docs/architecture/01-system-context.md",
+                _architecture_system_context_doc(
+                    "[Missing scope](../product/01-goals.md), "
+                    "[Acceptance](../product/08-acceptance-criteria.md)"
+                ),
+            )
+
+            report = verify(root)
+
+            expected = [
+                "docs/architecture/01-system-context.md references missing Product target: docs/product/01-goals.md",
+                "docs/architecture/01-system-context.md references missing Acceptance target: docs/product/08-acceptance-criteria.md",
+            ]
+            for message in expected:
+                self.assertIn(message, report.errors)
+            self.assertIn(
+                {
+                    "code": "architecture_system_context_trace_reference_missing",
+                    "severity": "error",
+                    "path": "docs/architecture/01-system-context.md",
+                    "message": "docs/architecture/01-system-context.md references missing Product target: docs/product/01-goals.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_allows_traceable_test_strategy(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -1566,7 +1659,8 @@ class GovernanceScriptsTest(unittest.TestCase):
             product = root / "product.md"
             product.write_text("# Demo\n", encoding="utf-8")
             bootstrap(root, product)
-            _write_indexed_doc(root, "docs/architecture/01-system-context.md", "# System Context\n")
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(root, "docs/architecture/01-system-context.md", _architecture_system_context_doc())
             _write_indexed_doc(root, "docs/decisions/001-runtime-boundary.md", _adr_doc())
 
             report = verify(root)
