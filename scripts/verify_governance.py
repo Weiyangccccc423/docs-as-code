@@ -36,8 +36,14 @@ TASK_BOARD_REQUIRED_COLUMNS = {
     "verification": "Verification",
 }
 TASK_BOARD_TRACE_COLUMNS = ("product", "design", "api", "acceptance", "verification")
+TASK_BOARD_REFERENCE_COLUMNS = ("product", "design", "api", "acceptance")
 TASK_BOARD_READY_STATUSES = {"ready"}
 TASK_BOARD_EMPTY_VALUES = {"", "-", "tbd", "todo", "n/a", "na", "none"}
+TASK_BOARD_MARKDOWN_LINK_RE = re.compile(r"\[[^\]]*]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
+TASK_BOARD_BARE_REFERENCE_RE = re.compile(
+    r"((?:\.{1,2}/)?docs/[^\s`<>\]),;]+\.md(?:#[^\s`<>\]),;]+)?|"
+    r"(?:\.{1,2}/)[^\s`<>\]),;]+\.md(?:#[^\s`<>\]),;]+)?)"
+)
 
 
 @dataclass
@@ -54,6 +60,13 @@ class VerificationFinding:
             "path": self.path,
             "message": self.message,
         }
+
+
+@dataclass(frozen=True)
+class TaskBoardReference:
+    raw: str
+    rel: str
+    exists: bool
 
 
 @dataclass
@@ -319,6 +332,7 @@ def _check_workflow_pack_manifest(root: Path, report: VerificationReport) -> Non
 
 
 def task_board_ready_tasks(root: Path) -> list[dict[str, str]]:
+    root = root.resolve()
     path = root / TASK_BOARD_REL
     if not path.exists():
         return []
@@ -333,6 +347,7 @@ def task_board_ready_tasks(root: Path) -> list[dict[str, str]]:
         row
         for row in rows
         if _normalize_cell(row.get("status", "")) in TASK_BOARD_READY_STATUSES and _task_board_row_trace_complete(row)
+        and _task_board_row_trace_references_valid(root, row)
     ]
 
 
@@ -370,6 +385,11 @@ def _check_task_board(root: Path, report: VerificationReport) -> None:
                 rel,
             )
             continue
+        reference_errors = _task_board_row_trace_reference_errors(root, row, task_id)
+        if reference_errors:
+            for message in reference_errors:
+                report.add_error("task_board_trace_reference_missing", message, rel)
+            continue
         if _normalize_cell(row.get("status", "")) in TASK_BOARD_READY_STATUSES:
             ready_count += 1
     if ready_count == 0:
@@ -405,6 +425,73 @@ def _task_board_rows(text: str) -> tuple[list[dict[str, str]], list[str]]:
 
 def _task_board_row_trace_complete(row: dict[str, str]) -> bool:
     return all(not _is_empty_task_board_value(row.get(column, "")) for column in TASK_BOARD_TRACE_COLUMNS)
+
+
+def _task_board_row_trace_references_valid(root: Path, row: dict[str, str]) -> bool:
+    task_id = row.get("id", "").strip() or "(missing id)"
+    return not _task_board_row_trace_reference_errors(root, row, task_id)
+
+
+def _task_board_row_trace_reference_errors(root: Path, row: dict[str, str], task_id: str) -> list[str]:
+    errors: list[str] = []
+    for column in TASK_BOARD_REFERENCE_COLUMNS:
+        label = TASK_BOARD_REQUIRED_COLUMNS[column]
+        references = _task_board_local_references(root, row.get(column, ""))
+        if not references:
+            errors.append(f"task board row {task_id} {label} field has no local Markdown reference")
+            continue
+        for reference in references:
+            if not reference.exists:
+                errors.append(f"task board row {task_id} references missing {label} target: {reference.rel}")
+    return errors
+
+
+def _task_board_local_references(root: Path, value: str) -> list[TaskBoardReference]:
+    references: list[TaskBoardReference] = []
+    seen: set[str] = set()
+    for target in _extract_task_board_reference_targets(value):
+        reference = _resolve_task_board_reference(root, target)
+        if reference is None or reference.rel in seen:
+            continue
+        references.append(reference)
+        seen.add(reference.rel)
+    return references
+
+
+def _extract_task_board_reference_targets(value: str) -> list[str]:
+    targets: list[str] = []
+    for match in TASK_BOARD_MARKDOWN_LINK_RE.finditer(value):
+        targets.append(match.group(1))
+    for match in TASK_BOARD_BARE_REFERENCE_RE.finditer(value):
+        targets.append(match.group(1))
+    return targets
+
+
+def _resolve_task_board_reference(root: Path, target: str) -> TaskBoardReference | None:
+    raw = target.strip()
+    target = raw.strip("`").strip("<>").strip().rstrip(".,;")
+    if not target or target.startswith("#") or _is_external_reference_target(target):
+        return None
+    target = target.replace("\\", "/")
+    target = target.split("#", 1)[0].split("?", 1)[0]
+    if target.startswith("/"):
+        target = target.lstrip("/")
+    if not target.endswith(".md"):
+        return None
+    target_path = Path(target)
+    if target_path.is_absolute():
+        return None
+    base = root if target.startswith("docs/") else root / TASK_BOARD_REL.parent
+    candidate = (base / target_path).resolve()
+    try:
+        rel = candidate.relative_to(root.resolve()).as_posix()
+    except ValueError:
+        return None
+    return TaskBoardReference(raw=raw, rel=rel, exists=candidate.is_file())
+
+
+def _is_external_reference_target(target: str) -> bool:
+    return target.startswith("//") or re.match(r"^[a-z][a-z0-9+.-]*:", target.lower()) is not None
 
 
 def _is_empty_task_board_value(value: str) -> bool:

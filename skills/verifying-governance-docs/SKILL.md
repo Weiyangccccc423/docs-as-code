@@ -33,6 +33,7 @@ Use `advance --json` when the phase should be recorded in `.governance/state.jso
 Treat `governance_scaffold_placeholder` as a design-authoring blocker, not a formatting issue.
 Treat `workflow_pack_file_hash_mismatch` and `workflow_pack_file_missing` as workflow-pack integrity blockers.
 Treat `task_board_*` findings as implementation-readiness blockers.
+Treat `task_board_trace_reference_missing` as a source-traceability blocker: repair the task board or create/index the referenced Markdown source before implementation.
 
 Treat `ok: false` as blocking. Treat `needs_escalation: true` as requiring explicit approval before running the reported package-manager command.
 
@@ -55,6 +56,7 @@ make ci
 - unresolved items use `none`, `-`, `n/a`, `non-blocking`, or `resolved` for non-blocking scope; any other `Blocking Scope` fails verification
 - roadmap and task board status agree
 - implementation tasks use `ID`, `Status`, `Task`, `Product`, `Design`, `API`, `Acceptance`, and `Verification`
+- task board `Product`, `Design`, `API`, and `Acceptance` fields contain existing local Markdown references
 - at least one implementation task is `Ready`
 
 ## Red Lines

@@ -81,5 +81,5 @@ original product document
 - Derived documents never silently invent product meaning.
 - All open questions are registered in `docs/unresolved.md`.
 - Every non-empty docs domain has `README.md` and `AGENTS.md`.
-- Implementation tasks link back to product, design, API, and acceptance sources.
+- Implementation tasks link back to existing local Markdown product, design, API, and acceptance sources.
 - Governance verification passes before implementation starts.

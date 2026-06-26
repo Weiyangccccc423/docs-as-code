@@ -573,10 +573,39 @@ class GovernanceCliTest(unittest.TestCase):
                 "# Task Board\n\n"
                 "| ID | Status | Task | Product | Design | API | Acceptance | Verification |\n"
                 "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
-                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | make test |\n",
+                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/missing.md | docs/tests/01-strategy.md | make test |\n",
                 encoding="utf-8",
             )
             _append_index(target / "docs/development/README.md", "02-task-board.md")
+
+            blocked_trace = subprocess.run(
+                [sys.executable, str(CLI), "gate", "implementation", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(1, blocked_trace.returncode)
+            blocked_trace_payload = json.loads(blocked_trace.stdout)
+            blocked_trace_requirements = {item["code"]: item for item in blocked_trace_payload["requirements"]}
+            self.assertFalse(blocked_trace_requirements["verification_passed"]["ok"])
+            self.assertFalse(blocked_trace_requirements["task_board_ready_task_present"]["ok"])
+            self.assertIn(
+                {
+                    "code": "task_board_trace_reference_missing",
+                    "severity": "error",
+                    "path": "docs/development/02-task-board.md",
+                    "message": "task board row TASK-001 references missing API target: docs/api/missing.md",
+                },
+                blocked_trace_payload["verification"]["findings"],
+            )
+
+            task_board.write_text(
+                "# Task Board\n\n"
+                "| ID | Status | Task | Product | Design | API | Acceptance | Verification |\n"
+                "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | make test |\n",
+                encoding="utf-8",
+            )
 
             allowed = subprocess.run(
                 [sys.executable, str(CLI), "gate", "implementation", str(target), "--json"],

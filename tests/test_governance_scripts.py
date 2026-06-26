@@ -10,6 +10,17 @@ from scripts.bootstrap_tree import bootstrap
 from scripts.verify_governance import verify
 
 
+def _append_index(readme: Path, filename: str) -> None:
+    readme.write_text(readme.read_text(encoding="utf-8") + f"\n- `{filename}` - generated for test\n", encoding="utf-8")
+
+
+def _write_indexed_doc(root: Path, rel: str, text: str = "# Test\n") -> None:
+    path = root / rel
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    _append_index(path.parent / "README.md", path.name)
+
+
 class GovernanceScriptsTest(unittest.TestCase):
     def test_bootstrap_archives_markdown_product_doc_and_passes_verification(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -286,13 +297,17 @@ class GovernanceScriptsTest(unittest.TestCase):
             product = root / "product.md"
             product.write_text("# Demo\n", encoding="utf-8")
             bootstrap(root, product)
+            _write_indexed_doc(root, "docs/product/01-goals.md", "# Goals\n")
+            _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
+            _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+            _write_indexed_doc(root, "docs/tests/01-strategy.md", "# Test Strategy\n")
 
             task_board = root / "docs/development/02-task-board.md"
             task_board.write_text(
                 "# Task Board\n\n"
                 "| ID | Status | Task | Product | Design | API | Acceptance | Verification |\n"
                 "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
-                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | make test |\n",
+                "| TASK-001 | Ready | Implement goal flow | [Goals](../product/01-goals.md) | docs/architecture/01-context.md#actors | `docs/api/00-conventions.md` | [Strategy](../tests/01-strategy.md) | make test |\n",
                 encoding="utf-8",
             )
             readme = root / "docs/development/README.md"
@@ -301,6 +316,39 @@ class GovernanceScriptsTest(unittest.TestCase):
             report = verify(root)
 
             self.assertEqual([], report.errors)
+
+    def test_verify_reports_task_board_missing_trace_reference(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
+            _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+            _write_indexed_doc(root, "docs/tests/01-strategy.md", "# Test Strategy\n")
+
+            task_board = root / "docs/development/02-task-board.md"
+            task_board.write_text(
+                "# Task Board\n\n"
+                "| ID | Status | Task | Product | Design | API | Acceptance | Verification |\n"
+                "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+                "| TASK-001 | Ready | Implement goal flow | docs/product/missing.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/tests/01-strategy.md | make test |\n",
+                encoding="utf-8",
+            )
+            _append_index(root / "docs/development/README.md", "02-task-board.md")
+
+            report = verify(root)
+
+            self.assertIn("task board row TASK-001 references missing Product target: docs/product/missing.md", report.errors)
+            self.assertIn(
+                {
+                    "code": "task_board_trace_reference_missing",
+                    "severity": "error",
+                    "path": "docs/development/02-task-board.md",
+                    "message": "task board row TASK-001 references missing Product target: docs/product/missing.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
 
     def test_install_plan_respects_strict_scope(self) -> None:
         statuses = [
