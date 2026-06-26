@@ -1,3 +1,4 @@
+import json
 import subprocess
 import tempfile
 import unittest
@@ -28,9 +29,43 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertTrue((root / "docs/product/core/PRD.md").exists())
             self.assertTrue((root / "docs/product/core/source/input-product.md").exists())
             self.assertIn("Demo Product", (root / "docs/product/core/PRD.md").read_text(encoding="utf-8"))
+            manifest = json.loads((root / "docs/product/core/source/source-manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual("input-product.md", manifest["source"]["filename"])
+            self.assertEqual("ready_for_structuring", manifest["import"]["status"])
+            self.assertEqual("markdown-copy", manifest["import"]["conversion_method"])
+            self.assertTrue(manifest["import"]["can_derive_design"])
+            self.assertEqual(manifest["source"]["sha256"], manifest["archive"]["sha256"])
 
             report = verify(root)
             self.assertEqual([], report.errors)
+
+    def test_verify_rejects_tampered_archived_product_source(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            archived = root / "docs/product/core/source/product.md"
+            archived.write_text("# Tampered\n", encoding="utf-8")
+
+            report = verify(root)
+            self.assertIn("archived product source hash mismatch: docs/product/core/source/product.md", report.errors)
+
+    def test_non_markdown_product_requires_conversion_before_verification_passes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.docx"
+            product.write_bytes(b"fake docx bytes")
+            bootstrap(root, product)
+
+            manifest = json.loads((root / "docs/product/core/source/source-manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual("conversion_required", manifest["import"]["status"])
+            self.assertEqual("conversion-required", manifest["import"]["conversion_method"])
+            self.assertFalse(manifest["import"]["can_derive_design"])
+
+            report = verify(root)
+            self.assertIn("product source requires conversion before design derivation: docs/product/core/source/product.docx", report.errors)
 
     def test_bootstrap_rejects_existing_governance_file_without_force(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 
 try:
-    from .state import merge_state
+    from .state import merge_state, utc_now
 except ImportError:  # pragma: no cover - direct script execution
-    from state import merge_state
+    from state import merge_state, utc_now
 
 
 DOC_DIRS = [
@@ -127,6 +129,7 @@ def generated_file_paths(product_doc: Path | None = None) -> list[str]:
             "docs/product/AGENTS.md",
             "docs/product/core/product-meta.md",
             "docs/product/core/PRD.md",
+            "docs/product/core/source/source-manifest.json",
             "docs/decisions/_template.md",
             "docs/agent-workflow/task-handoff.md",
             ".governance/state.json",
@@ -191,6 +194,82 @@ def _copy_source(product_doc: Path, source_dir: Path, force: bool = False) -> Pa
         return target
     shutil.copy2(product_doc, target)
     return target
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _write_json(path: Path, payload: dict[str, object], force: bool = False) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists() and not force:
+        return
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _product_source_manifest(
+    product_doc: Path | None,
+    archived: Path | None,
+    archived_rel: str | None,
+) -> dict[str, object]:
+    prd_path = "docs/product/core/PRD.md"
+    if product_doc is None:
+        return {
+            "schema_version": 1,
+            "created_at": utc_now(),
+            "source": {
+                "provided": False,
+                "filename": None,
+                "original_path": None,
+                "suffix": None,
+                "size_bytes": None,
+                "sha256": None,
+            },
+            "archive": {
+                "path": None,
+                "size_bytes": None,
+                "sha256": None,
+            },
+            "import": {
+                "status": "no_source",
+                "conversion_method": "none",
+                "prd_path": prd_path,
+                "can_derive_design": False,
+            },
+        }
+
+    is_markdown = product_doc.suffix.lower() in {".md", ".markdown"}
+    status = "ready_for_structuring" if is_markdown else "conversion_required"
+    conversion_method = "markdown-copy" if is_markdown else "conversion-required"
+    archived_size = archived.stat().st_size if archived else None
+    archived_hash = _sha256(archived) if archived else None
+    return {
+        "schema_version": 1,
+        "created_at": utc_now(),
+        "source": {
+            "provided": True,
+            "filename": product_doc.name,
+            "original_path": str(product_doc),
+            "suffix": product_doc.suffix.lower(),
+            "size_bytes": product_doc.stat().st_size,
+            "sha256": _sha256(product_doc),
+        },
+        "archive": {
+            "path": archived_rel,
+            "size_bytes": archived_size,
+            "sha256": archived_hash,
+        },
+        "import": {
+            "status": status,
+            "conversion_method": conversion_method,
+            "prd_path": prd_path,
+            "can_derive_design": is_markdown,
+        },
+    }
 
 
 def _read_product_as_markdown(product_doc: Path, archived_rel: str) -> str:
@@ -322,6 +401,7 @@ def bootstrap(
 
     product_source = None
     archived_rel = None
+    manifest: dict[str, object]
     if product_doc is not None:
         product_doc = product_doc.resolve()
         archived = _copy_source(product_doc, root / "docs/product/core/source", force)
@@ -329,6 +409,7 @@ def bootstrap(
         prd = _read_product_as_markdown(product_doc, archived_rel)
         _safe_write(root / "docs/product/core/PRD.md", prd, force)
         product_source = str(product_doc)
+        manifest = _product_source_manifest(product_doc, archived, archived_rel)
     else:
         _safe_write(
             root / "docs/product/core/PRD.md",
@@ -336,6 +417,10 @@ def bootstrap(
             "No source product document was provided during bootstrap.\n",
             force,
         )
+        manifest = _product_source_manifest(None, None, None)
+
+    _write_json(root / "docs/product/core/source/source-manifest.json", manifest, force=True)
+    _safe_write(root / "docs/product/core/product-meta.md", _product_meta(manifest), force=True)
 
     merge_state(
         root,
@@ -344,6 +429,8 @@ def bootstrap(
         project_name=project_name,
         product_source=product_source,
         archived_product=archived_rel,
+        product_import_status=manifest["import"]["status"],
+        product_can_derive_design=manifest["import"]["can_derive_design"],
         generated_by="docs-as-code workflow pack",
     )
 
@@ -406,7 +493,29 @@ def _domain_agents(name: str) -> str:
     )
 
 
-def _product_meta() -> str:
+def _product_meta(manifest: dict[str, object] | None = None) -> str:
+    if manifest:
+        source = manifest["source"]
+        archive = manifest["archive"]
+        imported = manifest["import"]
+        can_derive_design = str(imported["can_derive_design"]).lower()
+        return (
+            "# Product Meta\n\n"
+            "> Derived from `PRD.md`. Keep this file as a navigation and summary layer only.\n\n"
+            "## Source Archive\n\n"
+            f"- Source filename: `{source['filename']}`\n"
+            f"- Archived path: `{archive['path']}`\n"
+            f"- Source SHA-256: `{source['sha256']}`\n"
+            f"- Archive SHA-256: `{archive['sha256']}`\n"
+            f"- Conversion method: `{imported['conversion_method']}`\n"
+            f"- Import status: `{imported['status']}`\n"
+            f"- Can derive design: `{can_derive_design}`\n"
+            "- Manifest: `source/source-manifest.json`\n\n"
+            "## Product Positioning\n\n"
+            "- Current status: imported, pending structured review\n\n"
+            "## Chapter Map\n\n"
+            "Add chapter links after product structuring.\n"
+        )
     return (
         "# Product Meta\n\n"
         "> Derived from `PRD.md`. Keep this file as a navigation and summary layer only.\n\n"

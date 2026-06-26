@@ -19,15 +19,18 @@ Turn a preserved PRD into navigable product truth without changing its meaning.
 
 ## Procedure
 
-1. Build the chapter map in `product-meta.md`.
-2. Create only chapters supported by the PRD.
-3. Extract acceptance criteria into a stable chapter.
-4. Extract success metrics when present.
-5. Add cross-domain terms to glossary.
-6. Register ambiguous requirements before deriving design.
+1. Read `core/source/source-manifest.json`.
+2. Stop if `can_derive_design` is not true or the manifest hash does not verify.
+3. Build the chapter map in `product-meta.md`.
+4. Create only chapters supported by the PRD.
+5. Extract acceptance criteria into a stable chapter.
+6. Extract success metrics when present.
+7. Add cross-domain terms to glossary.
+8. Register ambiguous requirements before deriving design.
 
 ## Stop Conditions
 
 - A chapter needs invented product scope.
 - Two terms appear to refer to the same concept with different names.
 - Acceptance criteria and functional text conflict.
+- The archived source manifest reports `conversion_required`.

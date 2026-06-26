@@ -10,10 +10,11 @@ Archive first, interpret second.
 ## Procedure
 
 1. Copy the untouched source to `docs/product/core/source/`.
-2. Convert readable product text to `docs/product/core/PRD.md`.
-3. Record source, conversion method, and review status in `product-meta.md`.
-4. Preserve tables, acceptance rules, diagrams, and field names.
-5. Register conversion losses in `docs/unresolved.md`.
+2. Write `docs/product/core/source/source-manifest.json` with source path, archived path, byte size, SHA-256, conversion method, import status, and `can_derive_design`.
+3. Convert readable product text to `docs/product/core/PRD.md`.
+4. Record source, conversion method, hash evidence, and review status in `product-meta.md`.
+5. Preserve tables, acceptance rules, diagrams, and field names.
+6. Register conversion losses in `docs/unresolved.md`.
 
 ## Conversion Rules
 
@@ -29,3 +30,4 @@ Archive first, interpret second.
 - Do not summarize instead of archiving.
 - Do not fix product meaning during conversion.
 - Do not derive API, DB, or UI specs from a conversion-marked PRD.
+- Do not continue if the source manifest hash does not match the archived source.

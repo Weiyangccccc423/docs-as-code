@@ -7,6 +7,7 @@ This repository contains a reusable workflow pack for turning an empty folder pl
 Create reliable project governance before implementation starts:
 
 - archive the original product document
+- record product archive manifest metadata and SHA-256 evidence
 - derive structured product, architecture, API, UI, backend, frontend, test, and delivery documents
 - keep unresolved decisions explicit
 - verify documentation structure and drift

@@ -16,14 +16,18 @@ Load:
 ## Procedure
 
 1. Preserve the original under `docs/product/core/source/`.
-2. Convert or copy the readable product text into `docs/product/core/PRD.md`.
-3. Record source metadata in `docs/product/core/product-meta.md`:
+2. Record source evidence in `docs/product/core/source/source-manifest.json`:
    - source filename
-   - import date
+   - archived path
+   - source and archive SHA-256
+   - byte size
    - conversion method
-   - current review status
-4. Do not edit product meaning during archiving.
-5. If conversion is incomplete, register the limitation in `docs/unresolved.md` and stop before design derivation.
+   - import status
+   - whether design derivation is allowed
+3. Convert or copy the readable product text into `docs/product/core/PRD.md`.
+4. Record navigational metadata in `docs/product/core/product-meta.md`.
+5. Do not edit product meaning during archiving.
+6. If conversion is incomplete, register the limitation in `docs/unresolved.md` and stop before design derivation.
 
 ## Recommended Conversion Rules
 
@@ -37,19 +41,22 @@ Load:
 ## Output
 
 - `docs/product/core/source/<original>`
+- `docs/product/core/source/source-manifest.json`
 - `docs/product/core/PRD.md`
 - updated `docs/product/core/product-meta.md`
 
 ## Verification
 
 ```bash
-python3 scripts/verify_governance.py <target>
+bin/governance verify <target> --json
 ```
 
-Manual review must confirm that `PRD.md` preserves the original meaning.
+Verification checks that the archived source still matches the manifest hash and that `can_derive_design` is true. Manual review must confirm that `PRD.md` preserves the original meaning.
 
 ## Stop Conditions
 
+- `source-manifest.json` is missing, invalid, or has a hash mismatch.
+- `source-manifest.json` reports `conversion_required` or `can_derive_design: false`.
 - Text extraction loses tables, constraints, diagrams, or acceptance rules.
 - Product terms are ambiguous enough to affect API, DB, UI, or module boundaries.
 - The user wants to change scope during archiving.
