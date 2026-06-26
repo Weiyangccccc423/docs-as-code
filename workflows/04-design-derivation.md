@@ -86,6 +86,7 @@ Design documents sufficient for creating a task board without guessing product m
 - API endpoint `Frontend Consumers` sections reference existing local UI or frontend API-consumption Markdown.
 - `docs/architecture/01-system-context.md` links to product scope and product acceptance criteria.
 - `docs/architecture/02-containers.md` links to `docs/architecture/01-system-context.md` and product acceptance criteria.
+- `docs/architecture/03-quality-attributes.md` has non-placeholder Product Links, Availability, Performance, Security, Observability, and Tradeoffs sections, and links to containers plus product acceptance criteria.
 - Backend modules link to API, schema, external services, and acceptance criteria.
 - `docs/backend/01-modules.md` links to API docs, `docs/backend/02-data-model.md`, `docs/backend/03-external-services.md`, and product acceptance criteria.
 - Frontend modules link to UI, API, state, and acceptance criteria.

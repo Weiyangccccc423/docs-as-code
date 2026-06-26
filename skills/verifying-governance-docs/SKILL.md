@@ -44,6 +44,7 @@ Treat `api_endpoint_upstream_reference_missing` as an API-contract traceability 
 Treat `api_endpoint_frontend_consumer_reference_missing` as an API-contract consumer-trace blocker: link `Frontend Consumers` to existing local UI or frontend API-consumption docs.
 Treat `architecture_system_context_trace_reference_missing` as an architecture-traceability blocker: link `docs/architecture/01-system-context.md` to product scope and product acceptance criteria.
 Treat `architecture_containers_trace_reference_missing` as an architecture-traceability blocker: link `docs/architecture/02-containers.md` to `docs/architecture/01-system-context.md` and product acceptance criteria.
+Treat `architecture_quality_attributes_missing_sections`, `architecture_quality_attributes_empty_sections`, and `architecture_quality_attributes_trace_reference_missing` as quality-attribute blockers: complete Product Links, Availability, Performance, Security, Observability, and Tradeoffs in `docs/architecture/03-quality-attributes.md`, and link to containers plus product acceptance criteria.
 Treat `backend_module_trace_reference_missing` as a backend-design traceability blocker: link `docs/backend/01-modules.md` to API docs, `docs/backend/02-data-model.md`, `docs/backend/03-external-services.md`, and a product acceptance chapter.
 Treat `frontend_module_trace_reference_missing` as a frontend-design traceability blocker: link `docs/frontend/01-modules.md` to UI docs, API docs, `docs/frontend/02-api-consumption.md`, and a product acceptance chapter.
 Treat `test_strategy_trace_reference_missing` as a verification-design traceability blocker: link `docs/tests/01-strategy.md` to product acceptance criteria, API docs, and architecture/backend/frontend design docs.
@@ -90,6 +91,7 @@ make ci
 - API endpoint `Frontend Consumers` sections reference existing local UI or frontend API-consumption docs
 - `docs/architecture/01-system-context.md` links to product scope and product acceptance criteria
 - `docs/architecture/02-containers.md` links to `docs/architecture/01-system-context.md` and product acceptance criteria
+- `docs/architecture/03-quality-attributes.md` has non-placeholder Product Links, Availability, Performance, Security, Observability, and Tradeoffs sections, and links to containers plus product acceptance criteria
 - `docs/backend/01-modules.md` links to API docs, `docs/backend/02-data-model.md`, `docs/backend/03-external-services.md`, and product acceptance criteria
 - `docs/frontend/01-modules.md` links to UI docs, API docs, `docs/frontend/02-api-consumption.md`, and product acceptance criteria
 - `docs/tests/01-strategy.md` links to product acceptance criteria, API docs, and architecture/backend/frontend design docs

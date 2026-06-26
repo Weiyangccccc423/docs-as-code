@@ -115,6 +115,28 @@ def _architecture_containers_doc(
     )
 
 
+def _architecture_quality_attributes_doc(
+    containers: str = "[Containers](02-containers.md)",
+    acceptance: str = "[Acceptance](../product/08-acceptance-criteria.md)",
+) -> str:
+    return (
+        "# Quality Attributes\n\n"
+        "## Product Links\n\n"
+        f"- {acceptance}\n"
+        f"- {containers}\n\n"
+        "## Availability\n\n"
+        "- The API service should preserve the goal flow during planned dependency outages.\n\n"
+        "## Performance\n\n"
+        "- Primary goal-flow reads should complete within documented product expectations.\n\n"
+        "## Security\n\n"
+        "- User-owned goal data must stay within authenticated boundaries.\n\n"
+        "## Observability\n\n"
+        "- Goal-flow failures should emit traceable error and audit events.\n\n"
+        "## Tradeoffs\n\n"
+        "- Simpler runtime boundaries are preferred until acceptance evidence requires separation.\n"
+    )
+
+
 def _acceptance_matrix_doc(
     acceptance: str = "[A-001](../product/08-acceptance-criteria.md#a-001)",
     design: str = "[System context](../architecture/01-system-context.md)",
@@ -1543,6 +1565,144 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "severity": "error",
                     "path": "docs/architecture/02-containers.md",
                     "message": "docs/architecture/02-containers.md references missing System Context target: docs/architecture/01-system-context.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_allows_complete_architecture_quality_attributes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(root, "docs/architecture/01-system-context.md", _architecture_system_context_doc())
+            _write_indexed_doc(root, "docs/architecture/02-containers.md", _architecture_containers_doc())
+            _write_indexed_doc(root, "docs/architecture/03-quality-attributes.md", _architecture_quality_attributes_doc())
+
+            report = verify(root)
+
+            self.assertEqual([], report.errors)
+
+    def test_verify_reports_architecture_quality_attributes_missing_required_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(
+                root,
+                "docs/architecture/03-quality-attributes.md",
+                "# Quality Attributes\n\n"
+                "## Product Links\n\n"
+                "- [Acceptance](../product/08-acceptance-criteria.md)\n",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/architecture/03-quality-attributes.md is missing quality attribute sections: "
+                "Availability, Performance, Security, Observability, Tradeoffs",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "architecture_quality_attributes_missing_sections",
+                    "severity": "error",
+                    "path": "docs/architecture/03-quality-attributes.md",
+                    "message": "docs/architecture/03-quality-attributes.md is missing quality attribute sections: "
+                    "Availability, Performance, Security, Observability, Tradeoffs",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_architecture_quality_attributes_empty_required_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(root, "docs/architecture/01-system-context.md", _architecture_system_context_doc())
+            _write_indexed_doc(root, "docs/architecture/02-containers.md", _architecture_containers_doc())
+            _write_indexed_doc(
+                root,
+                "docs/architecture/03-quality-attributes.md",
+                _architecture_quality_attributes_doc().replace(
+                    "## Performance\n\n"
+                    "- Primary goal-flow reads should complete within documented product expectations.\n\n",
+                    "## Performance\n\n- TBD\n\n",
+                ),
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/architecture/03-quality-attributes.md has empty quality attribute sections: Performance",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "architecture_quality_attributes_empty_sections",
+                    "severity": "error",
+                    "path": "docs/architecture/03-quality-attributes.md",
+                    "message": "docs/architecture/03-quality-attributes.md has empty quality attribute sections: Performance",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_architecture_quality_attributes_missing_trace_references(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(
+                root,
+                "docs/architecture/03-quality-attributes.md",
+                _architecture_quality_attributes_doc(containers="Containers", acceptance="Acceptance criteria"),
+            )
+
+            report = verify(root)
+
+            expected = [
+                "docs/architecture/03-quality-attributes.md must reference docs/architecture/02-containers.md",
+                "docs/architecture/03-quality-attributes.md must reference a product acceptance chapter",
+            ]
+            for message in expected:
+                self.assertIn(message, report.errors)
+            self.assertIn(
+                {
+                    "code": "architecture_quality_attributes_trace_reference_missing",
+                    "severity": "error",
+                    "path": "docs/architecture/03-quality-attributes.md",
+                    "message": "docs/architecture/03-quality-attributes.md must reference docs/architecture/02-containers.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_architecture_quality_attributes_missing_trace_targets(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(root, "docs/architecture/03-quality-attributes.md", _architecture_quality_attributes_doc())
+
+            report = verify(root)
+
+            expected = [
+                "docs/architecture/03-quality-attributes.md references missing Containers target: docs/architecture/02-containers.md",
+                "docs/architecture/03-quality-attributes.md references missing Acceptance target: docs/product/08-acceptance-criteria.md",
+            ]
+            for message in expected:
+                self.assertIn(message, report.errors)
+            self.assertIn(
+                {
+                    "code": "architecture_quality_attributes_trace_reference_missing",
+                    "severity": "error",
+                    "path": "docs/architecture/03-quality-attributes.md",
+                    "message": "docs/architecture/03-quality-attributes.md references missing Containers target: docs/architecture/02-containers.md",
                 },
                 [finding.to_dict() for finding in report.findings],
             )
