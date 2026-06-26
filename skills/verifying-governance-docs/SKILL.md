@@ -21,6 +21,8 @@ bin/governance verify <target> --json
 bin/governance env --strict --repair --target <target> --json
 ```
 
+Treat `ok: false` as blocking. Treat `needs_escalation: true` as requiring explicit approval before running the reported package-manager command.
+
 When already inside an initialized target repository, prefer target-local checks:
 
 ```bash

@@ -28,6 +28,7 @@ Create reliable project governance before implementation starts:
 
 ```bash
 bin/governance env --repair --target /path/to/new-project
+bin/governance init --check --target /path/to/new-project --product /path/to/product.md --json
 bin/governance init --target /path/to/new-project --product /path/to/product.md --profile web-app --project-name "Project Name"
 bin/governance verify /path/to/new-project
 bin/governance status /path/to/new-project
@@ -57,7 +58,9 @@ make test
 make verify-pack
 ```
 
-The current scripts intentionally avoid unsupervised system package installation. `bin/governance env --repair` creates `.governance/env-repair.md` and applies safe local repairs such as creating governance state directories. Project-specific dependency installation should be handled after the target stack is known.
+`bin/governance env --repair` creates `.governance/env-repair.md`, reports system/package-manager/Git status, and prepares an install plan. It never calls `sudo`; supported apt installs run only when the process already has root privileges. Project-specific dependency installation should be handled after the target stack is known.
+
+`bin/governance init` runs a preflight check before writing files. Existing generated governance files cause initialization to fail unless `--force` is supplied. Use `init --check --json` to inspect conflicts without writing to the target.
 
 ## Runtime Strategy
 

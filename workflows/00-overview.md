@@ -15,7 +15,7 @@ Each phase has:
 
 ## Runtime Model
 
-Core governance commands are implemented as POSIX shell wrappers plus Python standard-library scripts. They must run without package installation or network access.
+Core governance commands are implemented as POSIX shell wrappers plus Python standard-library scripts. Normal operation must run without package installation or network access; `env --repair` may install supported system packages only under the repair policy in `references/runtime-strategy.md`.
 
 Generated target repositories receive their own copy of `bin/` and `scripts/`. After initialization, prefer the target-local CLI:
 

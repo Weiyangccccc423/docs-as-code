@@ -12,22 +12,30 @@ Create the minimum structure needed for reliable docs-as-code work.
 1. Run environment check:
 
    ```bash
-   bin/governance env --repair --target <target>
+   bin/governance env --repair --target <target> --json
    ```
 
-2. Bootstrap the target:
+2. Run preflight without writing files:
+
+   ```bash
+   bin/governance init --check --target <target> --product <product-doc> --json
+   ```
+
+   Stop when `ok` is false. Existing generated governance files require user approval before `--force`.
+
+3. Bootstrap the target:
 
    ```bash
    bin/governance init --target <target> --product <product-doc>
    ```
 
-3. Verify:
+4. Verify:
 
    ```bash
    bin/governance verify <target>
    ```
 
-4. When working inside the initialized target, switch to the copied target-local runtime:
+5. When working inside the initialized target, switch to the copied target-local runtime:
 
    ```bash
    bin/governance verify .

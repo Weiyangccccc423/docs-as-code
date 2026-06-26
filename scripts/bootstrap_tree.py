@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import shutil
+from dataclasses import dataclass, field
 from pathlib import Path
 
 try:
@@ -38,6 +39,17 @@ RUNTIME_SCRIPT_FILES = [
     "verify_governance.py",
 ]
 
+ROOT_GENERATED_FILES = [
+    "README.md",
+    "AGENTS.md",
+    "SPEC.md",
+    "CONTRIBUTING.md",
+    "GOVERNANCE.md",
+    "SECURITY.md",
+    ".gitignore",
+    "Makefile",
+]
+
 
 def _safe_write(path: Path, content: str, force: bool = False) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -61,6 +73,115 @@ def _install_runtime(root: Path, force: bool = False) -> None:
         _copy_runtime_file(pack_root / "bin" / name, root / "bin" / name, force)
     for name in RUNTIME_SCRIPT_FILES:
         _copy_runtime_file(pack_root / "scripts" / name, root / "scripts" / name, force)
+
+
+@dataclass
+class InitConflict:
+    path: str
+    reason: str
+
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "path": self.path,
+            "reason": self.reason,
+        }
+
+
+@dataclass
+class InitPreflightResult:
+    target: str
+    ok: bool
+    conflicts: list[InitConflict] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    product: dict[str, object] = field(default_factory=dict)
+    would_write: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "target": self.target,
+            "ok": self.ok,
+            "conflicts": [conflict.to_dict() for conflict in self.conflicts],
+            "warnings": self.warnings,
+            "product": self.product,
+            "would_write": self.would_write,
+        }
+
+
+class InitPreflightError(RuntimeError):
+    def __init__(self, result: InitPreflightResult) -> None:
+        super().__init__("initialization preflight failed")
+        self.result = result
+
+
+def generated_file_paths(product_doc: Path | None = None) -> list[str]:
+    paths = list(ROOT_GENERATED_FILES)
+    paths.extend(f"bin/{name}" for name in RUNTIME_BIN_FILES)
+    paths.extend(f"scripts/{name}" for name in RUNTIME_SCRIPT_FILES)
+    paths.extend(
+        [
+            "docs/README.md",
+            "docs/AGENTS.md",
+            "docs/unresolved.md",
+            "docs/glossary.md",
+            "docs/product/README.md",
+            "docs/product/AGENTS.md",
+            "docs/product/core/product-meta.md",
+            "docs/product/core/PRD.md",
+            "docs/decisions/_template.md",
+            "docs/agent-workflow/task-handoff.md",
+            ".governance/state.json",
+        ]
+    )
+    for doc_dir in DOC_DIRS:
+        if doc_dir == "product":
+            continue
+        paths.append(f"docs/{doc_dir}/README.md")
+        paths.append(f"docs/{doc_dir}/AGENTS.md")
+    if product_doc is not None:
+        paths.append(f"docs/product/core/source/{product_doc.name}")
+    return sorted(dict.fromkeys(paths))
+
+
+def preflight_init(root: Path, product_doc: Path | None = None, force: bool = False) -> InitPreflightResult:
+    root = root.resolve()
+    paths = generated_file_paths(product_doc)
+    product = _product_payload(product_doc)
+    conflicts: list[InitConflict] = []
+    product_resolved = product_doc.resolve() if product_doc is not None and product_doc.exists() else None
+
+    if product_doc is not None and not product_doc.exists():
+        conflicts.append(InitConflict(str(product_doc), "product document is missing"))
+
+    for rel in paths:
+        target = root / rel
+        if product_resolved is not None and target.resolve() == product_resolved:
+            conflicts.append(InitConflict(rel, "product document path overlaps generated output"))
+            continue
+        if not force and target.exists():
+            conflicts.append(InitConflict(rel, "generated file already exists"))
+
+    return InitPreflightResult(
+        target=str(root),
+        ok=not conflicts,
+        conflicts=conflicts,
+        product=product,
+        would_write=paths,
+    )
+
+
+def _product_payload(product_doc: Path | None) -> dict[str, object]:
+    if product_doc is None:
+        return {
+            "provided": False,
+            "path": None,
+            "exists": False,
+        }
+    return {
+        "provided": True,
+        "path": str(product_doc),
+        "exists": product_doc.exists(),
+        "suffix": product_doc.suffix.lower(),
+    }
 
 
 def _copy_source(product_doc: Path, source_dir: Path, force: bool = False) -> Path:
@@ -93,6 +214,9 @@ def bootstrap(
     project_name: str | None = None,
 ) -> None:
     root = root.resolve()
+    preflight = preflight_init(root, product_doc, force=force)
+    if not preflight.ok:
+        raise InitPreflightError(preflight)
     root.mkdir(parents=True, exist_ok=True)
     project_name = project_name or "Project Workspace"
     _install_runtime(root, force)

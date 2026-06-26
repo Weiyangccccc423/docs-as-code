@@ -8,8 +8,8 @@ Core governance commands must remain runnable with:
 
 - POSIX shell for `bin/` wrappers
 - `python3` standard library for `scripts/`
-- no package installation
-- no network access
+- no package installation for normal checks and initialization
+- no network access except approved `env --repair` system package installation
 
 Core runtime includes:
 
@@ -19,6 +19,7 @@ Core runtime includes:
 - environment inventory
 - workflow state updates
 - machine-readable status and verification output
+- initialization preflight and conflict reporting
 
 Generated target repositories receive their own copy of this core runtime under:
 
@@ -60,4 +61,10 @@ The Python standard-library implementation remains the reference behavior.
 
 ## Repair Policy
 
-Environment repair may create local governance directories and write repair plans. It must not install system packages or project dependencies without an explicit user decision.
+Environment repair may create local governance directories and write repair plans. It may execute supported apt installs only when the process already has root privileges. It must not call `sudo`, change global Git configuration, or install project dependencies.
+
+Repair scope follows strictness:
+
+- non-strict repair plans only install supported missing required tools
+- strict repair plans include supported missing recommended tools
+- unsupported tools remain manual repair items

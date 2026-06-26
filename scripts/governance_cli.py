@@ -4,8 +4,17 @@ import argparse
 import json
 from pathlib import Path
 
-from bootstrap_tree import bootstrap
-from check_env import ToolStatus, collect_status, write_repair_plan
+from bootstrap_tree import InitPreflightError, bootstrap, preflight_init
+from check_env import (
+    ToolStatus,
+    apply_install_plan,
+    build_install_plan,
+    collect_git_status,
+    collect_status,
+    collect_system_status,
+    detect_package_manager,
+    write_repair_plan,
+)
 from state import load_state, merge_state
 from verify_governance import verify
 
@@ -21,6 +30,8 @@ def _tool_status_payload(statuses: list[ToolStatus]) -> list[dict[str, object]]:
             "present": status.present,
             "version": status.version,
             "note": status.note,
+            "level": status.level,
+            "install_package": status.install_package,
         }
         for status in statuses
     ]
@@ -29,24 +40,50 @@ def _tool_status_payload(statuses: list[ToolStatus]) -> list[dict[str, object]]:
 def _cmd_init(args: argparse.Namespace) -> int:
     target = Path(args.target)
     product = Path(args.product) if args.product else None
-    bootstrap(
-        target,
-        product,
-        force=args.force,
-        profile=args.profile,
-        project_name=args.project_name,
-    )
-    if args.json:
-        _print_json(
-            {
-                "ok": True,
-                "target": str(target),
-                "state": load_state(target),
-            }
+    preflight = preflight_init(target, product, force=args.force)
+    if args.check:
+        if args.json:
+            _print_json(preflight.to_dict())
+        elif preflight.ok:
+            print("Initialization preflight passed.")
+        else:
+            _print_init_conflicts(preflight.conflicts)
+        return 0 if preflight.ok else 1
+    if not preflight.ok:
+        if args.json:
+            _print_json(preflight.to_dict())
+        else:
+            _print_init_conflicts(preflight.conflicts)
+        return 1
+    try:
+        bootstrap(
+            target,
+            product,
+            force=args.force,
+            profile=args.profile,
+            project_name=args.project_name,
         )
+    except InitPreflightError as error:
+        if args.json:
+            _print_json(error.result.to_dict())
+        else:
+            _print_init_conflicts(error.result.conflicts)
+        return 1
+    if args.json:
+        payload = preflight_init(target, product, force=True).to_dict()
+        payload["ok"] = True
+        payload["conflicts"] = []
+        payload["state"] = load_state(target)
+        _print_json(payload)
         return 0
     print(f"Initialized governance repository at {target}")
     return 0
+
+
+def _print_init_conflicts(conflicts: list) -> None:
+    print("Initialization preflight failed:")
+    for conflict in conflicts:
+        print(f"- {conflict.path}: {conflict.reason}")
 
 
 def _cmd_verify(args: argparse.Namespace) -> int:
@@ -118,6 +155,12 @@ def _cmd_status(args: argparse.Namespace) -> int:
 def _cmd_env(args: argparse.Namespace) -> int:
     missing: list[str] = []
     statuses = collect_status()
+    system = collect_system_status()
+    package_manager = detect_package_manager(system)
+    git = collect_git_status(Path(args.target))
+    install_plan = build_install_plan(statuses, args.strict, package_manager)
+    needs_escalation = bool(args.repair and install_plan and not system.is_root)
+    install_results: list[dict[str, object]] = []
     for status in statuses:
         mark = "OK" if status.present else "MISSING"
         if not args.json:
@@ -125,11 +168,33 @@ def _cmd_env(args: argparse.Namespace) -> int:
         if not status.present:
             missing.append(status.name)
     repair_plan = None
+    repairs: list[dict[str, object]] = []
     if args.repair:
-        path = write_repair_plan(Path(args.target), statuses)
+        install_results = apply_install_plan(install_plan, package_manager, system)
+        if install_results and all(result["returncode"] == 0 for result in install_results):
+            statuses = collect_status()
+            missing = [status.name for status in statuses if not status.present]
+        path = write_repair_plan(
+            Path(args.target),
+            statuses,
+            system=system,
+            package_manager=package_manager,
+            install_plan=install_plan,
+            needs_escalation=needs_escalation,
+        )
         repair_plan = str(path)
+        repairs.append({"kind": "directory", "path": str(path.parent), "status": "ensured"})
+        repairs.append({"kind": "repair_plan", "path": repair_plan, "status": "written"})
         if not args.json:
             print(f"\nWrote repair plan: {path}")
+            if needs_escalation:
+                packages = " ".join(sorted({item.package for item in install_plan}))
+                print(
+                    "Installation requires root approval: "
+                    f"{package_manager.command} update && {package_manager.command} install -y {packages}"
+                )
+            for result in install_results:
+                print(f"Install command exited {result['returncode']}: {result['command']}")
     ok = not (args.strict and missing)
     if args.json:
         _print_json(
@@ -139,6 +204,13 @@ def _cmd_env(args: argparse.Namespace) -> int:
                 "strict": args.strict,
                 "missing": missing,
                 "tools": _tool_status_payload(statuses),
+                "system": system.to_dict(),
+                "package_manager": package_manager.to_dict(),
+                "git": git.to_dict(),
+                "install_plan": [item.to_dict() for item in install_plan],
+                "needs_escalation": needs_escalation,
+                "install_results": install_results,
+                "repairs": repairs,
                 "repair_plan": repair_plan,
             }
         )
@@ -155,6 +227,7 @@ def build_parser() -> argparse.ArgumentParser:
     init.add_argument("--profile", default="unknown")
     init.add_argument("--project-name", default="Project Workspace")
     init.add_argument("--force", action="store_true")
+    init.add_argument("--check", action="store_true", help="Run initialization preflight without writing files.")
     init.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     init.set_defaults(func=_cmd_init)
 

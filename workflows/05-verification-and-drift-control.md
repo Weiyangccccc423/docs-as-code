@@ -38,7 +38,7 @@ Load:
    bin/governance env --strict --repair --target <target>
    ```
 
-   Agents may use `--json` and must treat `ok: false` as a stop condition.
+   Agents may use `--json` and must treat `ok: false` as a stop condition. If `needs_escalation` is true, do not run the reported install command without explicit approval.
 
 3. If the target project has a Makefile, run its verification entry:
 

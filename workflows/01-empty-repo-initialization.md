@@ -19,16 +19,26 @@ Load:
 1. Check environment:
 
    ```bash
-   bin/governance env --repair --target <target>
+   bin/governance env --repair --target <target> --json
    ```
 
-2. Initialize the target folder:
+   If `needs_escalation` is true, get approval before running the reported package-manager command outside the CLI.
+
+2. Run initialization preflight:
+
+   ```bash
+   bin/governance init --check --target <target> --product <product-doc> --profile <profile> --project-name "<name>" --json
+   ```
+
+   Stop when `ok` is false. Existing generated governance files must be reviewed before using `--force`.
+
+3. Initialize the target folder:
 
    ```bash
    bin/governance init --target <target> --product <product-doc> --profile <profile> --project-name "<name>"
    ```
 
-3. Inspect generated root files:
+4. Inspect generated root files:
 
    - `README.md`
    - `AGENTS.md`
@@ -40,7 +50,7 @@ Load:
    - `bin/governance`
    - `scripts/governance_cli.py`
 
-4. Inspect generated docs domains:
+5. Inspect generated docs domains:
 
    - `docs/product/`
    - `docs/architecture/`
@@ -53,7 +63,7 @@ Load:
    - `docs/development/`
    - `docs/agent-workflow/`
 
-5. Verify:
+6. Verify:
 
    ```bash
    bin/governance verify <target>
@@ -76,5 +86,6 @@ The target also receives `.governance/state.json`, which records phase, profile,
 ## Stop Conditions
 
 - Target folder has existing governance files and the user did not approve overwrite.
+- `init --check` returns conflicts.
 - Product document path is missing or unreadable.
 - The target project type is unclear and would change the top-level code layout.

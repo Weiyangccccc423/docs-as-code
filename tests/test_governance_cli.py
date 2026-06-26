@@ -60,8 +60,113 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertTrue(payload["ok"])
             self.assertEqual(str(target), payload["target"])
             self.assertIn("tools", payload)
+            self.assertIn("system", payload)
+            self.assertIn("package_manager", payload)
+            self.assertIn("git", payload)
+            self.assertIn("install_plan", payload)
+            self.assertIn("needs_escalation", payload)
+            self.assertIn("repairs", payload)
             self.assertTrue(any(tool["name"] == "python3" for tool in payload["tools"]))
             self.assertEqual(str(target / ".governance/env-repair.md"), payload["repair_plan"])
+
+    def test_init_check_json_does_not_write_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            target = base / "target"
+            product = base / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "init",
+                    "--target",
+                    str(target),
+                    "--product",
+                    str(product),
+                    "--check",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertEqual([], payload["conflicts"])
+            self.assertIn("README.md", payload["would_write"])
+            self.assertFalse(target.exists())
+
+    def test_init_json_reports_conflicts_without_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            target = base / "target"
+            target.mkdir()
+            product = base / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+            readme = target / "README.md"
+            readme.write_text("# Existing\n", encoding="utf-8")
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "init",
+                    "--target",
+                    str(target),
+                    "--product",
+                    str(product),
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, result.returncode)
+            payload = json.loads(result.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertIn({"path": "README.md", "reason": "generated file already exists"}, payload["conflicts"])
+            self.assertEqual("# Existing\n", readme.read_text(encoding="utf-8"))
+            self.assertFalse((target / "docs/README.md").exists())
+
+    def test_init_force_json_allows_overwrite(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            target = base / "target"
+            target.mkdir()
+            product = base / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+            (target / "README.md").write_text("# Existing\n", encoding="utf-8")
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "init",
+                    "--target",
+                    str(target),
+                    "--product",
+                    str(product),
+                    "--project-name",
+                    "Forced Demo",
+                    "--force",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertEqual("initialized", payload["state"]["phase"])
+            self.assertIn("# Forced Demo", (target / "README.md").read_text(encoding="utf-8"))
+            self.assertTrue((target / "docs/README.md").exists())
 
     def test_init_verify_and_status_update_state_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
