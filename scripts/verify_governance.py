@@ -53,6 +53,7 @@ TASK_BOARD_ALLOWED_STATUSES = {
     "deferred",
 }
 TASK_BOARD_READY_STATUSES = {"ready"}
+TASK_BOARD_DONE_STATUSES = {"done"}
 TASK_BOARD_EMPTY_VALUES = {"", "-", "tbd", "todo", "n/a", "na", "none"}
 MARKDOWN_LINK_RE = re.compile(r"(?<!!)\[[^\]]*]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 MARKDOWN_REFERENCE_DEFINITION_RE = re.compile(r"^\s{0,3}\[[^\]]+]:\s*(\S+)", re.MULTILINE)
@@ -517,6 +518,11 @@ def _check_task_board(root: Path, report: VerificationReport) -> None:
             for message in reference_errors:
                 report.add_error("task_board_trace_reference_missing", message, rel)
             continue
+        evidence_errors = _task_board_done_evidence_errors(root, row, task_id)
+        if evidence_errors:
+            for message in evidence_errors:
+                report.add_error("task_board_done_evidence_missing", message, rel)
+            continue
         if _normalize_cell(row.get("status", "")) in TASK_BOARD_READY_STATUSES:
             ready_count += 1
     if ready_count == 0:
@@ -628,6 +634,19 @@ def _task_board_row_trace_reference_errors(root: Path, row: dict[str, str], task
             if not reference.exists:
                 errors.append(f"task board row {task_id} references missing {label} target: {reference.rel}")
     return errors
+
+
+def _task_board_done_evidence_errors(root: Path, row: dict[str, str], task_id: str) -> list[str]:
+    if _normalize_cell(row.get("status", "")) not in TASK_BOARD_DONE_STATUSES:
+        return []
+    references = _task_board_local_references(root, row.get("verification", ""))
+    if not references:
+        return [f"task board row {task_id} is Done but Verification has no local Markdown evidence"]
+    return [
+        f"task board row {task_id} references missing Verification evidence: {reference.rel}"
+        for reference in references
+        if not reference.exists
+    ]
 
 
 def _task_board_local_references(root: Path, value: str) -> list[LocalMarkdownReference]:
