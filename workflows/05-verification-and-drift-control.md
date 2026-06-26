@@ -60,6 +60,7 @@ Load:
    - no `governance:scaffold-placeholder` markers
    - no `docs/unresolved.md` rows with a blocking `Blocking Scope`
    - no non-template Markdown files missing from their same-directory README
+   - no explicit local Markdown link pointing to a missing file
    - product, API, architecture, backend, frontend, tests, and development docs link to each other
    - task board items have `ID`, `Status`, `Task`, `Product`, `Design`, `API`, `Acceptance`, and `Verification`
    - task board `Product`, `Design`, `API`, and `Acceptance` fields point to existing local Markdown files

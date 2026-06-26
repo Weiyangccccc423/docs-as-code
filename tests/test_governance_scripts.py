@@ -260,6 +260,52 @@ class GovernanceScriptsTest(unittest.TestCase):
             report = verify(root)
             self.assertEqual([], report.errors)
 
+    def test_verify_reports_missing_local_markdown_link(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            chapter = root / "docs/product/01-goals.md"
+            chapter.write_text("# Goals\n\nSee [API](../api/missing.md).\n", encoding="utf-8")
+            _append_index(root / "docs/product/README.md", "01-goals.md")
+
+            report = verify(root)
+
+            self.assertIn("docs/product/01-goals.md links to missing local Markdown target: docs/api/missing.md", report.errors)
+            self.assertIn(
+                {
+                    "code": "docs_local_markdown_link_missing",
+                    "severity": "error",
+                    "path": "docs/product/01-goals.md",
+                    "message": "docs/product/01-goals.md links to missing local Markdown target: docs/api/missing.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_allows_existing_local_markdown_link(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            _write_indexed_doc(
+                root,
+                "docs/product/01-goals.md",
+                "# Goals\n\n"
+                "See [API](../api/00-conventions.md#http) and [external](https://example.com/spec.md).\n\n"
+                "```md\n"
+                "[Example](../api/missing-example.md)\n"
+                "```\n",
+            )
+            _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+
+            report = verify(root)
+
+            self.assertEqual([], report.errors)
+
     def test_verify_reports_task_board_missing_trace_fields(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

@@ -39,8 +39,9 @@ TASK_BOARD_TRACE_COLUMNS = ("product", "design", "api", "acceptance", "verificat
 TASK_BOARD_REFERENCE_COLUMNS = ("product", "design", "api", "acceptance")
 TASK_BOARD_READY_STATUSES = {"ready"}
 TASK_BOARD_EMPTY_VALUES = {"", "-", "tbd", "todo", "n/a", "na", "none"}
-TASK_BOARD_MARKDOWN_LINK_RE = re.compile(r"\[[^\]]*]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
-TASK_BOARD_BARE_REFERENCE_RE = re.compile(
+MARKDOWN_LINK_RE = re.compile(r"(?<!!)\[[^\]]*]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
+MARKDOWN_REFERENCE_DEFINITION_RE = re.compile(r"^\s{0,3}\[[^\]]+]:\s*(\S+)", re.MULTILINE)
+BARE_MARKDOWN_REFERENCE_RE = re.compile(
     r"((?:\.{1,2}/)?docs/[^\s`<>\]),;]+\.md(?:#[^\s`<>\]),;]+)?|"
     r"(?:\.{1,2}/)[^\s`<>\]),;]+\.md(?:#[^\s`<>\]),;]+)?)"
 )
@@ -63,7 +64,7 @@ class VerificationFinding:
 
 
 @dataclass(frozen=True)
-class TaskBoardReference:
+class LocalMarkdownReference:
     raw: str
     rel: str
     exists: bool
@@ -133,6 +134,7 @@ def verify(root: Path) -> VerificationReport:
     _check_product_source_manifest(root, report)
     _check_unresolved_items(root, report)
     _check_readme_indexes(root, report)
+    _check_local_markdown_links(root, report)
     _check_scaffold_placeholders(root, report)
     _check_workflow_pack_manifest(root, report)
     _check_task_board(root, report)
@@ -271,6 +273,43 @@ def _check_readme_indexes(root: Path, report: VerificationReport) -> None:
             rel_child = child.relative_to(root).as_posix()
             rel_readme = readme.relative_to(root).as_posix()
             report.add_error("docs_readme_unindexed_file", f"{rel_child} is not indexed in {rel_readme}", rel_child)
+
+
+def _check_local_markdown_links(root: Path, report: VerificationReport) -> None:
+    for path in _iter_markdown_files_for_link_check(root):
+        rel = path.relative_to(root).as_posix()
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        for reference in _local_markdown_references(root, path, text):
+            if reference.exists:
+                continue
+            report.add_error(
+                "docs_local_markdown_link_missing",
+                f"{rel} links to missing local Markdown target: {reference.rel}",
+                rel,
+            )
+
+
+def _iter_markdown_files_for_link_check(root: Path) -> list[Path]:
+    files: list[Path] = []
+    for path in sorted(root.glob("*.md")):
+        if path.is_file() and not path.name.startswith("_"):
+            files.append(path)
+    docs_root = root / "docs"
+    if not docs_root.exists():
+        return files
+    for path in sorted(docs_root.rglob("*.md")):
+        if not path.is_file() or path.name.startswith("_"):
+            continue
+        rel = path.relative_to(root).as_posix()
+        if rel.startswith(f"{WORKFLOW_PACK_SNAPSHOT_ROOT}/"):
+            continue
+        if rel.startswith("docs/product/core/source/"):
+            continue
+        files.append(path)
+    return files
 
 
 def _check_scaffold_placeholders(root: Path, report: VerificationReport) -> None:
@@ -446,11 +485,22 @@ def _task_board_row_trace_reference_errors(root: Path, row: dict[str, str], task
     return errors
 
 
-def _task_board_local_references(root: Path, value: str) -> list[TaskBoardReference]:
-    references: list[TaskBoardReference] = []
+def _task_board_local_references(root: Path, value: str) -> list[LocalMarkdownReference]:
+    return _local_markdown_references(root, root / TASK_BOARD_REL, value, include_bare=True, strip_code=False)
+
+
+def _local_markdown_references(
+    root: Path,
+    source_path: Path,
+    text: str,
+    *,
+    include_bare: bool = False,
+    strip_code: bool = True,
+) -> list[LocalMarkdownReference]:
+    references: list[LocalMarkdownReference] = []
     seen: set[str] = set()
-    for target in _extract_task_board_reference_targets(value):
-        reference = _resolve_task_board_reference(root, target)
+    for target in _extract_local_markdown_reference_targets(text, include_bare=include_bare, strip_code=strip_code):
+        reference = _resolve_local_markdown_reference(root, source_path, target)
         if reference is None or reference.rel in seen:
             continue
         references.append(reference)
@@ -458,16 +508,21 @@ def _task_board_local_references(root: Path, value: str) -> list[TaskBoardRefere
     return references
 
 
-def _extract_task_board_reference_targets(value: str) -> list[str]:
+def _extract_local_markdown_reference_targets(text: str, *, include_bare: bool, strip_code: bool) -> list[str]:
+    if strip_code:
+        text = _strip_markdown_code(text)
     targets: list[str] = []
-    for match in TASK_BOARD_MARKDOWN_LINK_RE.finditer(value):
+    for match in MARKDOWN_LINK_RE.finditer(text):
         targets.append(match.group(1))
-    for match in TASK_BOARD_BARE_REFERENCE_RE.finditer(value):
+    for match in MARKDOWN_REFERENCE_DEFINITION_RE.finditer(text):
         targets.append(match.group(1))
+    if include_bare:
+        for match in BARE_MARKDOWN_REFERENCE_RE.finditer(text):
+            targets.append(match.group(1))
     return targets
 
 
-def _resolve_task_board_reference(root: Path, target: str) -> TaskBoardReference | None:
+def _resolve_local_markdown_reference(root: Path, source_path: Path, target: str) -> LocalMarkdownReference | None:
     raw = target.strip()
     target = raw.strip("`").strip("<>").strip().rstrip(".,;")
     if not target or target.startswith("#") or _is_external_reference_target(target):
@@ -481,13 +536,19 @@ def _resolve_task_board_reference(root: Path, target: str) -> TaskBoardReference
     target_path = Path(target)
     if target_path.is_absolute():
         return None
-    base = root if target.startswith("docs/") else root / TASK_BOARD_REL.parent
+    base = root if target.startswith("docs/") else source_path.parent
     candidate = (base / target_path).resolve()
     try:
         rel = candidate.relative_to(root.resolve()).as_posix()
     except ValueError:
-        return None
-    return TaskBoardReference(raw=raw, rel=rel, exists=candidate.is_file())
+        rel = target
+    return LocalMarkdownReference(raw=raw, rel=rel, exists=candidate.is_file())
+
+
+def _strip_markdown_code(text: str) -> str:
+    text = re.sub(r"(?s)```.*?```", "", text)
+    text = re.sub(r"(?s)~~~.*?~~~", "", text)
+    return re.sub(r"`[^`\n]*`", "", text)
 
 
 def _is_external_reference_target(target: str) -> bool:
