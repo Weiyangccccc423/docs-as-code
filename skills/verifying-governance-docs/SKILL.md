@@ -30,6 +30,7 @@ bin/governance advance implementation <target> --json
 Use `verify --json` `findings[].code` and `findings[].path` for deterministic repair routing. Use `errors` and `warnings` only for human-facing summaries.
 Use `gate --json` `requirements[].code` for phase-transition repair routing; `verification.findings[]` contains the embedded structural verification result.
 Use `advance --json` when the phase should be recorded in `.governance/state.json`.
+Treat gate requirement `product_acceptance_chapter_present` as a product-structuring blocker: create a sourced `NN-*acceptance*.md` product chapter or register the missing acceptance criteria as unresolved.
 Treat `governance_scaffold_placeholder` as a design-authoring blocker, not a formatting issue.
 Treat `workflow_pack_file_hash_mismatch` and `workflow_pack_file_missing` as workflow-pack integrity blockers.
 Treat `docs_local_markdown_link_missing` as a document-integrity blocker: repair the link or create/index the referenced Markdown file.
@@ -64,6 +65,7 @@ make ci
 - non-template Markdown files are indexed in the README in the same directory
 - explicit local Markdown links resolve to existing files
 - product chapter filenames use `NN-<slug>.md` with unique `NN` prefixes
+- a dedicated `NN-*acceptance*.md` product chapter exists before design derivation
 - product chapters link back to `core/PRD.md`, and `product-meta.md` links to every product chapter
 - glossary rows have unique `Term` values and filled `Meaning` and `Source` fields; `Source` links to existing local Markdown
 - unresolved rows have unique IDs and filled `Domain` and `Description`

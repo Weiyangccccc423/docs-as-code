@@ -66,6 +66,13 @@ def evaluate_gate(root: Path, gate: str) -> GateResult:
     _add_product_import_requirements(requirements, root)
     if gate in {"design-derivation", "implementation"}:
         _add(requirements, "product_chapters_present", _has_product_chapter(root), "docs/product", "product chapters exist")
+        _add(
+            requirements,
+            "product_acceptance_chapter_present",
+            _has_acceptance_chapter(root),
+            "docs/product",
+            "product acceptance criteria chapter exists",
+        )
     if gate == "implementation":
         _add_implementation_requirements(requirements, root)
 
@@ -139,6 +146,11 @@ def _add_implementation_requirements(requirements: list[GateRequirement], root: 
 def _has_product_chapter(root: Path) -> bool:
     product_root = root / "docs/product"
     return any(path.is_file() for path in product_root.glob("[0-9][0-9]-*.md"))
+
+
+def _has_acceptance_chapter(root: Path) -> bool:
+    product_root = root / "docs/product"
+    return any(path.is_file() and "acceptance" in path.stem.lower() for path in product_root.glob("[0-9][0-9]-*.md"))
 
 
 def _has_authored_markdown(directory: Path) -> bool:

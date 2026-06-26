@@ -3,6 +3,7 @@
 ## Input
 
 - Structured product documents
+- Dedicated acceptance criteria product chapter
 - `docs/unresolved.md`
 - `docs/glossary.md`
 
@@ -25,6 +26,8 @@ Load according to the design track:
    ```bash
    bin/governance advance design-derivation <target> --json
    ```
+
+   The gate requires at least one `docs/product/NN-*acceptance*.md` chapter.
 
 2. Create the standard design document scaffold when files are missing:
 

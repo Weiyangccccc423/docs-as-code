@@ -482,6 +482,23 @@ class GovernanceCliTest(unittest.TestCase):
             _append_index(target / "docs/product/README.md", "01-goals.md")
             _append_product_meta_chapter(target, "01-goals.md")
 
+            missing_acceptance = subprocess.run(
+                [sys.executable, str(CLI), "gate", "design-derivation", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(1, missing_acceptance.returncode)
+            missing_acceptance_requirements = {item["code"]: item for item in json.loads(missing_acceptance.stdout)["requirements"]}
+            self.assertFalse(missing_acceptance_requirements["product_acceptance_chapter_present"]["ok"])
+
+            (target / "docs/product/08-acceptance-criteria.md").write_text(
+                "# Acceptance Criteria\n\nSource: [PRD](core/PRD.md).\n",
+                encoding="utf-8",
+            )
+            _append_index(target / "docs/product/README.md", "08-acceptance-criteria.md")
+            _append_product_meta_chapter(target, "08-acceptance-criteria.md")
+
             allowed = subprocess.run(
                 [sys.executable, str(CLI), "gate", "design-derivation", str(target), "--json"],
                 text=True,
@@ -513,6 +530,12 @@ class GovernanceCliTest(unittest.TestCase):
             (target / "docs/product/01-goals.md").write_text("# Goals\n\nSource: [PRD](core/PRD.md).\n", encoding="utf-8")
             _append_index(target / "docs/product/README.md", "01-goals.md")
             _append_product_meta_chapter(target, "01-goals.md")
+            (target / "docs/product/08-acceptance-criteria.md").write_text(
+                "# Acceptance Criteria\n\nSource: [PRD](core/PRD.md).\n",
+                encoding="utf-8",
+            )
+            _append_index(target / "docs/product/README.md", "08-acceptance-criteria.md")
+            _append_product_meta_chapter(target, "08-acceptance-criteria.md")
 
             second = subprocess.run(
                 [sys.executable, str(CLI), "advance", "design-derivation", str(target), "--json"],
@@ -544,6 +567,12 @@ class GovernanceCliTest(unittest.TestCase):
             (target / "docs/product/01-goals.md").write_text("# Goals\n\nSource: [PRD](core/PRD.md).\n", encoding="utf-8")
             _append_index(target / "docs/product/README.md", "01-goals.md")
             _append_product_meta_chapter(target, "01-goals.md")
+            (target / "docs/product/08-acceptance-criteria.md").write_text(
+                "# Acceptance Criteria\n\nSource: [PRD](core/PRD.md).\n",
+                encoding="utf-8",
+            )
+            _append_index(target / "docs/product/README.md", "08-acceptance-criteria.md")
+            _append_product_meta_chapter(target, "08-acceptance-criteria.md")
 
             blocked = subprocess.run(
                 [sys.executable, str(CLI), "gate", "implementation", str(target), "--json"],
@@ -665,6 +694,12 @@ class GovernanceCliTest(unittest.TestCase):
             (target / "docs/product/01-goals.md").write_text("# Goals\n\nSource: [PRD](core/PRD.md).\n", encoding="utf-8")
             _append_index(target / "docs/product/README.md", "01-goals.md")
             _append_product_meta_chapter(target, "01-goals.md")
+            (target / "docs/product/08-acceptance-criteria.md").write_text(
+                "# Acceptance Criteria\n\nSource: [PRD](core/PRD.md).\n",
+                encoding="utf-8",
+            )
+            _append_index(target / "docs/product/README.md", "08-acceptance-criteria.md")
+            _append_product_meta_chapter(target, "08-acceptance-criteria.md")
 
             scaffold = subprocess.run(
                 [sys.executable, str(CLI), "scaffold", "design", str(target), "--json"],
