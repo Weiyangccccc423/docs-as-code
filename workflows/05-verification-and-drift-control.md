@@ -63,6 +63,7 @@ Load:
    - no `docs/glossary.md` rows with missing `Term`, `Meaning`, or `Source`, duplicate terms, or missing local Markdown sources
    - no non-template Markdown files missing from their same-directory README
    - no explicit local Markdown link pointing to a missing file
+   - product chapter filenames use `NN-<slug>.md` with unique `NN` prefixes
    - product, API, architecture, backend, frontend, tests, and development docs link to each other
    - roadmap tables with `ID` and `Status` columns agree with same-ID task board statuses
    - task board items have `ID`, `Status`, `Task`, `Product`, `Design`, `API`, `Acceptance`, and `Verification`

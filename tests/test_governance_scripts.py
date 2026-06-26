@@ -590,6 +590,58 @@ class GovernanceScriptsTest(unittest.TestCase):
 
             self.assertEqual([], report.errors)
 
+    def test_verify_reports_invalid_product_chapter_filename(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            chapter = root / "docs/product/goals.md"
+            chapter.write_text("# Goals\n\nSource: [PRD](core/PRD.md).\n", encoding="utf-8")
+            _append_index(root / "docs/product/README.md", "goals.md")
+            meta = root / "docs/product/core/product-meta.md"
+            meta.write_text(meta.read_text(encoding="utf-8") + "\n- [Goals](../goals.md)\n", encoding="utf-8")
+
+            report = verify(root)
+
+            self.assertIn("docs/product/goals.md must use NN-<slug>.md product chapter naming", report.errors)
+            self.assertIn(
+                {
+                    "code": "product_chapter_invalid_filename",
+                    "severity": "error",
+                    "path": "docs/product/goals.md",
+                    "message": "docs/product/goals.md must use NN-<slug>.md product chapter naming",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_duplicate_product_chapter_prefix(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            for filename in ("01-goals.md", "01-scope.md"):
+                chapter = root / "docs/product" / filename
+                chapter.write_text("# Chapter\n\nSource: [PRD](core/PRD.md).\n", encoding="utf-8")
+                _append_index(root / "docs/product/README.md", filename)
+                _append_product_meta_chapter(root, filename)
+
+            report = verify(root)
+
+            self.assertIn("duplicate product chapter prefix 01: docs/product/01-goals.md, docs/product/01-scope.md", report.errors)
+            self.assertIn(
+                {
+                    "code": "product_chapter_duplicate_prefix",
+                    "severity": "error",
+                    "path": "docs/product/01-scope.md",
+                    "message": "duplicate product chapter prefix 01: docs/product/01-goals.md, docs/product/01-scope.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_task_board_missing_trace_fields(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

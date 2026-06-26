@@ -33,7 +33,7 @@ Use `advance --json` when the phase should be recorded in `.governance/state.jso
 Treat `governance_scaffold_placeholder` as a design-authoring blocker, not a formatting issue.
 Treat `workflow_pack_file_hash_mismatch` and `workflow_pack_file_missing` as workflow-pack integrity blockers.
 Treat `docs_local_markdown_link_missing` as a document-integrity blocker: repair the link or create/index the referenced Markdown file.
-Treat `product_chapter_missing_prd_link` and `product_meta_missing_chapter_link` as product-structuring blockers.
+Treat `product_chapter_invalid_filename`, `product_chapter_duplicate_prefix`, `product_chapter_missing_prd_link`, and `product_meta_missing_chapter_link` as product-structuring blockers.
 Treat `glossary_*` findings as product-terminology blockers: fill required fields, remove duplicate terms, or link `Source` to existing local Markdown.
 Treat `unresolved_row_missing_fields` and `unresolved_duplicate_id` as ambiguity-registry blockers.
 Treat `roadmap_task_status_conflict` as a delivery-planning blocker.
@@ -63,6 +63,7 @@ make ci
 - non-empty docs directories have `README.md` and `AGENTS.md`
 - non-template Markdown files are indexed in the README in the same directory
 - explicit local Markdown links resolve to existing files
+- product chapter filenames use `NN-<slug>.md` with unique `NN` prefixes
 - product chapters link back to `core/PRD.md`, and `product-meta.md` links to every product chapter
 - glossary rows have unique `Term` values and filled `Meaning` and `Source` fields; `Source` links to existing local Markdown
 - unresolved rows have unique IDs and filled `Domain` and `Description`

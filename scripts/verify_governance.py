@@ -36,6 +36,7 @@ GLOSSARY_REQUIRED_COLUMNS = {
 SCAFFOLD_PLACEHOLDER = "governance:scaffold-placeholder"
 WORKFLOW_PACK_SNAPSHOT_ROOT = "docs/agent-workflow/workflow-pack"
 ROADMAP_REL = Path("docs/development/01-roadmap.md")
+PRODUCT_CHAPTER_RE = re.compile(r"^(?P<prefix>[0-9]{2})-[a-z0-9][a-z0-9-]*\.md$")
 TASK_BOARD_REL = Path("docs/development/02-task-board.md")
 TASK_BOARD_REQUIRED_COLUMNS = {
     "id": "ID",
@@ -252,7 +253,8 @@ def _check_product_chapter_links(root: Path, report: VerificationReport) -> None
     product_root = root / "docs/product"
     if not product_root.exists():
         return
-    chapters = [path for path in sorted(product_root.glob("[0-9][0-9]-*.md")) if path.is_file()]
+    _check_product_chapter_filenames(root, report)
+    chapters = _product_chapters(product_root)
     if not chapters:
         return
 
@@ -278,6 +280,41 @@ def _check_product_chapter_links(root: Path, report: VerificationReport) -> None
                 f"docs/product/core/product-meta.md must link to product chapter: {rel}",
                 "docs/product/core/product-meta.md",
             )
+
+
+def _check_product_chapter_filenames(root: Path, report: VerificationReport) -> None:
+    product_root = root / "docs/product"
+    prefix_paths: dict[str, list[Path]] = {}
+    for path in sorted(product_root.glob("*.md")):
+        if path.name in {"README.md", "AGENTS.md"} or path.name.startswith("_"):
+            continue
+        rel = path.relative_to(root).as_posix()
+        match = PRODUCT_CHAPTER_RE.fullmatch(path.name)
+        if not match:
+            report.add_error(
+                "product_chapter_invalid_filename",
+                f"{rel} must use NN-<slug>.md product chapter naming",
+                rel,
+            )
+            continue
+        prefix_paths.setdefault(match.group("prefix"), []).append(path)
+    for prefix, paths in prefix_paths.items():
+        if len(paths) <= 1:
+            continue
+        rels = [path.relative_to(root).as_posix() for path in paths]
+        report.add_error(
+            "product_chapter_duplicate_prefix",
+            f"duplicate product chapter prefix {prefix}: {', '.join(rels)}",
+            rels[-1],
+        )
+
+
+def _product_chapters(product_root: Path) -> list[Path]:
+    return [
+        path
+        for path in sorted(product_root.glob("*.md"))
+        if path.is_file() and PRODUCT_CHAPTER_RE.fullmatch(path.name)
+    ]
 
 
 def _check_unresolved_items(root: Path, report: VerificationReport) -> None:
