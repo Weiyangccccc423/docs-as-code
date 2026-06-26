@@ -95,6 +95,7 @@ def _cmd_verify(args: argparse.Namespace) -> int:
             "ok": report.ok,
             "errors": report.errors,
             "warnings": report.warnings,
+            "findings": [finding.to_dict() for finding in report.findings],
         },
     )
     if args.json:
@@ -104,6 +105,7 @@ def _cmd_verify(args: argparse.Namespace) -> int:
                 "target": str(target),
                 "errors": report.errors,
                 "warnings": report.warnings,
+                "findings": [finding.to_dict() for finding in report.findings],
                 "state": state,
             }
         )

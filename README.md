@@ -42,6 +42,8 @@ bin/governance verify /path/to/new-project --json
 bin/governance env --repair --target /path/to/new-project --json
 ```
 
+`verify --json` includes human-compatible `errors` and `warnings` plus structured `findings` with `code`, `severity`, `path`, and `message`.
+
 ## Workflow Order
 
 1. `workflows/01-empty-repo-initialization.md`

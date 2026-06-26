@@ -194,6 +194,15 @@ class GovernanceScriptsTest(unittest.TestCase):
 
             report = verify(root)
             self.assertIn("docs/product/01-goals.md is not indexed in docs/product/README.md", report.errors)
+            self.assertIn(
+                {
+                    "code": "docs_readme_unindexed_file",
+                    "severity": "error",
+                    "path": "docs/product/01-goals.md",
+                    "message": "docs/product/01-goals.md is not indexed in docs/product/README.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
 
     def test_verify_allows_indexed_docs_markdown_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

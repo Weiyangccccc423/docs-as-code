@@ -21,6 +21,8 @@ bin/governance verify <target> --json
 bin/governance env --strict --repair --target <target> --json
 ```
 
+Use `verify --json` `findings[].code` and `findings[].path` for deterministic repair routing. Use `errors` and `warnings` only for human-facing summaries.
+
 Treat `ok: false` as blocking. Treat `needs_escalation: true` as requiring explicit approval before running the reported package-manager command.
 
 When already inside an initialized target repository, prefer target-local checks:

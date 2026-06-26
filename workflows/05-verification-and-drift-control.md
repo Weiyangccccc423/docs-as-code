@@ -26,6 +26,8 @@ Load:
    bin/governance verify <target> --json
    ```
 
+   Use `findings[].code` for automation. Keep `errors` and `warnings` for human-readable summaries.
+
    When already inside an initialized target repository, prefer:
 
    ```bash

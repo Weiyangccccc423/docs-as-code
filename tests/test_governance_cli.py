@@ -276,6 +276,51 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertTrue(status_payload["ok"])
             self.assertEqual("service", status_payload["state"]["profile"])
 
+    def test_verify_json_reports_structured_findings(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+
+            init_result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "init",
+                    "--target",
+                    str(target),
+                    "--product",
+                    str(product),
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            (target / "docs/product/01-goals.md").write_text("# Goals\n", encoding="utf-8")
+
+            verify_result = subprocess.run(
+                [sys.executable, str(CLI), "verify", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, verify_result.returncode)
+            payload = json.loads(verify_result.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertIn("findings", payload)
+            self.assertIn(
+                {
+                    "code": "docs_readme_unindexed_file",
+                    "severity": "error",
+                    "path": "docs/product/01-goals.md",
+                    "message": "docs/product/01-goals.md is not indexed in docs/product/README.md",
+                },
+                payload["findings"],
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
