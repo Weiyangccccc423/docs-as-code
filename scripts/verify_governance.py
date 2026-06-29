@@ -48,6 +48,7 @@ ADR_REQUIRED_SECTIONS = {
 ADR_DECISION_RE = re.compile(r"^(?P<prefix>[0-9]{3})-[a-z0-9][a-z0-9-]*\.md$")
 SCAFFOLD_PLACEHOLDER = "governance:scaffold-placeholder"
 WORKFLOW_PACK_SNAPSHOT_ROOT = "docs/agent-workflow/workflow-pack"
+WORKFLOW_PACK_IGNORED_FILE_NAMES = {".DS_Store", "manifest.json"}
 WORKFLOW_PACK_REQUIRED_PATHS = (
     "README.md",
     "references/architecture-methods.md",
@@ -2179,6 +2180,35 @@ def _check_workflow_pack_manifest(root: Path, report: VerificationReport) -> Non
                 f"workflow pack manifest is missing required file entry: {file_rel}",
                 manifest_rel,
             )
+    for path in _workflow_pack_snapshot_files(snapshot_root):
+        rel = path.relative_to(snapshot_root).as_posix()
+        if rel not in listed_paths:
+            file_rel = f"{WORKFLOW_PACK_SNAPSHOT_ROOT}/{rel}"
+            report.add_error(
+                "workflow_pack_file_unmanifested",
+                f"workflow pack file is not listed in manifest: {file_rel}",
+                file_rel,
+            )
+
+
+def _workflow_pack_snapshot_files(snapshot_root: Path) -> list[Path]:
+    files: list[Path] = []
+    if not snapshot_root.exists():
+        return files
+    for path in sorted(snapshot_root.rglob("*")):
+        if path.is_file() and not _is_ignored_workflow_pack_file(path):
+            files.append(path)
+    return files
+
+
+def _is_ignored_workflow_pack_file(path: Path) -> bool:
+    parts = set(path.parts)
+    return (
+        "__pycache__" in parts
+        or ".git" in parts
+        or path.suffix == ".pyc"
+        or path.name in WORKFLOW_PACK_IGNORED_FILE_NAMES
+    )
 
 
 def task_board_ready_tasks(root: Path) -> list[dict[str, str]]:

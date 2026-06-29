@@ -623,6 +623,36 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_rejects_unmanifested_workflow_pack_snapshot_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            stale = root / "docs/agent-workflow/workflow-pack/workflows/99-stale.md"
+            stale.write_text("# Stale Workflow\n", encoding="utf-8")
+
+            report = verify(root)
+
+            self.assertIn(
+                "workflow pack file is not listed in manifest: "
+                "docs/agent-workflow/workflow-pack/workflows/99-stale.md",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "workflow_pack_file_unmanifested",
+                    "severity": "error",
+                    "path": "docs/agent-workflow/workflow-pack/workflows/99-stale.md",
+                    "message": (
+                        "workflow pack file is not listed in manifest: "
+                        "docs/agent-workflow/workflow-pack/workflows/99-stale.md"
+                    ),
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_non_markdown_product_requires_conversion_before_verification_passes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

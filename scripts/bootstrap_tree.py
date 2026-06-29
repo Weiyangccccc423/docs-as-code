@@ -174,6 +174,27 @@ def _install_workflow_pack_snapshot(root: Path, force: bool = False) -> str:
     return manifest_path.relative_to(root).as_posix()
 
 
+def _prune_workflow_pack_snapshot(root: Path, keep: list[Path]) -> list[str]:
+    snapshot_root = root / WORKFLOW_PACK_SNAPSHOT_ROOT
+    if not snapshot_root.exists():
+        return []
+    keep_paths = {path.as_posix() for path in keep}
+    removed: list[str] = []
+    for path in sorted(snapshot_root.rglob("*"), reverse=True):
+        if path.is_file():
+            if _is_ignored_pack_file(path):
+                continue
+            rel = path.relative_to(snapshot_root).as_posix()
+            if rel in keep_paths:
+                continue
+            path.unlink()
+            removed.append(f"{WORKFLOW_PACK_SNAPSHOT_ROOT}/{rel}")
+            continue
+        if path.is_dir() and path != snapshot_root and not any(path.iterdir()):
+            path.rmdir()
+    return sorted(removed)
+
+
 def _workflow_pack_manifest(snapshot_root: Path, files: list[Path]) -> dict[str, object]:
     entries = []
     for rel in files:
@@ -238,6 +259,7 @@ class RuntimeRefreshResult:
     target: str
     ok: bool
     refreshed: list[str] = field(default_factory=list)
+    removed: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     state: dict[str, object] = field(default_factory=dict)
 
@@ -246,6 +268,7 @@ class RuntimeRefreshResult:
             "target": self.target,
             "ok": self.ok,
             "refreshed": self.refreshed,
+            "removed": self.removed,
             "errors": self.errors,
             "state": self.state,
         }
@@ -358,6 +381,7 @@ def refresh_runtime(root: Path) -> RuntimeRefreshResult:
 
     workflow_pack_files = _iter_workflow_pack_files()
     workflow_pack_manifest = _install_workflow_pack_snapshot(root, force=True)
+    removed = _prune_workflow_pack_snapshot(root, workflow_pack_files)
     refreshed.extend(f"{WORKFLOW_PACK_SNAPSHOT_ROOT}/{path.as_posix()}" for path in workflow_pack_files)
     refreshed.append(workflow_pack_manifest)
     refreshed = sorted(dict.fromkeys(refreshed))
@@ -372,6 +396,7 @@ def refresh_runtime(root: Path) -> RuntimeRefreshResult:
         target=str(root),
         ok=True,
         refreshed=refreshed,
+        removed=removed,
         state=state,
     )
 

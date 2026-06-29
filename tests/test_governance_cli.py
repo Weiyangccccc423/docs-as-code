@@ -578,6 +578,8 @@ class GovernanceCliTest(unittest.TestCase):
             wrapper.chmod(0o644)
             workflow = target / "docs/agent-workflow/workflow-pack/workflows/00-overview.md"
             workflow.write_text(workflow.read_text(encoding="utf-8") + "\nTampered.\n", encoding="utf-8")
+            stale_workflow = target / "docs/agent-workflow/workflow-pack/workflows/99-stale.md"
+            stale_workflow.write_text("# Stale Workflow\n", encoding="utf-8")
 
             verify_result = subprocess.run(
                 [sys.executable, str(CLI), "verify", str(target)],
@@ -591,6 +593,11 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn(
                 "workflow pack file hash mismatch: "
                 "docs/agent-workflow/workflow-pack/workflows/00-overview.md",
+                verify_result.stdout,
+            )
+            self.assertIn(
+                "workflow pack file is not listed in manifest: "
+                "docs/agent-workflow/workflow-pack/workflows/99-stale.md",
                 verify_result.stdout,
             )
 
@@ -629,6 +636,10 @@ class GovernanceCliTest(unittest.TestCase):
                 "docs/agent-workflow/workflow-pack/workflows/00-overview.md",
                 payload["refreshed"],
             )
+            self.assertIn(
+                "docs/agent-workflow/workflow-pack/workflows/99-stale.md",
+                payload["removed"],
+            )
             self.assertEqual(
                 "docs/agent-workflow/runtime-manifest.json",
                 payload["state"]["runtime_manifest"],
@@ -640,6 +651,7 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn("runtime_refreshed_at", payload["state"])
             self.assertIn("Keep this content.", prd.read_text(encoding="utf-8"))
             self.assertTrue(wrapper.stat().st_mode & 0o100)
+            self.assertFalse(stale_workflow.exists())
 
             verify_again = subprocess.run(
                 [sys.executable, str(CLI), "verify", str(target)],
