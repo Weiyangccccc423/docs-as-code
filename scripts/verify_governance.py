@@ -1636,6 +1636,14 @@ def _check_acceptance_matrix_acceptance_id_source(
         for reference in references
         if reference.exists and _is_product_acceptance_reference_path(reference)
     ]
+    for reference in product_acceptance_refs:
+        fragment_id = _reference_fragment_acceptance_id(reference)
+        if fragment_id is not None and fragment_id != acceptance_id:
+            report.add_error(
+                "acceptance_matrix_acceptance_anchor_mismatch",
+                f"acceptance matrix row {row_label} Acceptance link fragment {fragment_id} does not match Acceptance ID {acceptance_id}",
+                ACCEPTANCE_MATRIX_REL.as_posix(),
+            )
     if product_acceptance_refs and not any(
         _product_acceptance_reference_has_id(root, reference, acceptance_id)
         for reference in product_acceptance_refs
@@ -2446,6 +2454,14 @@ def _task_board_row_trace_reference_errors(root: Path, row: dict[str, str], task
                     "task_board_acceptance_id_unknown",
                     f"task board row {task_id} Acceptance ID {acceptance_id} is not defined in referenced product acceptance chapter",
                 ))
+            if product_acceptance_refs and acceptance_id is not None:
+                for reference in product_acceptance_refs:
+                    fragment_id = _reference_fragment_acceptance_id(reference)
+                    if fragment_id is not None and fragment_id != acceptance_id:
+                        errors.append((
+                            "task_board_acceptance_anchor_mismatch",
+                            f"task board row {task_id} Acceptance link fragment {fragment_id} does not match Acceptance ID {acceptance_id}",
+                        ))
     return errors
 
 
@@ -2465,6 +2481,17 @@ def _task_board_acceptance_id(value: str) -> str | None:
     if match is None:
         return None
     return match.group(0)
+
+
+def _reference_fragment_acceptance_id(reference: LocalMarkdownReference) -> str | None:
+    target = reference.raw.strip().strip("`").strip("<>").strip().rstrip(".,;").replace("\\", "/")
+    if "#" not in target:
+        return None
+    fragment = target.split("#", 1)[1].split("?", 1)[0]
+    match = re.search(r"A-[0-9]{3}", fragment, flags=re.IGNORECASE)
+    if match is None:
+        return None
+    return match.group(0).upper()
 
 
 def _product_acceptance_reference_has_id(root: Path, reference: LocalMarkdownReference, acceptance_id: str) -> bool:

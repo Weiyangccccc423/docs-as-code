@@ -66,9 +66,9 @@ Load according to the design track:
    - API consumption map
    - error action map
 9. Create or complete `docs/tests/01-strategy.md` from product acceptance, API contracts, and architecture/backend/frontend design risks.
-10. Create or complete `docs/tests/02-acceptance-matrix.md` with Matrix and Uncovered Criteria sections, and `Acceptance`, `Design`, `API`, and `Test` columns; every `Acceptance` row must include a unique product-defined `A-NNN` ID, and every product-defined `A-NNN` must be mapped or listed under Uncovered Criteria using product-defined IDs only.
+10. Create or complete `docs/tests/02-acceptance-matrix.md` with Matrix and Uncovered Criteria sections, and `Acceptance`, `Design`, `API`, and `Test` columns; every `Acceptance` row must include a unique product-defined `A-NNN` ID, link fragments must match row IDs when present, and every product-defined `A-NNN` must be mapped or listed under Uncovered Criteria using product-defined IDs only.
 11. Create or complete `docs/development/01-roadmap.md` with product links, a Milestones table using `TASK-NNN` `ID`, `Status`, and `Milestone`, sequencing, risks, and deferred scope.
-12. Create or complete `docs/development/02-task-board.md` with Task Table, Status Policy, and Traceability Rules sections; task IDs must use `TASK-NNN`, cover roadmap milestone IDs, `Product`, `Design`, and `API` fields must link to matching source domains, and `Acceptance` fields must include `A-NNN` IDs defined in referenced product acceptance chapters.
+12. Create or complete `docs/development/02-task-board.md` with Task Table, Status Policy, and Traceability Rules sections; task IDs must use `TASK-NNN`, cover roadmap milestone IDs, `Product`, `Design`, and `API` fields must link to matching source domains, and `Acceptance` fields must include `A-NNN` IDs defined in referenced product acceptance chapters with matching link fragments when present.
 13. Create ADRs in `docs/decisions/` for cross-module or high-cost decisions, named as unique `NNN-<slug>.md` files.
 14. Keep all design and planning documents linked to product and acceptance sources.
 15. Update the same-directory `README.md` for every new Markdown document, except underscore-prefixed templates such as `_template.md`.
@@ -101,9 +101,9 @@ Design documents sufficient for creating a task board without guessing product m
 - `docs/frontend/01-modules.md` has non-placeholder Product Links, UI Links, Modules, State Ownership, Routes, and Open Decisions sections, and links to UI docs, API docs, `docs/frontend/02-api-consumption.md`, and product acceptance criteria.
 - `docs/frontend/02-api-consumption.md` has non-placeholder Product Links, API Links, Consumption Map, Loading States, and Error Actions sections, and links to frontend modules, API docs, and product acceptance criteria.
 - `docs/tests/01-strategy.md` has non-placeholder Product Links, Acceptance Links, Test Layers, Risk Coverage, and Non-Functional Checks sections, and links to product acceptance criteria, API docs, and architecture/backend/frontend design docs.
-- `docs/tests/02-acceptance-matrix.md` has non-placeholder Matrix and Uncovered Criteria sections, maps unique product-defined `A-NNN` acceptance criteria to design, API, and test sources with local Markdown links, or lists explicitly uncovered product-defined acceptance IDs.
+- `docs/tests/02-acceptance-matrix.md` has non-placeholder Matrix and Uncovered Criteria sections, maps unique product-defined `A-NNN` acceptance criteria to design, API, and test sources with local Markdown links whose fragments match row IDs when present, or lists explicitly uncovered product-defined acceptance IDs.
 - `docs/development/01-roadmap.md` has non-placeholder Product Links, Milestones, Sequencing, Risks, and Deferred Scope sections, links to product scope plus product acceptance criteria, and uses a Milestones table with `TASK-NNN` `ID`, `Status`, and `Milestone`.
-- `docs/development/02-task-board.md` has non-placeholder Task Table, Status Policy, and Traceability Rules sections, uses `TASK-NNN` IDs matching roadmap milestones, links Product, Design, and API fields to matching source domains, and links tasks to product-defined `A-NNN` acceptance IDs.
+- `docs/development/02-task-board.md` has non-placeholder Task Table, Status Policy, and Traceability Rules sections, uses `TASK-NNN` IDs matching roadmap milestones, links Product, Design, and API fields to matching source domains, and links tasks to product-defined `A-NNN` acceptance IDs with matching fragments when present.
 - ADR files under `docs/decisions/` use unique `NNN-<slug>.md` names.
 - ADRs have context, decision, consequences, and references.
 - ADR `References` sections link to existing local Markdown source documents.

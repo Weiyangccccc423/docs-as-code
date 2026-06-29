@@ -86,7 +86,7 @@ Load:
    - `docs/frontend/02-api-consumption.md` has non-placeholder Product Links, API Links, Consumption Map, Loading States, and Error Actions sections, and links to frontend modules, API docs, and product acceptance criteria
    - `docs/tests/01-strategy.md` has non-placeholder Product Links, Acceptance Links, Test Layers, Risk Coverage, and Non-Functional Checks sections, and links to product acceptance criteria, API docs, and architecture/backend/frontend design docs
    - `docs/tests/02-acceptance-matrix.md` has non-placeholder Matrix and Uncovered Criteria sections
-   - `docs/tests/02-acceptance-matrix.md` uses `Acceptance`, `Design`, `API`, and `Test` columns with unique `A-NNN` acceptance IDs defined in referenced product acceptance chapters, maps every product-defined `A-NNN` or lists it under Uncovered Criteria using product-defined IDs only, and uses local Markdown links to matching source docs
+   - `docs/tests/02-acceptance-matrix.md` uses `Acceptance`, `Design`, `API`, and `Test` columns with unique `A-NNN` acceptance IDs defined in referenced product acceptance chapters, uses matching Acceptance link fragments when present, maps every product-defined `A-NNN` or lists it under Uncovered Criteria using product-defined IDs only, and uses local Markdown links to matching source docs
    - ADR files under `docs/decisions/` use unique `NNN-<slug>.md` names
    - ADRs under `docs/decisions/` include non-placeholder Context, Decision, Consequences, and References sections with local Markdown source links
    - `docs/development/01-roadmap.md` has non-placeholder Product Links, Milestones, Sequencing, Risks, and Deferred Scope sections, and links to product scope plus product acceptance criteria
@@ -99,7 +99,7 @@ Load:
    - task board items marked `Done` link to existing local Markdown verification evidence
    - task board item IDs are unique and use `TASK-NNN`
    - task board `Product`, `Design`, `API`, and `Acceptance` fields point to existing local Markdown files in the matching source domains
-   - task board `Acceptance` fields include an `A-NNN` ID defined in the referenced product acceptance chapter and a product acceptance chapter reference matching `docs/product/NN-*acceptance*.md`
+   - task board `Acceptance` fields include an `A-NNN` ID defined in the referenced product acceptance chapter, a matching link fragment when present, and a product acceptance chapter reference matching `docs/product/NN-*acceptance*.md`
    - at least one task board item is `Ready` before implementation starts
 
 ## Output

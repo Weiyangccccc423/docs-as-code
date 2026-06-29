@@ -3792,6 +3792,37 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_acceptance_matrix_acceptance_anchor_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_traceable_test_strategy(root)
+            _write_indexed_doc(
+                root,
+                "docs/tests/02-acceptance-matrix.md",
+                _acceptance_matrix_doc(
+                    acceptance="[A-001](../product/08-acceptance-criteria.md#a-999)",
+                ),
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "acceptance matrix row docs/product/08-acceptance-criteria.md Acceptance link fragment A-999 does not match Acceptance ID A-001",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "acceptance_matrix_acceptance_anchor_mismatch",
+                    "severity": "error",
+                    "path": "docs/tests/02-acceptance-matrix.md",
+                    "message": "acceptance matrix row docs/product/08-acceptance-criteria.md Acceptance link fragment A-999 does not match Acceptance ID A-001",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_acceptance_matrix_missing_trace_targets(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -4263,6 +4294,43 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "severity": "error",
                     "path": "docs/development/02-task-board.md",
                     "message": "task board row TASK-001 Acceptance ID A-999 is not defined in referenced product acceptance chapter",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_task_board_acceptance_anchor_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_product_chapter(root, "01-goals.md", "Goals")
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
+            _write_indexed_doc(root, "docs/api/00-conventions.md", _api_conventions_doc())
+            _write_traceable_test_strategy(root)
+
+            task_board = root / "docs/development/02-task-board.md"
+            task_board.write_text(
+                _task_board_doc(
+                    "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | [A-001](../product/08-acceptance-criteria.md#a-999) | make test |\n"
+                ),
+                encoding="utf-8",
+            )
+            _append_index(root / "docs/development/README.md", "02-task-board.md")
+
+            report = verify(root)
+
+            self.assertIn(
+                "task board row TASK-001 Acceptance link fragment A-999 does not match Acceptance ID A-001",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "task_board_acceptance_anchor_mismatch",
+                    "severity": "error",
+                    "path": "docs/development/02-task-board.md",
+                    "message": "task board row TASK-001 Acceptance link fragment A-999 does not match Acceptance ID A-001",
                 },
                 [finding.to_dict() for finding in report.findings],
             )

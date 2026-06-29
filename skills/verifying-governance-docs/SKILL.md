@@ -59,6 +59,7 @@ Treat `frontend_api_consumption_missing_sections`, `frontend_api_consumption_emp
 Treat `test_strategy_missing_sections`, `test_strategy_empty_sections`, and `test_strategy_trace_reference_missing` as verification-strategy blockers: complete Product Links, Acceptance Links, Test Layers, Risk Coverage, and Non-Functional Checks in `docs/tests/01-strategy.md`, and link to product acceptance criteria, API docs, and architecture/backend/frontend design docs.
 Treat `acceptance_matrix_missing_sections` and `acceptance_matrix_empty_sections` as acceptance-traceability blockers: complete Matrix and Uncovered Criteria in `docs/tests/02-acceptance-matrix.md`.
 Treat `acceptance_matrix_*` findings as acceptance-traceability blockers: make `docs/tests/02-acceptance-matrix.md` use `Acceptance`, `Design`, `API`, and `Test` columns with local Markdown links to the matching source docs; each `Acceptance` row must include a unique `A-NNN` ID defined in the referenced product acceptance chapter, and every product-defined `A-NNN` must be mapped or listed under Uncovered Criteria using product-defined IDs only.
+Treat `acceptance_matrix_acceptance_anchor_mismatch` as an acceptance-traceability blocker: make the Acceptance link fragment match the row's `A-NNN` ID.
 Treat `adr_missing_sections`, `adr_empty_sections`, and `adr_reference_missing` as ADR completeness blockers: add Context, Decision, Consequences, and References with local Markdown source links.
 Treat `adr_invalid_filename` and `adr_duplicate_prefix` as ADR identity blockers: rename ADRs under `docs/decisions/` to unique `NNN-<slug>.md` files and update indexes/links.
 Treat `glossary_*` findings as product-terminology blockers: fill required fields, remove duplicate terms, or link `Source` to existing local Markdown.
@@ -79,6 +80,7 @@ Treat `task_board_trace_reference_mismatch` as a source-traceability blocker: li
 Treat `task_board_acceptance_reference_missing` as an implementation-readiness blocker: link `Acceptance` to `docs/product/NN-*acceptance*.md`.
 Treat `task_board_acceptance_id_missing` as an implementation-readiness blocker: include the matching `A-NNN` acceptance ID in the task row `Acceptance` field.
 Treat `task_board_acceptance_id_unknown` as an implementation-readiness blocker: replace the row's `A-NNN` with an ID defined in the referenced product acceptance chapter, or add the missing sourced criterion there first.
+Treat `task_board_acceptance_anchor_mismatch` as an implementation-readiness blocker: make the Acceptance link fragment match the row's `A-NNN` ID.
 
 Treat `ok: false` as blocking. Treat `needs_escalation: true` as requiring explicit approval before running the reported package-manager command.
 
@@ -123,7 +125,7 @@ make ci
 - `docs/frontend/02-api-consumption.md` has non-placeholder Product Links, API Links, Consumption Map, Loading States, and Error Actions sections, and links to frontend modules, API docs, and product acceptance criteria
 - `docs/tests/01-strategy.md` has non-placeholder Product Links, Acceptance Links, Test Layers, Risk Coverage, and Non-Functional Checks sections, and links to product acceptance criteria, API docs, and architecture/backend/frontend design docs
 - `docs/tests/02-acceptance-matrix.md` has non-placeholder Matrix and Uncovered Criteria sections
-- `docs/tests/02-acceptance-matrix.md` uses `Acceptance`, `Design`, `API`, and `Test` columns, each `Acceptance` row has a unique `A-NNN` ID defined in the referenced product acceptance chapter, every product-defined `A-NNN` is mapped or listed as uncovered using product-defined IDs only, and each row links to matching local source docs
+- `docs/tests/02-acceptance-matrix.md` uses `Acceptance`, `Design`, `API`, and `Test` columns, each `Acceptance` row has a unique `A-NNN` ID defined in the referenced product acceptance chapter, Acceptance link fragments match row IDs when present, every product-defined `A-NNN` is mapped or listed as uncovered using product-defined IDs only, and each row links to matching local source docs
 - ADR files under `docs/decisions/` use unique `NNN-<slug>.md` names
 - ADRs under `docs/decisions/` include non-placeholder Context, Decision, Consequences, and References sections with local Markdown source links
 - glossary rows have unique `Term` values and filled `Meaning` and `Source` fields; `Source` links to existing local Markdown
@@ -139,7 +141,7 @@ make ci
 - task board items marked `Done` link to existing local Markdown verification evidence
 - task board IDs are unique and use `TASK-NNN`
 - task board `Product`, `Design`, `API`, and `Acceptance` fields contain existing local Markdown references to matching source domains
-- task board `Acceptance` fields include an `A-NNN` ID defined in the referenced product acceptance chapter and a product acceptance chapter reference matching `docs/product/NN-*acceptance*.md`
+- task board `Acceptance` fields include an `A-NNN` ID defined in the referenced product acceptance chapter, a matching link fragment when present, and a product acceptance chapter reference matching `docs/product/NN-*acceptance*.md`
 - at least one implementation task is `Ready`
 
 ## Red Lines
