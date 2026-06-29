@@ -733,6 +733,41 @@ class GovernanceScriptsTest(unittest.TestCase):
             )
             self.assertEqual(0, gate_result.returncode, gate_result.stderr)
 
+    def test_target_runtime_scaffolds_selected_product_chapters(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n\n## Goal\n\nShip governed projects.\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            result = subprocess.run(
+                [
+                    str(root / "bin/governance"),
+                    "scaffold",
+                    "product",
+                    ".",
+                    "--chapter",
+                    "goals-and-requirements",
+                    "--chapter",
+                    "acceptance-criteria",
+                    "--json",
+                ],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertIn("docs/product/03-goals-and-requirements.md", payload["created"])
+            self.assertIn("docs/product/08-acceptance-criteria.md", payload["created"])
+            self.assertIn(
+                "[Acceptance Criteria](../08-acceptance-criteria.md)",
+                (root / "docs/product/core/product-meta.md").read_text(encoding="utf-8"),
+            )
+
     def test_verify_reports_unregistered_docs_directory(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

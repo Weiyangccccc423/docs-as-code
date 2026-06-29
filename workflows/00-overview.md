@@ -54,6 +54,12 @@ bin/governance advance design-derivation <target> --json
 bin/governance advance implementation <target> --json
 ```
 
+After the product-structuring gate passes, use the deterministic product scaffold to create only source-supported product chapters:
+
+```bash
+bin/governance scaffold product <target> --chapter goals-and-requirements --chapter acceptance-criteria --json
+```
+
 After the design-derivation gate passes, use the deterministic design scaffold when standard design files are missing:
 
 ```bash

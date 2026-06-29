@@ -57,6 +57,12 @@ bin/governance product mark-ready /path/to/new-project --reviewed --method manua
 bin/governance gate product-structuring /path/to/new-project --json
 ```
 
+After the product-structuring gate passes, scaffold only the product chapters supported by the PRD. Scaffolded product chapters contain `governance:scaffold-placeholder` and block verification until replaced with source-backed content.
+
+```bash
+bin/governance scaffold product /path/to/new-project --chapter goals-and-requirements --chapter acceptance-criteria --json
+```
+
 Use `scaffold design --json` after the design-derivation gate to create standard architecture, API, UI, backend, frontend, test, and development document shells. Scaffolded files contain `governance:scaffold-placeholder`; verification fails until the placeholders are replaced with product-derived content.
 
 ```bash

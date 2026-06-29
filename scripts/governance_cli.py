@@ -22,7 +22,7 @@ from check_env import (
 from gates import GATE_NAMES, evaluate_gate
 from phases import PHASE_NAMES, advance_phase
 from product_import import mark_product_import_ready
-from scaffold import scaffold_design
+from scaffold import PRODUCT_CHAPTER_CHOICES, scaffold_design, scaffold_product
 from state import load_state, merge_state
 from verify_governance import verify
 
@@ -254,6 +254,8 @@ def _cmd_scaffold(args: argparse.Namespace) -> int:
     target = Path(args.target)
     if args.scaffold == "design":
         result = scaffold_design(target)
+    elif args.scaffold == "product":
+        result = scaffold_product(target, args.chapter)
     else:  # pragma: no cover - argparse choices prevent this
         raise ValueError(f"unknown scaffold: {args.scaffold}")
     payload = result.to_dict()
@@ -357,8 +359,15 @@ def build_parser() -> argparse.ArgumentParser:
     gate.set_defaults(func=_cmd_gate)
 
     scaffold = sub.add_parser("scaffold", help="Create standard governance document scaffolds.")
-    scaffold.add_argument("scaffold", choices=("design",))
+    scaffold.add_argument("scaffold", choices=("product", "design"))
     scaffold.add_argument("target", nargs="?", default=".")
+    scaffold.add_argument(
+        "--chapter",
+        action="append",
+        choices=PRODUCT_CHAPTER_CHOICES,
+        default=[],
+        help="Product chapter to scaffold. Repeat for multiple chapters.",
+    )
     scaffold.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     scaffold.set_defaults(func=_cmd_scaffold)
 

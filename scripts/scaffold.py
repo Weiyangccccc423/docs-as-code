@@ -187,6 +187,52 @@ DESIGN_SCAFFOLD: tuple[ScaffoldSpec, ...] = (
     ),
 )
 
+PRODUCT_SCAFFOLD_BY_KEY: dict[str, ScaffoldSpec] = {
+    "background-and-problems": ScaffoldSpec(
+        "docs/product/01-background-and-problems.md",
+        "Background and Problems",
+        "Structure the product background, motivating problems, constraints, and source references.",
+        ("Source Links", "Background", "Problems", "Constraints", "Open Questions"),
+        "product background, problems, constraints, and open questions",
+    ),
+    "change-log": ScaffoldSpec(
+        "docs/product/02-change-log.md",
+        "Change Log",
+        "Record product-document changes that alter downstream interpretation.",
+        ("Source Links", "Changes", "Impact", "Open Questions"),
+        "product document change log and interpretation notes",
+    ),
+    "goals-and-requirements": ScaffoldSpec(
+        "docs/product/03-goals-and-requirements.md",
+        "Goals and Requirements",
+        "Structure product goals, requirements, exclusions, and ambiguity notes.",
+        ("Source Links", "Goals", "Requirements", "Out of Scope", "Open Questions"),
+        "product goals, requirements, exclusions, and open questions",
+    ),
+    "functional-spec": ScaffoldSpec(
+        "docs/product/07-functional-spec.md",
+        "Functional Spec",
+        "Structure user-visible functional behavior without inventing implementation details.",
+        ("Source Links", "Functional Behavior", "Inputs", "Outputs", "Edge Cases", "Open Questions"),
+        "functional behavior, inputs, outputs, and edge cases",
+    ),
+    "acceptance-criteria": ScaffoldSpec(
+        "docs/product/08-acceptance-criteria.md",
+        "Acceptance Criteria",
+        "Extract stable product-defined acceptance criteria with A-NNN IDs.",
+        ("Source Links", "Acceptance Criteria", "Deferred or Uncovered Criteria", "Open Questions"),
+        "product acceptance criteria with stable A-NNN IDs",
+    ),
+    "success-metrics": ScaffoldSpec(
+        "docs/product/09-success-metrics.md",
+        "Success Metrics",
+        "Structure product success metrics and measurement assumptions.",
+        ("Source Links", "Metrics", "Measurement", "Targets", "Open Questions"),
+        "success metrics, measurement assumptions, and targets",
+    ),
+}
+PRODUCT_CHAPTER_CHOICES = tuple(PRODUCT_SCAFFOLD_BY_KEY)
+
 
 def scaffold_design(root: Path) -> ScaffoldResult:
     root = root.resolve()
@@ -214,6 +260,59 @@ def scaffold_design(root: Path) -> ScaffoldResult:
             result.created.append(spec.path)
         if _ensure_index(root, spec):
             result.indexed.append(spec.path)
+    return result
+
+
+def scaffold_product(root: Path, chapters: list[str] | tuple[str, ...]) -> ScaffoldResult:
+    root = root.resolve()
+    gate = evaluate_gate(root, "product-structuring")
+    if not gate.ok:
+        return ScaffoldResult(
+            scaffold="product",
+            target=str(root),
+            ok=False,
+            errors=["product-structuring gate failed"],
+            gate=gate.to_dict(),
+        )
+    if not chapters:
+        return ScaffoldResult(
+            scaffold="product",
+            target=str(root),
+            ok=False,
+            errors=["at least one product chapter must be selected"],
+            gate=gate.to_dict(),
+        )
+
+    unknown = [chapter for chapter in chapters if chapter not in PRODUCT_SCAFFOLD_BY_KEY]
+    if unknown:
+        return ScaffoldResult(
+            scaffold="product",
+            target=str(root),
+            ok=False,
+            errors=[f"unknown product chapter: {chapter}" for chapter in unknown],
+            gate=gate.to_dict(),
+        )
+
+    result = ScaffoldResult(scaffold="product", target=str(root), ok=True, gate=gate.to_dict())
+    seen: set[str] = set()
+    for chapter in chapters:
+        if chapter in seen:
+            continue
+        seen.add(chapter)
+        spec = PRODUCT_SCAFFOLD_BY_KEY[chapter]
+        path = root / spec.path
+        if path.exists():
+            result.skipped.append(spec.path)
+        else:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(_render_spec(spec), encoding="utf-8")
+            result.created.append(spec.path)
+        if _ensure_index(root, spec):
+            result.indexed.append(spec.path)
+        if _ensure_product_meta_link(root, spec):
+            product_meta = "docs/product/core/product-meta.md"
+            if product_meta not in result.indexed:
+                result.indexed.append(product_meta)
     return result
 
 
@@ -255,6 +354,18 @@ def _render_spec(spec: ScaffoldSpec) -> str:
 
 def _section_lines(path: str, section: str) -> list[str]:
     key = (path, section)
+    if path.startswith("docs/product/") and section == "Source Links":
+        return ["- [PRD](core/PRD.md)"]
+    if key == ("docs/product/08-acceptance-criteria.md", "Acceptance Criteria"):
+        return [
+            "Document only source-backed acceptance criteria.",
+            "",
+            "### A-NNN Criterion Title",
+            "",
+            "- Replace with a product-defined, testable criterion.",
+        ]
+    if path.startswith("docs/product/") and section == "Open Questions":
+        return ["- Register blocking ambiguity in [unresolved](../unresolved.md) instead of guessing."]
     if key == ("docs/tests/02-acceptance-matrix.md", "Matrix"):
         return [
             "| Acceptance | Design | API | Test |",
@@ -302,4 +413,24 @@ def _ensure_index(root: Path, spec: ScaffoldSpec) -> bool:
         text = text.rstrip() + "\n\n## Index\n"
     text = text.rstrip() + f"\n\n- `{filename}` - {spec.index_description}\n"
     readme.write_text(text, encoding="utf-8")
+    return True
+
+
+def _ensure_product_meta_link(root: Path, spec: ScaffoldSpec) -> bool:
+    path = root / spec.path
+    if not path.as_posix().startswith(str(root / "docs/product")):
+        return False
+    meta = root / "docs/product/core/product-meta.md"
+    meta.parent.mkdir(parents=True, exist_ok=True)
+    if meta.exists():
+        text = meta.read_text(encoding="utf-8")
+    else:
+        text = "# Product Meta\n\n## Chapter Map\n"
+    rel_link = f"../{path.name}"
+    if rel_link in text:
+        return False
+    if "## Chapter Map" not in text:
+        text = text.rstrip() + "\n\n## Chapter Map\n"
+    text = text.rstrip() + f"\n\n- [{spec.title}]({rel_link})\n"
+    meta.write_text(text, encoding="utf-8")
     return True
