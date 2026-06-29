@@ -30,12 +30,15 @@ bin/governance advance implementation <target> --json
 Use `verify --json` `findings[].code` and `findings[].path` for deterministic repair routing. Use `errors` and `warnings` only for human-facing summaries.
 Use `gate --json` `requirements[].code` for phase-transition repair routing; `verification.findings[]` contains the embedded structural verification result.
 Use `advance --json` when the phase should be recorded in `.governance/state.json`.
+Treat gate requirement `product_import_ready` as a product-archiving blocker: finish product conversion, run `bin/governance product mark-ready <target> --reviewed --method manual-reviewed-markdown --json`, or repair `docs/product/core/source/source-manifest.json` by the embedded verification findings.
 Treat gate requirement `product_acceptance_chapter_present` as a product-structuring blocker: create a sourced `NN-*acceptance*.md` product chapter or register the missing acceptance criteria as unresolved.
 Treat gate requirement `acceptance_matrix_present` as an implementation-readiness blocker: create and index `docs/tests/02-acceptance-matrix.md` before marking tasks Ready for implementation.
 Treat gate requirements `ui_docs_present` and `frontend_docs_present` as design-derivation blockers: complete and index `docs/ui/` and `docs/frontend/` design documents before implementation handoff.
 Treat standard handoff `*_present` gate requirements as implementation-readiness blockers: create and index the exact reported `path` before implementation handoff.
 Treat gate requirement `api_endpoint_contract_present` as an API-contract blocker: create at least one indexed `docs/api/endpoints/NN-<slug>.md` endpoint contract.
-Treat `governance_scaffold_placeholder` as a design-authoring blocker, not a formatting issue.
+Treat `product_source_missing`, `product_source_archive_missing`, `product_source_hash_mismatch`, `product_source_manifest_*`, `product_source_import_status_invalid`, and `product_source_import_inconsistent` as product-archiving blockers: repair the source archive and manifest before deriving product structure.
+Treat `product_source_conversion_required` as a product-archiving blocker: replace the PRD conversion wrapper with reviewed Markdown and use `bin/governance product mark-ready <target> --reviewed --method manual-reviewed-markdown --json`.
+Treat `governance_scaffold_placeholder` as an authoring blocker, not a formatting issue. If `path` starts with `docs/product/`, replace it with PRD-derived product content before design derivation; otherwise replace it with product-derived design, test, or planning content before implementation handoff.
 Treat `workflow_pack_file_hash_mismatch` and `workflow_pack_file_missing` as workflow-pack integrity blockers.
 Treat `docs_local_markdown_link_missing` as a document-integrity blocker: repair the link or create/index the referenced Markdown file.
 Treat `product_chapter_invalid_filename`, `product_chapter_duplicate_prefix`, `product_chapter_missing_prd_link`, and `product_meta_missing_chapter_link` as product-structuring blockers.
