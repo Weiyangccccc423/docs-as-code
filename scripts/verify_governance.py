@@ -48,6 +48,30 @@ ADR_DECISION_RE = re.compile(r"^(?P<prefix>[0-9]{3})-[a-z0-9][a-z0-9-]*\.md$")
 SCAFFOLD_PLACEHOLDER = "governance:scaffold-placeholder"
 WORKFLOW_PACK_SNAPSHOT_ROOT = "docs/agent-workflow/workflow-pack"
 RUNTIME_MANIFEST_REL = Path("docs/agent-workflow/runtime-manifest.json")
+RUNTIME_REQUIRED_BIN_FILES = (
+    "governance",
+    "governance-init",
+    "governance-verify",
+)
+RUNTIME_REQUIRED_SCRIPT_FILES = (
+    "__init__.py",
+    "bootstrap_tree.py",
+    "check_env.py",
+    "gates.py",
+    "governance_cli.py",
+    "phases.py",
+    "product_import.py",
+    "scaffold.py",
+    "state.py",
+    "verify_governance.py",
+)
+RUNTIME_REQUIRED_PATHS = tuple(
+    sorted(
+        [Path("bin") / name for name in RUNTIME_REQUIRED_BIN_FILES]
+        + [Path("scripts") / name for name in RUNTIME_REQUIRED_SCRIPT_FILES],
+        key=lambda path: path.as_posix(),
+    )
+)
 ROADMAP_REL = Path("docs/development/01-roadmap.md")
 ROADMAP_REQUIRED_SECTIONS = {
     "product links": "Product Links",
@@ -2047,6 +2071,7 @@ def _check_runtime_manifest(root: Path, report: VerificationReport) -> None:
     if not isinstance(files, list):
         report.add_error("runtime_manifest_invalid_schema", "invalid runtime manifest: files must be a list", manifest_rel)
         return
+    listed_paths: set[str] = set()
     for item in files:
         if not isinstance(item, dict):
             report.add_error("runtime_manifest_invalid_schema", "invalid runtime manifest: file entry must be an object", manifest_rel)
@@ -2056,6 +2081,7 @@ def _check_runtime_manifest(root: Path, report: VerificationReport) -> None:
         if not isinstance(rel, str) or not rel or Path(rel).is_absolute() or ".." in Path(rel).parts:
             report.add_error("runtime_manifest_invalid_path", f"invalid runtime file path: {rel}", manifest_rel)
             continue
+        listed_paths.add(rel)
         path = root / rel
         if not path.exists():
             report.add_error("runtime_file_missing", f"runtime file is missing: {rel}", rel)
@@ -2065,6 +2091,14 @@ def _check_runtime_manifest(root: Path, report: VerificationReport) -> None:
             continue
         if _sha256(path) != expected_hash:
             report.add_error("runtime_file_hash_mismatch", f"runtime file hash mismatch: {rel}", rel)
+    for required_path in RUNTIME_REQUIRED_PATHS:
+        rel = required_path.as_posix()
+        if rel not in listed_paths:
+            report.add_error(
+                "runtime_manifest_required_file_missing",
+                f"runtime manifest is missing required file entry: {rel}",
+                manifest_rel,
+            )
 
 
 def _check_workflow_pack_manifest(root: Path, report: VerificationReport) -> None:

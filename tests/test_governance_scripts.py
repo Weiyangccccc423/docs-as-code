@@ -627,6 +627,41 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_rejects_missing_required_runtime_manifest_entry(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            manifest_path = root / "docs/agent-workflow/runtime-manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["files"] = [
+                item
+                for item in manifest["files"]
+                if item["path"] != "scripts/scaffold.py"
+            ]
+            manifest_path.write_text(
+                json.dumps(manifest, indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "runtime manifest is missing required file entry: scripts/scaffold.py",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "runtime_manifest_required_file_missing",
+                    "severity": "error",
+                    "path": "docs/agent-workflow/runtime-manifest.json",
+                    "message": "runtime manifest is missing required file entry: scripts/scaffold.py",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_rejects_invalid_product_import_status(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
