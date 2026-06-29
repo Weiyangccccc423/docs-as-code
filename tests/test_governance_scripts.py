@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from scripts.check_env import PackageManager, ToolStatus, build_install_plan
+from scripts.check_env import PackageManager, ToolStatus, build_install_plan, environment_ok, missing_tools_by_level
 from scripts.bootstrap_tree import InitPreflightError
 from scripts.bootstrap_tree import bootstrap
 from scripts.verify_governance import verify
@@ -5391,6 +5391,46 @@ class GovernanceScriptsTest(unittest.TestCase):
 
         self.assertEqual(["git"], [item.tool for item in non_strict])
         self.assertEqual(["git", "pandoc"], [item.tool for item in strict])
+
+    def test_environment_ok_requires_required_tools_and_strict_recommended_tools(self) -> None:
+        statuses = [
+            ToolStatus(
+                name="git",
+                present=False,
+                version="",
+                note="Required",
+                level="required",
+                install_package="git",
+            ),
+            ToolStatus(
+                name="pandoc",
+                present=False,
+                version="",
+                note="Recommended",
+                level="recommended",
+                install_package="pandoc",
+            ),
+        ]
+
+        self.assertFalse(environment_ok(statuses, strict=False))
+        self.assertFalse(environment_ok(statuses, strict=True))
+        self.assertEqual(["git"], missing_tools_by_level(statuses, "required"))
+        self.assertEqual(["pandoc"], missing_tools_by_level(statuses, "recommended"))
+
+        required_present = [
+            ToolStatus(
+                name="git",
+                present=True,
+                version="git version 2",
+                note="Required",
+                level="required",
+                install_package="git",
+            ),
+            statuses[1],
+        ]
+
+        self.assertTrue(environment_ok(required_present, strict=False))
+        self.assertFalse(environment_ok(required_present, strict=True))
 
 
 if __name__ == "__main__":

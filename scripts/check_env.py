@@ -162,6 +162,16 @@ def build_install_plan(
     return items
 
 
+def missing_tools_by_level(statuses: list[ToolStatus], level: str) -> list[str]:
+    return [status.name for status in statuses if not status.present and status.level == level]
+
+
+def environment_ok(statuses: list[ToolStatus], strict: bool) -> bool:
+    if missing_tools_by_level(statuses, "required"):
+        return False
+    return not (strict and missing_tools_by_level(statuses, "recommended"))
+
+
 def apply_install_plan(
     plan: list[InstallPlanItem],
     package_manager: PackageManager,
@@ -306,7 +316,11 @@ def _git(target: Path, *args: str) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Check local tools used by the governance workflow pack.")
-    parser.add_argument("--strict", action="store_true", help="Return non-zero when recommended tools are missing.")
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Also return non-zero when recommended tools are missing; required tools always block.",
+    )
     parser.add_argument("--repair", action="store_true", help="Write a local environment repair plan.")
     parser.add_argument("--target", default=".", help="Target directory for repair artifacts.")
     args = parser.parse_args()
@@ -352,7 +366,7 @@ def main() -> int:
             )
         for result in install_results:
             print(f"Install command exited {result['returncode']}: {result['command']}")
-    return 1 if args.strict and missing else 0
+    return 0 if environment_ok(statuses, args.strict) else 1
 
 
 if __name__ == "__main__":

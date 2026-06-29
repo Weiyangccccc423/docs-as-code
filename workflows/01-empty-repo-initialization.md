@@ -22,6 +22,7 @@ Load:
    bin/governance env --repair --target <target> --json
    ```
 
+   Stop when `ok` is false. Missing required tools block initialization; rerun after repair.
    If `needs_escalation` is true, get approval before running the reported package-manager command outside the CLI.
 
 2. Run initialization preflight:

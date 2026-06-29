@@ -13,6 +13,8 @@ from check_env import (
     collect_status,
     collect_system_status,
     detect_package_manager,
+    environment_ok,
+    missing_tools_by_level,
     write_repair_plan,
 )
 from gates import GATE_NAMES, evaluate_gate
@@ -200,7 +202,9 @@ def _cmd_env(args: argparse.Namespace) -> int:
                 )
             for result in install_results:
                 print(f"Install command exited {result['returncode']}: {result['command']}")
-    ok = not (args.strict and missing)
+    missing_required = missing_tools_by_level(statuses, "required")
+    missing_recommended = missing_tools_by_level(statuses, "recommended")
+    ok = environment_ok(statuses, args.strict)
     if args.json:
         _print_json(
             {
@@ -208,6 +212,8 @@ def _cmd_env(args: argparse.Namespace) -> int:
                 "target": str(Path(args.target)),
                 "strict": args.strict,
                 "missing": missing,
+                "missing_required": missing_required,
+                "missing_recommended": missing_recommended,
                 "tools": _tool_status_payload(statuses),
                 "system": system.to_dict(),
                 "package_manager": package_manager.to_dict(),
@@ -307,7 +313,11 @@ def build_parser() -> argparse.ArgumentParser:
     status.set_defaults(func=_cmd_status)
 
     env = sub.add_parser("env", help="Check local workflow environment.")
-    env.add_argument("--strict", action="store_true")
+    env.add_argument(
+        "--strict",
+        action="store_true",
+        help="Also fail when recommended tools are missing; required tools always fail.",
+    )
     env.add_argument("--repair", action="store_true")
     env.add_argument("--target", default=".")
     env.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
