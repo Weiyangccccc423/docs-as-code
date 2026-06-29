@@ -43,6 +43,13 @@ ADR_REQUIRED_SECTIONS = {
 SCAFFOLD_PLACEHOLDER = "governance:scaffold-placeholder"
 WORKFLOW_PACK_SNAPSHOT_ROOT = "docs/agent-workflow/workflow-pack"
 ROADMAP_REL = Path("docs/development/01-roadmap.md")
+ROADMAP_REQUIRED_SECTIONS = {
+    "product links": "Product Links",
+    "milestones": "Milestones",
+    "sequencing": "Sequencing",
+    "risks": "Risks",
+    "deferred scope": "Deferred Scope",
+}
 PRODUCT_CHAPTER_RE = re.compile(r"^(?P<prefix>[0-9]{2})-[a-z0-9][a-z0-9-]*\.md$")
 API_ENDPOINT_CONTRACT_RE = re.compile(r"^(?P<prefix>[0-9]{2})-[a-z0-9][a-z0-9-]*\.md$")
 API_ENDPOINT_REQUIRED_SECTIONS = {
@@ -320,6 +327,7 @@ def verify(root: Path) -> VerificationReport:
     _check_scaffold_placeholders(root, report)
     _check_workflow_pack_manifest(root, report)
     _check_task_board(root, report)
+    _check_roadmap(root, report)
     _check_roadmap_task_board_status(root, report)
 
     return report
@@ -1919,6 +1927,62 @@ def _check_task_board(root: Path, report: VerificationReport) -> None:
             ready_count += 1
     if ready_count == 0:
         report.add_error("task_board_ready_task_missing", f"{rel} must contain at least one Ready task", rel)
+
+
+def _check_roadmap(root: Path, report: VerificationReport) -> None:
+    path = root / ROADMAP_REL
+    rel = ROADMAP_REL.as_posix()
+    if not path.exists():
+        return
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return
+    if SCAFFOLD_PLACEHOLDER in text:
+        return
+
+    sections = _markdown_sections(text, min_level=2)
+    missing = [
+        label
+        for key, label in ROADMAP_REQUIRED_SECTIONS.items()
+        if key not in sections
+    ]
+    if missing:
+        report.add_error(
+            "roadmap_missing_sections",
+            f"{rel} is missing roadmap sections: {', '.join(missing)}",
+            rel,
+        )
+        return
+    empty = [
+        label
+        for key, label in ROADMAP_REQUIRED_SECTIONS.items()
+        if not _section_has_authored_content(sections[key])
+    ]
+    if empty:
+        report.add_error(
+            "roadmap_empty_sections",
+            f"{rel} has empty roadmap sections: {', '.join(empty)}",
+            rel,
+        )
+
+    references = _local_markdown_references(root, path, text, include_bare=True, strip_code=False)
+    _check_design_reference_group(
+        report,
+        rel,
+        references,
+        "roadmap_trace_reference_missing",
+        "Product",
+        _is_product_scope_reference,
+    )
+    _check_design_reference_group(
+        report,
+        rel,
+        references,
+        "roadmap_trace_reference_missing",
+        "Acceptance",
+        _is_product_acceptance_reference_path,
+    )
 
 
 def _check_roadmap_task_board_status(root: Path, report: VerificationReport) -> None:

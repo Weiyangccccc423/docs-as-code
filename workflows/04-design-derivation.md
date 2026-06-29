@@ -67,9 +67,10 @@ Load according to the design track:
    - error action map
 9. Create or complete `docs/tests/01-strategy.md` from product acceptance, API contracts, and architecture/backend/frontend design risks.
 10. Create or complete `docs/tests/02-acceptance-matrix.md` with `Acceptance`, `Design`, `API`, and `Test` columns.
-11. Create ADRs in `docs/decisions/` for cross-module or high-cost decisions.
-12. Keep all design documents linked to product and acceptance sources.
-13. Update the same-directory `README.md` for every new Markdown document, except underscore-prefixed templates such as `_template.md`.
+11. Create or complete `docs/development/01-roadmap.md` with product links, milestones, sequencing, risks, and deferred scope.
+12. Create ADRs in `docs/decisions/` for cross-module or high-cost decisions.
+13. Keep all design and planning documents linked to product and acceptance sources.
+14. Update the same-directory `README.md` for every new Markdown document, except underscore-prefixed templates such as `_template.md`.
 
 ## Output
 
@@ -100,6 +101,7 @@ Design documents sufficient for creating a task board without guessing product m
 - `docs/frontend/02-api-consumption.md` has non-placeholder Product Links, API Links, Consumption Map, Loading States, and Error Actions sections, and links to frontend modules, API docs, and product acceptance criteria.
 - `docs/tests/01-strategy.md` has non-placeholder Product Links, Acceptance Links, Test Layers, Risk Coverage, and Non-Functional Checks sections, and links to product acceptance criteria, API docs, and architecture/backend/frontend design docs.
 - `docs/tests/02-acceptance-matrix.md` maps acceptance criteria to design, API, and test sources with local Markdown links.
+- `docs/development/01-roadmap.md` has non-placeholder Product Links, Milestones, Sequencing, Risks, and Deferred Scope sections, and links to product scope plus product acceptance criteria.
 - ADRs have context, decision, consequences, and references.
 - ADR `References` sections link to existing local Markdown source documents.
 - Each non-template Markdown document is indexed by the README in the same directory.

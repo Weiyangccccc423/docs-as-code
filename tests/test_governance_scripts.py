@@ -351,6 +351,27 @@ def _acceptance_matrix_doc(
     )
 
 
+def _roadmap_doc(
+    status: str = "Ready",
+    product_links: str = "[PRD](../product/core/PRD.md), [Acceptance](../product/08-acceptance-criteria.md)",
+) -> str:
+    return (
+        "# Roadmap\n\n"
+        "## Product Links\n\n"
+        f"- {product_links}\n\n"
+        "## Milestones\n\n"
+        "| ID | Status | Milestone |\n"
+        "| --- | --- | --- |\n"
+        f"| TASK-001 | {status} | Goal flow |\n\n"
+        "## Sequencing\n\n"
+        "- Implement product goal flow foundations before deferred refinements.\n\n"
+        "## Risks\n\n"
+        "- API, backend, frontend, and test work must stay aligned to acceptance criteria.\n\n"
+        "## Deferred Scope\n\n"
+        "- none\n"
+    )
+
+
 def _test_strategy_doc(
     acceptance: str = "[Acceptance](../product/08-acceptance-criteria.md)",
     api: str = "[API conventions](../api/00-conventions.md)",
@@ -4020,10 +4041,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             _write_indexed_doc(
                 root,
                 "docs/development/01-roadmap.md",
-                "# Roadmap\n\n"
-                "| ID | Status | Milestone |\n"
-                "| --- | --- | --- |\n"
-                "| TASK-001 | Done | Goal flow |\n",
+                _roadmap_doc(status="Done"),
             )
 
             task_board = root / "docs/development/02-task-board.md"
@@ -4049,6 +4067,134 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_roadmap_missing_required_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(
+                root,
+                "docs/development/01-roadmap.md",
+                "# Roadmap\n\n"
+                "## Product Links\n\n"
+                "- [PRD](../product/core/PRD.md)\n",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/development/01-roadmap.md is missing roadmap sections: "
+                "Milestones, Sequencing, Risks, Deferred Scope",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "roadmap_missing_sections",
+                    "severity": "error",
+                    "path": "docs/development/01-roadmap.md",
+                    "message": "docs/development/01-roadmap.md is missing roadmap sections: "
+                    "Milestones, Sequencing, Risks, Deferred Scope",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_roadmap_empty_required_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(
+                root,
+                "docs/development/01-roadmap.md",
+                _roadmap_doc().replace(
+                    "## Risks\n\n"
+                    "- API, backend, frontend, and test work must stay aligned to acceptance criteria.\n\n",
+                    "## Risks\n\n- TBD\n\n",
+                ),
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/development/01-roadmap.md has empty roadmap sections: Risks",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "roadmap_empty_sections",
+                    "severity": "error",
+                    "path": "docs/development/01-roadmap.md",
+                    "message": "docs/development/01-roadmap.md has empty roadmap sections: Risks",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_roadmap_missing_trace_references(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(
+                root,
+                "docs/development/01-roadmap.md",
+                _roadmap_doc(product_links="Product scope and acceptance criteria"),
+            )
+
+            report = verify(root)
+
+            expected = [
+                "docs/development/01-roadmap.md must reference existing Product docs",
+                "docs/development/01-roadmap.md must reference a product acceptance chapter",
+            ]
+            for message in expected:
+                self.assertIn(message, report.errors)
+            self.assertIn(
+                {
+                    "code": "roadmap_trace_reference_missing",
+                    "severity": "error",
+                    "path": "docs/development/01-roadmap.md",
+                    "message": "docs/development/01-roadmap.md must reference existing Product docs",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_roadmap_missing_trace_targets(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(
+                root,
+                "docs/development/01-roadmap.md",
+                _roadmap_doc(
+                    product_links="[Missing scope](../product/01-goals.md), "
+                    "[Acceptance](../product/08-acceptance-criteria.md)"
+                ),
+            )
+
+            report = verify(root)
+
+            expected = [
+                "docs/development/01-roadmap.md references missing Product target: docs/product/01-goals.md",
+                "docs/development/01-roadmap.md references missing Acceptance target: docs/product/08-acceptance-criteria.md",
+            ]
+            for message in expected:
+                self.assertIn(message, report.errors)
+            self.assertIn(
+                {
+                    "code": "roadmap_trace_reference_missing",
+                    "severity": "error",
+                    "path": "docs/development/01-roadmap.md",
+                    "message": "docs/development/01-roadmap.md references missing Product target: docs/product/01-goals.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_allows_matching_roadmap_task_status(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -4064,10 +4210,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             _write_indexed_doc(
                 root,
                 "docs/development/01-roadmap.md",
-                "# Roadmap\n\n"
-                "| ID | Status | Milestone |\n"
-                "| --- | --- | --- |\n"
-                "| TASK-001 | Ready | Goal flow |\n",
+                _roadmap_doc(status="Ready"),
             )
 
             task_board = root / "docs/development/02-task-board.md"

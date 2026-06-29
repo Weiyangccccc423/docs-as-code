@@ -38,6 +38,25 @@ def _api_conventions_doc() -> str:
     )
 
 
+def _roadmap_doc() -> str:
+    return (
+        "# Roadmap\n\n"
+        "## Product Links\n\n"
+        "- [Product goals](../product/01-goals.md)\n"
+        "- [Acceptance](../product/08-acceptance-criteria.md)\n\n"
+        "## Milestones\n\n"
+        "| ID | Status | Milestone |\n"
+        "| --- | --- | --- |\n"
+        "| TASK-001 | Ready | Goal flow |\n\n"
+        "## Sequencing\n\n"
+        "- Implement the product goal flow before deferred refinements.\n\n"
+        "## Risks\n\n"
+        "- API, backend, frontend, and tests must stay aligned to acceptance criteria.\n\n"
+        "## Deferred Scope\n\n"
+        "- none\n"
+    )
+
+
 def _backend_external_services_doc() -> str:
     return (
         "# External Services\n\n"
@@ -680,6 +699,10 @@ class GovernanceCliTest(unittest.TestCase):
             )
             (target / "docs/tests/01-strategy.md").write_text(
                 _test_strategy_doc(),
+                encoding="utf-8",
+            )
+            (target / "docs/development/01-roadmap.md").write_text(
+                _roadmap_doc(),
                 encoding="utf-8",
             )
             (target / "docs/backend/01-modules.md").write_text(

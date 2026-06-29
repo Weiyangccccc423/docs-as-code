@@ -59,6 +59,7 @@ Treat `acceptance_matrix_*` findings as acceptance-traceability blockers: make `
 Treat `adr_missing_sections`, `adr_empty_sections`, and `adr_reference_missing` as ADR completeness blockers: add Context, Decision, Consequences, and References with local Markdown source links.
 Treat `glossary_*` findings as product-terminology blockers: fill required fields, remove duplicate terms, or link `Source` to existing local Markdown.
 Treat `unresolved_row_missing_fields` and `unresolved_duplicate_id` as ambiguity-registry blockers.
+Treat `roadmap_missing_sections`, `roadmap_empty_sections`, and `roadmap_trace_reference_missing` as delivery-planning blockers: complete Product Links, Milestones, Sequencing, Risks, and Deferred Scope in `docs/development/01-roadmap.md`, and link to product scope plus product acceptance criteria.
 Treat `roadmap_task_status_conflict` as a delivery-planning blocker.
 Treat `task_board_*` findings as implementation-readiness blockers.
 Treat `task_board_invalid_status` as a task-routing blocker: normalize the row to the standard status vocabulary before implementation.
@@ -114,6 +115,7 @@ make ci
 - glossary rows have unique `Term` values and filled `Meaning` and `Source` fields; `Source` links to existing local Markdown
 - unresolved rows have unique IDs and filled `Domain` and `Description`
 - unresolved items use `none`, `-`, `n/a`, `non-blocking`, or `resolved` for non-blocking scope; any other `Blocking Scope` fails verification
+- `docs/development/01-roadmap.md` has non-placeholder Product Links, Milestones, Sequencing, Risks, and Deferred Scope sections, and links to product scope plus product acceptance criteria
 - roadmap tables with `ID` and `Status` columns agree with same-ID task board statuses
 - implementation tasks use `ID`, `Status`, `Task`, `Product`, `Design`, `API`, `Acceptance`, and `Verification`
 - task board `Status` values are `Backlog`, `Ready`, `In Progress`, `Blocked`, `Done`, or `Deferred`
