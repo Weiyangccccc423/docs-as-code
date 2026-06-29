@@ -47,6 +47,32 @@ ADR_REQUIRED_SECTIONS = {
 ADR_DECISION_RE = re.compile(r"^(?P<prefix>[0-9]{3})-[a-z0-9][a-z0-9-]*\.md$")
 SCAFFOLD_PLACEHOLDER = "governance:scaffold-placeholder"
 WORKFLOW_PACK_SNAPSHOT_ROOT = "docs/agent-workflow/workflow-pack"
+WORKFLOW_PACK_REQUIRED_PATHS = (
+    "README.md",
+    "references/architecture-methods.md",
+    "references/backend-design-checklist.md",
+    "references/community-practices.md",
+    "references/runtime-strategy.md",
+    "skills/archiving-product-document/SKILL.md",
+    "skills/capturing-architecture-decisions/SKILL.md",
+    "skills/designing-api-contracts/SKILL.md",
+    "skills/designing-backend-modules/SKILL.md",
+    "skills/designing-data-models/SKILL.md",
+    "skills/designing-system-architecture/SKILL.md",
+    "skills/initializing-governance-repo/SKILL.md",
+    "skills/structuring-product-requirements/SKILL.md",
+    "skills/using-governance-workflow/SKILL.md",
+    "skills/verifying-governance-docs/SKILL.md",
+    "templates/docs/decisions/ADR-template.md",
+    "templates/docs/product/core/PRD.md",
+    "templates/root/README.md",
+    "workflows/00-overview.md",
+    "workflows/01-empty-repo-initialization.md",
+    "workflows/02-product-document-archiving.md",
+    "workflows/03-product-structuring.md",
+    "workflows/04-design-derivation.md",
+    "workflows/05-verification-and-drift-control.md",
+)
 RUNTIME_MANIFEST_REL = Path("docs/agent-workflow/runtime-manifest.json")
 RUNTIME_REQUIRED_BIN_FILES = (
     "governance",
@@ -2117,6 +2143,7 @@ def _check_workflow_pack_manifest(root: Path, report: VerificationReport) -> Non
         report.add_error("workflow_pack_manifest_invalid_schema", "invalid workflow pack manifest: files must be a list", manifest_rel)
         return
     snapshot_root = root / WORKFLOW_PACK_SNAPSHOT_ROOT
+    listed_paths: set[str] = set()
     for item in files:
         if not isinstance(item, dict):
             report.add_error("workflow_pack_manifest_invalid_schema", "invalid workflow pack manifest: file entry must be an object", manifest_rel)
@@ -2126,6 +2153,7 @@ def _check_workflow_pack_manifest(root: Path, report: VerificationReport) -> Non
         if not isinstance(rel, str) or not rel or Path(rel).is_absolute() or ".." in Path(rel).parts:
             report.add_error("workflow_pack_manifest_invalid_path", f"invalid workflow pack file path: {rel}", manifest_rel)
             continue
+        listed_paths.add(rel)
         path = snapshot_root / rel
         file_rel = f"{WORKFLOW_PACK_SNAPSHOT_ROOT}/{rel}"
         if not path.exists():
@@ -2136,6 +2164,14 @@ def _check_workflow_pack_manifest(root: Path, report: VerificationReport) -> Non
             continue
         if _sha256(path) != expected_hash:
             report.add_error("workflow_pack_file_hash_mismatch", f"workflow pack file hash mismatch: {file_rel}", file_rel)
+    for rel in WORKFLOW_PACK_REQUIRED_PATHS:
+        if rel not in listed_paths:
+            file_rel = f"{WORKFLOW_PACK_SNAPSHOT_ROOT}/{rel}"
+            report.add_error(
+                "workflow_pack_manifest_required_file_missing",
+                f"workflow pack manifest is missing required file entry: {file_rel}",
+                manifest_rel,
+            )
 
 
 def task_board_ready_tasks(root: Path) -> list[dict[str, str]]:

@@ -584,6 +584,45 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_rejects_missing_required_workflow_pack_manifest_entry(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            manifest_path = root / "docs/agent-workflow/workflow-pack/manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["files"] = [
+                item
+                for item in manifest["files"]
+                if item["path"] != "workflows/00-overview.md"
+            ]
+            manifest_path.write_text(
+                json.dumps(manifest, indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "workflow pack manifest is missing required file entry: "
+                "docs/agent-workflow/workflow-pack/workflows/00-overview.md",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "workflow_pack_manifest_required_file_missing",
+                    "severity": "error",
+                    "path": "docs/agent-workflow/workflow-pack/manifest.json",
+                    "message": (
+                        "workflow pack manifest is missing required file entry: "
+                        "docs/agent-workflow/workflow-pack/workflows/00-overview.md"
+                    ),
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_non_markdown_product_requires_conversion_before_verification_passes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
