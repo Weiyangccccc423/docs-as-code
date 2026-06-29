@@ -91,7 +91,7 @@ def _api_changelog_doc() -> str:
 def _write_frontend_consumer_doc(root: Path) -> None:
     _write_acceptance_chapter(root)
     _write_indexed_doc(root, "docs/api/00-conventions.md", _api_conventions_doc())
-    _write_indexed_doc(root, "docs/ui/01-interaction-model.md", "# Interaction Model\n")
+    _write_indexed_doc(root, "docs/ui/01-interaction-model.md", _ui_interaction_model_doc())
     _write_indexed_doc(root, "docs/frontend/01-modules.md", _frontend_modules_doc())
     _write_indexed_doc(
         root,
@@ -109,7 +109,7 @@ def _write_backend_trace_docs(root: Path) -> None:
 
 
 def _write_frontend_trace_docs(root: Path) -> None:
-    _write_indexed_doc(root, "docs/ui/01-interaction-model.md", "# Interaction Model\n")
+    _write_indexed_doc(root, "docs/ui/01-interaction-model.md", _ui_interaction_model_doc())
     _write_indexed_doc(root, "docs/api/00-conventions.md", _api_conventions_doc())
     _write_indexed_doc(root, "docs/frontend/02-api-consumption.md", _frontend_api_consumption_doc())
     _write_acceptance_chapter(root)
@@ -289,6 +289,27 @@ def _frontend_modules_doc(
         f"- Goal flow routes call APIs defined by {api}.\n\n"
         "## Open Decisions\n\n"
         "- none\n"
+    )
+
+
+def _ui_interaction_model_doc(
+    product_links: str = "[PRD](../product/core/PRD.md), [Acceptance](../product/08-acceptance-criteria.md)",
+) -> str:
+    return (
+        "# Interaction Model\n\n"
+        "## Product Links\n\n"
+        f"- {product_links}\n\n"
+        "## Primary Flows\n\n"
+        "- The primary goal flow lets an authenticated user create and review workflow items.\n\n"
+        "## Screens\n\n"
+        "- Goal list screen shows current workflow items and entry points.\n"
+        "- Goal detail screen shows the selected item and available actions.\n\n"
+        "## States\n\n"
+        "- Empty, loading, success, validation error, and retryable failure states are explicit.\n\n"
+        "## Errors\n\n"
+        "- User-correctable errors map to visible correction actions.\n\n"
+        "## Accessibility\n\n"
+        "- Primary actions remain keyboard reachable and screen-reader labelled.\n"
     )
 
 
@@ -2254,6 +2275,147 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_allows_complete_ui_interaction_model(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(root, "docs/ui/01-interaction-model.md", _ui_interaction_model_doc())
+
+            report = verify(root)
+
+            self.assertEqual([], report.errors)
+
+    def test_verify_reports_ui_interaction_model_missing_required_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(
+                root,
+                "docs/ui/01-interaction-model.md",
+                "# Interaction Model\n\n"
+                "## Product Links\n\n"
+                "- [PRD](../product/core/PRD.md)\n",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/ui/01-interaction-model.md is missing UI interaction sections: "
+                "Primary Flows, Screens, States, Errors, Accessibility",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "ui_interaction_model_missing_sections",
+                    "severity": "error",
+                    "path": "docs/ui/01-interaction-model.md",
+                    "message": "docs/ui/01-interaction-model.md is missing UI interaction sections: "
+                    "Primary Flows, Screens, States, Errors, Accessibility",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_ui_interaction_model_empty_required_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(
+                root,
+                "docs/ui/01-interaction-model.md",
+                _ui_interaction_model_doc().replace(
+                    "## Errors\n\n"
+                    "- User-correctable errors map to visible correction actions.\n\n",
+                    "## Errors\n\n- TBD\n\n",
+                ),
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/ui/01-interaction-model.md has empty UI interaction sections: Errors",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "ui_interaction_model_empty_sections",
+                    "severity": "error",
+                    "path": "docs/ui/01-interaction-model.md",
+                    "message": "docs/ui/01-interaction-model.md has empty UI interaction sections: Errors",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_ui_interaction_model_missing_trace_references(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(
+                root,
+                "docs/ui/01-interaction-model.md",
+                _ui_interaction_model_doc("Product scope and acceptance criteria"),
+            )
+
+            report = verify(root)
+
+            expected = [
+                "docs/ui/01-interaction-model.md must reference existing Product docs",
+                "docs/ui/01-interaction-model.md must reference a product acceptance chapter",
+            ]
+            for message in expected:
+                self.assertIn(message, report.errors)
+            self.assertIn(
+                {
+                    "code": "ui_interaction_model_trace_reference_missing",
+                    "severity": "error",
+                    "path": "docs/ui/01-interaction-model.md",
+                    "message": "docs/ui/01-interaction-model.md must reference existing Product docs",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_ui_interaction_model_missing_trace_targets(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(
+                root,
+                "docs/ui/01-interaction-model.md",
+                _ui_interaction_model_doc(
+                    "[Missing scope](../product/01-goals.md), "
+                    "[Acceptance](../product/08-acceptance-criteria.md)"
+                ),
+            )
+
+            report = verify(root)
+
+            expected = [
+                "docs/ui/01-interaction-model.md references missing Product target: docs/product/01-goals.md",
+                "docs/ui/01-interaction-model.md references missing Acceptance target: docs/product/08-acceptance-criteria.md",
+            ]
+            for message in expected:
+                self.assertIn(message, report.errors)
+            self.assertIn(
+                {
+                    "code": "ui_interaction_model_trace_reference_missing",
+                    "severity": "error",
+                    "path": "docs/ui/01-interaction-model.md",
+                    "message": "docs/ui/01-interaction-model.md references missing Product target: docs/product/01-goals.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_allows_traceable_frontend_module_design(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -2417,7 +2579,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             bootstrap(root, product)
             _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/api/00-conventions.md", _api_conventions_doc())
-            _write_indexed_doc(root, "docs/ui/01-interaction-model.md", "# Interaction Model\n")
+            _write_indexed_doc(root, "docs/ui/01-interaction-model.md", _ui_interaction_model_doc())
             _write_indexed_doc(root, "docs/frontend/01-modules.md", _frontend_modules_doc())
             _write_indexed_doc(root, "docs/frontend/02-api-consumption.md", _frontend_api_consumption_doc())
 
@@ -2466,7 +2628,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             bootstrap(root, product)
             _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/api/00-conventions.md", _api_conventions_doc())
-            _write_indexed_doc(root, "docs/ui/01-interaction-model.md", "# Interaction Model\n")
+            _write_indexed_doc(root, "docs/ui/01-interaction-model.md", _ui_interaction_model_doc())
             _write_indexed_doc(root, "docs/frontend/01-modules.md", _frontend_modules_doc())
             _write_indexed_doc(
                 root,

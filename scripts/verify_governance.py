@@ -77,6 +77,15 @@ API_CHANGELOG_REQUIRED_SECTIONS = {
     "change log": "Change Log",
     "compatibility notes": "Compatibility Notes",
 }
+UI_INTERACTION_MODEL_REL = Path("docs/ui/01-interaction-model.md")
+UI_INTERACTION_MODEL_REQUIRED_SECTIONS = {
+    "product links": "Product Links",
+    "primary flows": "Primary Flows",
+    "screens": "Screens",
+    "states": "States",
+    "errors": "Errors",
+    "accessibility": "Accessibility",
+}
 ARCHITECTURE_SYSTEM_CONTEXT_REL = Path("docs/architecture/01-system-context.md")
 ARCHITECTURE_SYSTEM_CONTEXT_REQUIRED_SECTIONS = {
     "product links": "Product Links",
@@ -298,6 +307,7 @@ def verify(root: Path) -> VerificationReport:
     _check_backend_module_traceability(root, report)
     _check_backend_data_model(root, report)
     _check_backend_external_services(root, report)
+    _check_ui_interaction_model(root, report)
     _check_frontend_module_traceability(root, report)
     _check_frontend_api_consumption(root, report)
     _check_test_strategy_traceability(root, report)
@@ -1099,6 +1109,62 @@ def _check_backend_external_services(root: Path, report: VerificationReport) -> 
         rel,
         references,
         "backend_external_services_trace_reference_missing",
+        "Acceptance",
+        _is_product_acceptance_reference_path,
+    )
+
+
+def _check_ui_interaction_model(root: Path, report: VerificationReport) -> None:
+    path = root / UI_INTERACTION_MODEL_REL
+    rel = UI_INTERACTION_MODEL_REL.as_posix()
+    if not path.exists():
+        return
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return
+    if SCAFFOLD_PLACEHOLDER in text:
+        return
+
+    sections = _markdown_sections(text, min_level=2)
+    missing = [
+        label
+        for key, label in UI_INTERACTION_MODEL_REQUIRED_SECTIONS.items()
+        if key not in sections
+    ]
+    if missing:
+        report.add_error(
+            "ui_interaction_model_missing_sections",
+            f"{rel} is missing UI interaction sections: {', '.join(missing)}",
+            rel,
+        )
+        return
+    empty = [
+        label
+        for key, label in UI_INTERACTION_MODEL_REQUIRED_SECTIONS.items()
+        if not _section_has_authored_content(sections[key])
+    ]
+    if empty:
+        report.add_error(
+            "ui_interaction_model_empty_sections",
+            f"{rel} has empty UI interaction sections: {', '.join(empty)}",
+            rel,
+        )
+
+    references = _local_markdown_references(root, path, text, include_bare=True, strip_code=False)
+    _check_design_reference_group(
+        report,
+        rel,
+        references,
+        "ui_interaction_model_trace_reference_missing",
+        "Product",
+        _is_product_scope_reference,
+    )
+    _check_design_reference_group(
+        report,
+        rel,
+        references,
+        "ui_interaction_model_trace_reference_missing",
         "Acceptance",
         _is_product_acceptance_reference_path,
     )
