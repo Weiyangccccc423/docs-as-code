@@ -2110,6 +2110,9 @@ def _check_runtime_manifest(root: Path, report: VerificationReport) -> None:
         if not isinstance(rel, str) or not rel or Path(rel).is_absolute() or ".." in Path(rel).parts:
             report.add_error("runtime_manifest_invalid_path", f"invalid runtime file path: {rel}", manifest_rel)
             continue
+        if rel in listed_paths:
+            report.add_error("runtime_manifest_duplicate_path", f"duplicate runtime manifest path: {rel}", manifest_rel)
+            continue
         listed_paths.add(rel)
         path = root / rel
         if not path.exists():
@@ -2160,6 +2163,9 @@ def _check_workflow_pack_manifest(root: Path, report: VerificationReport) -> Non
         expected_hash = item.get("sha256")
         if not isinstance(rel, str) or not rel or Path(rel).is_absolute() or ".." in Path(rel).parts:
             report.add_error("workflow_pack_manifest_invalid_path", f"invalid workflow pack file path: {rel}", manifest_rel)
+            continue
+        if rel in listed_paths:
+            report.add_error("workflow_pack_manifest_duplicate_path", f"duplicate workflow pack manifest path: {rel}", manifest_rel)
             continue
         listed_paths.add(rel)
         path = snapshot_root / rel

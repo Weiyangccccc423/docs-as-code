@@ -623,6 +623,35 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_rejects_duplicate_workflow_pack_manifest_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            manifest_path = root / "docs/agent-workflow/workflow-pack/manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            duplicate = next(item for item in manifest["files"] if item["path"] == "workflows/00-overview.md")
+            manifest["files"].append(dict(duplicate))
+            manifest_path.write_text(
+                json.dumps(manifest, indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn("duplicate workflow pack manifest path: workflows/00-overview.md", report.errors)
+            self.assertIn(
+                {
+                    "code": "workflow_pack_manifest_duplicate_path",
+                    "severity": "error",
+                    "path": "docs/agent-workflow/workflow-pack/manifest.json",
+                    "message": "duplicate workflow pack manifest path: workflows/00-overview.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_rejects_unmanifested_workflow_pack_snapshot_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -715,6 +744,35 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "severity": "error",
                     "path": "bin/governance",
                     "message": "runtime file is not executable: bin/governance",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_rejects_duplicate_runtime_manifest_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            manifest_path = root / "docs/agent-workflow/runtime-manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            duplicate = next(item for item in manifest["files"] if item["path"] == "scripts/scaffold.py")
+            manifest["files"].append(dict(duplicate))
+            manifest_path.write_text(
+                json.dumps(manifest, indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn("duplicate runtime manifest path: scripts/scaffold.py", report.errors)
+            self.assertIn(
+                {
+                    "code": "runtime_manifest_duplicate_path",
+                    "severity": "error",
+                    "path": "docs/agent-workflow/runtime-manifest.json",
+                    "message": "duplicate runtime manifest path: scripts/scaffold.py",
                 },
                 [finding.to_dict() for finding in report.findings],
             )
