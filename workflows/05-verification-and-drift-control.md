@@ -64,7 +64,7 @@ Load:
    - no non-template Markdown files missing from their same-directory README
    - no explicit local Markdown link pointing to a missing file
    - product chapter filenames use `NN-<slug>.md` with unique `NN` prefixes
-   - a dedicated `NN-*acceptance*.md` product chapter exists before design derivation or implementation handoff and exposes stable `A-NNN` criteria IDs
+   - a dedicated `NN-*acceptance*.md` product chapter exists before design derivation or implementation handoff and exposes stable unique `A-NNN` criteria IDs
    - `docs/api/00-conventions.md` has non-placeholder Product Links, HTTP Conventions, Authentication, Idempotency, Compatibility, and Open Decisions sections, and links to product scope plus product acceptance criteria
    - `docs/api/error-codes.md` has non-placeholder Product Links, Error Taxonomy, Error Codes, Retry Semantics, and Frontend Handling sections, and links to product scope plus product acceptance criteria
    - `docs/api/changelog.md` has non-placeholder Change Log and Compatibility Notes sections

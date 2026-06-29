@@ -502,6 +502,7 @@ def _product_chapters(product_root: Path) -> list[Path]:
 
 
 def _check_product_acceptance_chapter_ids(root: Path, chapters: list[Path], report: VerificationReport) -> None:
+    seen_ids: dict[str, str] = {}
     for chapter in chapters:
         if "acceptance" not in chapter.stem.lower():
             continue
@@ -512,12 +513,24 @@ def _check_product_acceptance_chapter_ids(root: Path, chapters: list[Path], repo
             continue
         if SCAFFOLD_PLACEHOLDER in text:
             continue
-        if ACCEPTANCE_ID_RE.search(_strip_markdown_code(text)) is None:
+        content = _strip_markdown_code(text)
+        if ACCEPTANCE_ID_RE.search(content) is None:
             report.add_error(
                 "product_acceptance_missing_ids",
                 f"{rel} must define at least one A-NNN acceptance ID",
                 rel,
             )
+            continue
+        for acceptance_id in ACCEPTANCE_ID_RE.findall(content):
+            previous_rel = seen_ids.get(acceptance_id)
+            if previous_rel is not None:
+                report.add_error(
+                    "product_acceptance_duplicate_id",
+                    f"duplicate product acceptance ID {acceptance_id}: {rel} also defined in {previous_rel}",
+                    rel,
+                )
+                continue
+            seen_ids[acceptance_id] = rel
 
 
 def _check_api_endpoint_contract_filenames(root: Path, report: VerificationReport) -> None:

@@ -1103,6 +1103,39 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_duplicate_product_acceptance_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(
+                root,
+                "docs/product/09-secondary-acceptance.md",
+                "# Secondary Acceptance\n\n"
+                "Source: [PRD](core/PRD.md).\n\n"
+                "## A-001 Secondary Flow\n\n"
+                "- This repeats an existing acceptance ID.\n",
+            )
+            _append_product_meta_chapter(root, "09-secondary-acceptance.md")
+
+            report = verify(root)
+
+            self.assertIn(
+                "duplicate product acceptance ID A-001: docs/product/09-secondary-acceptance.md also defined in docs/product/08-acceptance-criteria.md",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "product_acceptance_duplicate_id",
+                    "severity": "error",
+                    "path": "docs/product/09-secondary-acceptance.md",
+                    "message": "duplicate product acceptance ID A-001: docs/product/09-secondary-acceptance.md also defined in docs/product/08-acceptance-criteria.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_allows_product_chapter_source_links(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

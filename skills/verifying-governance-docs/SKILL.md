@@ -36,6 +36,7 @@ Treat `workflow_pack_file_hash_mismatch` and `workflow_pack_file_missing` as wor
 Treat `docs_local_markdown_link_missing` as a document-integrity blocker: repair the link or create/index the referenced Markdown file.
 Treat `product_chapter_invalid_filename`, `product_chapter_duplicate_prefix`, `product_chapter_missing_prd_link`, and `product_meta_missing_chapter_link` as product-structuring blockers.
 Treat `product_acceptance_missing_ids` as a product-structuring blocker: assign stable `A-NNN` IDs inside the product acceptance chapter before deriving design.
+Treat `product_acceptance_duplicate_id` as a product-structuring blocker: keep each product acceptance `A-NNN` ID unique across acceptance chapters.
 Treat `api_conventions_missing_sections`, `api_conventions_empty_sections`, and `api_conventions_trace_reference_missing` as API-conventions blockers: complete Product Links, HTTP Conventions, Authentication, Idempotency, Compatibility, and Open Decisions in `docs/api/00-conventions.md`, and link to product scope plus product acceptance criteria.
 Treat `api_error_codes_missing_sections`, `api_error_codes_empty_sections`, and `api_error_codes_trace_reference_missing` as API error-registry blockers: complete Product Links, Error Taxonomy, Error Codes, Retry Semantics, and Frontend Handling in `docs/api/error-codes.md`, and link to product scope plus product acceptance criteria.
 Treat `api_changelog_missing_sections` and `api_changelog_empty_sections` as API changelog blockers: complete Change Log and Compatibility Notes in `docs/api/changelog.md`.
@@ -99,7 +100,7 @@ make ci
 - explicit local Markdown links resolve to existing files
 - product chapter filenames use `NN-<slug>.md` with unique `NN` prefixes
 - a dedicated `NN-*acceptance*.md` product chapter exists before design derivation
-- product acceptance criteria use stable `A-NNN` IDs
+- product acceptance criteria use stable unique `A-NNN` IDs
 - product chapters link back to `core/PRD.md`, and `product-meta.md` links to every product chapter
 - `docs/api/00-conventions.md` has non-placeholder Product Links, HTTP Conventions, Authentication, Idempotency, Compatibility, and Open Decisions sections, and links to product scope plus product acceptance criteria
 - `docs/api/error-codes.md` has non-placeholder Product Links, Error Taxonomy, Error Codes, Retry Semantics, and Frontend Handling sections, and links to product scope plus product acceptance criteria

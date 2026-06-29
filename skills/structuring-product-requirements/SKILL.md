@@ -33,7 +33,7 @@ Turn a preserved PRD into navigable product truth without changing its meaning.
 5. Create only chapters supported by the PRD, using `NN-<slug>.md` filenames with unique `NN` prefixes.
 6. Link every chapter back to `core/PRD.md`.
 7. Link every `NN-*.md` chapter from `core/product-meta.md`.
-8. Extract acceptance criteria into a stable `NN-*acceptance*.md` chapter before design derivation. Give each criterion a stable `A-NNN` ID.
+8. Extract acceptance criteria into a stable `NN-*acceptance*.md` chapter before design derivation. Give each criterion a stable unique `A-NNN` ID.
 9. Extract success metrics when present.
 10. Add cross-domain terms to glossary with unique `Term`, filled `Meaning`, and a `Source` link to the local Markdown definition.
 11. Register ambiguous requirements before deriving design. Use unique `U-NNN` IDs and fill `Domain` and `Description`; use `none`, `-`, `n/a`, `non-blocking`, or `resolved` only for items that do not block downstream work.
