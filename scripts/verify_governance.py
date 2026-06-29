@@ -2412,16 +2412,25 @@ def _task_board_row_trace_reference_errors(root: Path, row: dict[str, str], task
                     "task_board_trace_reference_missing",
                     f"task board row {task_id} references missing {label} target: {reference.rel}",
                 ))
+        if any(not reference.exists for reference in references):
+            continue
+        expected_reference = _task_board_expected_reference(column)
+        if expected_reference is not None:
+            expected, predicate = expected_reference
+            if not any(predicate(reference) for reference in references):
+                errors.append((
+                    "task_board_trace_reference_mismatch",
+                    f"task board row {task_id} {label} field must reference {expected}",
+                ))
         if (
             column == "acceptance"
-            and all(reference.exists for reference in references)
             and not any(_is_product_acceptance_reference(reference) for reference in references)
         ):
             errors.append((
                 "task_board_acceptance_reference_missing",
                 f"task board row {task_id} Acceptance field must reference a product acceptance chapter",
             ))
-        if column == "acceptance" and all(reference.exists for reference in references):
+        if column == "acceptance":
             product_acceptance_refs = [reference for reference in references if _is_product_acceptance_reference(reference)]
             acceptance_id = _task_board_acceptance_id(row.get(column, ""))
             if product_acceptance_refs and acceptance_id is None:
@@ -2438,6 +2447,16 @@ def _task_board_row_trace_reference_errors(root: Path, row: dict[str, str], task
                     f"task board row {task_id} Acceptance ID {acceptance_id} is not defined in referenced product acceptance chapter",
                 ))
     return errors
+
+
+def _task_board_expected_reference(column: str) -> tuple[str, Callable[[LocalMarkdownReference], bool]] | None:
+    if column == "product":
+        return "product scope docs", _is_product_scope_reference
+    if column == "design":
+        return "design docs", _is_design_reference
+    if column == "api":
+        return "API docs", _is_api_reference
+    return None
 
 
 def _task_board_acceptance_id(value: str) -> str | None:

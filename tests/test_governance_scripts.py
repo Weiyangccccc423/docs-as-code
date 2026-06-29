@@ -4301,6 +4301,47 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_task_board_trace_reference_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_product_chapter(root, "01-goals.md", "Goals")
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
+            _write_indexed_doc(root, "docs/api/00-conventions.md", _api_conventions_doc())
+            _write_traceable_test_strategy(root)
+
+            task_board = root / "docs/development/02-task-board.md"
+            task_board.write_text(
+                _task_board_doc(
+                    "| TASK-001 | Backlog | Miswired goal flow | docs/api/00-conventions.md | docs/product/01-goals.md | docs/architecture/01-context.md | docs/product/08-acceptance-criteria.md | make test |\n"
+                    "| TASK-002 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | make test |\n"
+                ),
+                encoding="utf-8",
+            )
+            _append_index(root / "docs/development/README.md", "02-task-board.md")
+
+            report = verify(root)
+
+            expected = [
+                "task board row TASK-001 Product field must reference product scope docs",
+                "task board row TASK-001 Design field must reference design docs",
+                "task board row TASK-001 API field must reference API docs",
+            ]
+            for message in expected:
+                self.assertIn(message, report.errors)
+            self.assertIn(
+                {
+                    "code": "task_board_trace_reference_mismatch",
+                    "severity": "error",
+                    "path": "docs/development/02-task-board.md",
+                    "message": "task board row TASK-001 Product field must reference product scope docs",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_duplicate_task_board_id(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
