@@ -18,7 +18,7 @@ from scripts.check_env import (
 from scripts.bootstrap_tree import InitPreflightError
 from scripts.bootstrap_tree import bootstrap
 from scripts.state import StateFileError, merge_state
-from scripts.verify_governance import verify
+from scripts.verify_governance import task_board_ready_tasks, verify
 
 
 def _append_index(readme: Path, filename: str) -> None:
@@ -886,6 +886,60 @@ class GovernanceScriptsTest(unittest.TestCase):
                     },
                     [finding.to_dict() for finding in report.findings],
                 )
+
+    def test_verify_reports_governance_closure_doc_directories_without_traceback(self) -> None:
+        for rel in [
+            "docs/decisions/001-runtime-boundary.md",
+            "docs/development/01-roadmap.md",
+            "docs/development/02-task-board.md",
+        ]:
+            with self.subTest(rel=rel), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                product = root / "product.md"
+                product.write_text("# Demo\n", encoding="utf-8")
+                bootstrap(root, product)
+
+                if rel == "docs/development/01-roadmap.md":
+                    _write_indexed_doc(
+                        root,
+                        "docs/development/02-task-board.md",
+                        _task_board_doc(
+                            "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | make test |\n"
+                        ),
+                    )
+                if rel == "docs/development/02-task-board.md":
+                    _write_acceptance_matrix_trace_docs(root)
+                    _write_indexed_doc(root, "docs/tests/02-acceptance-matrix.md", _acceptance_matrix_doc())
+
+                path = root / rel
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.mkdir()
+
+                report = verify(root)
+
+                message = f"Markdown path is not a file: {rel}"
+                self.assertIn(message, report.errors)
+                self.assertIn(
+                    {
+                        "code": "markdown_not_file",
+                        "severity": "error",
+                        "path": rel,
+                        "message": message,
+                    },
+                    [finding.to_dict() for finding in report.findings],
+                )
+
+    def test_task_board_ready_tasks_returns_empty_for_task_board_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            task_board = root / "docs/development/02-task-board.md"
+            task_board.mkdir()
+
+            self.assertEqual([], task_board_ready_tasks(root))
 
     def test_verify_reports_product_source_manifest_directory_without_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

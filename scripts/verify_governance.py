@@ -1925,9 +1925,8 @@ def _check_architecture_decisions(root: Path, report: VerificationReport) -> Non
 
 def _check_architecture_decision(root: Path, path: Path, report: VerificationReport) -> None:
     rel = path.relative_to(root).as_posix()
-    try:
-        text = path.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
+    text = _read_markdown_text(root, path, report)
+    if text is None:
         return
     if SCAFFOLD_PLACEHOLDER in text:
         return
@@ -2378,6 +2377,8 @@ def task_board_ready_tasks(root: Path) -> list[dict[str, str]]:
     path = root / TASK_BOARD_REL
     if not path.exists():
         return []
+    if not path.is_file():
+        return []
     try:
         text = path.read_text(encoding="utf-8")
     except UnicodeDecodeError:
@@ -2402,7 +2403,9 @@ def _check_task_board(root: Path, report: VerificationReport) -> None:
     if not path.exists():
         return
     rel = TASK_BOARD_REL.as_posix()
-    text = path.read_text(encoding="utf-8")
+    text = _read_markdown_text(root, path, report)
+    if text is None:
+        return
     if SCAFFOLD_PLACEHOLDER in text:
         return
     sections = _markdown_sections(text, min_level=2)
@@ -2505,9 +2508,8 @@ def _check_roadmap(root: Path, report: VerificationReport) -> None:
     rel = ROADMAP_REL.as_posix()
     if not path.exists():
         return
-    try:
-        text = path.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
+    text = _read_markdown_text(root, path, report)
+    if text is None:
         return
     if SCAFFOLD_PLACEHOLDER in text:
         return
@@ -2643,10 +2645,9 @@ def _check_roadmap_task_board_alignment(root: Path, report: VerificationReport) 
     task_board_path = root / TASK_BOARD_REL
     if not roadmap_path.exists() or not task_board_path.exists():
         return
-    try:
-        roadmap_text = roadmap_path.read_text(encoding="utf-8")
-        task_board_text = task_board_path.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
+    roadmap_text = _read_markdown_text(root, roadmap_path, report)
+    task_board_text = _read_markdown_text(root, task_board_path, report)
+    if roadmap_text is None or task_board_text is None:
         return
     if SCAFFOLD_PLACEHOLDER in roadmap_text or SCAFFOLD_PLACEHOLDER in task_board_text:
         return
@@ -2706,9 +2707,8 @@ def _check_task_board_acceptance_matrix_alignment(root: Path, report: Verificati
     matrix_ids = _acceptance_matrix_mapped_acceptance_ids(root)
     if matrix_ids is None or not task_board_path.exists():
         return
-    try:
-        task_board_text = task_board_path.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
+    task_board_text = _read_markdown_text(root, task_board_path, report)
+    if task_board_text is None:
         return
     if SCAFFOLD_PLACEHOLDER in task_board_text:
         return
