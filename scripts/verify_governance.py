@@ -351,12 +351,15 @@ def verify(root: Path) -> VerificationReport:
         "docs/product/core/source/source-manifest.json",
     ]
     for rel in required_files:
-        if not (root / rel).exists():
+        path = root / rel
+        if not path.exists():
             report.add_error("missing_required_file", f"missing required file: {rel}", rel)
+        elif not path.is_file():
+            report.add_error("required_file_not_file", f"required file is not a file: {rel}", rel)
 
     docs_root = root / "docs"
     docs_agents = docs_root / "AGENTS.md"
-    docs_agents_text = docs_agents.read_text(encoding="utf-8") if docs_agents.exists() else ""
+    docs_agents_text = docs_agents.read_text(encoding="utf-8") if docs_agents.is_file() else ""
 
     if docs_root.exists():
         for child in sorted(docs_root.iterdir()):
@@ -380,7 +383,7 @@ def verify(root: Path) -> VerificationReport:
                         )
 
     for path in [root / "README.md", docs_root / "README.md", docs_agents]:
-        if path.exists():
+        if path.is_file():
             _check_reserved_markers(root, path, report)
 
     _check_product_source_manifest(root, report)
@@ -421,6 +424,8 @@ def _is_effectively_empty(path: Path) -> bool:
 
 
 def _check_reserved_markers(root: Path, path: Path, report: VerificationReport) -> None:
+    if not path.is_file():
+        return
     text = path.read_text(encoding="utf-8")
     for line in text.splitlines():
         if "预留" not in line and "[reserved]" not in line.lower():
@@ -435,6 +440,8 @@ def _check_reserved_markers(root: Path, path: Path, report: VerificationReport) 
 def _check_product_source_manifest(root: Path, report: VerificationReport) -> None:
     manifest_path = root / "docs/product/core/source/source-manifest.json"
     if not manifest_path.exists():
+        return
+    if not manifest_path.is_file():
         return
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))

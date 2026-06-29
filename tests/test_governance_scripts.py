@@ -552,6 +552,81 @@ class GovernanceScriptsTest(unittest.TestCase):
             report = verify(root)
             self.assertEqual([], report.errors)
 
+    def test_verify_reports_root_required_file_directory_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            readme = root / "README.md"
+            readme.unlink()
+            readme.mkdir()
+
+            report = verify(root)
+
+            self.assertIn("required file is not a file: README.md", report.errors)
+            self.assertIn(
+                {
+                    "code": "required_file_not_file",
+                    "severity": "error",
+                    "path": "README.md",
+                    "message": "required file is not a file: README.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_docs_agents_directory_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            docs_agents = root / "docs/AGENTS.md"
+            docs_agents.unlink()
+            docs_agents.mkdir()
+
+            report = verify(root)
+
+            self.assertIn("required file is not a file: docs/AGENTS.md", report.errors)
+            self.assertIn(
+                {
+                    "code": "required_file_not_file",
+                    "severity": "error",
+                    "path": "docs/AGENTS.md",
+                    "message": "required file is not a file: docs/AGENTS.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_product_source_manifest_directory_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            manifest_path = root / "docs/product/core/source/source-manifest.json"
+            manifest_path.unlink()
+            manifest_path.mkdir()
+
+            report = verify(root)
+
+            self.assertIn(
+                "required file is not a file: docs/product/core/source/source-manifest.json",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "required_file_not_file",
+                    "severity": "error",
+                    "path": "docs/product/core/source/source-manifest.json",
+                    "message": "required file is not a file: docs/product/core/source/source-manifest.json",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_rejects_tampered_archived_product_source(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
