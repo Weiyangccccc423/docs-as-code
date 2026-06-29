@@ -24,6 +24,7 @@ DOC_DIRS = {
 
 NON_BLOCKING_SCOPES = {"", "-", "none", "n/a", "na", "non-blocking", "non blocking", "resolved"}
 UNRESOLVED_ID_RE = re.compile(r"^U-[0-9]{3}$")
+TASK_ID_RE = re.compile(r"^TASK-[0-9]{3}$")
 UNRESOLVED_REQUIRED_COLUMNS = {
     "id": "ID",
     "domain": "Domain",
@@ -1980,6 +1981,13 @@ def _check_task_board(root: Path, report: VerificationReport) -> None:
                 rel,
             )
             continue
+        if TASK_ID_RE.fullmatch(task_id) is None:
+            report.add_error(
+                "task_board_invalid_id",
+                f"task board row {task_id} must use TASK-NNN task ID format",
+                rel,
+            )
+            continue
         status = row.get("status", "").strip()
         if _normalize_cell(status) not in TASK_BOARD_ALLOWED_STATUSES:
             report.add_error(
@@ -2078,6 +2086,13 @@ def _check_roadmap(root: Path, report: VerificationReport) -> None:
                 report.add_error(
                     "roadmap_milestone_row_missing_fields",
                     f"roadmap milestone row {item_id} is missing required fields: {', '.join(missing_fields)}",
+                    rel,
+                )
+                continue
+            if TASK_ID_RE.fullmatch(item_id) is None:
+                report.add_error(
+                    "roadmap_milestone_invalid_id",
+                    f"roadmap milestone row {item_id} must use TASK-NNN task ID format",
                     rel,
                 )
                 continue

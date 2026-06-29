@@ -3988,6 +3988,41 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_invalid_task_board_id_format(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(root, "docs/product/01-goals.md", "# Goals\n\nSource: [PRD](core/PRD.md).\n")
+            _append_product_meta_chapter(root, "01-goals.md")
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
+            _write_indexed_doc(root, "docs/api/00-conventions.md", _api_conventions_doc())
+            _write_traceable_test_strategy(root)
+
+            task_board = root / "docs/development/02-task-board.md"
+            task_board.write_text(
+                _task_board_doc(
+                    "| TASK-1 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | make test |\n"
+                ),
+                encoding="utf-8",
+            )
+            _append_index(root / "docs/development/README.md", "02-task-board.md")
+
+            report = verify(root)
+
+            self.assertIn("task board row TASK-1 must use TASK-NNN task ID format", report.errors)
+            self.assertIn(
+                {
+                    "code": "task_board_invalid_id",
+                    "severity": "error",
+                    "path": "docs/development/02-task-board.md",
+                    "message": "task board row TASK-1 must use TASK-NNN task ID format",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_invalid_task_board_status(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -4547,6 +4582,40 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "severity": "error",
                     "path": "docs/development/01-roadmap.md",
                     "message": "duplicate roadmap milestone ID: TASK-001",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_invalid_roadmap_milestone_id_format(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_product_chapter(root, "01-goals.md", "Goals")
+            _write_acceptance_chapter(root)
+
+            _write_indexed_doc(
+                root,
+                "docs/development/01-roadmap.md",
+                _roadmap_doc(
+                    milestone_table=(
+                        "| ID | Status | Milestone |\n"
+                        "| --- | --- | --- |\n"
+                        "| M-001 | Ready | Goal flow |\n"
+                    )
+                ),
+            )
+
+            report = verify(root)
+
+            self.assertIn("roadmap milestone row M-001 must use TASK-NNN task ID format", report.errors)
+            self.assertIn(
+                {
+                    "code": "roadmap_milestone_invalid_id",
+                    "severity": "error",
+                    "path": "docs/development/01-roadmap.md",
+                    "message": "roadmap milestone row M-001 must use TASK-NNN task ID format",
                 },
                 [finding.to_dict() for finding in report.findings],
             )

@@ -62,10 +62,11 @@ Treat `adr_invalid_filename` and `adr_duplicate_prefix` as ADR identity blockers
 Treat `glossary_*` findings as product-terminology blockers: fill required fields, remove duplicate terms, or link `Source` to existing local Markdown.
 Treat `unresolved_row_missing_fields`, `unresolved_invalid_id`, and `unresolved_duplicate_id` as ambiguity-registry blockers: use unique `U-NNN` IDs and fill Domain and Description.
 Treat `roadmap_missing_sections`, `roadmap_empty_sections`, and `roadmap_trace_reference_missing` as delivery-planning blockers: complete Product Links, Milestones, Sequencing, Risks, and Deferred Scope in `docs/development/01-roadmap.md`, and link to product scope plus product acceptance criteria.
-Treat `roadmap_milestone_*` findings as roadmap-structure blockers: make the Milestones table use `ID`, `Status`, and `Milestone`, include at least one row, fill all fields, use the standard task status vocabulary, and keep IDs unique.
+Treat `roadmap_milestone_*` findings as roadmap-structure blockers: make the Milestones table use `ID`, `Status`, and `Milestone`, include at least one row, fill all fields, use `TASK-NNN` IDs, use the standard task status vocabulary, and keep IDs unique.
 Treat `roadmap_task_status_conflict` as a delivery-planning blocker.
 Treat `task_board_*` findings as implementation-readiness blockers.
 Treat `task_board_missing_sections` and `task_board_empty_sections` as implementation-readiness blockers: complete Task Table, Status Policy, and Traceability Rules in `docs/development/02-task-board.md`.
+Treat `task_board_invalid_id` as a task-routing blocker: rename the task row to `TASK-NNN` and update roadmap/status references to match.
 Treat `task_board_invalid_status` as a task-routing blocker: normalize the row to the standard status vocabulary before implementation.
 Treat `task_board_blocked_unresolved_missing` and `task_board_blocked_unresolved_link_missing` as ambiguity-trace blockers: either unblock the task or cite the unresolved item ID and link `docs/unresolved.md`.
 Treat `task_board_done_evidence_missing` as a completion-evidence blocker: keep the task open or link the `Verification` field to existing local Markdown evidence.
@@ -122,14 +123,14 @@ make ci
 - unresolved rows have unique `U-NNN` IDs and filled `Domain` and `Description`
 - unresolved items use `none`, `-`, `n/a`, `non-blocking`, or `resolved` for non-blocking scope; any other `Blocking Scope` fails verification
 - `docs/development/01-roadmap.md` has non-placeholder Product Links, Milestones, Sequencing, Risks, and Deferred Scope sections, and links to product scope plus product acceptance criteria
-- roadmap Milestones table uses `ID`, `Status`, and `Milestone`, has at least one row, has unique IDs, and uses standard task status values
+- roadmap Milestones table uses `ID`, `Status`, and `Milestone`, has at least one row, has unique `TASK-NNN` IDs, and uses standard task status values
 - roadmap tables with `ID` and `Status` columns agree with same-ID task board statuses
 - `docs/development/02-task-board.md` has non-placeholder Task Table, Status Policy, and Traceability Rules sections
 - implementation tasks use `ID`, `Status`, `Task`, `Product`, `Design`, `API`, `Acceptance`, and `Verification`
 - task board `Status` values are `Backlog`, `Ready`, `In Progress`, `Blocked`, `Done`, or `Deferred`
 - task board items marked `Blocked` cite an existing unresolved item ID and link `docs/unresolved.md`
 - task board items marked `Done` link to existing local Markdown verification evidence
-- task board IDs are unique
+- task board IDs are unique and use `TASK-NNN`
 - task board `Product`, `Design`, `API`, and `Acceptance` fields contain existing local Markdown references
 - task board `Acceptance` fields include a product acceptance chapter reference matching `docs/product/NN-*acceptance*.md`
 - at least one implementation task is `Ready`
