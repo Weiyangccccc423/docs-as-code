@@ -3645,6 +3645,37 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_acceptance_matrix_unknown_acceptance_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_traceable_test_strategy(root)
+            _write_indexed_doc(
+                root,
+                "docs/tests/02-acceptance-matrix.md",
+                _acceptance_matrix_doc(
+                    acceptance="[A-999](../product/08-acceptance-criteria.md#a-999)",
+                ),
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "acceptance matrix row docs/product/08-acceptance-criteria.md Acceptance ID A-999 is not defined in referenced product acceptance chapter",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "acceptance_matrix_acceptance_id_unknown",
+                    "severity": "error",
+                    "path": "docs/tests/02-acceptance-matrix.md",
+                    "message": "acceptance matrix row docs/product/08-acceptance-criteria.md Acceptance ID A-999 is not defined in referenced product acceptance chapter",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_acceptance_matrix_missing_trace_targets(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

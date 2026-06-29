@@ -1476,6 +1476,7 @@ def _check_acceptance_matrix_traceability(root: Path, report: VerificationReport
             )
             continue
         seen_acceptance_ids.add(acceptance_id)
+        _check_acceptance_matrix_acceptance_id_source(root, path, report, row_label, row["acceptance"], acceptance_id)
         _check_acceptance_matrix_reference(
             root,
             path,
@@ -1559,6 +1560,31 @@ def _acceptance_matrix_acceptance_id(value: str) -> str | None:
     if match is None:
         return None
     return match.group(0)
+
+
+def _check_acceptance_matrix_acceptance_id_source(
+    root: Path,
+    matrix_path: Path,
+    report: VerificationReport,
+    row_label: str,
+    value: str,
+    acceptance_id: str,
+) -> None:
+    references = _local_markdown_references(root, matrix_path, value, include_bare=True, strip_code=False)
+    product_acceptance_refs = [
+        reference
+        for reference in references
+        if reference.exists and _is_product_acceptance_reference_path(reference)
+    ]
+    if product_acceptance_refs and not any(
+        _product_acceptance_reference_has_id(root, reference, acceptance_id)
+        for reference in product_acceptance_refs
+    ):
+        report.add_error(
+            "acceptance_matrix_acceptance_id_unknown",
+            f"acceptance matrix row {row_label} Acceptance ID {acceptance_id} is not defined in referenced product acceptance chapter",
+            ACCEPTANCE_MATRIX_REL.as_posix(),
+        )
 
 
 def _check_acceptance_matrix_reference(
