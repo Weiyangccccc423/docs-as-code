@@ -666,6 +666,29 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_rejects_non_executable_target_runtime_wrapper(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            wrapper = root / "bin/governance"
+            wrapper.chmod(0o644)
+
+            report = verify(root)
+
+            self.assertIn("runtime file is not executable: bin/governance", report.errors)
+            self.assertIn(
+                {
+                    "code": "runtime_file_not_executable",
+                    "severity": "error",
+                    "path": "bin/governance",
+                    "message": "runtime file is not executable: bin/governance",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_rejects_missing_required_runtime_manifest_entry(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

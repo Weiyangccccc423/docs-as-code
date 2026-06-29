@@ -574,6 +574,8 @@ class GovernanceCliTest(unittest.TestCase):
             )
             runtime = target / "scripts/scaffold.py"
             runtime.write_text(runtime.read_text(encoding="utf-8") + "\n# tampered\n", encoding="utf-8")
+            wrapper = target / "bin/governance"
+            wrapper.chmod(0o644)
             workflow = target / "docs/agent-workflow/workflow-pack/workflows/00-overview.md"
             workflow.write_text(workflow.read_text(encoding="utf-8") + "\nTampered.\n", encoding="utf-8")
 
@@ -585,6 +587,7 @@ class GovernanceCliTest(unittest.TestCase):
             )
             self.assertEqual(1, verify_result.returncode)
             self.assertIn("runtime file hash mismatch: scripts/scaffold.py", verify_result.stdout)
+            self.assertIn("runtime file is not executable: bin/governance", verify_result.stdout)
             self.assertIn(
                 "workflow pack file hash mismatch: "
                 "docs/agent-workflow/workflow-pack/workflows/00-overview.md",
@@ -620,6 +623,7 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual(0, refresh_result.returncode, refresh_result.stderr)
             payload = json.loads(refresh_result.stdout)
             self.assertTrue(payload["ok"])
+            self.assertIn("bin/governance", payload["refreshed"])
             self.assertIn("scripts/scaffold.py", payload["refreshed"])
             self.assertIn(
                 "docs/agent-workflow/workflow-pack/workflows/00-overview.md",
@@ -635,6 +639,7 @@ class GovernanceCliTest(unittest.TestCase):
             )
             self.assertIn("runtime_refreshed_at", payload["state"])
             self.assertIn("Keep this content.", prd.read_text(encoding="utf-8"))
+            self.assertTrue(wrapper.stat().st_mode & 0o100)
 
             verify_again = subprocess.run(
                 [sys.executable, str(CLI), "verify", str(target)],

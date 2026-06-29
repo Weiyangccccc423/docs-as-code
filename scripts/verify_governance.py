@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import re
+import stat
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
@@ -98,6 +99,7 @@ RUNTIME_REQUIRED_PATHS = tuple(
         key=lambda path: path.as_posix(),
     )
 )
+RUNTIME_EXECUTABLE_PATHS = tuple(Path("bin") / name for name in RUNTIME_REQUIRED_BIN_FILES)
 ROADMAP_REL = Path("docs/development/01-roadmap.md")
 ROADMAP_REQUIRED_SECTIONS = {
     "product links": "Product Links",
@@ -2125,6 +2127,11 @@ def _check_runtime_manifest(root: Path, report: VerificationReport) -> None:
                 f"runtime manifest is missing required file entry: {rel}",
                 manifest_rel,
             )
+    for executable_path in RUNTIME_EXECUTABLE_PATHS:
+        path = root / executable_path
+        rel = executable_path.as_posix()
+        if path.exists() and (path.stat().st_mode & stat.S_IXUSR) == 0:
+            report.add_error("runtime_file_not_executable", f"runtime file is not executable: {rel}", rel)
 
 
 def _check_workflow_pack_manifest(root: Path, report: VerificationReport) -> None:
