@@ -19,6 +19,15 @@ def _append_product_meta_chapter(root: Path, filename: str) -> None:
     meta.write_text(meta.read_text(encoding="utf-8") + f"\n- [{filename}](../{filename})\n", encoding="utf-8")
 
 
+def _acceptance_doc() -> str:
+    return (
+        "# Acceptance Criteria\n\n"
+        "Source: [PRD](core/PRD.md).\n\n"
+        "## A-001 Goal Flow\n\n"
+        "- The primary goal flow meets the documented product expectation.\n"
+    )
+
+
 def _api_conventions_doc() -> str:
     return (
         "# API Conventions\n\n"
@@ -606,7 +615,7 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertFalse(missing_acceptance_requirements["product_acceptance_chapter_present"]["ok"])
 
             (target / "docs/product/08-acceptance-criteria.md").write_text(
-                "# Acceptance Criteria\n\nSource: [PRD](core/PRD.md).\n",
+                _acceptance_doc(),
                 encoding="utf-8",
             )
             _append_index(target / "docs/product/README.md", "08-acceptance-criteria.md")
@@ -644,7 +653,7 @@ class GovernanceCliTest(unittest.TestCase):
             _append_index(target / "docs/product/README.md", "01-goals.md")
             _append_product_meta_chapter(target, "01-goals.md")
             (target / "docs/product/08-acceptance-criteria.md").write_text(
-                "# Acceptance Criteria\n\nSource: [PRD](core/PRD.md).\n",
+                _acceptance_doc(),
                 encoding="utf-8",
             )
             _append_index(target / "docs/product/README.md", "08-acceptance-criteria.md")
@@ -681,7 +690,7 @@ class GovernanceCliTest(unittest.TestCase):
             _append_index(target / "docs/product/README.md", "01-goals.md")
             _append_product_meta_chapter(target, "01-goals.md")
             (target / "docs/product/08-acceptance-criteria.md").write_text(
-                "# Acceptance Criteria\n\nSource: [PRD](core/PRD.md).\n",
+                _acceptance_doc(),
                 encoding="utf-8",
             )
             _append_index(target / "docs/product/README.md", "08-acceptance-criteria.md")
@@ -852,7 +861,7 @@ class GovernanceCliTest(unittest.TestCase):
             _append_index(target / "docs/product/README.md", "01-goals.md")
             _append_product_meta_chapter(target, "01-goals.md")
             (target / "docs/product/08-acceptance-criteria.md").write_text(
-                "# Acceptance Criteria\n\nSource: [PRD](core/PRD.md).\n",
+                _acceptance_doc(),
                 encoding="utf-8",
             )
             _append_index(target / "docs/product/README.md", "08-acceptance-criteria.md")

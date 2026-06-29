@@ -25,7 +25,7 @@ Load:
 
 2. Build a product chapter map in `product-meta.md`.
 3. Split stable sections into `docs/product/NN-<slug>.md`; use unique two-digit prefixes for ordering.
-4. Extract acceptance criteria into a dedicated `NN-*acceptance*.md` product chapter before design derivation.
+4. Extract acceptance criteria into a dedicated `NN-*acceptance*.md` product chapter before design derivation; give each criterion a stable `A-NNN` ID.
 5. Extract success metrics into a dedicated product chapter when present.
 6. Add cross-domain terms to `docs/glossary.md` with filled `Term`, `Meaning`, and `Source`; `Source` must link to the local Markdown document that defines the term.
 7. Register unresolved product or interaction questions in `docs/unresolved.md` with unique `U-NNN` IDs.
@@ -56,7 +56,7 @@ Use only chapters that the source document supports. Do not create empty decorat
 
 - Every product chapter links back to `core/PRD.md`.
 - Every product chapter filename uses `NN-<slug>.md`, and each `NN` prefix is unique.
-- A dedicated acceptance criteria product chapter exists before design derivation.
+- A dedicated acceptance criteria product chapter exists before design derivation and exposes stable `A-NNN` criteria IDs.
 - `README.md` lists every product chapter.
 - `product-meta.md` links to every product chapter.
 - `docs/glossary.md` terms are unique, complete, and traceable to local Markdown sources.

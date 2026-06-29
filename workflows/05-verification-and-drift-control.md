@@ -64,7 +64,7 @@ Load:
    - no non-template Markdown files missing from their same-directory README
    - no explicit local Markdown link pointing to a missing file
    - product chapter filenames use `NN-<slug>.md` with unique `NN` prefixes
-   - a dedicated `NN-*acceptance*.md` product chapter exists before design derivation or implementation handoff
+   - a dedicated `NN-*acceptance*.md` product chapter exists before design derivation or implementation handoff and exposes stable `A-NNN` criteria IDs
    - `docs/api/00-conventions.md` has non-placeholder Product Links, HTTP Conventions, Authentication, Idempotency, Compatibility, and Open Decisions sections, and links to product scope plus product acceptance criteria
    - `docs/api/error-codes.md` has non-placeholder Product Links, Error Taxonomy, Error Codes, Retry Semantics, and Frontend Handling sections, and links to product scope plus product acceptance criteria
    - `docs/api/changelog.md` has non-placeholder Change Log and Compatibility Notes sections
@@ -86,7 +86,7 @@ Load:
    - `docs/frontend/02-api-consumption.md` has non-placeholder Product Links, API Links, Consumption Map, Loading States, and Error Actions sections, and links to frontend modules, API docs, and product acceptance criteria
    - `docs/tests/01-strategy.md` has non-placeholder Product Links, Acceptance Links, Test Layers, Risk Coverage, and Non-Functional Checks sections, and links to product acceptance criteria, API docs, and architecture/backend/frontend design docs
    - `docs/tests/02-acceptance-matrix.md` has non-placeholder Matrix and Uncovered Criteria sections
-   - `docs/tests/02-acceptance-matrix.md` uses `Acceptance`, `Design`, `API`, and `Test` columns with local Markdown links to matching source docs
+   - `docs/tests/02-acceptance-matrix.md` uses `Acceptance`, `Design`, `API`, and `Test` columns with unique `A-NNN` acceptance IDs and local Markdown links to matching source docs
    - ADR files under `docs/decisions/` use unique `NNN-<slug>.md` names
    - ADRs under `docs/decisions/` include non-placeholder Context, Decision, Consequences, and References sections with local Markdown source links
    - `docs/development/01-roadmap.md` has non-placeholder Product Links, Milestones, Sequencing, Risks, and Deferred Scope sections, and links to product scope plus product acceptance criteria

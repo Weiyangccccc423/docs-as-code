@@ -35,6 +35,7 @@ Treat `governance_scaffold_placeholder` as a design-authoring blocker, not a for
 Treat `workflow_pack_file_hash_mismatch` and `workflow_pack_file_missing` as workflow-pack integrity blockers.
 Treat `docs_local_markdown_link_missing` as a document-integrity blocker: repair the link or create/index the referenced Markdown file.
 Treat `product_chapter_invalid_filename`, `product_chapter_duplicate_prefix`, `product_chapter_missing_prd_link`, and `product_meta_missing_chapter_link` as product-structuring blockers.
+Treat `product_acceptance_missing_ids` as a product-structuring blocker: assign stable `A-NNN` IDs inside the product acceptance chapter before deriving design.
 Treat `api_conventions_missing_sections`, `api_conventions_empty_sections`, and `api_conventions_trace_reference_missing` as API-conventions blockers: complete Product Links, HTTP Conventions, Authentication, Idempotency, Compatibility, and Open Decisions in `docs/api/00-conventions.md`, and link to product scope plus product acceptance criteria.
 Treat `api_error_codes_missing_sections`, `api_error_codes_empty_sections`, and `api_error_codes_trace_reference_missing` as API error-registry blockers: complete Product Links, Error Taxonomy, Error Codes, Retry Semantics, and Frontend Handling in `docs/api/error-codes.md`, and link to product scope plus product acceptance criteria.
 Treat `api_changelog_missing_sections` and `api_changelog_empty_sections` as API changelog blockers: complete Change Log and Compatibility Notes in `docs/api/changelog.md`.
@@ -56,7 +57,7 @@ Treat `frontend_module_missing_sections`, `frontend_module_empty_sections`, and 
 Treat `frontend_api_consumption_missing_sections`, `frontend_api_consumption_empty_sections`, and `frontend_api_consumption_trace_reference_missing` as frontend API-consumption blockers: complete Product Links, API Links, Consumption Map, Loading States, and Error Actions in `docs/frontend/02-api-consumption.md`, and link to frontend modules, API docs, and product acceptance criteria.
 Treat `test_strategy_missing_sections`, `test_strategy_empty_sections`, and `test_strategy_trace_reference_missing` as verification-strategy blockers: complete Product Links, Acceptance Links, Test Layers, Risk Coverage, and Non-Functional Checks in `docs/tests/01-strategy.md`, and link to product acceptance criteria, API docs, and architecture/backend/frontend design docs.
 Treat `acceptance_matrix_missing_sections` and `acceptance_matrix_empty_sections` as acceptance-traceability blockers: complete Matrix and Uncovered Criteria in `docs/tests/02-acceptance-matrix.md`.
-Treat `acceptance_matrix_*` findings as acceptance-traceability blockers: make `docs/tests/02-acceptance-matrix.md` use `Acceptance`, `Design`, `API`, and `Test` columns with local Markdown links to the matching source docs.
+Treat `acceptance_matrix_*` findings as acceptance-traceability blockers: make `docs/tests/02-acceptance-matrix.md` use `Acceptance`, `Design`, `API`, and `Test` columns with local Markdown links to the matching source docs; each `Acceptance` row must include a unique `A-NNN` ID.
 Treat `adr_missing_sections`, `adr_empty_sections`, and `adr_reference_missing` as ADR completeness blockers: add Context, Decision, Consequences, and References with local Markdown source links.
 Treat `adr_invalid_filename` and `adr_duplicate_prefix` as ADR identity blockers: rename ADRs under `docs/decisions/` to unique `NNN-<slug>.md` files and update indexes/links.
 Treat `glossary_*` findings as product-terminology blockers: fill required fields, remove duplicate terms, or link `Source` to existing local Markdown.
@@ -95,6 +96,7 @@ make ci
 - explicit local Markdown links resolve to existing files
 - product chapter filenames use `NN-<slug>.md` with unique `NN` prefixes
 - a dedicated `NN-*acceptance*.md` product chapter exists before design derivation
+- product acceptance criteria use stable `A-NNN` IDs
 - product chapters link back to `core/PRD.md`, and `product-meta.md` links to every product chapter
 - `docs/api/00-conventions.md` has non-placeholder Product Links, HTTP Conventions, Authentication, Idempotency, Compatibility, and Open Decisions sections, and links to product scope plus product acceptance criteria
 - `docs/api/error-codes.md` has non-placeholder Product Links, Error Taxonomy, Error Codes, Retry Semantics, and Frontend Handling sections, and links to product scope plus product acceptance criteria
@@ -116,7 +118,7 @@ make ci
 - `docs/frontend/02-api-consumption.md` has non-placeholder Product Links, API Links, Consumption Map, Loading States, and Error Actions sections, and links to frontend modules, API docs, and product acceptance criteria
 - `docs/tests/01-strategy.md` has non-placeholder Product Links, Acceptance Links, Test Layers, Risk Coverage, and Non-Functional Checks sections, and links to product acceptance criteria, API docs, and architecture/backend/frontend design docs
 - `docs/tests/02-acceptance-matrix.md` has non-placeholder Matrix and Uncovered Criteria sections
-- `docs/tests/02-acceptance-matrix.md` uses `Acceptance`, `Design`, `API`, and `Test` columns, and each row links to matching local source docs
+- `docs/tests/02-acceptance-matrix.md` uses `Acceptance`, `Design`, `API`, and `Test` columns, each `Acceptance` row has a unique `A-NNN` ID, and each row links to matching local source docs
 - ADR files under `docs/decisions/` use unique `NNN-<slug>.md` names
 - ADRs under `docs/decisions/` include non-placeholder Context, Decision, Consequences, and References sections with local Markdown source links
 - glossary rows have unique `Term` values and filled `Meaning` and `Source` fields; `Source` links to existing local Markdown

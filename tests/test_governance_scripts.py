@@ -32,7 +32,15 @@ def _write_product_chapter(root: Path, filename: str, title: str) -> None:
 
 
 def _write_acceptance_chapter(root: Path) -> None:
-    _write_product_chapter(root, "08-acceptance-criteria.md", "Acceptance Criteria")
+    _write_indexed_doc(
+        root,
+        "docs/product/08-acceptance-criteria.md",
+        "# Acceptance Criteria\n\n"
+        "Source: [PRD](core/PRD.md).\n\n"
+        "## A-001 Goal Flow\n\n"
+        "- The primary goal flow meets the documented product expectation.\n",
+    )
+    _append_product_meta_chapter(root, "08-acceptance-criteria.md")
 
 
 def _write_api_error_codes_doc(root: Path) -> None:
@@ -1049,6 +1057,30 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "severity": "error",
                     "path": "docs/product/core/product-meta.md",
                     "message": "docs/product/core/product-meta.md must link to product chapter: docs/product/01-goals.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_acceptance_chapter_missing_acceptance_ids(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_product_chapter(root, "08-acceptance-criteria.md", "Acceptance Criteria")
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/product/08-acceptance-criteria.md must define at least one A-NNN acceptance ID",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "product_acceptance_missing_ids",
+                    "severity": "error",
+                    "path": "docs/product/08-acceptance-criteria.md",
+                    "message": "docs/product/08-acceptance-criteria.md must define at least one A-NNN acceptance ID",
                 },
                 [finding.to_dict() for finding in report.findings],
             )
@@ -3515,6 +3547,92 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "severity": "error",
                     "path": "docs/tests/02-acceptance-matrix.md",
                     "message": "acceptance matrix row A-001 acceptance criterion Acceptance field has no local Markdown reference",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_acceptance_matrix_invalid_acceptance_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_traceable_test_strategy(root)
+            _write_indexed_doc(
+                root,
+                "docs/tests/02-acceptance-matrix.md",
+                _acceptance_matrix_doc(
+                    acceptance="[Acceptance](../product/08-acceptance-criteria.md)",
+                ),
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "acceptance matrix row docs/product/08-acceptance-criteria.md Acceptance field must include A-NNN acceptance ID",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "acceptance_matrix_invalid_acceptance_id",
+                    "severity": "error",
+                    "path": "docs/tests/02-acceptance-matrix.md",
+                    "message": "acceptance matrix row docs/product/08-acceptance-criteria.md Acceptance field must include A-NNN acceptance ID",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_acceptance_matrix_lowercase_acceptance_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_traceable_test_strategy(root)
+            _write_indexed_doc(
+                root,
+                "docs/tests/02-acceptance-matrix.md",
+                _acceptance_matrix_doc(
+                    acceptance="[a-001](../product/08-acceptance-criteria.md#a-001)",
+                ),
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "acceptance matrix row docs/product/08-acceptance-criteria.md Acceptance field must include A-NNN acceptance ID",
+                report.errors,
+            )
+
+    def test_verify_reports_duplicate_acceptance_matrix_acceptance_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_traceable_test_strategy(root)
+            _write_indexed_doc(
+                root,
+                "docs/tests/02-acceptance-matrix.md",
+                "# Acceptance Matrix\n\n"
+                "## Matrix\n\n"
+                "| Acceptance | Design | API | Test |\n"
+                "| --- | --- | --- | --- |\n"
+                "| [A-001](../product/08-acceptance-criteria.md#a-001) | [System context](../architecture/01-system-context.md) | [API conventions](../api/00-conventions.md) | [Test strategy](01-strategy.md) |\n"
+                "| [A-001 retry](../product/08-acceptance-criteria.md#a-001-retry) | [System context](../architecture/01-system-context.md) | [API conventions](../api/00-conventions.md) | [Test strategy](01-strategy.md) |\n\n"
+                "## Uncovered Criteria\n\n"
+                "- none\n",
+            )
+
+            report = verify(root)
+
+            self.assertIn("duplicate acceptance matrix Acceptance ID: A-001", report.errors)
+            self.assertIn(
+                {
+                    "code": "acceptance_matrix_duplicate_acceptance_id",
+                    "severity": "error",
+                    "path": "docs/tests/02-acceptance-matrix.md",
+                    "message": "duplicate acceptance matrix Acceptance ID: A-001",
                 },
                 [finding.to_dict() for finding in report.findings],
             )

@@ -25,6 +25,7 @@ DOC_DIRS = {
 NON_BLOCKING_SCOPES = {"", "-", "none", "n/a", "na", "non-blocking", "non blocking", "resolved"}
 UNRESOLVED_ID_RE = re.compile(r"^U-[0-9]{3}$")
 TASK_ID_RE = re.compile(r"^TASK-[0-9]{3}$")
+ACCEPTANCE_ID_RE = re.compile(r"(?<![A-Za-z0-9_-])A-[0-9]{3}(?![A-Za-z0-9_-])")
 UNRESOLVED_REQUIRED_COLUMNS = {
     "id": "ID",
     "domain": "Domain",
@@ -439,6 +440,7 @@ def _check_product_chapter_links(root: Path, report: VerificationReport) -> None
     chapters = _product_chapters(product_root)
     if not chapters:
         return
+    _check_product_acceptance_chapter_ids(root, chapters, report)
 
     prd_rel = "docs/product/core/PRD.md"
     prd_path = root / prd_rel
@@ -497,6 +499,25 @@ def _product_chapters(product_root: Path) -> list[Path]:
         for path in sorted(product_root.glob("*.md"))
         if path.is_file() and PRODUCT_CHAPTER_RE.fullmatch(path.name)
     ]
+
+
+def _check_product_acceptance_chapter_ids(root: Path, chapters: list[Path], report: VerificationReport) -> None:
+    for chapter in chapters:
+        if "acceptance" not in chapter.stem.lower():
+            continue
+        rel = chapter.relative_to(root).as_posix()
+        try:
+            text = chapter.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        if SCAFFOLD_PLACEHOLDER in text:
+            continue
+        if ACCEPTANCE_ID_RE.search(_strip_markdown_code(text)) is None:
+            report.add_error(
+                "product_acceptance_missing_ids",
+                f"{rel} must define at least one A-NNN acceptance ID",
+                rel,
+            )
 
 
 def _check_api_endpoint_contract_filenames(root: Path, report: VerificationReport) -> None:
@@ -1424,6 +1445,7 @@ def _check_acceptance_matrix_traceability(root: Path, report: VerificationReport
         report.add_error("acceptance_matrix_no_rows", f"{rel} must contain at least one acceptance mapping row", rel)
         return
 
+    seen_acceptance_ids: set[str] = set()
     for row in rows:
         row_label = _acceptance_matrix_row_label(root, path, row)
         missing_fields = [
@@ -1438,6 +1460,22 @@ def _check_acceptance_matrix_traceability(root: Path, report: VerificationReport
                 rel,
             )
             continue
+        acceptance_id = _acceptance_matrix_acceptance_id(row["acceptance"])
+        if acceptance_id is None:
+            report.add_error(
+                "acceptance_matrix_invalid_acceptance_id",
+                f"acceptance matrix row {row_label} Acceptance field must include A-NNN acceptance ID",
+                rel,
+            )
+            continue
+        if acceptance_id in seen_acceptance_ids:
+            report.add_error(
+                "acceptance_matrix_duplicate_acceptance_id",
+                f"duplicate acceptance matrix Acceptance ID: {acceptance_id}",
+                rel,
+            )
+            continue
+        seen_acceptance_ids.add(acceptance_id)
         _check_acceptance_matrix_reference(
             root,
             path,
@@ -1513,6 +1551,14 @@ def _acceptance_matrix_row_label(root: Path, matrix_path: Path, row: dict[str, s
         return references[0].rel
     label = _plain_cell_label(row.get("acceptance", ""))
     return label or "(missing acceptance)"
+
+
+def _acceptance_matrix_acceptance_id(value: str) -> str | None:
+    label = _plain_cell_label(value)
+    match = ACCEPTANCE_ID_RE.search(label)
+    if match is None:
+        return None
+    return match.group(0)
 
 
 def _check_acceptance_matrix_reference(
