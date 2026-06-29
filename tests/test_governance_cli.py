@@ -1155,10 +1155,17 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn("00-conventions.md", (target / "docs/api/README.md").read_text(encoding="utf-8"))
             endpoints_index = (target / "docs/api/endpoints/README.md").read_text(encoding="utf-8")
             endpoint_contract = (target / "docs/api/endpoints/01-endpoint-contract.md").read_text(encoding="utf-8")
+            acceptance_matrix = (target / "docs/tests/02-acceptance-matrix.md").read_text(encoding="utf-8")
+            roadmap = (target / "docs/development/01-roadmap.md").read_text(encoding="utf-8")
+            task_board = (target / "docs/development/02-task-board.md").read_text(encoding="utf-8")
             self.assertNotIn("README.md", endpoints_index)
             self.assertIn("01-endpoint-contract.md", endpoints_index)
             self.assertIn("## Method and Path", endpoint_contract)
             self.assertIn("governance:scaffold-placeholder", endpoint_contract)
+            self.assertIn("| Acceptance | Design | API | Test |", acceptance_matrix)
+            self.assertIn("| ID | Status | Milestone |", roadmap)
+            self.assertIn("| ID | Status | Task | Product | Design | API | Acceptance | Verification |", task_board)
+            self.assertIn("Allowed statuses: Backlog, Ready, In Progress, Blocked, Done, Deferred.", task_board)
 
             verify_result = subprocess.run(
                 [sys.executable, str(CLI), "verify", str(target), "--json"],

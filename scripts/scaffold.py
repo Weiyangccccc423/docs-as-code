@@ -226,8 +226,40 @@ def _render_spec(spec: ScaffoldSpec) -> str:
         )
     lines.extend([spec.purpose, ""])
     for section in spec.sections:
-        lines.extend([f"## {section}", "", "- TBD", ""])
+        lines.extend([f"## {section}", "", *_section_lines(spec.path, section), ""])
     return "\n".join(lines).rstrip() + "\n"
+
+
+def _section_lines(path: str, section: str) -> list[str]:
+    key = (path, section)
+    if key == ("docs/tests/02-acceptance-matrix.md", "Matrix"):
+        return [
+            "| Acceptance | Design | API | Test |",
+            "| --- | --- | --- | --- |",
+            "| A-NNN acceptance source | design source | endpoint contract source | test evidence source |",
+        ]
+    if key == ("docs/tests/02-acceptance-matrix.md", "Uncovered Criteria"):
+        return ["- A-NNN deferred or uncovered reason"]
+    if key == ("docs/development/01-roadmap.md", "Milestones"):
+        return [
+            "| ID | Status | Milestone |",
+            "| --- | --- | --- |",
+            "| TASK-NNN | Backlog | Product-derived milestone |",
+        ]
+    if key == ("docs/development/02-task-board.md", "Task Table"):
+        return [
+            "| ID | Status | Task | Product | Design | API | Acceptance | Verification |",
+            "| --- | --- | --- | --- | --- | --- | --- | --- |",
+            "| TASK-NNN | Backlog | Product-derived task | product source | design source | endpoint contract source | A-NNN acceptance source | verification plan |",
+        ]
+    if key == ("docs/development/02-task-board.md", "Status Policy"):
+        return ["- Allowed statuses: Backlog, Ready, In Progress, Blocked, Done, Deferred."]
+    if key == ("docs/development/02-task-board.md", "Traceability Rules"):
+        return [
+            "- Product, Design, API, and Acceptance cells must reference existing local Markdown sources.",
+            "- Done tasks must link Verification to local Markdown evidence.",
+        ]
+    return ["- TBD"]
 
 
 def _ensure_index(root: Path, spec: ScaffoldSpec) -> bool:
