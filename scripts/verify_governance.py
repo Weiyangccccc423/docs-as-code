@@ -65,6 +65,13 @@ API_CONVENTIONS_REQUIRED_SECTIONS = {
     "open decisions": "Open Decisions",
 }
 API_ERROR_CODES_REL = Path("docs/api/error-codes.md")
+API_ERROR_CODES_REQUIRED_SECTIONS = {
+    "product links": "Product Links",
+    "error taxonomy": "Error Taxonomy",
+    "error codes": "Error Codes",
+    "retry semantics": "Retry Semantics",
+    "frontend handling": "Frontend Handling",
+}
 ARCHITECTURE_SYSTEM_CONTEXT_REL = Path("docs/architecture/01-system-context.md")
 ARCHITECTURE_SYSTEM_CONTEXT_REQUIRED_SECTIONS = {
     "product links": "Product Links",
@@ -277,6 +284,7 @@ def verify(root: Path) -> VerificationReport:
     _check_product_source_manifest(root, report)
     _check_product_chapter_links(root, report)
     _check_api_conventions(root, report)
+    _check_api_error_codes(root, report)
     _check_api_endpoint_contract_filenames(root, report)
     _check_architecture_system_context_traceability(root, report)
     _check_architecture_containers_traceability(root, report)
@@ -531,6 +539,62 @@ def _check_api_conventions(root: Path, report: VerificationReport) -> None:
         rel,
         references,
         "api_conventions_trace_reference_missing",
+        "Acceptance",
+        _is_product_acceptance_reference_path,
+    )
+
+
+def _check_api_error_codes(root: Path, report: VerificationReport) -> None:
+    path = root / API_ERROR_CODES_REL
+    rel = API_ERROR_CODES_REL.as_posix()
+    if not path.exists():
+        return
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return
+    if SCAFFOLD_PLACEHOLDER in text:
+        return
+
+    sections = _markdown_sections(text, min_level=2)
+    missing = [
+        label
+        for key, label in API_ERROR_CODES_REQUIRED_SECTIONS.items()
+        if key not in sections
+    ]
+    if missing:
+        report.add_error(
+            "api_error_codes_missing_sections",
+            f"{rel} is missing API error code sections: {', '.join(missing)}",
+            rel,
+        )
+        return
+    empty = [
+        label
+        for key, label in API_ERROR_CODES_REQUIRED_SECTIONS.items()
+        if not _section_has_authored_content(sections[key])
+    ]
+    if empty:
+        report.add_error(
+            "api_error_codes_empty_sections",
+            f"{rel} has empty API error code sections: {', '.join(empty)}",
+            rel,
+        )
+
+    references = _local_markdown_references(root, path, text, include_bare=True, strip_code=False)
+    _check_design_reference_group(
+        report,
+        rel,
+        references,
+        "api_error_codes_trace_reference_missing",
+        "Product",
+        _is_product_scope_reference,
+    )
+    _check_design_reference_group(
+        report,
+        rel,
+        references,
+        "api_error_codes_trace_reference_missing",
         "Acceptance",
         _is_product_acceptance_reference_path,
     )

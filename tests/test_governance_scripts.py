@@ -36,7 +36,26 @@ def _write_acceptance_chapter(root: Path) -> None:
 
 
 def _write_api_error_codes_doc(root: Path) -> None:
-    _write_indexed_doc(root, "docs/api/error-codes.md", "# API Error Codes\n\n## E_EXAMPLE\n\nExample error.\n")
+    _write_indexed_doc(root, "docs/api/error-codes.md", _api_error_codes_doc())
+
+
+def _api_error_codes_doc(
+    product_links: str = "[PRD](../product/core/PRD.md), [Acceptance](../product/08-acceptance-criteria.md)",
+) -> str:
+    return (
+        "# API Error Codes\n\n"
+        "## Product Links\n\n"
+        f"- {product_links}\n\n"
+        "## Error Taxonomy\n\n"
+        "- Validation errors use stable client-actionable codes.\n"
+        "- System errors hide internal implementation details.\n\n"
+        "## Error Codes\n\n"
+        "- E_EXAMPLE: example error for endpoint contract tests.\n\n"
+        "## Retry Semantics\n\n"
+        "- Retry only idempotent requests or writes protected by an idempotency key.\n\n"
+        "## Frontend Handling\n\n"
+        "- Frontend flows map stable codes to user-visible recovery actions.\n"
+    )
 
 
 def _api_conventions_doc(
@@ -1121,6 +1140,147 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "severity": "error",
                     "path": "docs/api/00-conventions.md",
                     "message": "docs/api/00-conventions.md references missing Product target: docs/product/01-goals.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_allows_complete_api_error_codes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(root, "docs/api/error-codes.md", _api_error_codes_doc())
+
+            report = verify(root)
+
+            self.assertEqual([], report.errors)
+
+    def test_verify_reports_api_error_codes_missing_required_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(
+                root,
+                "docs/api/error-codes.md",
+                "# API Error Codes\n\n"
+                "## Product Links\n\n"
+                "- [PRD](../product/core/PRD.md)\n",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/api/error-codes.md is missing API error code sections: "
+                "Error Taxonomy, Error Codes, Retry Semantics, Frontend Handling",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "api_error_codes_missing_sections",
+                    "severity": "error",
+                    "path": "docs/api/error-codes.md",
+                    "message": "docs/api/error-codes.md is missing API error code sections: "
+                    "Error Taxonomy, Error Codes, Retry Semantics, Frontend Handling",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_api_error_codes_empty_required_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(
+                root,
+                "docs/api/error-codes.md",
+                _api_error_codes_doc().replace(
+                    "## Retry Semantics\n\n"
+                    "- Retry only idempotent requests or writes protected by an idempotency key.\n\n",
+                    "## Retry Semantics\n\n- TBD\n\n",
+                ),
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/api/error-codes.md has empty API error code sections: Retry Semantics",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "api_error_codes_empty_sections",
+                    "severity": "error",
+                    "path": "docs/api/error-codes.md",
+                    "message": "docs/api/error-codes.md has empty API error code sections: Retry Semantics",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_api_error_codes_missing_trace_references(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(
+                root,
+                "docs/api/error-codes.md",
+                _api_error_codes_doc("Product scope and acceptance criteria"),
+            )
+
+            report = verify(root)
+
+            expected = [
+                "docs/api/error-codes.md must reference existing Product docs",
+                "docs/api/error-codes.md must reference a product acceptance chapter",
+            ]
+            for message in expected:
+                self.assertIn(message, report.errors)
+            self.assertIn(
+                {
+                    "code": "api_error_codes_trace_reference_missing",
+                    "severity": "error",
+                    "path": "docs/api/error-codes.md",
+                    "message": "docs/api/error-codes.md must reference existing Product docs",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_api_error_codes_missing_trace_targets(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(
+                root,
+                "docs/api/error-codes.md",
+                _api_error_codes_doc(
+                    "[Missing scope](../product/01-goals.md), "
+                    "[Acceptance](../product/08-acceptance-criteria.md)"
+                ),
+            )
+
+            report = verify(root)
+
+            expected = [
+                "docs/api/error-codes.md references missing Product target: docs/product/01-goals.md",
+                "docs/api/error-codes.md references missing Acceptance target: docs/product/08-acceptance-criteria.md",
+            ]
+            for message in expected:
+                self.assertIn(message, report.errors)
+            self.assertIn(
+                {
+                    "code": "api_error_codes_trace_reference_missing",
+                    "severity": "error",
+                    "path": "docs/api/error-codes.md",
+                    "message": "docs/api/error-codes.md references missing Product target: docs/product/01-goals.md",
                 },
                 [finding.to_dict() for finding in report.findings],
             )

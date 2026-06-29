@@ -30,6 +30,18 @@ Endpoint files under `docs/api/endpoints/` must use `NN-<slug>.md` with unique `
 
 Do not leave required sections empty or as `TBD`/`TODO`; link `Product Links` to product scope and a product acceptance chapter.
 
+## Error Code Registry Sections
+
+`docs/api/error-codes.md` must include these headings:
+
+- `## Product Links`
+- `## Error Taxonomy`
+- `## Error Codes`
+- `## Retry Semantics`
+- `## Frontend Handling`
+
+Do not leave required sections empty or as `TBD`/`TODO`; link `Product Links` to product scope and a product acceptance chapter.
+
 ## Endpoint Sections
 
 Each endpoint file must include these headings:
