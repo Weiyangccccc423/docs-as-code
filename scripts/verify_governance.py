@@ -347,6 +347,7 @@ def verify(root: Path) -> VerificationReport:
     _check_task_board(root, report)
     _check_roadmap(root, report)
     _check_roadmap_task_board_alignment(root, report)
+    _check_task_board_acceptance_matrix_alignment(root, report)
 
     return report
 
@@ -2365,6 +2366,62 @@ def _check_roadmap_task_board_alignment(root: Path, report: VerificationReport) 
             f"task board row {item_id} has no matching roadmap milestone",
             TASK_BOARD_REL.as_posix(),
         )
+
+
+def _check_task_board_acceptance_matrix_alignment(root: Path, report: VerificationReport) -> None:
+    task_board_path = root / TASK_BOARD_REL
+    matrix_ids = _acceptance_matrix_mapped_acceptance_ids(root)
+    if matrix_ids is None or not task_board_path.exists():
+        return
+    try:
+        task_board_text = task_board_path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return
+    if SCAFFOLD_PLACEHOLDER in task_board_text:
+        return
+    task_rows, task_missing = _task_board_rows(task_board_text)
+    if task_missing:
+        return
+
+    reported: set[tuple[str, str]] = set()
+    for row in task_rows:
+        task_id = row.get("id", "").strip()
+        if TASK_ID_RE.fullmatch(task_id) is None:
+            continue
+        acceptance_id = _task_board_acceptance_id(row.get("acceptance", ""))
+        if acceptance_id is None or acceptance_id in matrix_ids:
+            continue
+        report_key = (task_id, acceptance_id)
+        if report_key in reported:
+            continue
+        reported.add(report_key)
+        report.add_error(
+            "task_board_acceptance_matrix_missing",
+            f"task board row {task_id} Acceptance ID {acceptance_id} is not mapped in {ACCEPTANCE_MATRIX_REL.as_posix()}",
+            TASK_BOARD_REL.as_posix(),
+        )
+
+
+def _acceptance_matrix_mapped_acceptance_ids(root: Path) -> set[str] | None:
+    path = root / ACCEPTANCE_MATRIX_REL
+    if not path.exists():
+        return None
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return None
+    if SCAFFOLD_PLACEHOLDER in text:
+        return None
+    rows, missing = _acceptance_matrix_rows(text)
+    if missing or not rows:
+        return None
+    mapped_ids: set[str] = set()
+    for row in rows:
+        acceptance_id = _acceptance_matrix_acceptance_id(row.get("acceptance", ""))
+        if acceptance_id is None:
+            return None
+        mapped_ids.add(acceptance_id)
+    return mapped_ids
 
 
 def _task_board_rows(text: str) -> tuple[list[dict[str, str]], list[str]]:

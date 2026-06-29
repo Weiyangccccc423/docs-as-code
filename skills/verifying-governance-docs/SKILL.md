@@ -82,6 +82,7 @@ Treat `task_board_acceptance_reference_missing` as an implementation-readiness b
 Treat `task_board_acceptance_id_missing` as an implementation-readiness blocker: include the matching `A-NNN` acceptance ID in the task row `Acceptance` field.
 Treat `task_board_acceptance_id_unknown` as an implementation-readiness blocker: replace the row's `A-NNN` with an ID defined in the referenced product acceptance chapter, or add the missing sourced criterion there first.
 Treat `task_board_acceptance_anchor_mismatch` as an implementation-readiness blocker: make the Acceptance link fragment match the row's `A-NNN` ID.
+Treat `task_board_acceptance_matrix_missing` as an implementation-readiness blocker: map the task's `A-NNN` in `docs/tests/02-acceptance-matrix.md` with design, API, and test links before implementation, or remove/defer the task.
 
 Treat `ok: false` as blocking. Treat `needs_escalation: true` as requiring explicit approval before running the reported package-manager command.
 
@@ -142,7 +143,7 @@ make ci
 - task board items marked `Done` link to existing local Markdown verification evidence
 - task board IDs are unique, use `TASK-NNN`, and match roadmap milestones
 - task board `Product`, `Design`, `API`, and `Acceptance` fields contain existing local Markdown references to matching source domains
-- task board `Acceptance` fields include an `A-NNN` ID defined in the referenced product acceptance chapter, a matching link fragment when present, and a product acceptance chapter reference matching `docs/product/NN-*acceptance*.md`
+- task board `Acceptance` fields include an `A-NNN` ID defined in the referenced product acceptance chapter, mapped in `docs/tests/02-acceptance-matrix.md`, a matching link fragment when present, and a product acceptance chapter reference matching `docs/product/NN-*acceptance*.md`
 - at least one implementation task is `Ready`
 
 ## Red Lines

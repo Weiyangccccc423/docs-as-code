@@ -99,7 +99,7 @@ Load:
    - task board items marked `Done` link to existing local Markdown verification evidence
    - task board item IDs are unique, use `TASK-NNN`, and match roadmap milestones
    - task board `Product`, `Design`, `API`, and `Acceptance` fields point to existing local Markdown files in the matching source domains
-   - task board `Acceptance` fields include an `A-NNN` ID defined in the referenced product acceptance chapter, a matching link fragment when present, and a product acceptance chapter reference matching `docs/product/NN-*acceptance*.md`
+   - task board `Acceptance` fields include an `A-NNN` ID defined in the referenced product acceptance chapter, mapped in `docs/tests/02-acceptance-matrix.md`, a matching link fragment when present, and a product acceptance chapter reference matching `docs/product/NN-*acceptance*.md`
    - at least one task board item is `Ready` before implementation starts
 
 ## Output
@@ -113,6 +113,7 @@ A verification report and a list of fixes, or a clean governance baseline.
 - ADR identity is unstable because filenames are unnumbered or duplicate numbered.
 - The task board claims completion without evidence.
 - The task board includes a `TASK-NNN` item absent from roadmap milestones.
+- The task board references an acceptance ID not mapped in the acceptance matrix.
 - The task board lacks status policy or traceability rules.
 - The roadmap lacks a valid milestone table.
 - Roadmap status conflicts with task board status.
