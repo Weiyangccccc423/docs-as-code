@@ -2329,16 +2329,22 @@ def _task_board_row_trace_reference_errors(root: Path, row: dict[str, str], task
                 "task_board_acceptance_reference_missing",
                 f"task board row {task_id} Acceptance field must reference a product acceptance chapter",
             ))
-        if (
-            column == "acceptance"
-            and all(reference.exists for reference in references)
-            and any(_is_product_acceptance_reference(reference) for reference in references)
-            and _task_board_acceptance_id(row.get(column, "")) is None
-        ):
-            errors.append((
-                "task_board_acceptance_id_missing",
-                f"task board row {task_id} Acceptance field must include A-NNN acceptance ID",
-            ))
+        if column == "acceptance" and all(reference.exists for reference in references):
+            product_acceptance_refs = [reference for reference in references if _is_product_acceptance_reference(reference)]
+            acceptance_id = _task_board_acceptance_id(row.get(column, ""))
+            if product_acceptance_refs and acceptance_id is None:
+                errors.append((
+                    "task_board_acceptance_id_missing",
+                    f"task board row {task_id} Acceptance field must include A-NNN acceptance ID",
+                ))
+            elif product_acceptance_refs and acceptance_id is not None and not any(
+                _product_acceptance_reference_has_id(root, reference, acceptance_id)
+                for reference in product_acceptance_refs
+            ):
+                errors.append((
+                    "task_board_acceptance_id_unknown",
+                    f"task board row {task_id} Acceptance ID {acceptance_id} is not defined in referenced product acceptance chapter",
+                ))
     return errors
 
 
@@ -2348,6 +2354,14 @@ def _task_board_acceptance_id(value: str) -> str | None:
     if match is None:
         return None
     return match.group(0)
+
+
+def _product_acceptance_reference_has_id(root: Path, reference: LocalMarkdownReference, acceptance_id: str) -> bool:
+    try:
+        text = (root / reference.rel).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return False
+    return _text_contains_identifier(_strip_markdown_code(text), acceptance_id)
 
 
 def _is_product_acceptance_reference(reference: LocalMarkdownReference) -> bool:

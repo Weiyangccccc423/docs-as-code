@@ -4083,6 +4083,43 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_task_board_unknown_acceptance_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_product_chapter(root, "01-goals.md", "Goals")
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
+            _write_indexed_doc(root, "docs/api/00-conventions.md", _api_conventions_doc())
+            _write_traceable_test_strategy(root)
+
+            task_board = root / "docs/development/02-task-board.md"
+            task_board.write_text(
+                _task_board_doc(
+                    "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | [A-999](../product/08-acceptance-criteria.md#a-999) | make test |\n"
+                ),
+                encoding="utf-8",
+            )
+            _append_index(root / "docs/development/README.md", "02-task-board.md")
+
+            report = verify(root)
+
+            self.assertIn(
+                "task board row TASK-001 Acceptance ID A-999 is not defined in referenced product acceptance chapter",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "task_board_acceptance_id_unknown",
+                    "severity": "error",
+                    "path": "docs/development/02-task-board.md",
+                    "message": "task board row TASK-001 Acceptance ID A-999 is not defined in referenced product acceptance chapter",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_task_board_missing_trace_reference(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
