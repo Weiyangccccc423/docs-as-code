@@ -2142,9 +2142,8 @@ def _check_readme_indexes(root: Path, report: VerificationReport) -> None:
 def _check_local_markdown_links(root: Path, report: VerificationReport) -> None:
     for path in _iter_markdown_files_for_link_check(root):
         rel = path.relative_to(root).as_posix()
-        try:
-            text = path.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
+        text = _read_markdown_text(root, path, report)
+        if text is None:
             continue
         for reference in _local_markdown_references(root, path, text):
             if reference.exists:
@@ -2186,9 +2185,8 @@ def _check_scaffold_placeholders(root: Path, report: VerificationReport) -> None
         rel = path.relative_to(root).as_posix()
         if rel.startswith(f"{WORKFLOW_PACK_SNAPSHOT_ROOT}/"):
             continue
-        try:
-            text = path.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
+        text = _read_markdown_text(root, path, report)
+        if text is None:
             continue
         if SCAFFOLD_PLACEHOLDER not in text:
             continue

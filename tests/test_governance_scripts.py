@@ -710,6 +710,31 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_product_chapter_invalid_encoding_without_silent_skip(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            chapter = root / "docs/product/01-goals.md"
+            chapter.write_bytes(b"\xff")
+            _append_index(root / "docs/product/README.md", "01-goals.md")
+            _append_product_meta_chapter(root, "01-goals.md")
+
+            report = verify(root)
+
+            self.assertIn("invalid Markdown encoding: docs/product/01-goals.md must be UTF-8", report.errors)
+            self.assertIn(
+                {
+                    "code": "markdown_invalid_encoding",
+                    "severity": "error",
+                    "path": "docs/product/01-goals.md",
+                    "message": "invalid Markdown encoding: docs/product/01-goals.md must be UTF-8",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_product_source_manifest_directory_without_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
