@@ -627,6 +627,27 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_docs_root_file_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "README.md").write_text("# Demo\n", encoding="utf-8")
+            (root / "AGENTS.md").write_text("# Agents\n", encoding="utf-8")
+            (root / "SPEC.md").write_text("# Spec\n", encoding="utf-8")
+            (root / "docs").write_text("not a directory\n", encoding="utf-8")
+
+            report = verify(root)
+
+            self.assertIn("required directory is not a directory: docs", report.errors)
+            self.assertIn(
+                {
+                    "code": "required_directory_not_directory",
+                    "severity": "error",
+                    "path": "docs",
+                    "message": "required directory is not a directory: docs",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_rejects_tampered_archived_product_source(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

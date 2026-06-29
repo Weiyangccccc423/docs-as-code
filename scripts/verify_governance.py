@@ -338,6 +338,14 @@ def verify(root: Path) -> VerificationReport:
     root = root.resolve()
     report = VerificationReport()
 
+    required_directories = [
+        "docs",
+    ]
+    for rel in required_directories:
+        path = root / rel
+        if path.exists() and not path.is_dir():
+            report.add_error("required_directory_not_directory", f"required directory is not a directory: {rel}", rel)
+
     required_files = [
         "README.md",
         "AGENTS.md",
@@ -361,7 +369,7 @@ def verify(root: Path) -> VerificationReport:
     docs_agents = docs_root / "AGENTS.md"
     docs_agents_text = docs_agents.read_text(encoding="utf-8") if docs_agents.is_file() else ""
 
-    if docs_root.exists():
+    if docs_root.is_dir():
         for child in sorted(docs_root.iterdir()):
             if not child.is_dir():
                 continue
@@ -2079,7 +2087,7 @@ def _check_glossary_items(root: Path, report: VerificationReport) -> None:
 
 def _check_readme_indexes(root: Path, report: VerificationReport) -> None:
     docs_root = root / "docs"
-    if not docs_root.exists():
+    if not docs_root.is_dir():
         return
     for readme in sorted(docs_root.rglob("README.md")):
         directory = readme.parent
@@ -2121,7 +2129,7 @@ def _iter_markdown_files_for_link_check(root: Path) -> list[Path]:
         if path.is_file() and not path.name.startswith("_"):
             files.append(path)
     docs_root = root / "docs"
-    if not docs_root.exists():
+    if not docs_root.is_dir():
         return files
     for path in sorted(docs_root.rglob("*.md")):
         if not path.is_file() or path.name.startswith("_"):
@@ -2137,7 +2145,7 @@ def _iter_markdown_files_for_link_check(root: Path) -> list[Path]:
 
 def _check_scaffold_placeholders(root: Path, report: VerificationReport) -> None:
     docs_root = root / "docs"
-    if not docs_root.exists():
+    if not docs_root.is_dir():
         return
     for path in sorted(docs_root.rglob("*.md")):
         if not path.is_file():
