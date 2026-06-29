@@ -2056,11 +2056,15 @@ def task_board_ready_tasks(root: Path) -> list[dict[str, str]]:
     if SCAFFOLD_PLACEHOLDER in text:
         return []
     rows, _missing = _task_board_rows(text)
+    matrix_ids = _acceptance_matrix_mapped_acceptance_ids(root)
+    if matrix_ids is None:
+        return []
     return [
         row
         for row in rows
         if _normalize_cell(row.get("status", "")) in TASK_BOARD_READY_STATUSES and _task_board_row_trace_complete(row)
         and _task_board_row_trace_references_valid(root, row)
+        and _task_board_row_acceptance_mapped(row, matrix_ids)
     ]
 
 
@@ -2477,6 +2481,11 @@ def _task_board_row_trace_complete(row: dict[str, str]) -> bool:
 def _task_board_row_trace_references_valid(root: Path, row: dict[str, str]) -> bool:
     task_id = row.get("id", "").strip() or "(missing id)"
     return not _task_board_row_trace_reference_errors(root, row, task_id)
+
+
+def _task_board_row_acceptance_mapped(row: dict[str, str], matrix_ids: set[str]) -> bool:
+    acceptance_id = _task_board_acceptance_id(row.get("acceptance", ""))
+    return acceptance_id is not None and acceptance_id in matrix_ids
 
 
 def _task_board_row_trace_reference_errors(root: Path, row: dict[str, str], task_id: str) -> list[tuple[str, str]]:

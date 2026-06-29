@@ -145,6 +145,18 @@ def _test_strategy_doc() -> str:
     )
 
 
+def _acceptance_matrix_doc() -> str:
+    return (
+        "# Acceptance Matrix\n\n"
+        "## Matrix\n\n"
+        "| Acceptance | Design | API | Test |\n"
+        "| --- | --- | --- | --- |\n"
+        "| [A-001](../product/08-acceptance-criteria.md#a-001) | [Architecture context](../architecture/01-context.md) | [API conventions](../api/00-conventions.md) | [Test strategy](01-strategy.md) |\n\n"
+        "## Uncovered Criteria\n\n"
+        "- none\n"
+    )
+
+
 class GovernanceCliTest(unittest.TestCase):
     def test_env_repair_writes_repair_plan(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -766,6 +778,22 @@ class GovernanceCliTest(unittest.TestCase):
                 encoding="utf-8",
             )
 
+            missing_matrix = subprocess.run(
+                [sys.executable, str(CLI), "gate", "implementation", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(1, missing_matrix.returncode)
+            missing_matrix_requirements = {item["code"]: item for item in json.loads(missing_matrix.stdout)["requirements"]}
+            self.assertFalse(missing_matrix_requirements["acceptance_matrix_present"]["ok"])
+
+            (target / "docs/tests/02-acceptance-matrix.md").write_text(
+                _acceptance_matrix_doc(),
+                encoding="utf-8",
+            )
+            _append_index(target / "docs/tests/README.md", "02-acceptance-matrix.md")
+
             missing_task = subprocess.run(
                 [sys.executable, str(CLI), "gate", "implementation", str(target), "--json"],
                 text=True,
@@ -774,6 +802,7 @@ class GovernanceCliTest(unittest.TestCase):
             )
             self.assertEqual(1, missing_task.returncode)
             missing_task_requirements = {item["code"]: item for item in json.loads(missing_task.stdout)["requirements"]}
+            self.assertTrue(missing_task_requirements["acceptance_matrix_present"]["ok"])
             self.assertFalse(missing_task_requirements["task_board_ready_task_present"]["ok"])
 
             task_board = target / "docs/development/02-task-board.md"

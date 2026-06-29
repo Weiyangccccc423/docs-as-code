@@ -136,6 +136,13 @@ def _add_implementation_requirements(requirements: list[GateRequirement], root: 
         _add(requirements, f"{domain}_docs_present", _has_authored_markdown(root / "docs" / domain), f"docs/{domain}", message)
     _add(
         requirements,
+        "acceptance_matrix_present",
+        _is_authored_markdown_file(root / "docs/tests/02-acceptance-matrix.md"),
+        "docs/tests/02-acceptance-matrix.md",
+        "acceptance matrix exists",
+    )
+    _add(
+        requirements,
         "task_board_ready_task_present",
         bool(task_board_ready_tasks(root)),
         "docs/development/02-task-board.md",
@@ -161,3 +168,7 @@ def _has_authored_markdown(directory: Path) -> bool:
             continue
         return True
     return False
+
+
+def _is_authored_markdown_file(path: Path) -> bool:
+    return path.is_file() and not path.name.startswith("_")
