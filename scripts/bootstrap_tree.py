@@ -8,9 +8,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 try:
-    from .state import merge_state, utc_now
+    from .state import STATE_REL, merge_state, utc_now
 except ImportError:  # pragma: no cover - direct script execution
-    from state import merge_state, utc_now
+    from state import STATE_REL, merge_state, utc_now
 
 
 DOC_DIRS = [
@@ -232,6 +232,24 @@ class InitPreflightError(RuntimeError):
         self.result = result
 
 
+@dataclass
+class RuntimeRefreshResult:
+    target: str
+    ok: bool
+    refreshed: list[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
+    state: dict[str, object] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "target": self.target,
+            "ok": self.ok,
+            "refreshed": self.refreshed,
+            "errors": self.errors,
+            "state": self.state,
+        }
+
+
 def generated_file_paths(product_doc: Path | None = None) -> list[str]:
     paths = list(ROOT_GENERATED_FILES)
     paths.extend(f"bin/{name}" for name in RUNTIME_BIN_FILES)
@@ -289,6 +307,51 @@ def preflight_init(root: Path, product_doc: Path | None = None, force: bool = Fa
         conflicts=conflicts,
         product=product,
         would_write=paths,
+    )
+
+
+def refresh_runtime(root: Path) -> RuntimeRefreshResult:
+    root = root.resolve()
+    if not (root / STATE_REL).exists():
+        return RuntimeRefreshResult(
+            target=str(root),
+            ok=False,
+            errors=[f"target is not an initialized governance repository: {STATE_REL.as_posix()} is missing"],
+        )
+    pack_root = Path(__file__).resolve().parents[1].resolve()
+    if pack_root == root:
+        return RuntimeRefreshResult(
+            target=str(root),
+            ok=False,
+            errors=[
+                "runtime refresh must be run from a trusted source workflow-pack checkout, "
+                "not the target-local runtime"
+            ],
+        )
+
+    refreshed: list[str] = []
+    _install_runtime(root, force=True)
+    refreshed.extend(path.as_posix() for path in _runtime_file_paths())
+    runtime_manifest = _write_runtime_manifest(root, force=True)
+    refreshed.append(runtime_manifest)
+
+    workflow_pack_files = _iter_workflow_pack_files()
+    workflow_pack_manifest = _install_workflow_pack_snapshot(root, force=True)
+    refreshed.extend(f"{WORKFLOW_PACK_SNAPSHOT_ROOT}/{path.as_posix()}" for path in workflow_pack_files)
+    refreshed.append(workflow_pack_manifest)
+    refreshed = sorted(dict.fromkeys(refreshed))
+
+    state = merge_state(
+        root,
+        runtime_manifest=runtime_manifest,
+        workflow_pack_manifest=workflow_pack_manifest,
+        runtime_refreshed_at=utc_now(),
+    )
+    return RuntimeRefreshResult(
+        target=str(root),
+        ok=True,
+        refreshed=refreshed,
+        state=state,
     )
 
 

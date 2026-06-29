@@ -480,6 +480,127 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn("# Forced Demo", (target / "README.md").read_text(encoding="utf-8"))
             self.assertTrue((target / "docs/README.md").exists())
 
+    def test_runtime_refresh_repairs_target_runtime_and_workflow_pack(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            target = base / "target"
+            product = base / "product.md"
+            product.write_text("# Product\n\n## Goal\n\nShip governed projects.\n", encoding="utf-8")
+
+            init_result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "init",
+                    "--target",
+                    str(target),
+                    "--product",
+                    str(product),
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+
+            prd = target / "docs/product/core/PRD.md"
+            prd.write_text(
+                prd.read_text(encoding="utf-8") + "\n## Local Product Detail\n\nKeep this content.\n",
+                encoding="utf-8",
+            )
+            runtime = target / "scripts/scaffold.py"
+            runtime.write_text(runtime.read_text(encoding="utf-8") + "\n# tampered\n", encoding="utf-8")
+            workflow = target / "docs/agent-workflow/workflow-pack/workflows/00-overview.md"
+            workflow.write_text(workflow.read_text(encoding="utf-8") + "\nTampered.\n", encoding="utf-8")
+
+            verify_result = subprocess.run(
+                [sys.executable, str(CLI), "verify", str(target)],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(1, verify_result.returncode)
+            self.assertIn("runtime file hash mismatch: scripts/scaffold.py", verify_result.stdout)
+            self.assertIn(
+                "workflow pack file hash mismatch: "
+                "docs/agent-workflow/workflow-pack/workflows/00-overview.md",
+                verify_result.stdout,
+            )
+
+            target_local_refresh = subprocess.run(
+                [
+                    sys.executable,
+                    str(target / "scripts/governance_cli.py"),
+                    "runtime",
+                    "refresh",
+                    str(target),
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(1, target_local_refresh.returncode)
+            self.assertIn(
+                "runtime refresh must be run from a trusted source workflow-pack checkout",
+                json.loads(target_local_refresh.stdout)["errors"][0],
+            )
+
+            refresh_result = subprocess.run(
+                [sys.executable, str(CLI), "runtime", "refresh", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, refresh_result.returncode, refresh_result.stderr)
+            payload = json.loads(refresh_result.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertIn("scripts/scaffold.py", payload["refreshed"])
+            self.assertIn(
+                "docs/agent-workflow/workflow-pack/workflows/00-overview.md",
+                payload["refreshed"],
+            )
+            self.assertEqual(
+                "docs/agent-workflow/runtime-manifest.json",
+                payload["state"]["runtime_manifest"],
+            )
+            self.assertEqual(
+                "docs/agent-workflow/workflow-pack/manifest.json",
+                payload["state"]["workflow_pack_manifest"],
+            )
+            self.assertIn("runtime_refreshed_at", payload["state"])
+            self.assertIn("Keep this content.", prd.read_text(encoding="utf-8"))
+
+            verify_again = subprocess.run(
+                [sys.executable, str(CLI), "verify", str(target)],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, verify_again.returncode, verify_again.stderr)
+
+    def test_runtime_refresh_rejects_uninitialized_target_without_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            target.mkdir()
+
+            result = subprocess.run(
+                [sys.executable, str(CLI), "runtime", "refresh", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, result.returncode)
+            payload = json.loads(result.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertIn(
+                "target is not an initialized governance repository: .governance/state.json is missing",
+                payload["errors"],
+            )
+            self.assertFalse((target / "docs/agent-workflow/runtime-manifest.json").exists())
+
     def test_init_verify_and_status_update_state_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "target"

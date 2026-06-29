@@ -83,6 +83,12 @@ bin/governance verify .
 make verify-governance
 ```
 
+If runtime or workflow-pack snapshot verification fails, run the refresh command from a trusted source workflow-pack checkout:
+
+```bash
+bin/governance runtime refresh <target> --json
+```
+
 The target also receives `.governance/state.json`, which records phase, profile, product source, archive path, and last verification status.
 
 ## Stop Conditions

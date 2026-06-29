@@ -50,6 +50,12 @@ Create the minimum structure needed for reliable docs-as-code work.
    make verify-governance
    ```
 
+7. If generated runtime or workflow-pack snapshot integrity fails, repair it from a trusted source workflow-pack checkout:
+
+   ```bash
+   bin/governance runtime refresh <target> --json
+   ```
+
 ## Required Output
 
 - root `README.md`, `AGENTS.md`, `SPEC.md`

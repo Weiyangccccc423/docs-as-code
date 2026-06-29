@@ -4,7 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
-from bootstrap_tree import InitPreflightError, bootstrap, preflight_init
+from bootstrap_tree import InitPreflightError, bootstrap, preflight_init, refresh_runtime
 from check_env import (
     ToolStatus,
     apply_install_plan,
@@ -242,6 +242,24 @@ def _cmd_env(args: argparse.Namespace) -> int:
     return 0 if ok else 1
 
 
+def _cmd_runtime_refresh(args: argparse.Namespace) -> int:
+    target = Path(args.target)
+    result = refresh_runtime(target)
+    payload = result.to_dict()
+    if args.json:
+        _print_json(payload)
+        return 0 if result.ok else 1
+    if not result.ok:
+        print("Runtime refresh failed:")
+        for error in result.errors:
+            print(f"- ERROR: {error}")
+        return 1
+    print(f"Runtime refreshed: {target}")
+    for path in result.refreshed:
+        print(f"- REFRESHED: {path}")
+    return 0
+
+
 def _cmd_gate(args: argparse.Namespace) -> int:
     target = Path(args.target)
     result = evaluate_gate(target, args.gate)
@@ -378,6 +396,16 @@ def build_parser() -> argparse.ArgumentParser:
     env.add_argument("--target", default=".")
     env.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     env.set_defaults(func=_cmd_env)
+
+    runtime = sub.add_parser("runtime", help="Repair or inspect target-local governance runtime.")
+    runtime_sub = runtime.add_subparsers(dest="runtime_command", required=True)
+    runtime_refresh = runtime_sub.add_parser(
+        "refresh",
+        help="Refresh generated bin/, scripts/, and workflow-pack snapshot files from this workflow pack.",
+    )
+    runtime_refresh.add_argument("target", nargs="?", default=".")
+    runtime_refresh.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    runtime_refresh.set_defaults(func=_cmd_runtime_refresh)
 
     gate = sub.add_parser("gate", help="Check whether a workflow phase gate can be entered.")
     gate.add_argument("gate", choices=GATE_NAMES)

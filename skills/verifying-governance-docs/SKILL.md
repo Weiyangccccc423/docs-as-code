@@ -16,6 +16,7 @@ bin/governance gate product-structuring <target>
 bin/governance gate design-derivation <target>
 bin/governance gate implementation <target>
 bin/governance advance implementation <target>
+bin/governance runtime refresh <target>
 ```
 
 For agent automation, use JSON and branch on `ok`:
@@ -25,6 +26,7 @@ bin/governance verify <target> --json
 bin/governance env --strict --repair --target <target> --json
 bin/governance gate implementation <target> --json
 bin/governance advance implementation <target> --json
+bin/governance runtime refresh <target> --json
 ```
 
 Use `verify --json` `findings[].code` and `findings[].path` for deterministic repair routing. Use `errors` and `warnings` only for human-facing summaries.
@@ -39,8 +41,8 @@ Treat gate requirement `api_endpoint_contract_present` as an API-contract blocke
 Treat `product_source_missing`, `product_source_archive_missing`, `product_source_hash_mismatch`, `product_source_manifest_*`, `product_source_import_status_invalid`, and `product_source_import_inconsistent` as product-archiving blockers: repair the source archive and manifest before deriving product structure.
 Treat `product_source_conversion_required` as a product-archiving blocker: replace the PRD conversion wrapper with reviewed Markdown and use `bin/governance product mark-ready <target> --reviewed --method manual-reviewed-markdown --json`.
 Treat `governance_scaffold_placeholder` as an authoring blocker, not a formatting issue. If `path` starts with `docs/product/`, replace it with PRD-derived product content before design derivation; otherwise replace it with product-derived design, test, or planning content before implementation handoff.
-Treat `runtime_manifest_*`, `runtime_file_missing`, and `runtime_file_hash_mismatch` as target-local governance runtime integrity blockers: restore the generated `bin/` or `scripts/` file from the workflow pack before trusting target-local commands.
-Treat `workflow_pack_manifest_*`, `workflow_pack_file_hash_mismatch`, and `workflow_pack_file_missing` as workflow-pack integrity blockers.
+Treat `runtime_manifest_*`, `runtime_file_missing`, and `runtime_file_hash_mismatch` as target-local governance runtime integrity blockers: run `bin/governance runtime refresh <target> --json` from a trusted source workflow-pack checkout before trusting target-local commands.
+Treat `workflow_pack_manifest_*`, `workflow_pack_file_hash_mismatch`, and `workflow_pack_file_missing` as workflow-pack integrity blockers: run `bin/governance runtime refresh <target> --json` from a trusted source workflow-pack checkout.
 Treat `docs_local_markdown_link_missing` as a document-integrity blocker: repair the link or create/index the referenced Markdown file.
 Treat `product_chapter_invalid_filename`, `product_chapter_duplicate_prefix`, `product_chapter_missing_prd_link`, and `product_meta_missing_chapter_link` as product-structuring blockers.
 Treat `product_acceptance_missing_ids` as a product-structuring blocker: assign stable `A-NNN` IDs inside the product acceptance chapter before deriving design.
