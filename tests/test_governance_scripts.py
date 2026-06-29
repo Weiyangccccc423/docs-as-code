@@ -652,6 +652,78 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_rejects_workflow_pack_manifest_size_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            manifest_path = root / "docs/agent-workflow/workflow-pack/manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            entry = next(item for item in manifest["files"] if item["path"] == "workflows/00-overview.md")
+            entry["size_bytes"] += 1
+            manifest_path.write_text(
+                json.dumps(manifest, indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "workflow pack file size mismatch: "
+                "docs/agent-workflow/workflow-pack/workflows/00-overview.md",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "workflow_pack_file_size_mismatch",
+                    "severity": "error",
+                    "path": "docs/agent-workflow/workflow-pack/workflows/00-overview.md",
+                    "message": (
+                        "workflow pack file size mismatch: "
+                        "docs/agent-workflow/workflow-pack/workflows/00-overview.md"
+                    ),
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_rejects_missing_workflow_pack_manifest_size(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            manifest_path = root / "docs/agent-workflow/workflow-pack/manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            entry = next(item for item in manifest["files"] if item["path"] == "workflows/00-overview.md")
+            del entry["size_bytes"]
+            manifest_path.write_text(
+                json.dumps(manifest, indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "workflow pack file size is missing or invalid: "
+                "docs/agent-workflow/workflow-pack/workflows/00-overview.md",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "workflow_pack_manifest_size_missing",
+                    "severity": "error",
+                    "path": "docs/agent-workflow/workflow-pack/manifest.json",
+                    "message": (
+                        "workflow pack file size is missing or invalid: "
+                        "docs/agent-workflow/workflow-pack/workflows/00-overview.md"
+                    ),
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_rejects_unmanifested_workflow_pack_snapshot_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -773,6 +845,64 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "severity": "error",
                     "path": "docs/agent-workflow/runtime-manifest.json",
                     "message": "duplicate runtime manifest path: scripts/scaffold.py",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_rejects_runtime_manifest_size_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            manifest_path = root / "docs/agent-workflow/runtime-manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            entry = next(item for item in manifest["files"] if item["path"] == "scripts/scaffold.py")
+            entry["size_bytes"] += 1
+            manifest_path.write_text(
+                json.dumps(manifest, indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn("runtime file size mismatch: scripts/scaffold.py", report.errors)
+            self.assertIn(
+                {
+                    "code": "runtime_file_size_mismatch",
+                    "severity": "error",
+                    "path": "scripts/scaffold.py",
+                    "message": "runtime file size mismatch: scripts/scaffold.py",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_rejects_missing_runtime_manifest_size(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            manifest_path = root / "docs/agent-workflow/runtime-manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            entry = next(item for item in manifest["files"] if item["path"] == "scripts/scaffold.py")
+            del entry["size_bytes"]
+            manifest_path.write_text(
+                json.dumps(manifest, indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn("runtime file size is missing or invalid: scripts/scaffold.py", report.errors)
+            self.assertIn(
+                {
+                    "code": "runtime_manifest_size_missing",
+                    "severity": "error",
+                    "path": "docs/agent-workflow/runtime-manifest.json",
+                    "message": "runtime file size is missing or invalid: scripts/scaffold.py",
                 },
                 [finding.to_dict() for finding in report.findings],
             )

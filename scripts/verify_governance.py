@@ -2107,6 +2107,7 @@ def _check_runtime_manifest(root: Path, report: VerificationReport) -> None:
             continue
         rel = item.get("path")
         expected_hash = item.get("sha256")
+        expected_size = item.get("size_bytes")
         if not isinstance(rel, str) or not rel or Path(rel).is_absolute() or ".." in Path(rel).parts:
             report.add_error("runtime_manifest_invalid_path", f"invalid runtime file path: {rel}", manifest_rel)
             continue
@@ -2118,6 +2119,10 @@ def _check_runtime_manifest(root: Path, report: VerificationReport) -> None:
         if not path.exists():
             report.add_error("runtime_file_missing", f"runtime file is missing: {rel}", rel)
             continue
+        if not _is_valid_manifest_size(expected_size):
+            report.add_error("runtime_manifest_size_missing", f"runtime file size is missing or invalid: {rel}", manifest_rel)
+        elif path.stat().st_size != expected_size:
+            report.add_error("runtime_file_size_mismatch", f"runtime file size mismatch: {rel}", rel)
         if not isinstance(expected_hash, str) or not expected_hash:
             report.add_error("runtime_manifest_hash_missing", f"runtime file hash is missing: {rel}", manifest_rel)
             continue
@@ -2161,6 +2166,7 @@ def _check_workflow_pack_manifest(root: Path, report: VerificationReport) -> Non
             continue
         rel = item.get("path")
         expected_hash = item.get("sha256")
+        expected_size = item.get("size_bytes")
         if not isinstance(rel, str) or not rel or Path(rel).is_absolute() or ".." in Path(rel).parts:
             report.add_error("workflow_pack_manifest_invalid_path", f"invalid workflow pack file path: {rel}", manifest_rel)
             continue
@@ -2173,6 +2179,14 @@ def _check_workflow_pack_manifest(root: Path, report: VerificationReport) -> Non
         if not path.exists():
             report.add_error("workflow_pack_file_missing", f"workflow pack file is missing: {file_rel}", file_rel)
             continue
+        if not _is_valid_manifest_size(expected_size):
+            report.add_error(
+                "workflow_pack_manifest_size_missing",
+                f"workflow pack file size is missing or invalid: {file_rel}",
+                manifest_rel,
+            )
+        elif path.stat().st_size != expected_size:
+            report.add_error("workflow_pack_file_size_mismatch", f"workflow pack file size mismatch: {file_rel}", file_rel)
         if not isinstance(expected_hash, str) or not expected_hash:
             report.add_error("workflow_pack_manifest_hash_missing", f"workflow pack file hash is missing: {file_rel}", manifest_rel)
             continue
@@ -2205,6 +2219,10 @@ def _workflow_pack_snapshot_files(snapshot_root: Path) -> list[Path]:
         if path.is_file() and not _is_ignored_workflow_pack_file(path):
             files.append(path)
     return files
+
+
+def _is_valid_manifest_size(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
 
 
 def _is_ignored_workflow_pack_file(path: Path) -> bool:
