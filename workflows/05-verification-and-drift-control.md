@@ -90,6 +90,7 @@ Load:
    - `docs/development/01-roadmap.md` has non-placeholder Product Links, Milestones, Sequencing, Risks, and Deferred Scope sections, and links to product scope plus product acceptance criteria
    - roadmap Milestones table uses `ID`, `Status`, and `Milestone`, has at least one row, has unique IDs, and uses standard task status values
    - roadmap tables with `ID` and `Status` columns agree with same-ID task board statuses
+   - `docs/development/02-task-board.md` has non-placeholder Task Table, Status Policy, and Traceability Rules sections
    - task board items have `ID`, `Status`, `Task`, `Product`, `Design`, `API`, `Acceptance`, and `Verification`
    - task board `Status` values are one of `Backlog`, `Ready`, `In Progress`, `Blocked`, `Done`, or `Deferred`
    - task board items marked `Blocked` cite an existing unresolved item ID and link to `docs/unresolved.md`
@@ -107,6 +108,7 @@ A verification report and a list of fixes, or a clean governance baseline.
 
 - Verification fails on source-of-truth conflicts.
 - The task board claims completion without evidence.
+- The task board lacks status policy or traceability rules.
 - The roadmap lacks a valid milestone table.
 - Roadmap status conflicts with task board status.
 - A generated document is not indexed by its parent README.

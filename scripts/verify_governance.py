@@ -189,6 +189,11 @@ HTTP_METHOD_PATH_RE = re.compile(
     re.IGNORECASE,
 )
 TASK_BOARD_REL = Path("docs/development/02-task-board.md")
+TASK_BOARD_REQUIRED_SECTIONS = {
+    "task table": "Task Table",
+    "status policy": "Status Policy",
+    "traceability rules": "Traceability Rules",
+}
 TASK_BOARD_REQUIRED_COLUMNS = {
     "id": "ID",
     "status": "Status",
@@ -1869,6 +1874,29 @@ def _check_task_board(root: Path, report: VerificationReport) -> None:
     text = path.read_text(encoding="utf-8")
     if SCAFFOLD_PLACEHOLDER in text:
         return
+    sections = _markdown_sections(text, min_level=2)
+    missing_sections = [
+        label
+        for key, label in TASK_BOARD_REQUIRED_SECTIONS.items()
+        if key not in sections
+    ]
+    if missing_sections:
+        report.add_error(
+            "task_board_missing_sections",
+            f"{rel} is missing task board sections: {', '.join(missing_sections)}",
+            rel,
+        )
+    empty_sections = [
+        label
+        for key, label in TASK_BOARD_REQUIRED_SECTIONS.items()
+        if key in sections and not _section_has_authored_content(sections[key])
+    ]
+    if empty_sections:
+        report.add_error(
+            "task_board_empty_sections",
+            f"{rel} has empty task board sections: {', '.join(empty_sections)}",
+            rel,
+        )
     rows, missing = _task_board_rows(text)
     if missing:
         report.add_error(

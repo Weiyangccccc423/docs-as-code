@@ -57,6 +57,21 @@ def _roadmap_doc() -> str:
     )
 
 
+def _task_board_doc(rows: str) -> str:
+    return (
+        "# Task Board\n\n"
+        "## Task Table\n\n"
+        "| ID | Status | Task | Product | Design | API | Acceptance | Verification |\n"
+        "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+        f"{rows}"
+        "\n## Status Policy\n\n"
+        "- Use Backlog, Ready, In Progress, Blocked, Done, or Deferred consistently with the implementation gate.\n\n"
+        "## Traceability Rules\n\n"
+        "- Product, Design, API, and Acceptance fields must link to existing local Markdown sources.\n"
+        "- Done tasks must link to local Markdown verification evidence.\n"
+    )
+
+
 def _backend_external_services_doc() -> str:
     return (
         "# External Services\n\n"
@@ -780,10 +795,9 @@ class GovernanceCliTest(unittest.TestCase):
             )
 
             task_board.write_text(
-                "# Task Board\n\n"
-                "| ID | Status | Task | Product | Design | API | Acceptance | Verification |\n"
-                "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
-                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | make test |\n",
+                _task_board_doc(
+                    "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | make test |\n"
+                ),
                 encoding="utf-8",
             )
 
