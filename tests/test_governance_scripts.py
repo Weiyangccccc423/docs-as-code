@@ -148,6 +148,25 @@ def _write_traceable_test_strategy(root: Path) -> None:
     )
 
 
+def _write_acceptance_matrix_trace_docs(root: Path) -> None:
+    _write_traceable_test_strategy(root)
+    _write_api_error_codes_doc(root)
+    _write_indexed_doc(root, "docs/ui/01-interaction-model.md", _ui_interaction_model_doc())
+    endpoints_readme = root / "docs/api/endpoints/README.md"
+    endpoints_readme.parent.mkdir(parents=True, exist_ok=True)
+    if not endpoints_readme.exists():
+        endpoints_readme.write_text("# API Endpoints\n", encoding="utf-8")
+    _write_indexed_doc(
+        root,
+        "docs/api/endpoints/01-goal-flow.md",
+        _endpoint_contract_doc(
+            "Goal Flow Endpoint",
+            upstream_links="- [Acceptance](../../product/08-acceptance-criteria.md)",
+            frontend_consumers="- [Interaction model](../../ui/01-interaction-model.md)",
+        ),
+    )
+
+
 def _architecture_system_context_doc(
     product_links: str = "[PRD](../product/core/PRD.md), [Acceptance](../product/08-acceptance-criteria.md)",
 ) -> str:
@@ -355,7 +374,7 @@ def _frontend_api_consumption_doc(
 def _acceptance_matrix_doc(
     acceptance: str = "[A-001](../product/08-acceptance-criteria.md#a-001)",
     design: str = "[System context](../architecture/01-system-context.md)",
-    api: str = "[API conventions](../api/00-conventions.md)",
+    api: str = "[Goal endpoint](../api/endpoints/01-goal-flow.md)",
     test: str = "[Test strategy](01-strategy.md)",
 ) -> str:
     return (
@@ -3459,7 +3478,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             product = root / "product.md"
             product.write_text("# Demo\n", encoding="utf-8")
             bootstrap(root, product)
-            _write_traceable_test_strategy(root)
+            _write_acceptance_matrix_trace_docs(root)
             _write_indexed_doc(root, "docs/tests/02-acceptance-matrix.md", _acceptance_matrix_doc())
 
             report = verify(root)
@@ -3472,7 +3491,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             product = root / "product.md"
             product.write_text("# Demo\n", encoding="utf-8")
             bootstrap(root, product)
-            _write_traceable_test_strategy(root)
+            _write_acceptance_matrix_trace_docs(root)
             _append_acceptance_criterion(root, "A-002", "Deferred Flow")
             _write_indexed_doc(
                 root,
@@ -3490,7 +3509,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             product = root / "product.md"
             product.write_text("# Demo\n", encoding="utf-8")
             bootstrap(root, product)
-            _write_traceable_test_strategy(root)
+            _write_acceptance_matrix_trace_docs(root)
             _write_indexed_doc(
                 root,
                 "docs/tests/02-acceptance-matrix.md",
@@ -3519,7 +3538,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             product = root / "product.md"
             product.write_text("# Demo\n", encoding="utf-8")
             bootstrap(root, product)
-            _write_traceable_test_strategy(root)
+            _write_acceptance_matrix_trace_docs(root)
             _append_acceptance_criterion(root, "A-002", "Deferred Flow")
             _write_indexed_doc(root, "docs/tests/02-acceptance-matrix.md", _acceptance_matrix_doc())
 
@@ -3545,14 +3564,14 @@ class GovernanceScriptsTest(unittest.TestCase):
             product = root / "product.md"
             product.write_text("# Demo\n", encoding="utf-8")
             bootstrap(root, product)
-            _write_traceable_test_strategy(root)
+            _write_acceptance_matrix_trace_docs(root)
             _write_indexed_doc(
                 root,
                 "docs/tests/02-acceptance-matrix.md",
                 "# Acceptance Matrix\n\n"
                 "| Acceptance | Design | API | Test |\n"
                 "| --- | --- | --- | --- |\n"
-                "| [A-001](../product/08-acceptance-criteria.md#a-001) | [System context](../architecture/01-system-context.md) | [API conventions](../api/00-conventions.md) | [Test strategy](01-strategy.md) |\n",
+                "| [A-001](../product/08-acceptance-criteria.md#a-001) | [System context](../architecture/01-system-context.md) | [Goal endpoint](../api/endpoints/01-goal-flow.md) | [Test strategy](01-strategy.md) |\n",
             )
 
             report = verify(root)
@@ -3577,7 +3596,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             product = root / "product.md"
             product.write_text("# Demo\n", encoding="utf-8")
             bootstrap(root, product)
-            _write_traceable_test_strategy(root)
+            _write_acceptance_matrix_trace_docs(root)
             _write_indexed_doc(
                 root,
                 "docs/tests/02-acceptance-matrix.md",
@@ -3611,7 +3630,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             product = root / "product.md"
             product.write_text("# Demo\n", encoding="utf-8")
             bootstrap(root, product)
-            _write_traceable_test_strategy(root)
+            _write_acceptance_matrix_trace_docs(root)
             _write_indexed_doc(
                 root,
                 "docs/tests/02-acceptance-matrix.md",
@@ -3643,7 +3662,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             product = root / "product.md"
             product.write_text("# Demo\n", encoding="utf-8")
             bootstrap(root, product)
-            _write_traceable_test_strategy(root)
+            _write_acceptance_matrix_trace_docs(root)
             _write_indexed_doc(
                 root,
                 "docs/tests/02-acceptance-matrix.md",
@@ -3681,7 +3700,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             product = root / "product.md"
             product.write_text("# Demo\n", encoding="utf-8")
             bootstrap(root, product)
-            _write_traceable_test_strategy(root)
+            _write_acceptance_matrix_trace_docs(root)
             _write_indexed_doc(
                 root,
                 "docs/tests/02-acceptance-matrix.md",
@@ -3706,13 +3725,42 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_acceptance_matrix_api_without_endpoint_contract_reference(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_acceptance_matrix_trace_docs(root)
+            _write_indexed_doc(
+                root,
+                "docs/tests/02-acceptance-matrix.md",
+                _acceptance_matrix_doc(api="[API conventions](../api/00-conventions.md)"),
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "acceptance matrix row docs/product/08-acceptance-criteria.md API field must reference an API endpoint contract under docs/api/endpoints/NN-<slug>.md",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "acceptance_matrix_api_endpoint_reference_missing",
+                    "severity": "error",
+                    "path": "docs/tests/02-acceptance-matrix.md",
+                    "message": "acceptance matrix row docs/product/08-acceptance-criteria.md API field must reference an API endpoint contract under docs/api/endpoints/NN-<slug>.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_acceptance_matrix_lowercase_acceptance_id(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             product = root / "product.md"
             product.write_text("# Demo\n", encoding="utf-8")
             bootstrap(root, product)
-            _write_traceable_test_strategy(root)
+            _write_acceptance_matrix_trace_docs(root)
             _write_indexed_doc(
                 root,
                 "docs/tests/02-acceptance-matrix.md",
@@ -3734,7 +3782,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             product = root / "product.md"
             product.write_text("# Demo\n", encoding="utf-8")
             bootstrap(root, product)
-            _write_traceable_test_strategy(root)
+            _write_acceptance_matrix_trace_docs(root)
             _write_indexed_doc(
                 root,
                 "docs/tests/02-acceptance-matrix.md",
@@ -3742,8 +3790,8 @@ class GovernanceScriptsTest(unittest.TestCase):
                 "## Matrix\n\n"
                 "| Acceptance | Design | API | Test |\n"
                 "| --- | --- | --- | --- |\n"
-                "| [A-001](../product/08-acceptance-criteria.md#a-001) | [System context](../architecture/01-system-context.md) | [API conventions](../api/00-conventions.md) | [Test strategy](01-strategy.md) |\n"
-                "| [A-001 retry](../product/08-acceptance-criteria.md#a-001-retry) | [System context](../architecture/01-system-context.md) | [API conventions](../api/00-conventions.md) | [Test strategy](01-strategy.md) |\n\n"
+                "| [A-001](../product/08-acceptance-criteria.md#a-001) | [System context](../architecture/01-system-context.md) | [Goal endpoint](../api/endpoints/01-goal-flow.md) | [Test strategy](01-strategy.md) |\n"
+                "| [A-001 retry](../product/08-acceptance-criteria.md#a-001-retry) | [System context](../architecture/01-system-context.md) | [Goal endpoint](../api/endpoints/01-goal-flow.md) | [Test strategy](01-strategy.md) |\n\n"
                 "## Uncovered Criteria\n\n"
                 "- none\n",
             )
@@ -3767,7 +3815,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             product = root / "product.md"
             product.write_text("# Demo\n", encoding="utf-8")
             bootstrap(root, product)
-            _write_traceable_test_strategy(root)
+            _write_acceptance_matrix_trace_docs(root)
             _write_indexed_doc(
                 root,
                 "docs/tests/02-acceptance-matrix.md",
@@ -3798,7 +3846,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             product = root / "product.md"
             product.write_text("# Demo\n", encoding="utf-8")
             bootstrap(root, product)
-            _write_traceable_test_strategy(root)
+            _write_acceptance_matrix_trace_docs(root)
             _write_indexed_doc(
                 root,
                 "docs/tests/02-acceptance-matrix.md",
@@ -3836,7 +3884,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             expected = [
                 "acceptance matrix row docs/product/08-acceptance-criteria.md Acceptance references missing target: docs/product/08-acceptance-criteria.md",
                 "acceptance matrix row docs/product/08-acceptance-criteria.md Design references missing target: docs/architecture/01-system-context.md",
-                "acceptance matrix row docs/product/08-acceptance-criteria.md API references missing target: docs/api/00-conventions.md",
+                "acceptance matrix row docs/product/08-acceptance-criteria.md API references missing target: docs/api/endpoints/01-goal-flow.md",
                 "acceptance matrix row docs/product/08-acceptance-criteria.md Test references missing target: docs/tests/01-strategy.md",
             ]
             for message in expected:
@@ -4310,7 +4358,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             _append_acceptance_criterion(root, "A-002", "Deferred Flow")
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
             _write_indexed_doc(root, "docs/api/00-conventions.md", _api_conventions_doc())
-            _write_traceable_test_strategy(root)
+            _write_acceptance_matrix_trace_docs(root)
             _write_indexed_doc(
                 root,
                 "docs/tests/02-acceptance-matrix.md",

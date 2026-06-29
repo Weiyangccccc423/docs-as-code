@@ -1518,8 +1518,9 @@ def _check_acceptance_matrix_traceability(root: Path, report: VerificationReport
             row_label,
             "api",
             row["api"],
-            "existing API docs",
-            _is_api_reference,
+            "an API endpoint contract under docs/api/endpoints/NN-<slug>.md",
+            _is_api_endpoint_contract_reference,
+            mismatch_code="acceptance_matrix_api_endpoint_reference_missing",
         )
         _check_acceptance_matrix_reference(
             root,
@@ -1665,6 +1666,8 @@ def _check_acceptance_matrix_reference(
     value: str,
     expected: str,
     predicate: Callable[[LocalMarkdownReference], bool],
+    *,
+    mismatch_code: str | None = None,
 ) -> None:
     rel = ACCEPTANCE_MATRIX_REL.as_posix()
     label = ACCEPTANCE_MATRIX_REQUIRED_COLUMNS[column]
@@ -1687,7 +1690,7 @@ def _check_acceptance_matrix_reference(
         return
     if not any(predicate(reference) for reference in references):
         report.add_error(
-            "acceptance_matrix_trace_reference_missing",
+            mismatch_code or "acceptance_matrix_trace_reference_missing",
             f"acceptance matrix row {row_label} {label} field must reference {expected}",
             rel,
         )
@@ -2618,6 +2621,17 @@ def _is_product_scope_reference(reference: LocalMarkdownReference) -> bool:
 def _is_api_reference(reference: LocalMarkdownReference) -> bool:
     path = Path(reference.rel)
     return len(path.parts) >= 2 and path.parts[0] == "docs" and path.parts[1] == "api"
+
+
+def _is_api_endpoint_contract_reference(reference: LocalMarkdownReference) -> bool:
+    path = Path(reference.rel)
+    return (
+        len(path.parts) == 4
+        and path.parts[0] == "docs"
+        and path.parts[1] == "api"
+        and path.parts[2] == "endpoints"
+        and API_ENDPOINT_CONTRACT_RE.fullmatch(path.parts[3]) is not None
+    )
 
 
 def _is_architecture_reference(reference: LocalMarkdownReference) -> bool:

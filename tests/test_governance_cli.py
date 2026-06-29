@@ -307,7 +307,7 @@ def _acceptance_matrix_doc() -> str:
         "## Matrix\n\n"
         "| Acceptance | Design | API | Test |\n"
         "| --- | --- | --- | --- |\n"
-        "| [A-001](../product/08-acceptance-criteria.md#a-001) | [Architecture context](../architecture/01-system-context.md) | [API conventions](../api/00-conventions.md) | [Test strategy](01-strategy.md) |\n\n"
+        "| [A-001](../product/08-acceptance-criteria.md#a-001) | [Architecture context](../architecture/01-system-context.md) | [Goal endpoint](../api/endpoints/01-goal-flow.md) | [Test strategy](01-strategy.md) |\n\n"
         "## Uncovered Criteria\n\n"
         "- none\n"
     )
