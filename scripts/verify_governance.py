@@ -1529,9 +1529,8 @@ def _check_test_strategy_traceability(root: Path, report: VerificationReport) ->
     rel = TEST_STRATEGY_REL.as_posix()
     if not path.exists():
         return
-    try:
-        text = path.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
+    text = _read_markdown_text(root, path, report)
+    if text is None:
         return
     if SCAFFOLD_PLACEHOLDER in text:
         return
@@ -1586,9 +1585,8 @@ def _check_acceptance_matrix_traceability(root: Path, report: VerificationReport
     rel = ACCEPTANCE_MATRIX_REL.as_posix()
     if not path.exists():
         return
-    try:
-        text = path.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
+    text = _read_markdown_text(root, path, report)
+    if text is None:
         return
     if SCAFFOLD_PLACEHOLDER in text:
         return
@@ -2740,6 +2738,8 @@ def _check_task_board_acceptance_matrix_alignment(root: Path, report: Verificati
 def _acceptance_matrix_mapped_acceptance_ids(root: Path) -> set[str] | None:
     path = root / ACCEPTANCE_MATRIX_REL
     if not path.exists():
+        return None
+    if not path.is_file():
         return None
     try:
         text = path.read_text(encoding="utf-8")
