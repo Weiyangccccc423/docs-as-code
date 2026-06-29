@@ -44,8 +44,12 @@ def load_state(root: Path) -> dict[str, Any]:
 
 def save_state(root: Path, state: dict[str, Any]) -> None:
     path = state_path(root)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(state, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(state, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    except OSError as error:
+        reason = error.strerror or str(error)
+        raise StateFileError(path, f"unwritable: {reason}") from error
 
 
 def merge_state(root: Path, **updates: Any) -> dict[str, Any]:

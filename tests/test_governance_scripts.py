@@ -16,6 +16,7 @@ from scripts.check_env import (
 )
 from scripts.bootstrap_tree import InitPreflightError
 from scripts.bootstrap_tree import bootstrap
+from scripts.state import StateFileError, merge_state
 from scripts.verify_governance import verify
 
 
@@ -6197,6 +6198,17 @@ class GovernanceScriptsTest(unittest.TestCase):
                 f"environment repair target parent is not a directory: {target}",
                 repair_target_error(target / "child"),
             )
+
+    def test_merge_state_reports_unwritable_state_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            target.write_text("not a directory\n", encoding="utf-8")
+
+            with self.assertRaises(StateFileError) as context:
+                merge_state(target, phase="initialized")
+
+            self.assertEqual(target / ".governance/state.json", context.exception.path)
+            self.assertIn("unwritable", context.exception.reason)
 
 
 if __name__ == "__main__":
