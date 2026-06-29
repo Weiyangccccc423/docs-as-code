@@ -35,7 +35,7 @@ Load according to the design track:
    bin/governance scaffold design <target> --json
    ```
 
-   Replace `governance:scaffold-placeholder` markers with product-derived content before implementation handoff.
+   The scaffold includes a starter endpoint contract at `docs/api/endpoints/01-endpoint-contract.md`; replace or rename it with product-derived endpoint content before implementation handoff. Replace all `governance:scaffold-placeholder` markers before implementation handoff.
 
 3. Create or complete `docs/architecture/` views:
    - system context

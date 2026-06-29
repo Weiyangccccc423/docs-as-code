@@ -1149,10 +1149,16 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertTrue(payload["ok"])
             self.assertIn("docs/architecture/01-system-context.md", payload["created"])
             self.assertIn("docs/api/endpoints/README.md", payload["created"])
+            self.assertIn("docs/api/endpoints/01-endpoint-contract.md", payload["created"])
             self.assertTrue((target / "docs/backend/02-data-model.md").exists())
             self.assertIn("01-system-context.md", (target / "docs/architecture/README.md").read_text(encoding="utf-8"))
             self.assertIn("00-conventions.md", (target / "docs/api/README.md").read_text(encoding="utf-8"))
-            self.assertNotIn("README.md", (target / "docs/api/endpoints/README.md").read_text(encoding="utf-8"))
+            endpoints_index = (target / "docs/api/endpoints/README.md").read_text(encoding="utf-8")
+            endpoint_contract = (target / "docs/api/endpoints/01-endpoint-contract.md").read_text(encoding="utf-8")
+            self.assertNotIn("README.md", endpoints_index)
+            self.assertIn("01-endpoint-contract.md", endpoints_index)
+            self.assertIn("## Method and Path", endpoint_contract)
+            self.assertIn("governance:scaffold-placeholder", endpoint_contract)
 
             verify_result = subprocess.run(
                 [sys.executable, str(CLI), "verify", str(target), "--json"],
@@ -1174,6 +1180,7 @@ class GovernanceCliTest(unittest.TestCase):
             )
             self.assertEqual(1, gate.returncode)
             requirements = {item["code"]: item for item in json.loads(gate.stdout)["requirements"]}
+            self.assertTrue(requirements["api_endpoint_contract_present"]["ok"])
             self.assertFalse(requirements["verification_passed"]["ok"])
 
 

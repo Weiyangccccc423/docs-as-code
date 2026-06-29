@@ -99,6 +99,22 @@ DESIGN_SCAFFOLD: tuple[ScaffoldSpec, ...] = (
         placeholder=False,
     ),
     ScaffoldSpec(
+        "docs/api/endpoints/01-endpoint-contract.md",
+        "Endpoint Contract",
+        "Replace this starter endpoint contract with the first product-derived API endpoint.",
+        (
+            "Method and Path",
+            "Auth",
+            "Idempotency",
+            "Request Fields",
+            "Response Fields",
+            "Error Codes",
+            "Upstream Links",
+            "Frontend Consumers",
+        ),
+        "starter endpoint contract placeholder",
+    ),
+    ScaffoldSpec(
         "docs/ui/01-interaction-model.md",
         "Interaction Model",
         "Derive screens, flows, states, and user-visible errors from product requirements.",
