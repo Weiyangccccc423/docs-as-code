@@ -45,6 +45,7 @@ RUNTIME_SCRIPT_FILES = [
     "verify_governance.py",
 ]
 RUNTIME_MANIFEST_REL = "docs/agent-workflow/runtime-manifest.json"
+MARKDOWN_PRODUCT_SUFFIXES = {".md", ".markdown"}
 
 ROOT_GENERATED_FILES = [
     "README.md",
@@ -290,8 +291,7 @@ def preflight_init(root: Path, product_doc: Path | None = None, force: bool = Fa
     conflicts: list[InitConflict] = []
     product_resolved = product_doc.resolve() if product_doc is not None and product_doc.exists() else None
 
-    if product_doc is not None and not product_doc.exists():
-        conflicts.append(InitConflict(str(product_doc), "product document is missing"))
+    conflicts.extend(_product_preflight_conflicts(product_doc))
 
     for rel in paths:
         target = root / rel
@@ -308,6 +308,27 @@ def preflight_init(root: Path, product_doc: Path | None = None, force: bool = Fa
         product=product,
         would_write=paths,
     )
+
+
+def _product_preflight_conflicts(product_doc: Path | None) -> list[InitConflict]:
+    if product_doc is None:
+        return []
+    if not product_doc.exists():
+        return [InitConflict(str(product_doc), "product document is missing")]
+    if not product_doc.is_file():
+        return [InitConflict(str(product_doc), "product document is not a file")]
+    try:
+        if product_doc.suffix.lower() in MARKDOWN_PRODUCT_SUFFIXES:
+            product_doc.read_text(encoding="utf-8")
+        else:
+            with product_doc.open("rb") as handle:
+                handle.read(1)
+    except UnicodeDecodeError:
+        return [InitConflict(str(product_doc), "markdown product document is not valid UTF-8")]
+    except OSError as error:
+        reason = error.strerror or str(error)
+        return [InitConflict(str(product_doc), f"product document is unreadable: {reason}")]
+    return []
 
 
 def refresh_runtime(root: Path) -> RuntimeRefreshResult:
@@ -366,6 +387,7 @@ def _product_payload(product_doc: Path | None) -> dict[str, object]:
         "provided": True,
         "path": str(product_doc),
         "exists": product_doc.exists(),
+        "is_file": product_doc.is_file(),
         "suffix": product_doc.suffix.lower(),
     }
 
@@ -425,7 +447,7 @@ def _product_source_manifest(
             },
         }
 
-    is_markdown = product_doc.suffix.lower() in {".md", ".markdown"}
+    is_markdown = product_doc.suffix.lower() in MARKDOWN_PRODUCT_SUFFIXES
     status = "ready_for_structuring" if is_markdown else "conversion_required"
     conversion_method = "markdown-copy" if is_markdown else "conversion-required"
     archived_size = archived.stat().st_size if archived else None
@@ -456,7 +478,7 @@ def _product_source_manifest(
 
 
 def _read_product_as_markdown(product_doc: Path, archived_rel: str) -> str:
-    if product_doc.suffix.lower() in {".md", ".markdown"}:
+    if product_doc.suffix.lower() in MARKDOWN_PRODUCT_SUFFIXES:
         return product_doc.read_text(encoding="utf-8")
     return (
         "# Product Requirements Document\n\n"

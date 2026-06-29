@@ -443,6 +443,70 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual("# Existing\n", readme.read_text(encoding="utf-8"))
             self.assertFalse((target / "docs/README.md").exists())
 
+    def test_init_rejects_invalid_utf8_markdown_product_before_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            target = base / "target"
+            product = base / "product.md"
+            product.write_bytes(b"\xff\xfe invalid markdown")
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "init",
+                    "--target",
+                    str(target),
+                    "--product",
+                    str(product),
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, result.returncode)
+            payload = json.loads(result.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertIn(
+                {"path": str(product), "reason": "markdown product document is not valid UTF-8"},
+                payload["conflicts"],
+            )
+            self.assertFalse(target.exists())
+
+    def test_init_rejects_product_directory_before_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            target = base / "target"
+            product = base / "product.md"
+            product.mkdir()
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "init",
+                    "--target",
+                    str(target),
+                    "--product",
+                    str(product),
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, result.returncode)
+            payload = json.loads(result.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertIn(
+                {"path": str(product), "reason": "product document is not a file"},
+                payload["conflicts"],
+            )
+            self.assertFalse(target.exists())
+
     def test_init_force_json_allows_overwrite(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
