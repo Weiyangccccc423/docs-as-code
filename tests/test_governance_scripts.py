@@ -601,6 +601,47 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertIn("product source requires conversion before design derivation: docs/product/core/source/product.docx", report.errors)
             self.assertIn("blocking unresolved item U-001 affects product structuring/design derivation", report.errors)
 
+    def test_verify_rejects_invalid_product_import_status(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            manifest_path = root / "docs/product/core/source/source-manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["import"]["status"] = "reviewed"
+            manifest["import"]["can_derive_design"] = True
+            manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+            report = verify(root)
+
+            self.assertIn(
+                "invalid product import status: reviewed; expected one of conversion_required, no_source, ready_for_structuring",
+                report.errors,
+            )
+
+    def test_verify_rejects_inconsistent_product_import_status(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            manifest_path = root / "docs/product/core/source/source-manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["import"]["status"] = "conversion_required"
+            manifest["import"]["can_derive_design"] = True
+            manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+            report = verify(root)
+
+            self.assertIn(
+                "product import status conversion_required requires can_derive_design: false",
+                report.errors,
+            )
+            self.assertIn("product source requires conversion before design derivation: docs/product/core/source/product.md", report.errors)
+
     def test_bootstrap_rejects_existing_governance_file_without_force(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

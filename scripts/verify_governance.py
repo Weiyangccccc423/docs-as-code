@@ -23,6 +23,7 @@ DOC_DIRS = {
 }
 
 NON_BLOCKING_SCOPES = {"", "-", "none", "n/a", "na", "non-blocking", "non blocking", "resolved"}
+PRODUCT_IMPORT_STATUSES = ("conversion_required", "no_source", "ready_for_structuring")
 UNRESOLVED_ID_RE = re.compile(r"^U-[0-9]{3}$")
 TASK_ID_RE = re.compile(r"^TASK-[0-9]{3}$")
 ACCEPTANCE_ID_RE = re.compile(r"(?<![A-Za-z0-9_-])A-[0-9]{3}(?![A-Za-z0-9_-])")
@@ -395,6 +396,12 @@ def _check_product_source_manifest(root: Path, report: VerificationReport) -> No
 
     status = imported.get("status")
     archived_rel = archive.get("path")
+    if not isinstance(status, str) or status not in PRODUCT_IMPORT_STATUSES:
+        report.add_error(
+            "product_source_import_status_invalid",
+            f"invalid product import status: {status}; expected one of {', '.join(PRODUCT_IMPORT_STATUSES)}",
+            "docs/product/core/source/source-manifest.json",
+        )
     if status == "no_source":
         report.add_error(
             "product_source_missing",
@@ -425,7 +432,20 @@ def _check_product_source_manifest(root: Path, report: VerificationReport) -> No
     elif _sha256(archived_path) != expected_hash:
         report.add_error("product_source_hash_mismatch", f"archived product source hash mismatch: {archived_rel}", archived_rel)
 
-    if imported.get("can_derive_design") is not True:
+    can_derive_design = imported.get("can_derive_design")
+    if status == "ready_for_structuring" and can_derive_design is not True:
+        report.add_error(
+            "product_source_import_inconsistent",
+            "product import status ready_for_structuring requires can_derive_design: true",
+            "docs/product/core/source/source-manifest.json",
+        )
+    if status == "conversion_required" and can_derive_design is True:
+        report.add_error(
+            "product_source_import_inconsistent",
+            "product import status conversion_required requires can_derive_design: false",
+            "docs/product/core/source/source-manifest.json",
+        )
+    if status == "conversion_required" or can_derive_design is not True:
         report.add_error(
             "product_source_conversion_required",
             f"product source requires conversion before design derivation: {archived_rel}",
