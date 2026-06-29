@@ -255,10 +255,10 @@ def scaffold_design(root: Path) -> ScaffoldResult:
         if path.exists():
             result.skipped.append(spec.path)
         else:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(_render_spec(spec), encoding="utf-8")
+            if not _write_scaffold_file(path, _render_spec(spec), result):
+                continue
             result.created.append(spec.path)
-        if _ensure_index(root, spec):
+        if _ensure_index(root, spec, result):
             result.indexed.append(spec.path)
     return result
 
@@ -304,16 +304,32 @@ def scaffold_product(root: Path, chapters: list[str] | tuple[str, ...]) -> Scaff
         if path.exists():
             result.skipped.append(spec.path)
         else:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(_render_spec(spec), encoding="utf-8")
+            if not _write_scaffold_file(path, _render_spec(spec), result):
+                continue
             result.created.append(spec.path)
-        if _ensure_index(root, spec):
+        if _ensure_index(root, spec, result):
             result.indexed.append(spec.path)
-        if _ensure_product_meta_link(root, spec):
+        if _ensure_product_meta_link(root, spec, result):
             product_meta = "docs/product/core/product-meta.md"
             if product_meta not in result.indexed:
                 result.indexed.append(product_meta)
     return result
+
+
+def _write_scaffold_file(path: Path, content: str, result: ScaffoldResult) -> bool:
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+    except OSError as error:
+        _record_scaffold_write_error(result, path, error)
+        return False
+    return True
+
+
+def _record_scaffold_write_error(result: ScaffoldResult, path: Path, error: OSError) -> None:
+    reason = error.strerror or str(error)
+    result.ok = False
+    result.errors.append(f"failed to write scaffold file {path}: {reason}")
 
 
 def _product_scaffold_gate_allows(gate: Any) -> bool:
@@ -420,41 +436,57 @@ def _section_lines(path: str, section: str) -> list[str]:
     return ["- TBD"]
 
 
-def _ensure_index(root: Path, spec: ScaffoldSpec) -> bool:
+def _ensure_index(root: Path, spec: ScaffoldSpec, result: ScaffoldResult) -> bool:
     path = root / spec.path
     if path.name == "README.md":
         return False
     readme = path.parent / "README.md"
-    readme.parent.mkdir(parents=True, exist_ok=True)
-    if readme.exists():
-        text = readme.read_text(encoding="utf-8")
-    else:
-        text = f"# {path.parent.relative_to(root).as_posix()}\n"
+    try:
+        readme.parent.mkdir(parents=True, exist_ok=True)
+        if readme.exists():
+            text = readme.read_text(encoding="utf-8")
+        else:
+            text = f"# {path.parent.relative_to(root).as_posix()}\n"
+    except OSError as error:
+        _record_scaffold_write_error(result, readme, error)
+        return False
     filename = path.name
     if filename in text:
         return False
     if "## Index" not in text:
         text = text.rstrip() + "\n\n## Index\n"
     text = text.rstrip() + f"\n\n- `{filename}` - {spec.index_description}\n"
-    readme.write_text(text, encoding="utf-8")
+    try:
+        readme.write_text(text, encoding="utf-8")
+    except OSError as error:
+        _record_scaffold_write_error(result, readme, error)
+        return False
     return True
 
 
-def _ensure_product_meta_link(root: Path, spec: ScaffoldSpec) -> bool:
+def _ensure_product_meta_link(root: Path, spec: ScaffoldSpec, result: ScaffoldResult) -> bool:
     path = root / spec.path
     if not path.as_posix().startswith(str(root / "docs/product")):
         return False
     meta = root / "docs/product/core/product-meta.md"
-    meta.parent.mkdir(parents=True, exist_ok=True)
-    if meta.exists():
-        text = meta.read_text(encoding="utf-8")
-    else:
-        text = "# Product Meta\n\n## Chapter Map\n"
+    try:
+        meta.parent.mkdir(parents=True, exist_ok=True)
+        if meta.exists():
+            text = meta.read_text(encoding="utf-8")
+        else:
+            text = "# Product Meta\n\n## Chapter Map\n"
+    except OSError as error:
+        _record_scaffold_write_error(result, meta, error)
+        return False
     rel_link = f"../{path.name}"
     if rel_link in text:
         return False
     if "## Chapter Map" not in text:
         text = text.rstrip() + "\n\n## Chapter Map\n"
     text = text.rstrip() + f"\n\n- [{spec.title}]({rel_link})\n"
-    meta.write_text(text, encoding="utf-8")
+    try:
+        meta.write_text(text, encoding="utf-8")
+    except OSError as error:
+        _record_scaffold_write_error(result, meta, error)
+        return False
     return True

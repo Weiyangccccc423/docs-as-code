@@ -369,8 +369,15 @@ def verify(root: Path) -> VerificationReport:
                 report.add_error("docs_directory_unregistered", f"{rel} is not registered in docs/AGENTS.md", rel)
             if child.name in DOC_DIRS:
                 for name in ("README.md", "AGENTS.md"):
-                    if not (child / name).exists():
+                    governance_file = child / name
+                    if not governance_file.exists():
                         report.add_error("docs_directory_missing_governance_file", f"{rel} is missing {name}", f"{rel}/{name}")
+                    elif not governance_file.is_file():
+                        report.add_error(
+                            "docs_directory_governance_file_not_file",
+                            f"{rel}/{name} is not a file",
+                            f"{rel}/{name}",
+                        )
 
     for path in [root / "README.md", docs_root / "README.md", docs_agents]:
         if path.exists():
@@ -2069,6 +2076,10 @@ def _check_readme_indexes(root: Path, report: VerificationReport) -> None:
         return
     for readme in sorted(docs_root.rglob("README.md")):
         directory = readme.parent
+        if not readme.is_file():
+            rel_readme = readme.relative_to(root).as_posix()
+            report.add_error("docs_readme_not_file", f"{rel_readme} is not a file", rel_readme)
+            continue
         readme_text = readme.read_text(encoding="utf-8")
         for child in sorted(directory.glob("*.md")):
             if child.name in {"README.md", "AGENTS.md"} or child.name.startswith("_"):
@@ -2122,6 +2133,8 @@ def _check_scaffold_placeholders(root: Path, report: VerificationReport) -> None
     if not docs_root.exists():
         return
     for path in sorted(docs_root.rglob("*.md")):
+        if not path.is_file():
+            continue
         rel = path.relative_to(root).as_posix()
         if rel.startswith(f"{WORKFLOW_PACK_SNAPSHOT_ROOT}/"):
             continue

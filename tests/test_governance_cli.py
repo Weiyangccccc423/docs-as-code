@@ -1559,6 +1559,50 @@ class GovernanceCliTest(unittest.TestCase):
                 (target / "docs/product/core/product-meta.md").read_text(encoding="utf-8"),
             )
 
+    def test_scaffold_product_reports_invalid_readme_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text("# Product\n\n## Goal\n\nShip governed projects.\n", encoding="utf-8")
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            (target / "docs/product/README.md").unlink()
+            (target / "docs/product/README.md").mkdir()
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "scaffold",
+                    "product",
+                    str(target),
+                    "--chapter",
+                    "goals-and-requirements",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, result.returncode)
+            self.assertEqual("", result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertIn("product-structuring gate failed", payload["errors"])
+            finding_codes = {
+                finding["code"]
+                for finding in payload["gate"]["verification"]["findings"]
+                if finding["path"] == "docs/product/README.md"
+            }
+            self.assertIn("docs_directory_governance_file_not_file", finding_codes)
+            self.assertIn("docs_readme_not_file", finding_codes)
+
     def test_scaffold_product_still_fails_on_non_placeholder_verification_errors(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "target"
