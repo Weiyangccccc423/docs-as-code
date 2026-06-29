@@ -512,6 +512,34 @@ def _check_product_source_manifest(root: Path, report: VerificationReport) -> No
     elif _sha256(archived_path) != expected_hash:
         report.add_error("product_source_hash_mismatch", f"archived product source hash mismatch: {archived_rel}", archived_rel)
 
+    source_size = source.get("size_bytes")
+    if not _is_valid_manifest_size(source_size):
+        report.add_error(
+            "product_source_manifest_source_size_missing",
+            "invalid product source manifest: source.size_bytes is missing or invalid",
+            "docs/product/core/source/source-manifest.json",
+        )
+    elif _is_valid_manifest_size(expected_size) and source_size != expected_size:
+        report.add_error(
+            "product_source_manifest_source_size_mismatch",
+            "invalid product source manifest: source.size_bytes does not match archive.size_bytes",
+            "docs/product/core/source/source-manifest.json",
+        )
+
+    source_hash = source.get("sha256")
+    if not isinstance(source_hash, str) or not source_hash:
+        report.add_error(
+            "product_source_manifest_source_hash_missing",
+            "invalid product source manifest: source.sha256 is missing",
+            "docs/product/core/source/source-manifest.json",
+        )
+    elif isinstance(expected_hash, str) and expected_hash and source_hash != expected_hash:
+        report.add_error(
+            "product_source_manifest_source_hash_mismatch",
+            "invalid product source manifest: source.sha256 does not match archive.sha256",
+            "docs/product/core/source/source-manifest.json",
+        )
+
     can_derive_design = imported.get("can_derive_design")
     if status == "ready_for_structuring" and can_derive_design is not True:
         report.add_error(

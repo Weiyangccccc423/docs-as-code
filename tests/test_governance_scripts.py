@@ -618,6 +618,121 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_rejects_source_archive_size_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            manifest_path = root / "docs/product/core/source/source-manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["source"]["size_bytes"] += 1
+            manifest_path.write_text(
+                json.dumps(manifest, indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "invalid product source manifest: source.size_bytes does not match archive.size_bytes",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "product_source_manifest_source_size_mismatch",
+                    "severity": "error",
+                    "path": "docs/product/core/source/source-manifest.json",
+                    "message": "invalid product source manifest: source.size_bytes does not match archive.size_bytes",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_rejects_missing_source_size(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            manifest_path = root / "docs/product/core/source/source-manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            del manifest["source"]["size_bytes"]
+            manifest_path.write_text(
+                json.dumps(manifest, indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn("invalid product source manifest: source.size_bytes is missing or invalid", report.errors)
+            self.assertIn(
+                {
+                    "code": "product_source_manifest_source_size_missing",
+                    "severity": "error",
+                    "path": "docs/product/core/source/source-manifest.json",
+                    "message": "invalid product source manifest: source.size_bytes is missing or invalid",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_rejects_source_archive_hash_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            manifest_path = root / "docs/product/core/source/source-manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["source"]["sha256"] = "0" * 64
+            manifest_path.write_text(
+                json.dumps(manifest, indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn("invalid product source manifest: source.sha256 does not match archive.sha256", report.errors)
+            self.assertIn(
+                {
+                    "code": "product_source_manifest_source_hash_mismatch",
+                    "severity": "error",
+                    "path": "docs/product/core/source/source-manifest.json",
+                    "message": "invalid product source manifest: source.sha256 does not match archive.sha256",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_rejects_missing_source_hash(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            manifest_path = root / "docs/product/core/source/source-manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            del manifest["source"]["sha256"]
+            manifest_path.write_text(
+                json.dumps(manifest, indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn("invalid product source manifest: source.sha256 is missing", report.errors)
+            self.assertIn(
+                {
+                    "code": "product_source_manifest_source_hash_missing",
+                    "severity": "error",
+                    "path": "docs/product/core/source/source-manifest.json",
+                    "message": "invalid product source manifest: source.sha256 is missing",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_rejects_absolute_archived_product_source_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
