@@ -1157,9 +1157,8 @@ def _check_backend_module_traceability(root: Path, report: VerificationReport) -
     rel = BACKEND_MODULES_REL.as_posix()
     if not path.exists():
         return
-    try:
-        text = path.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
+    text = _read_markdown_text(root, path, report)
+    if text is None:
         return
     if SCAFFOLD_PLACEHOLDER in text:
         return
@@ -1232,9 +1231,8 @@ def _check_backend_data_model(root: Path, report: VerificationReport) -> None:
     rel = BACKEND_DATA_MODEL_REL.as_posix()
     if not path.exists():
         return
-    try:
-        text = path.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
+    text = _read_markdown_text(root, path, report)
+    if text is None:
         return
     if SCAFFOLD_PLACEHOLDER in text:
         return
@@ -1290,9 +1288,8 @@ def _check_backend_external_services(root: Path, report: VerificationReport) -> 
     rel = BACKEND_EXTERNAL_SERVICES_REL.as_posix()
     if not path.exists():
         return
-    try:
-        text = path.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
+    text = _read_markdown_text(root, path, report)
+    if text is None:
         return
     if SCAFFOLD_PLACEHOLDER in text:
         return
