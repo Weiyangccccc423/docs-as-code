@@ -346,7 +346,7 @@ def verify(root: Path) -> VerificationReport:
     _check_workflow_pack_manifest(root, report)
     _check_task_board(root, report)
     _check_roadmap(root, report)
-    _check_roadmap_task_board_status(root, report)
+    _check_roadmap_task_board_alignment(root, report)
 
     return report
 
@@ -2236,7 +2236,7 @@ def _is_empty_roadmap_milestone_value(value: str) -> bool:
     return _normalize_cell(value) in TASK_BOARD_EMPTY_VALUES
 
 
-def _check_roadmap_task_board_status(root: Path, report: VerificationReport) -> None:
+def _check_roadmap_task_board_alignment(root: Path, report: VerificationReport) -> None:
     roadmap_path = root / ROADMAP_REL
     task_board_path = root / TASK_BOARD_REL
     if not roadmap_path.exists() or not task_board_path.exists():
@@ -2263,6 +2263,12 @@ def _check_roadmap_task_board_status(root: Path, report: VerificationReport) -> 
             continue
         task_status = task_status_by_id.get(_normalize_cell(item_id))
         if task_status is None:
+            if TASK_ID_RE.fullmatch(item_id) is not None:
+                report.add_error(
+                    "roadmap_task_missing",
+                    f"roadmap milestone {item_id} has no matching task board row",
+                    ROADMAP_REL.as_posix(),
+                )
             continue
         roadmap_status = row.get("status", "").strip()
         if _normalize_cell(roadmap_status) == _normalize_cell(task_status):

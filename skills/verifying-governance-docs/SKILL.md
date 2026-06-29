@@ -64,6 +64,7 @@ Treat `glossary_*` findings as product-terminology blockers: fill required field
 Treat `unresolved_row_missing_fields`, `unresolved_invalid_id`, and `unresolved_duplicate_id` as ambiguity-registry blockers: use unique `U-NNN` IDs and fill Domain and Description.
 Treat `roadmap_missing_sections`, `roadmap_empty_sections`, and `roadmap_trace_reference_missing` as delivery-planning blockers: complete Product Links, Milestones, Sequencing, Risks, and Deferred Scope in `docs/development/01-roadmap.md`, and link to product scope plus product acceptance criteria.
 Treat `roadmap_milestone_*` findings as roadmap-structure blockers: make the Milestones table use `ID`, `Status`, and `Milestone`, include at least one row, fill all fields, use `TASK-NNN` IDs, use the standard task status vocabulary, and keep IDs unique.
+Treat `roadmap_task_missing` as a delivery-planning blocker: add the missing `TASK-NNN` row to `docs/development/02-task-board.md` or remove the roadmap milestone.
 Treat `roadmap_task_status_conflict` as a delivery-planning blocker.
 Treat `task_board_*` findings as implementation-readiness blockers.
 Treat `task_board_missing_sections` and `task_board_empty_sections` as implementation-readiness blockers: complete Task Table, Status Policy, and Traceability Rules in `docs/development/02-task-board.md`.
@@ -128,7 +129,7 @@ make ci
 - unresolved items use `none`, `-`, `n/a`, `non-blocking`, or `resolved` for non-blocking scope; any other `Blocking Scope` fails verification
 - `docs/development/01-roadmap.md` has non-placeholder Product Links, Milestones, Sequencing, Risks, and Deferred Scope sections, and links to product scope plus product acceptance criteria
 - roadmap Milestones table uses `ID`, `Status`, and `Milestone`, has at least one row, has unique `TASK-NNN` IDs, and uses standard task status values
-- roadmap tables with `ID` and `Status` columns agree with same-ID task board statuses
+- roadmap tables with `ID` and `Status` columns have matching task board rows and agree with same-ID task board statuses
 - `docs/development/02-task-board.md` has non-placeholder Task Table, Status Policy, and Traceability Rules sections
 - implementation tasks use `ID`, `Status`, `Task`, `Product`, `Design`, `API`, `Acceptance`, and `Verification`
 - task board `Status` values are `Backlog`, `Ready`, `In Progress`, `Blocked`, `Done`, or `Deferred`

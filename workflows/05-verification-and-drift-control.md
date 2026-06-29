@@ -91,7 +91,7 @@ Load:
    - ADRs under `docs/decisions/` include non-placeholder Context, Decision, Consequences, and References sections with local Markdown source links
    - `docs/development/01-roadmap.md` has non-placeholder Product Links, Milestones, Sequencing, Risks, and Deferred Scope sections, and links to product scope plus product acceptance criteria
    - roadmap Milestones table uses `ID`, `Status`, and `Milestone`, has at least one row, has unique `TASK-NNN` IDs, and uses standard task status values
-   - roadmap tables with `ID` and `Status` columns agree with same-ID task board statuses
+   - roadmap tables with `ID` and `Status` columns have matching task board rows and agree with same-ID task board statuses
    - `docs/development/02-task-board.md` has non-placeholder Task Table, Status Policy, and Traceability Rules sections
    - task board items have `ID`, `Status`, `Task`, `Product`, `Design`, `API`, `Acceptance`, and `Verification`
    - task board `Status` values are one of `Backlog`, `Ready`, `In Progress`, `Blocked`, `Done`, or `Deferred`

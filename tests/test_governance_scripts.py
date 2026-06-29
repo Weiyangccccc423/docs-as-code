@@ -4558,6 +4558,52 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_roadmap_task_missing_from_task_board(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(root, "docs/product/01-goals.md", "# Goals\n\nSource: [PRD](core/PRD.md).\n")
+            _append_product_meta_chapter(root, "01-goals.md")
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
+            _write_indexed_doc(root, "docs/api/00-conventions.md", _api_conventions_doc())
+            _write_traceable_test_strategy(root)
+            _write_indexed_doc(
+                root,
+                "docs/development/01-roadmap.md",
+                _roadmap_doc(
+                    milestone_table=(
+                        "| ID | Status | Milestone |\n"
+                        "| --- | --- | --- |\n"
+                        "| TASK-999 | Ready | Missing task board row |\n"
+                    )
+                ),
+            )
+
+            task_board = root / "docs/development/02-task-board.md"
+            task_board.write_text(
+                _task_board_doc(
+                    "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | make test |\n"
+                ),
+                encoding="utf-8",
+            )
+            _append_index(root / "docs/development/README.md", "02-task-board.md")
+
+            report = verify(root)
+
+            self.assertIn("roadmap milestone TASK-999 has no matching task board row", report.errors)
+            self.assertIn(
+                {
+                    "code": "roadmap_task_missing",
+                    "severity": "error",
+                    "path": "docs/development/01-roadmap.md",
+                    "message": "roadmap milestone TASK-999 has no matching task board row",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_roadmap_task_status_conflict(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
