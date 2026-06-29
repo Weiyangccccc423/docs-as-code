@@ -128,8 +128,10 @@ def _load_product_source_manifest(root: Path) -> dict[str, Any]:
 def _add_implementation_requirements(requirements: list[GateRequirement], root: Path) -> None:
     for domain, message in [
         ("architecture", "architecture docs exist"),
+        ("ui", "UI interaction docs exist"),
         ("api", "API contract docs exist"),
         ("backend", "backend design docs exist"),
+        ("frontend", "frontend design docs exist"),
         ("tests", "test strategy docs exist"),
         ("development", "development plan docs exist"),
     ]:

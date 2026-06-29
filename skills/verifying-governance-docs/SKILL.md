@@ -32,6 +32,7 @@ Use `gate --json` `requirements[].code` for phase-transition repair routing; `ve
 Use `advance --json` when the phase should be recorded in `.governance/state.json`.
 Treat gate requirement `product_acceptance_chapter_present` as a product-structuring blocker: create a sourced `NN-*acceptance*.md` product chapter or register the missing acceptance criteria as unresolved.
 Treat gate requirement `acceptance_matrix_present` as an implementation-readiness blocker: create and index `docs/tests/02-acceptance-matrix.md` before marking tasks Ready for implementation.
+Treat gate requirements `ui_docs_present` and `frontend_docs_present` as design-derivation blockers: complete and index `docs/ui/` and `docs/frontend/` design documents before implementation handoff.
 Treat `governance_scaffold_placeholder` as a design-authoring blocker, not a formatting issue.
 Treat `workflow_pack_file_hash_mismatch` and `workflow_pack_file_missing` as workflow-pack integrity blockers.
 Treat `docs_local_markdown_link_missing` as a document-integrity blocker: repair the link or create/index the referenced Markdown file.

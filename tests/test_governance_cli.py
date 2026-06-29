@@ -145,6 +145,60 @@ def _test_strategy_doc() -> str:
     )
 
 
+def _ui_interaction_model_doc() -> str:
+    return (
+        "# Interaction Model\n\n"
+        "## Product Links\n\n"
+        "- [Product goals](../product/01-goals.md)\n"
+        "- [Acceptance](../product/08-acceptance-criteria.md)\n\n"
+        "## Primary Flows\n\n"
+        "- Users complete the documented goal flow through a visible, recoverable path.\n\n"
+        "## Screens\n\n"
+        "- Goal flow screens expose product state and correction actions.\n\n"
+        "## States\n\n"
+        "- Loading, empty, success, and error states are explicit for the primary flow.\n\n"
+        "## Errors\n\n"
+        "- User-correctable errors map to visible correction actions.\n\n"
+        "## Accessibility\n\n"
+        "- Controls have stable names and keyboard reachable states.\n"
+    )
+
+
+def _frontend_modules_doc() -> str:
+    return (
+        "# Frontend Modules\n\n"
+        "## Product Links\n\n"
+        "- [Acceptance](../product/08-acceptance-criteria.md)\n\n"
+        "## UI Links\n\n"
+        "- [Interaction model](../ui/01-interaction-model.md)\n\n"
+        "## Modules\n\n"
+        "- Goal flow module owns the primary user interaction path.\n\n"
+        "## State Ownership\n\n"
+        "- API-backed state follows [API consumption](02-api-consumption.md).\n\n"
+        "## Routes\n\n"
+        "- Goal flow routes follow the interaction model and API conventions.\n\n"
+        "## Open Decisions\n\n"
+        "- API behavior follows [API conventions](../api/00-conventions.md).\n"
+    )
+
+
+def _frontend_api_consumption_doc() -> str:
+    return (
+        "# Frontend API Consumption\n\n"
+        "## Product Links\n\n"
+        "- [Acceptance](../product/08-acceptance-criteria.md)\n\n"
+        "## API Links\n\n"
+        "- [API conventions](../api/00-conventions.md)\n"
+        "- [Frontend modules](01-modules.md)\n\n"
+        "## Consumption Map\n\n"
+        "- Goal flow screens call the documented API contract.\n\n"
+        "## Loading States\n\n"
+        "- Loading states preserve user context while API calls complete.\n\n"
+        "## Error Actions\n\n"
+        "- API errors map to user-visible recovery actions.\n"
+    )
+
+
 def _acceptance_matrix_doc() -> str:
     return (
         "# Acceptance Matrix\n\n"
@@ -778,6 +832,35 @@ class GovernanceCliTest(unittest.TestCase):
                 encoding="utf-8",
             )
 
+            missing_ui_frontend = subprocess.run(
+                [sys.executable, str(CLI), "gate", "implementation", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(1, missing_ui_frontend.returncode)
+            missing_ui_frontend_requirements = {
+                item["code"]: item for item in json.loads(missing_ui_frontend.stdout)["requirements"]
+            }
+            self.assertFalse(missing_ui_frontend_requirements["ui_docs_present"]["ok"])
+            self.assertFalse(missing_ui_frontend_requirements["frontend_docs_present"]["ok"])
+
+            (target / "docs/ui/01-interaction-model.md").write_text(
+                _ui_interaction_model_doc(),
+                encoding="utf-8",
+            )
+            _append_index(target / "docs/ui/README.md", "01-interaction-model.md")
+            (target / "docs/frontend/01-modules.md").write_text(
+                _frontend_modules_doc(),
+                encoding="utf-8",
+            )
+            _append_index(target / "docs/frontend/README.md", "01-modules.md")
+            (target / "docs/frontend/02-api-consumption.md").write_text(
+                _frontend_api_consumption_doc(),
+                encoding="utf-8",
+            )
+            _append_index(target / "docs/frontend/README.md", "02-api-consumption.md")
+
             missing_matrix = subprocess.run(
                 [sys.executable, str(CLI), "gate", "implementation", str(target), "--json"],
                 text=True,
@@ -786,6 +869,8 @@ class GovernanceCliTest(unittest.TestCase):
             )
             self.assertEqual(1, missing_matrix.returncode)
             missing_matrix_requirements = {item["code"]: item for item in json.loads(missing_matrix.stdout)["requirements"]}
+            self.assertTrue(missing_matrix_requirements["ui_docs_present"]["ok"])
+            self.assertTrue(missing_matrix_requirements["frontend_docs_present"]["ok"])
             self.assertFalse(missing_matrix_requirements["acceptance_matrix_present"]["ok"])
 
             (target / "docs/tests/02-acceptance-matrix.md").write_text(
