@@ -181,6 +181,11 @@ def _check_archived_source(root: Path, manifest: dict[str, Any], errors: list[st
     if not archived_path.is_file():
         errors.append(f"invalid product source manifest: archive.path does not point to a file: {archived_rel}")
         return
+    expected_size = archive.get("size_bytes")
+    if not _is_valid_manifest_size(expected_size):
+        errors.append("invalid product source manifest: archive.size_bytes is missing or invalid")
+    elif archived_path.stat().st_size != expected_size:
+        errors.append(f"archived product source size mismatch: {archived_rel}")
     expected_hash = archive.get("sha256")
     if not isinstance(expected_hash, str) or not expected_hash:
         errors.append("invalid product source manifest: archive.sha256 is missing")
@@ -198,6 +203,10 @@ def _is_valid_product_source_archive_path(value: str) -> bool:
     except ValueError:
         return False
     return path != PRODUCT_SOURCE_ARCHIVE_ROOT
+
+
+def _is_valid_manifest_size(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
 
 
 def _resolve_conversion_blocker(path: Path) -> bool:
