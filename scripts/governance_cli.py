@@ -153,7 +153,16 @@ def _cmd_status(args: argparse.Namespace) -> int:
             }
         )
         return 0
-    for key in ("phase", "profile", "project_name", "product_source", "updated_at"):
+    for key in (
+        "phase",
+        "profile",
+        "project_name",
+        "product_source",
+        "archived_product",
+        "product_import_status",
+        "product_can_derive_design",
+        "updated_at",
+    ):
         if key in state:
             print(f"{key}: {state[key]}")
     last = state.get("last_verification")

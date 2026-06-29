@@ -531,6 +531,8 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual(0, status_result.returncode, status_result.stderr)
             self.assertIn("phase: initialized", status_result.stdout)
             self.assertIn("profile: web-app", status_result.stdout)
+            self.assertIn("product_import_status: ready_for_structuring", status_result.stdout)
+            self.assertIn("product_can_derive_design: True", status_result.stdout)
 
     def test_init_verify_and_status_json_output(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

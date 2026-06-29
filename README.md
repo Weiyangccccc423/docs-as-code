@@ -107,4 +107,4 @@ Generated target repositories contain:
 .governance/state.json
 ```
 
-The state file records the current workflow phase, project profile, product source, generated archive path, and last verification result.
+The state file records the current workflow phase, project profile, product source, generated archive path, product import readiness, and last verification result. `bin/governance status <target>` prints the same key product-import fields for quick human review.
