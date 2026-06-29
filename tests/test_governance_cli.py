@@ -775,6 +775,87 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertTrue(status_payload["ok"])
             self.assertEqual("service", status_payload["state"]["profile"])
 
+    def test_status_json_reports_invalid_state_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+
+            init_result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "init",
+                    "--target",
+                    str(target),
+                    "--product",
+                    str(product),
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+
+            state_path = target / ".governance/state.json"
+            state_path.write_text("{not json\n", encoding="utf-8")
+
+            status_result = subprocess.run(
+                [sys.executable, str(CLI), "status", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, status_result.returncode)
+            self.assertEqual("", status_result.stderr)
+            payload = json.loads(status_result.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertEqual(str(target), payload["target"])
+            self.assertEqual(str(state_path), payload["path"])
+            self.assertIn("invalid governance state file", payload["error"])
+            self.assertIn("invalid JSON", payload["error"])
+
+    def test_verify_json_reports_invalid_state_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+
+            init_result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "init",
+                    "--target",
+                    str(target),
+                    "--product",
+                    str(product),
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+
+            state_path = target / ".governance/state.json"
+            state_path.write_text("[]\n", encoding="utf-8")
+
+            verify_result = subprocess.run(
+                [sys.executable, str(CLI), "verify", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, verify_result.returncode)
+            self.assertEqual("", verify_result.stderr)
+            payload = json.loads(verify_result.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertEqual(str(target), payload["target"])
+            self.assertEqual(str(state_path), payload["path"])
+            self.assertIn("root must be an object", payload["error"])
+
     def test_verify_json_reports_structured_findings(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "target"

@@ -23,7 +23,7 @@ from gates import GATE_NAMES, evaluate_gate
 from phases import PHASE_NAMES, advance_phase
 from product_import import mark_product_import_ready
 from scaffold import PRODUCT_CHAPTER_CHOICES, scaffold_design, scaffold_product
-from state import load_state, merge_state
+from state import StateFileError, load_state, merge_state
 from verify_governance import verify
 
 
@@ -451,7 +451,23 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
-    return args.func(args)
+    try:
+        return args.func(args)
+    except StateFileError as error:
+        target = Path(getattr(args, "target", "."))
+        if getattr(args, "json", False):
+            _print_json(
+                {
+                    "ok": False,
+                    "target": str(target),
+                    "error": str(error),
+                    "errors": [str(error)],
+                    "path": str(error.path),
+                }
+            )
+        else:
+            print(f"State file error: {error}")
+        return 1
 
 
 if __name__ == "__main__":
