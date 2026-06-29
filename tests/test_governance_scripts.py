@@ -115,7 +115,9 @@ def _architecture_containers_doc(
         "## Runtime Responsibilities\n\n"
         "- The API service validates and persists goal flow changes.\n\n"
         "## Data Ownership\n\n"
-        "- The API service owns workflow state.\n"
+        "- The API service owns workflow state.\n\n"
+        "## Open Decisions\n\n"
+        "- none\n"
     )
 
 
@@ -2303,7 +2305,7 @@ class GovernanceScriptsTest(unittest.TestCase):
 
             self.assertEqual([], report.errors)
 
-    def test_verify_reports_architecture_containers_missing_trace_references(self) -> None:
+    def test_verify_reports_architecture_containers_missing_required_sections(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             product = root / "product.md"
@@ -2313,7 +2315,72 @@ class GovernanceScriptsTest(unittest.TestCase):
                 root,
                 "docs/architecture/02-containers.md",
                 "# Containers\n\n"
-                "The web application and API service provide the runtime boundary.\n",
+                "## Product Links\n\n"
+                "- [Acceptance](../product/08-acceptance-criteria.md)\n",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/architecture/02-containers.md is missing container sections: "
+                "Containers, Runtime Responsibilities, Data Ownership, Open Decisions",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "architecture_containers_missing_sections",
+                    "severity": "error",
+                    "path": "docs/architecture/02-containers.md",
+                    "message": "docs/architecture/02-containers.md is missing container sections: "
+                    "Containers, Runtime Responsibilities, Data Ownership, Open Decisions",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_architecture_containers_empty_required_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(root, "docs/architecture/01-system-context.md", _architecture_system_context_doc())
+            _write_indexed_doc(
+                root,
+                "docs/architecture/02-containers.md",
+                _architecture_containers_doc().replace(
+                    "## Runtime Responsibilities\n\n"
+                    "- The API service validates and persists goal flow changes.\n\n",
+                    "## Runtime Responsibilities\n\n- TODO\n\n",
+                ),
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/architecture/02-containers.md has empty container sections: Runtime Responsibilities",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "architecture_containers_empty_sections",
+                    "severity": "error",
+                    "path": "docs/architecture/02-containers.md",
+                    "message": "docs/architecture/02-containers.md has empty container sections: Runtime Responsibilities",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_architecture_containers_missing_trace_references(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(
+                root,
+                "docs/architecture/02-containers.md",
+                _architecture_containers_doc(system_context="System context", acceptance="Acceptance criteria"),
             )
 
             report = verify(root)

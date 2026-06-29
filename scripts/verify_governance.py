@@ -65,6 +65,13 @@ ARCHITECTURE_SYSTEM_CONTEXT_REQUIRED_SECTIONS = {
     "open decisions": "Open Decisions",
 }
 ARCHITECTURE_CONTAINERS_REL = Path("docs/architecture/02-containers.md")
+ARCHITECTURE_CONTAINER_REQUIRED_SECTIONS = {
+    "product links": "Product Links",
+    "containers": "Containers",
+    "runtime responsibilities": "Runtime Responsibilities",
+    "data ownership": "Data Ownership",
+    "open decisions": "Open Decisions",
+}
 ARCHITECTURE_QUALITY_ATTRIBUTES_REL = Path("docs/architecture/03-quality-attributes.md")
 ARCHITECTURE_QUALITY_ATTRIBUTE_REQUIRED_SECTIONS = {
     "product links": "Product Links",
@@ -567,7 +574,7 @@ def _check_architecture_system_context_traceability(root: Path, report: Verifica
     if SCAFFOLD_PLACEHOLDER in text:
         return
 
-    sections = _markdown_sections(text)
+    sections = _markdown_sections(text, min_level=2)
     missing = [
         label
         for key, label in ARCHITECTURE_SYSTEM_CONTEXT_REQUIRED_SECTIONS.items()
@@ -622,6 +629,31 @@ def _check_architecture_containers_traceability(root: Path, report: Verification
         return
     if SCAFFOLD_PLACEHOLDER in text:
         return
+
+    sections = _markdown_sections(text, min_level=2)
+    missing = [
+        label
+        for key, label in ARCHITECTURE_CONTAINER_REQUIRED_SECTIONS.items()
+        if key not in sections
+    ]
+    if missing:
+        report.add_error(
+            "architecture_containers_missing_sections",
+            f"{rel} is missing container sections: {', '.join(missing)}",
+            rel,
+        )
+        return
+    empty = [
+        label
+        for key, label in ARCHITECTURE_CONTAINER_REQUIRED_SECTIONS.items()
+        if not _section_has_authored_content(sections[key])
+    ]
+    if empty:
+        report.add_error(
+            "architecture_containers_empty_sections",
+            f"{rel} has empty container sections: {', '.join(empty)}",
+            rel,
+        )
 
     references = _local_markdown_references(root, path, text, include_bare=True, strip_code=False)
     _check_design_reference_group(
@@ -1972,10 +2004,13 @@ def _plain_cell_label(value: str) -> str:
     return value.strip(" `*_")
 
 
-def _markdown_sections(text: str) -> dict[str, str]:
+def _markdown_sections(text: str, min_level: int = 1) -> dict[str, str]:
     matches = list(MARKDOWN_HEADING_RE.finditer(text))
     sections: dict[str, str] = {}
     for index, match in enumerate(matches):
+        marker = match.group(0).lstrip().split(maxsplit=1)[0]
+        if len(marker) < min_level:
+            continue
         heading = _normalize_cell(match.group(1))
         start = match.end()
         end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
