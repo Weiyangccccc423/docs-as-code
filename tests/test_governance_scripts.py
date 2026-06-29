@@ -3484,6 +3484,35 @@ class GovernanceScriptsTest(unittest.TestCase):
 
             self.assertEqual([], report.errors)
 
+    def test_verify_reports_acceptance_matrix_unknown_uncovered_acceptance_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_traceable_test_strategy(root)
+            _write_indexed_doc(
+                root,
+                "docs/tests/02-acceptance-matrix.md",
+                _acceptance_matrix_doc().replace("- none\n", "- A-999 deferred until follow-up scope.\n"),
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "acceptance matrix Uncovered Criteria references unknown product acceptance IDs: A-999",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "acceptance_matrix_uncovered_id_unknown",
+                    "severity": "error",
+                    "path": "docs/tests/02-acceptance-matrix.md",
+                    "message": "acceptance matrix Uncovered Criteria references unknown product acceptance IDs: A-999",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_acceptance_matrix_missing_product_acceptance_coverage(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

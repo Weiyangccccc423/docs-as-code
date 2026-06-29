@@ -1587,6 +1587,13 @@ def _check_acceptance_matrix_product_coverage(
     if not product_acceptance_ids:
         return
     uncovered_acceptance_ids = set(ACCEPTANCE_ID_RE.findall(_strip_markdown_code(uncovered_criteria)))
+    unknown_uncovered_ids = sorted(uncovered_acceptance_ids - product_acceptance_ids)
+    if unknown_uncovered_ids:
+        report.add_error(
+            "acceptance_matrix_uncovered_id_unknown",
+            f"acceptance matrix Uncovered Criteria references unknown product acceptance IDs: {', '.join(unknown_uncovered_ids)}",
+            ACCEPTANCE_MATRIX_REL.as_posix(),
+        )
     covered_ids = matrix_acceptance_ids | uncovered_acceptance_ids
     missing_ids = sorted(product_acceptance_ids - covered_ids)
     if missing_ids:
