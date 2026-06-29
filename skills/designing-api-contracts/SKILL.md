@@ -42,6 +42,15 @@ Do not leave required sections empty or as `TBD`/`TODO`; link `Product Links` to
 
 Do not leave required sections empty or as `TBD`/`TODO`; link `Product Links` to product scope and a product acceptance chapter.
 
+## API Changelog Sections
+
+`docs/api/changelog.md` must include these headings:
+
+- `## Change Log`
+- `## Compatibility Notes`
+
+Do not leave required sections empty or as `TBD`/`TODO`; record the initial contract baseline and downstream compatibility impact.
+
 ## Endpoint Sections
 
 Each endpoint file must include these headings:

@@ -78,6 +78,16 @@ def _api_conventions_doc(
     )
 
 
+def _api_changelog_doc() -> str:
+    return (
+        "# API Changelog\n\n"
+        "## Change Log\n\n"
+        "- Initial API contract baseline records conventions, error codes, and endpoint files.\n\n"
+        "## Compatibility Notes\n\n"
+        "- Breaking changes require downstream frontend, backend, and test updates in the same delivery slice.\n"
+    )
+
+
 def _write_frontend_consumer_doc(root: Path) -> None:
     _write_acceptance_chapter(root)
     _write_indexed_doc(root, "docs/api/00-conventions.md", _api_conventions_doc())
@@ -1281,6 +1291,80 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "severity": "error",
                     "path": "docs/api/error-codes.md",
                     "message": "docs/api/error-codes.md references missing Product target: docs/product/01-goals.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_allows_complete_api_changelog(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(root, "docs/api/changelog.md", _api_changelog_doc())
+
+            report = verify(root)
+
+            self.assertEqual([], report.errors)
+
+    def test_verify_reports_api_changelog_missing_required_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(
+                root,
+                "docs/api/changelog.md",
+                "# API Changelog\n\n"
+                "## Change Log\n\n"
+                "- Initial API contract baseline.\n",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/api/changelog.md is missing API changelog sections: Compatibility Notes",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "api_changelog_missing_sections",
+                    "severity": "error",
+                    "path": "docs/api/changelog.md",
+                    "message": "docs/api/changelog.md is missing API changelog sections: Compatibility Notes",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_api_changelog_empty_required_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(
+                root,
+                "docs/api/changelog.md",
+                _api_changelog_doc().replace(
+                    "## Compatibility Notes\n\n"
+                    "- Breaking changes require downstream frontend, backend, and test updates in the same delivery slice.\n",
+                    "## Compatibility Notes\n\n- TODO\n",
+                ),
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/api/changelog.md has empty API changelog sections: Compatibility Notes",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "api_changelog_empty_sections",
+                    "severity": "error",
+                    "path": "docs/api/changelog.md",
+                    "message": "docs/api/changelog.md has empty API changelog sections: Compatibility Notes",
                 },
                 [finding.to_dict() for finding in report.findings],
             )

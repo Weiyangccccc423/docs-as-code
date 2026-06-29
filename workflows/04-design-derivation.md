@@ -80,6 +80,7 @@ Design documents sufficient for creating a task board without guessing product m
 - API endpoints have request, response, error code, auth, and idempotency notes.
 - `docs/api/00-conventions.md` has non-placeholder Product Links, HTTP Conventions, Authentication, Idempotency, Compatibility, and Open Decisions sections, and links to product scope plus product acceptance criteria.
 - `docs/api/error-codes.md` has non-placeholder Product Links, Error Taxonomy, Error Codes, Retry Semantics, and Frontend Handling sections, and links to product scope plus product acceptance criteria.
+- `docs/api/changelog.md` has non-placeholder Change Log and Compatibility Notes sections.
 - API endpoint contract files under `docs/api/endpoints/` use `NN-<slug>.md` with unique `NN` prefixes.
 - API endpoint contract files include non-placeholder method/path, auth, idempotency, request, response, error code, upstream link, and frontend consumer sections.
 - API endpoint `Method and Path` sections contain an HTTP method and absolute path.
