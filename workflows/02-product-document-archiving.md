@@ -27,7 +27,14 @@ Load:
 3. Convert or copy the readable product text into `docs/product/core/PRD.md`.
 4. Record navigational metadata in `docs/product/core/product-meta.md`.
 5. Do not edit product meaning during archiving.
-6. If conversion is incomplete, register the limitation in `docs/unresolved.md` and stop before design derivation. Bootstrap registers `U-001` automatically for conversion-required sources; mark it `resolved` only after `PRD.md` has reviewed Markdown content and the manifest is updated.
+6. If conversion is incomplete, register the limitation in `docs/unresolved.md` and stop before design derivation. Bootstrap registers `U-001` automatically for conversion-required sources.
+7. After the readable Markdown PRD has been manually reviewed against the archived source, use the deterministic closeout command instead of editing manifest metadata by hand:
+
+   ```bash
+   bin/governance product mark-ready <target> --reviewed --method manual-reviewed-markdown --json
+   ```
+
+   The command updates `source-manifest.json`, refreshes `product-meta.md`, records state, and marks the bootstrap conversion blocker `U-001` as `resolved`.
 
 ## Recommended Conversion Rules
 
@@ -52,7 +59,7 @@ bin/governance verify <target> --json
 bin/governance gate product-structuring <target> --json
 ```
 
-Verification checks that the archived source still matches the manifest hash and that `can_derive_design` is true. Manual review must confirm that `PRD.md` preserves the original meaning.
+Verification checks that the archived source still matches the manifest hash and that `can_derive_design` is true. Manual review must confirm that `PRD.md` preserves the original meaning before `product mark-ready --reviewed` is run.
 
 ## Stop Conditions
 

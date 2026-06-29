@@ -21,6 +21,7 @@ from check_env import (
 )
 from gates import GATE_NAMES, evaluate_gate
 from phases import PHASE_NAMES, advance_phase
+from product_import import mark_product_import_ready
 from scaffold import scaffold_design
 from state import load_state, merge_state
 from verify_governance import verify
@@ -292,6 +293,28 @@ def _cmd_advance(args: argparse.Namespace) -> int:
     return 1
 
 
+def _cmd_product_mark_ready(args: argparse.Namespace) -> int:
+    target = Path(args.target)
+    result = mark_product_import_ready(target, method=args.method, reviewed=args.reviewed)
+    payload = result.to_dict()
+    if args.json:
+        _print_json(payload)
+        return 0 if result.ok else 1
+    if not result.ok:
+        print("Product import is not ready:")
+        for error in result.errors:
+            print(f"- ERROR: {error}")
+        for warning in result.warnings:
+            print(f"- WARN: {warning}")
+        return 1
+    print("Product import marked ready for structuring.")
+    for path in result.updated:
+        print(f"- UPDATED: {path}")
+    for warning in result.warnings:
+        print(f"- WARN: {warning}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="docs-as-code governance workflow CLI")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -344,6 +367,19 @@ def build_parser() -> argparse.ArgumentParser:
     advance.add_argument("target", nargs="?", default=".")
     advance.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     advance.set_defaults(func=_cmd_advance)
+
+    product = sub.add_parser("product", help="Manage product document import state.")
+    product_sub = product.add_subparsers(dest="product_command", required=True)
+    mark_ready = product_sub.add_parser("mark-ready", help="Mark a reviewed converted PRD ready for structuring.")
+    mark_ready.add_argument("target", nargs="?", default=".")
+    mark_ready.add_argument("--method", default="manual-reviewed-markdown")
+    mark_ready.add_argument(
+        "--reviewed",
+        action="store_true",
+        help="Confirm docs/product/core/PRD.md has reviewed Markdown content preserving source meaning.",
+    )
+    mark_ready.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    mark_ready.set_defaults(func=_cmd_product_mark_ready)
 
     return parser
 

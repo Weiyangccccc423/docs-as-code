@@ -39,6 +39,7 @@ RUNTIME_SCRIPT_FILES = [
     "gates.py",
     "governance_cli.py",
     "phases.py",
+    "product_import.py",
     "scaffold.py",
     "state.py",
     "verify_governance.py",

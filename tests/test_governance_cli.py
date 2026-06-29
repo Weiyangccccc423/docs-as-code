@@ -760,6 +760,120 @@ class GovernanceCliTest(unittest.TestCase):
             requirements = {item["code"]: item for item in payload["requirements"]}
             self.assertTrue(requirements["product_import_ready"]["ok"])
 
+    def test_product_mark_ready_requires_review_confirmation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.docx"
+            product.write_bytes(b"fake docx bytes")
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            (target / "docs/product/core/PRD.md").write_text("# Converted Product\n", encoding="utf-8")
+
+            result = subprocess.run(
+                [sys.executable, str(CLI), "product", "mark-ready", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, result.returncode)
+            payload = json.loads(result.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertIn("manual review confirmation is required", payload["errors"])
+            manifest = json.loads((target / "docs/product/core/source/source-manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual("conversion_required", manifest["import"]["status"])
+
+    def test_product_mark_ready_rejects_conversion_placeholder_prd(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.docx"
+            product.write_bytes(b"fake docx bytes")
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+
+            result = subprocess.run(
+                [sys.executable, str(CLI), "product", "mark-ready", str(target), "--reviewed", "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, result.returncode)
+            payload = json.loads(result.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertIn("docs/product/core/PRD.md still contains the conversion placeholder", payload["errors"])
+            manifest = json.loads((target / "docs/product/core/source/source-manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual("conversion_required", manifest["import"]["status"])
+
+    def test_product_mark_ready_resolves_conversion_import(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.docx"
+            product.write_bytes(b"fake docx bytes")
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            (target / "docs/product/core/PRD.md").write_text(
+                "# Converted Product\n\n"
+                "## Goal\n\n"
+                "Ship governed projects from reviewed product input.\n",
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "product",
+                    "mark-ready",
+                    str(target),
+                    "--reviewed",
+                    "--method",
+                    "manual-reviewed-markdown",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertTrue(payload["conversion_blocker_resolved"])
+            self.assertIn("docs/product/core/source/source-manifest.json", payload["updated"])
+            self.assertIn("docs/product/core/product-meta.md", payload["updated"])
+            self.assertIn("docs/unresolved.md", payload["updated"])
+            manifest = json.loads((target / "docs/product/core/source/source-manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual("ready_for_structuring", manifest["import"]["status"])
+            self.assertEqual("manual-reviewed-markdown", manifest["import"]["conversion_method"])
+            self.assertTrue(manifest["import"]["can_derive_design"])
+            self.assertIn("- Import status: `ready_for_structuring`", (target / "docs/product/core/product-meta.md").read_text(encoding="utf-8"))
+            self.assertIn("| U-001 | Product Archiving |", (target / "docs/unresolved.md").read_text(encoding="utf-8"))
+            self.assertIn("| resolved |", (target / "docs/unresolved.md").read_text(encoding="utf-8"))
+
+            gate_result = subprocess.run(
+                [sys.executable, str(CLI), "gate", "product-structuring", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, gate_result.returncode, gate_result.stderr)
+
     def test_gate_design_derivation_requires_product_chapter(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "target"

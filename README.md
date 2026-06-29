@@ -50,6 +50,13 @@ Use `gate --json` before phase transitions. Supported gates are `product-structu
 Use `advance --json` when actually moving phases; it runs the matching gate and records `phase_history` in `.governance/state.json`.
 The `implementation` gate requires a traceable task board with at least one `Ready` task.
 
+When a non-Markdown product source has been converted and `docs/product/core/PRD.md` has been manually reviewed against the archived original, close out the import state deterministically:
+
+```bash
+bin/governance product mark-ready /path/to/new-project --reviewed --method manual-reviewed-markdown --json
+bin/governance gate product-structuring /path/to/new-project --json
+```
+
 Use `scaffold design --json` after the design-derivation gate to create standard architecture, API, UI, backend, frontend, test, and development document shells. Scaffolded files contain `governance:scaffold-placeholder`; verification fails until the placeholders are replaced with product-derived content.
 
 ```bash
