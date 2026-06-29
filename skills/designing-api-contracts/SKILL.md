@@ -17,6 +17,19 @@ API contracts are shared truth between frontend, backend, tests, and agents.
 
 Endpoint files under `docs/api/endpoints/` must use `NN-<slug>.md` with unique `NN` prefixes.
 
+## API Convention Sections
+
+`docs/api/00-conventions.md` must include these headings:
+
+- `## Product Links`
+- `## HTTP Conventions`
+- `## Authentication`
+- `## Idempotency`
+- `## Compatibility`
+- `## Open Decisions`
+
+Do not leave required sections empty or as `TBD`/`TODO`; link `Product Links` to product scope and a product acceptance chapter.
+
 ## Endpoint Sections
 
 Each endpoint file must include these headings:

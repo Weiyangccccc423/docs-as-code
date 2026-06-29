@@ -39,9 +39,29 @@ def _write_api_error_codes_doc(root: Path) -> None:
     _write_indexed_doc(root, "docs/api/error-codes.md", "# API Error Codes\n\n## E_EXAMPLE\n\nExample error.\n")
 
 
+def _api_conventions_doc(
+    product_links: str = "[PRD](../product/core/PRD.md), [Acceptance](../product/08-acceptance-criteria.md)",
+) -> str:
+    return (
+        "# API Conventions\n\n"
+        "## Product Links\n\n"
+        f"- {product_links}\n\n"
+        "## HTTP Conventions\n\n"
+        "- Use JSON request and response bodies for product workflow APIs.\n\n"
+        "## Authentication\n\n"
+        "- Mutating endpoints require an authenticated user boundary.\n\n"
+        "## Idempotency\n\n"
+        "- Client-provided idempotency keys protect retryable writes.\n\n"
+        "## Compatibility\n\n"
+        "- Breaking API changes require an API changelog entry before implementation.\n\n"
+        "## Open Decisions\n\n"
+        "- none\n"
+    )
+
+
 def _write_frontend_consumer_doc(root: Path) -> None:
     _write_acceptance_chapter(root)
-    _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+    _write_indexed_doc(root, "docs/api/00-conventions.md", _api_conventions_doc())
     _write_indexed_doc(root, "docs/ui/01-interaction-model.md", "# Interaction Model\n")
     _write_indexed_doc(root, "docs/frontend/01-modules.md", _frontend_modules_doc())
     _write_indexed_doc(
@@ -52,7 +72,7 @@ def _write_frontend_consumer_doc(root: Path) -> None:
 
 
 def _write_backend_trace_docs(root: Path) -> None:
-    _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+    _write_indexed_doc(root, "docs/api/00-conventions.md", _api_conventions_doc())
     _write_indexed_doc(root, "docs/architecture/01-system-context.md", _architecture_system_context_doc())
     _write_indexed_doc(root, "docs/backend/02-data-model.md", _backend_data_model_doc())
     _write_indexed_doc(root, "docs/backend/03-external-services.md", _backend_external_services_doc())
@@ -61,14 +81,14 @@ def _write_backend_trace_docs(root: Path) -> None:
 
 def _write_frontend_trace_docs(root: Path) -> None:
     _write_indexed_doc(root, "docs/ui/01-interaction-model.md", "# Interaction Model\n")
-    _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+    _write_indexed_doc(root, "docs/api/00-conventions.md", _api_conventions_doc())
     _write_indexed_doc(root, "docs/frontend/02-api-consumption.md", _frontend_api_consumption_doc())
     _write_acceptance_chapter(root)
 
 
 def _write_test_strategy_trace_docs(root: Path) -> None:
     _write_acceptance_chapter(root)
-    _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+    _write_indexed_doc(root, "docs/api/00-conventions.md", _api_conventions_doc())
     _write_indexed_doc(root, "docs/architecture/01-system-context.md", _architecture_system_context_doc())
 
 
@@ -853,7 +873,8 @@ class GovernanceScriptsTest(unittest.TestCase):
                 "[Example](../api/missing-example.md)\n"
                 "```\n",
             )
-            _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(root, "docs/api/00-conventions.md", _api_conventions_doc())
             _append_product_meta_chapter(root, "01-goals.md")
 
             report = verify(root)
@@ -959,6 +980,147 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "severity": "error",
                     "path": "docs/product/01-scope.md",
                     "message": "duplicate product chapter prefix 01: docs/product/01-goals.md, docs/product/01-scope.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_allows_complete_api_conventions(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(root, "docs/api/00-conventions.md", _api_conventions_doc())
+
+            report = verify(root)
+
+            self.assertEqual([], report.errors)
+
+    def test_verify_reports_api_conventions_missing_required_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(
+                root,
+                "docs/api/00-conventions.md",
+                "# API Conventions\n\n"
+                "## Product Links\n\n"
+                "- [PRD](../product/core/PRD.md)\n",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/api/00-conventions.md is missing API convention sections: "
+                "HTTP Conventions, Authentication, Idempotency, Compatibility, Open Decisions",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "api_conventions_missing_sections",
+                    "severity": "error",
+                    "path": "docs/api/00-conventions.md",
+                    "message": "docs/api/00-conventions.md is missing API convention sections: "
+                    "HTTP Conventions, Authentication, Idempotency, Compatibility, Open Decisions",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_api_conventions_empty_required_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(
+                root,
+                "docs/api/00-conventions.md",
+                _api_conventions_doc().replace(
+                    "## Authentication\n\n"
+                    "- Mutating endpoints require an authenticated user boundary.\n\n",
+                    "## Authentication\n\n- TODO\n\n",
+                ),
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/api/00-conventions.md has empty API convention sections: Authentication",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "api_conventions_empty_sections",
+                    "severity": "error",
+                    "path": "docs/api/00-conventions.md",
+                    "message": "docs/api/00-conventions.md has empty API convention sections: Authentication",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_api_conventions_missing_trace_references(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(
+                root,
+                "docs/api/00-conventions.md",
+                _api_conventions_doc("Product scope and acceptance criteria"),
+            )
+
+            report = verify(root)
+
+            expected = [
+                "docs/api/00-conventions.md must reference existing Product docs",
+                "docs/api/00-conventions.md must reference a product acceptance chapter",
+            ]
+            for message in expected:
+                self.assertIn(message, report.errors)
+            self.assertIn(
+                {
+                    "code": "api_conventions_trace_reference_missing",
+                    "severity": "error",
+                    "path": "docs/api/00-conventions.md",
+                    "message": "docs/api/00-conventions.md must reference existing Product docs",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_api_conventions_missing_trace_targets(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(
+                root,
+                "docs/api/00-conventions.md",
+                _api_conventions_doc(
+                    "[Missing scope](../product/01-goals.md), "
+                    "[Acceptance](../product/08-acceptance-criteria.md)"
+                ),
+            )
+
+            report = verify(root)
+
+            expected = [
+                "docs/api/00-conventions.md references missing Product target: docs/product/01-goals.md",
+                "docs/api/00-conventions.md references missing Acceptance target: docs/product/08-acceptance-criteria.md",
+            ]
+            for message in expected:
+                self.assertIn(message, report.errors)
+            self.assertIn(
+                {
+                    "code": "api_conventions_trace_reference_missing",
+                    "severity": "error",
+                    "path": "docs/api/00-conventions.md",
+                    "message": "docs/api/00-conventions.md references missing Product target: docs/product/01-goals.md",
                 },
                 [finding.to_dict() for finding in report.findings],
             )
@@ -1557,7 +1719,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             product.write_text("# Demo\n", encoding="utf-8")
             bootstrap(root, product)
             _write_acceptance_chapter(root)
-            _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+            _write_indexed_doc(root, "docs/api/00-conventions.md", _api_conventions_doc())
             _write_indexed_doc(root, "docs/architecture/01-system-context.md", _architecture_system_context_doc())
             _write_indexed_doc(root, "docs/backend/01-modules.md", _backend_modules_doc())
             _write_indexed_doc(root, "docs/backend/02-data-model.md", _backend_data_model_doc())
@@ -1607,7 +1769,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             product.write_text("# Demo\n", encoding="utf-8")
             bootstrap(root, product)
             _write_acceptance_chapter(root)
-            _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+            _write_indexed_doc(root, "docs/api/00-conventions.md", _api_conventions_doc())
             _write_indexed_doc(root, "docs/architecture/01-system-context.md", _architecture_system_context_doc())
             _write_indexed_doc(root, "docs/backend/01-modules.md", _backend_modules_doc())
             _write_indexed_doc(root, "docs/backend/03-external-services.md", _backend_external_services_doc())
@@ -1706,7 +1868,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             product.write_text("# Demo\n", encoding="utf-8")
             bootstrap(root, product)
             _write_acceptance_chapter(root)
-            _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+            _write_indexed_doc(root, "docs/api/00-conventions.md", _api_conventions_doc())
             _write_indexed_doc(root, "docs/architecture/01-system-context.md", _architecture_system_context_doc())
             _write_indexed_doc(root, "docs/backend/01-modules.md", _backend_modules_doc())
             _write_indexed_doc(root, "docs/backend/02-data-model.md", _backend_data_model_doc())
@@ -1756,7 +1918,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             product.write_text("# Demo\n", encoding="utf-8")
             bootstrap(root, product)
             _write_acceptance_chapter(root)
-            _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+            _write_indexed_doc(root, "docs/api/00-conventions.md", _api_conventions_doc())
             _write_indexed_doc(root, "docs/architecture/01-system-context.md", _architecture_system_context_doc())
             _write_indexed_doc(root, "docs/backend/01-modules.md", _backend_modules_doc())
             _write_indexed_doc(root, "docs/backend/02-data-model.md", _backend_data_model_doc())
@@ -2010,7 +2172,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             product.write_text("# Demo\n", encoding="utf-8")
             bootstrap(root, product)
             _write_acceptance_chapter(root)
-            _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+            _write_indexed_doc(root, "docs/api/00-conventions.md", _api_conventions_doc())
             _write_indexed_doc(root, "docs/ui/01-interaction-model.md", "# Interaction Model\n")
             _write_indexed_doc(root, "docs/frontend/01-modules.md", _frontend_modules_doc())
             _write_indexed_doc(root, "docs/frontend/02-api-consumption.md", _frontend_api_consumption_doc())
@@ -2059,7 +2221,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             product.write_text("# Demo\n", encoding="utf-8")
             bootstrap(root, product)
             _write_acceptance_chapter(root)
-            _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+            _write_indexed_doc(root, "docs/api/00-conventions.md", _api_conventions_doc())
             _write_indexed_doc(root, "docs/ui/01-interaction-model.md", "# Interaction Model\n")
             _write_indexed_doc(root, "docs/frontend/01-modules.md", _frontend_modules_doc())
             _write_indexed_doc(
@@ -3002,7 +3164,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             _append_product_meta_chapter(root, "01-goals.md")
             _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
-            _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+            _write_indexed_doc(root, "docs/api/00-conventions.md", _api_conventions_doc())
             _write_traceable_test_strategy(root)
 
             task_board = root / "docs/development/02-task-board.md"
@@ -3029,7 +3191,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             _write_product_chapter(root, "01-goals.md", "Goals")
             _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
-            _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+            _write_indexed_doc(root, "docs/api/00-conventions.md", _api_conventions_doc())
             _write_traceable_test_strategy(root)
 
             task_board = root / "docs/development/02-task-board.md"
@@ -3066,7 +3228,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             bootstrap(root, product)
             _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
-            _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+            _write_indexed_doc(root, "docs/api/00-conventions.md", _api_conventions_doc())
             _write_traceable_test_strategy(root)
 
             task_board = root / "docs/development/02-task-board.md"
@@ -3102,7 +3264,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             _append_product_meta_chapter(root, "01-goals.md")
             _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
-            _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+            _write_indexed_doc(root, "docs/api/00-conventions.md", _api_conventions_doc())
             _write_traceable_test_strategy(root)
 
             task_board = root / "docs/development/02-task-board.md"
@@ -3139,7 +3301,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             _append_product_meta_chapter(root, "01-goals.md")
             _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
-            _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+            _write_indexed_doc(root, "docs/api/00-conventions.md", _api_conventions_doc())
             _write_traceable_test_strategy(root)
 
             task_board = root / "docs/development/02-task-board.md"
@@ -3175,7 +3337,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             _append_product_meta_chapter(root, "01-goals.md")
             _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
-            _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+            _write_indexed_doc(root, "docs/api/00-conventions.md", _api_conventions_doc())
             _write_traceable_test_strategy(root)
             _write_indexed_doc(root, "docs/development/03-verification-log.md", "# Verification Log\n")
             (root / "docs/unresolved.md").write_text(
@@ -3215,7 +3377,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             _append_product_meta_chapter(root, "01-goals.md")
             _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
-            _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+            _write_indexed_doc(root, "docs/api/00-conventions.md", _api_conventions_doc())
             _write_traceable_test_strategy(root)
             (root / "docs/unresolved.md").write_text(
                 "# Unresolved Items\n\n"
@@ -3262,7 +3424,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             _append_product_meta_chapter(root, "01-goals.md")
             _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
-            _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+            _write_indexed_doc(root, "docs/api/00-conventions.md", _api_conventions_doc())
             _write_traceable_test_strategy(root)
             (root / "docs/unresolved.md").write_text(
                 "# Unresolved Items\n\n"
@@ -3306,7 +3468,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             _append_product_meta_chapter(root, "01-goals.md")
             _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
-            _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+            _write_indexed_doc(root, "docs/api/00-conventions.md", _api_conventions_doc())
             _write_traceable_test_strategy(root)
             (root / "docs/unresolved.md").write_text(
                 "# Unresolved Items\n\n"
@@ -3341,7 +3503,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             _append_product_meta_chapter(root, "01-goals.md")
             _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
-            _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+            _write_indexed_doc(root, "docs/api/00-conventions.md", _api_conventions_doc())
             _write_traceable_test_strategy(root)
 
             task_board = root / "docs/development/02-task-board.md"
@@ -3378,7 +3540,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             _append_product_meta_chapter(root, "01-goals.md")
             _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
-            _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+            _write_indexed_doc(root, "docs/api/00-conventions.md", _api_conventions_doc())
             _write_traceable_test_strategy(root)
             _write_indexed_doc(root, "docs/development/03-verification-log.md", "# Verification Log\n")
 
@@ -3407,7 +3569,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             _append_product_meta_chapter(root, "01-goals.md")
             _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
-            _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+            _write_indexed_doc(root, "docs/api/00-conventions.md", _api_conventions_doc())
             _write_traceable_test_strategy(root)
 
             task_board = root / "docs/development/02-task-board.md"
@@ -3447,7 +3609,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             _append_product_meta_chapter(root, "01-goals.md")
             _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
-            _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+            _write_indexed_doc(root, "docs/api/00-conventions.md", _api_conventions_doc())
             _write_traceable_test_strategy(root)
             _write_indexed_doc(
                 root,
@@ -3491,7 +3653,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             _append_product_meta_chapter(root, "01-goals.md")
             _write_acceptance_chapter(root)
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
-            _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+            _write_indexed_doc(root, "docs/api/00-conventions.md", _api_conventions_doc())
             _write_traceable_test_strategy(root)
             _write_indexed_doc(
                 root,

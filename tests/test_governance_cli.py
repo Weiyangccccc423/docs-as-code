@@ -19,6 +19,25 @@ def _append_product_meta_chapter(root: Path, filename: str) -> None:
     meta.write_text(meta.read_text(encoding="utf-8") + f"\n- [{filename}](../{filename})\n", encoding="utf-8")
 
 
+def _api_conventions_doc() -> str:
+    return (
+        "# API Conventions\n\n"
+        "## Product Links\n\n"
+        "- [PRD](../product/core/PRD.md)\n"
+        "- [Acceptance](../product/08-acceptance-criteria.md)\n\n"
+        "## HTTP Conventions\n\n"
+        "- Use JSON request and response bodies for product workflow APIs.\n\n"
+        "## Authentication\n\n"
+        "- Mutating endpoints require an authenticated user boundary.\n\n"
+        "## Idempotency\n\n"
+        "- Client-provided idempotency keys protect retryable writes.\n\n"
+        "## Compatibility\n\n"
+        "- Breaking API changes require an API changelog entry before implementation.\n\n"
+        "## Open Decisions\n\n"
+        "- none\n"
+    )
+
+
 def _backend_external_services_doc() -> str:
     return (
         "# External Services\n\n"
@@ -655,6 +674,10 @@ class GovernanceCliTest(unittest.TestCase):
                 path.write_text(f"# {domain}\n", encoding="utf-8")
                 _append_index(target / "docs" / domain / "README.md", filename)
 
+            (target / "docs/api/00-conventions.md").write_text(
+                _api_conventions_doc(),
+                encoding="utf-8",
+            )
             (target / "docs/tests/01-strategy.md").write_text(
                 _test_strategy_doc(),
                 encoding="utf-8",

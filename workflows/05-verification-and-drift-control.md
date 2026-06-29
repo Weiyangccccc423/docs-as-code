@@ -65,6 +65,7 @@ Load:
    - no explicit local Markdown link pointing to a missing file
    - product chapter filenames use `NN-<slug>.md` with unique `NN` prefixes
    - a dedicated `NN-*acceptance*.md` product chapter exists before design derivation or implementation handoff
+   - `docs/api/00-conventions.md` has non-placeholder Product Links, HTTP Conventions, Authentication, Idempotency, Compatibility, and Open Decisions sections, and links to product scope plus product acceptance criteria
    - API endpoint contract filenames under `docs/api/endpoints/` use `NN-<slug>.md` with unique `NN` prefixes
    - API endpoint contract files include non-placeholder method/path, auth, idempotency, request, response, error, upstream link, and frontend consumer sections
    - API endpoint `Method and Path` sections contain an HTTP method and absolute path

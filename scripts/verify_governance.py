@@ -55,6 +55,15 @@ API_ENDPOINT_REQUIRED_SECTIONS = {
     "upstream links": "Upstream Links",
     "frontend consumers": "Frontend Consumers",
 }
+API_CONVENTIONS_REL = Path("docs/api/00-conventions.md")
+API_CONVENTIONS_REQUIRED_SECTIONS = {
+    "product links": "Product Links",
+    "http conventions": "HTTP Conventions",
+    "authentication": "Authentication",
+    "idempotency": "Idempotency",
+    "compatibility": "Compatibility",
+    "open decisions": "Open Decisions",
+}
 API_ERROR_CODES_REL = Path("docs/api/error-codes.md")
 ARCHITECTURE_SYSTEM_CONTEXT_REL = Path("docs/architecture/01-system-context.md")
 ARCHITECTURE_SYSTEM_CONTEXT_REQUIRED_SECTIONS = {
@@ -267,6 +276,7 @@ def verify(root: Path) -> VerificationReport:
 
     _check_product_source_manifest(root, report)
     _check_product_chapter_links(root, report)
+    _check_api_conventions(root, report)
     _check_api_endpoint_contract_filenames(root, report)
     _check_architecture_system_context_traceability(root, report)
     _check_architecture_containers_traceability(root, report)
@@ -468,6 +478,62 @@ def _check_api_endpoint_contract_filenames(root: Path, report: VerificationRepor
             f"duplicate API endpoint contract prefix {prefix}: {', '.join(rels)}",
             rels[-1],
         )
+
+
+def _check_api_conventions(root: Path, report: VerificationReport) -> None:
+    path = root / API_CONVENTIONS_REL
+    rel = API_CONVENTIONS_REL.as_posix()
+    if not path.exists():
+        return
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return
+    if SCAFFOLD_PLACEHOLDER in text:
+        return
+
+    sections = _markdown_sections(text, min_level=2)
+    missing = [
+        label
+        for key, label in API_CONVENTIONS_REQUIRED_SECTIONS.items()
+        if key not in sections
+    ]
+    if missing:
+        report.add_error(
+            "api_conventions_missing_sections",
+            f"{rel} is missing API convention sections: {', '.join(missing)}",
+            rel,
+        )
+        return
+    empty = [
+        label
+        for key, label in API_CONVENTIONS_REQUIRED_SECTIONS.items()
+        if not _section_has_authored_content(sections[key])
+    ]
+    if empty:
+        report.add_error(
+            "api_conventions_empty_sections",
+            f"{rel} has empty API convention sections: {', '.join(empty)}",
+            rel,
+        )
+
+    references = _local_markdown_references(root, path, text, include_bare=True, strip_code=False)
+    _check_design_reference_group(
+        report,
+        rel,
+        references,
+        "api_conventions_trace_reference_missing",
+        "Product",
+        _is_product_scope_reference,
+    )
+    _check_design_reference_group(
+        report,
+        rel,
+        references,
+        "api_conventions_trace_reference_missing",
+        "Acceptance",
+        _is_product_acceptance_reference_path,
+    )
 
 
 def _check_api_endpoint_contract_sections(root: Path, path: Path, report: VerificationReport) -> None:
