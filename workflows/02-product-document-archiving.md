@@ -27,7 +27,7 @@ Load:
 3. Convert or copy the readable product text into `docs/product/core/PRD.md`.
 4. Record navigational metadata in `docs/product/core/product-meta.md`.
 5. Do not edit product meaning during archiving.
-6. If conversion is incomplete, register the limitation in `docs/unresolved.md` and stop before design derivation.
+6. If conversion is incomplete, register the limitation in `docs/unresolved.md` and stop before design derivation. Bootstrap registers `U-001` automatically for conversion-required sources; mark it `resolved` only after `PRD.md` has reviewed Markdown content and the manifest is updated.
 
 ## Recommended Conversion Rules
 

@@ -739,6 +739,14 @@ class GovernanceCliTest(unittest.TestCase):
             manifest["import"]["conversion_method"] = "manual-reviewed-markdown"
             manifest["import"]["can_derive_design"] = True
             manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            unresolved = target / "docs/unresolved.md"
+            unresolved.write_text(
+                unresolved.read_text(encoding="utf-8").replace(
+                    "product structuring/design derivation",
+                    "resolved",
+                ),
+                encoding="utf-8",
+            )
 
             gate_result = subprocess.run(
                 [sys.executable, str(CLI), "gate", "product-structuring", str(target), "--json"],

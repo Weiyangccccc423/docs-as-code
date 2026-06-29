@@ -510,6 +510,7 @@ def bootstrap(
 
     _write_json(root / "docs/product/core/source/source-manifest.json", manifest, force=True)
     _safe_write(root / "docs/product/core/product-meta.md", _product_meta(manifest), force=True)
+    _append_conversion_unresolved_item(root, manifest)
 
     merge_state(
         root,
@@ -523,6 +524,30 @@ def bootstrap(
         workflow_pack_manifest=workflow_pack_manifest,
         generated_by="docs-as-code workflow pack",
     )
+
+
+def _append_conversion_unresolved_item(root: Path, manifest: dict[str, object]) -> None:
+    imported = manifest.get("import")
+    archive = manifest.get("archive")
+    if not isinstance(imported, dict) or not isinstance(archive, dict):
+        return
+    if imported.get("can_derive_design") is True:
+        return
+    archived_rel = archive.get("path")
+    if not isinstance(archived_rel, str) or not archived_rel:
+        return
+    path = root / "docs/unresolved.md"
+    if not path.exists():
+        return
+    text = path.read_text(encoding="utf-8")
+    if "| U-001 | Product Archiving |" in text:
+        return
+    description = f"Convert archived source {archived_rel} to reviewed Markdown PRD before product structuring."
+    row = (
+        f"| U-001 | Product Archiving | {description} | "
+        f"product structuring/design derivation | TBD | {utc_now().split('T', 1)[0]} |\n"
+    )
+    path.write_text(text.rstrip() + "\n" + row, encoding="utf-8")
 
 
 def _domain_title(name: str) -> str:

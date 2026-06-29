@@ -592,9 +592,14 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertEqual("conversion_required", manifest["import"]["status"])
             self.assertEqual("conversion-required", manifest["import"]["conversion_method"])
             self.assertFalse(manifest["import"]["can_derive_design"])
+            unresolved = (root / "docs/unresolved.md").read_text(encoding="utf-8")
+            self.assertIn("U-001", unresolved)
+            self.assertIn("Convert archived source docs/product/core/source/product.docx", unresolved)
+            self.assertIn("product structuring/design derivation", unresolved)
 
             report = verify(root)
             self.assertIn("product source requires conversion before design derivation: docs/product/core/source/product.docx", report.errors)
+            self.assertIn("blocking unresolved item U-001 affects product structuring/design derivation", report.errors)
 
     def test_bootstrap_rejects_existing_governance_file_without_force(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
