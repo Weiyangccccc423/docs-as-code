@@ -58,6 +58,7 @@ Treat `test_strategy_missing_sections`, `test_strategy_empty_sections`, and `tes
 Treat `acceptance_matrix_missing_sections` and `acceptance_matrix_empty_sections` as acceptance-traceability blockers: complete Matrix and Uncovered Criteria in `docs/tests/02-acceptance-matrix.md`.
 Treat `acceptance_matrix_*` findings as acceptance-traceability blockers: make `docs/tests/02-acceptance-matrix.md` use `Acceptance`, `Design`, `API`, and `Test` columns with local Markdown links to the matching source docs.
 Treat `adr_missing_sections`, `adr_empty_sections`, and `adr_reference_missing` as ADR completeness blockers: add Context, Decision, Consequences, and References with local Markdown source links.
+Treat `adr_invalid_filename` and `adr_duplicate_prefix` as ADR identity blockers: rename ADRs under `docs/decisions/` to unique `NNN-<slug>.md` files and update indexes/links.
 Treat `glossary_*` findings as product-terminology blockers: fill required fields, remove duplicate terms, or link `Source` to existing local Markdown.
 Treat `unresolved_row_missing_fields` and `unresolved_duplicate_id` as ambiguity-registry blockers.
 Treat `roadmap_missing_sections`, `roadmap_empty_sections`, and `roadmap_trace_reference_missing` as delivery-planning blockers: complete Product Links, Milestones, Sequencing, Risks, and Deferred Scope in `docs/development/01-roadmap.md`, and link to product scope plus product acceptance criteria.
@@ -115,6 +116,7 @@ make ci
 - `docs/tests/01-strategy.md` has non-placeholder Product Links, Acceptance Links, Test Layers, Risk Coverage, and Non-Functional Checks sections, and links to product acceptance criteria, API docs, and architecture/backend/frontend design docs
 - `docs/tests/02-acceptance-matrix.md` has non-placeholder Matrix and Uncovered Criteria sections
 - `docs/tests/02-acceptance-matrix.md` uses `Acceptance`, `Design`, `API`, and `Test` columns, and each row links to matching local source docs
+- ADR files under `docs/decisions/` use unique `NNN-<slug>.md` names
 - ADRs under `docs/decisions/` include non-placeholder Context, Decision, Consequences, and References sections with local Markdown source links
 - glossary rows have unique `Term` values and filled `Meaning` and `Source` fields; `Source` links to existing local Markdown
 - unresolved rows have unique IDs and filled `Domain` and `Description`

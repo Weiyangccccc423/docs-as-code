@@ -69,7 +69,7 @@ Load according to the design track:
 10. Create or complete `docs/tests/02-acceptance-matrix.md` with Matrix and Uncovered Criteria sections, and `Acceptance`, `Design`, `API`, and `Test` columns.
 11. Create or complete `docs/development/01-roadmap.md` with product links, a Milestones table using `ID`, `Status`, and `Milestone`, sequencing, risks, and deferred scope.
 12. Create or complete `docs/development/02-task-board.md` with Task Table, Status Policy, and Traceability Rules sections.
-13. Create ADRs in `docs/decisions/` for cross-module or high-cost decisions.
+13. Create ADRs in `docs/decisions/` for cross-module or high-cost decisions, named as unique `NNN-<slug>.md` files.
 14. Keep all design and planning documents linked to product and acceptance sources.
 15. Update the same-directory `README.md` for every new Markdown document, except underscore-prefixed templates such as `_template.md`.
 
@@ -104,6 +104,7 @@ Design documents sufficient for creating a task board without guessing product m
 - `docs/tests/02-acceptance-matrix.md` has non-placeholder Matrix and Uncovered Criteria sections, and maps acceptance criteria to design, API, and test sources with local Markdown links.
 - `docs/development/01-roadmap.md` has non-placeholder Product Links, Milestones, Sequencing, Risks, and Deferred Scope sections, links to product scope plus product acceptance criteria, and uses a Milestones table with `ID`, `Status`, and `Milestone`.
 - `docs/development/02-task-board.md` has non-placeholder Task Table, Status Policy, and Traceability Rules sections.
+- ADR files under `docs/decisions/` use unique `NNN-<slug>.md` names.
 - ADRs have context, decision, consequences, and references.
 - ADR `References` sections link to existing local Markdown source documents.
 - Each non-template Markdown document is indexed by the README in the same directory.

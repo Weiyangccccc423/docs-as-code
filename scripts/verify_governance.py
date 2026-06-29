@@ -40,6 +40,7 @@ ADR_REQUIRED_SECTIONS = {
     "consequences": "Consequences",
     "references": "References",
 }
+ADR_DECISION_RE = re.compile(r"^(?P<prefix>[0-9]{3})-[a-z0-9][a-z0-9-]*\.md$")
 SCAFFOLD_PLACEHOLDER = "governance:scaffold-placeholder"
 WORKFLOW_PACK_SNAPSHOT_ROOT = "docs/agent-workflow/workflow-pack"
 ROADMAP_REL = Path("docs/development/01-roadmap.md")
@@ -1582,10 +1583,30 @@ def _check_architecture_decisions(root: Path, report: VerificationReport) -> Non
     decisions_root = root / "docs/decisions"
     if not decisions_root.exists():
         return
+    prefix_paths: dict[str, list[Path]] = {}
     for path in sorted(decisions_root.glob("*.md")):
         if path.name in {"README.md", "AGENTS.md"} or path.name.startswith("_"):
             continue
+        rel = path.relative_to(root).as_posix()
+        match = ADR_DECISION_RE.fullmatch(path.name)
+        if not match:
+            report.add_error(
+                "adr_invalid_filename",
+                f"{rel} must use NNN-<slug>.md ADR naming",
+                rel,
+            )
+        else:
+            prefix_paths.setdefault(match.group("prefix"), []).append(path)
         _check_architecture_decision(root, path, report)
+    for prefix, paths in prefix_paths.items():
+        if len(paths) <= 1:
+            continue
+        rels = [path.relative_to(root).as_posix() for path in paths]
+        report.add_error(
+            "adr_duplicate_prefix",
+            f"duplicate ADR prefix {prefix}: {', '.join(rels)}",
+            rels[-1],
+        )
 
 
 def _check_architecture_decision(root: Path, path: Path, report: VerificationReport) -> None:

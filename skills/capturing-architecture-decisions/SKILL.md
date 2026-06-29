@@ -27,6 +27,7 @@ Create an ADR when a decision:
 ## Rules
 
 - Keep ADRs short.
+- Name ADR files as `NNN-<slug>.md` under `docs/decisions/`, with unique numeric prefixes.
 - Include rejected alternatives.
 - Link `References` to existing local Markdown product, architecture, API, backend/frontend, or unresolved sources.
 - For product-derived design decisions, run `bin/governance gate design-derivation <target> --json` first.

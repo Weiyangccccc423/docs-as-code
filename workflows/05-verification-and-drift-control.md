@@ -87,6 +87,7 @@ Load:
    - `docs/tests/01-strategy.md` has non-placeholder Product Links, Acceptance Links, Test Layers, Risk Coverage, and Non-Functional Checks sections, and links to product acceptance criteria, API docs, and architecture/backend/frontend design docs
    - `docs/tests/02-acceptance-matrix.md` has non-placeholder Matrix and Uncovered Criteria sections
    - `docs/tests/02-acceptance-matrix.md` uses `Acceptance`, `Design`, `API`, and `Test` columns with local Markdown links to matching source docs
+   - ADR files under `docs/decisions/` use unique `NNN-<slug>.md` names
    - ADRs under `docs/decisions/` include non-placeholder Context, Decision, Consequences, and References sections with local Markdown source links
    - `docs/development/01-roadmap.md` has non-placeholder Product Links, Milestones, Sequencing, Risks, and Deferred Scope sections, and links to product scope plus product acceptance criteria
    - roadmap Milestones table uses `ID`, `Status`, and `Milestone`, has at least one row, has unique IDs, and uses standard task status values
@@ -109,6 +110,7 @@ A verification report and a list of fixes, or a clean governance baseline.
 
 - Verification fails on source-of-truth conflicts.
 - The acceptance matrix lacks Matrix or Uncovered Criteria content.
+- ADR identity is unstable because filenames are unnumbered or duplicate numbered.
 - The task board claims completion without evidence.
 - The task board lacks status policy or traceability rules.
 - The roadmap lacks a valid milestone table.

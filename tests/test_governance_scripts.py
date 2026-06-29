@@ -3514,6 +3514,72 @@ class GovernanceScriptsTest(unittest.TestCase):
 
             self.assertEqual([], report.errors)
 
+    def test_verify_allows_adr_filenames(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(root, "docs/architecture/01-system-context.md", _architecture_system_context_doc())
+            _write_indexed_doc(root, "docs/decisions/001-runtime-boundary.md", _adr_doc())
+            _write_indexed_doc(root, "docs/decisions/002-data-boundary.md", _adr_doc())
+
+            report = verify(root)
+
+            self.assertEqual([], report.errors)
+
+    def test_verify_reports_invalid_adr_filename(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(root, "docs/architecture/01-system-context.md", _architecture_system_context_doc())
+            _write_indexed_doc(root, "docs/decisions/runtime-boundary.md", _adr_doc())
+
+            report = verify(root)
+
+            self.assertIn("docs/decisions/runtime-boundary.md must use NNN-<slug>.md ADR naming", report.errors)
+            self.assertIn(
+                {
+                    "code": "adr_invalid_filename",
+                    "severity": "error",
+                    "path": "docs/decisions/runtime-boundary.md",
+                    "message": "docs/decisions/runtime-boundary.md must use NNN-<slug>.md ADR naming",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_duplicate_adr_prefix(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(root, "docs/architecture/01-system-context.md", _architecture_system_context_doc())
+            _write_indexed_doc(root, "docs/decisions/001-runtime-boundary.md", _adr_doc())
+            _write_indexed_doc(root, "docs/decisions/001-data-boundary.md", _adr_doc())
+
+            report = verify(root)
+
+            self.assertIn(
+                "duplicate ADR prefix 001: docs/decisions/001-data-boundary.md, docs/decisions/001-runtime-boundary.md",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "adr_duplicate_prefix",
+                    "severity": "error",
+                    "path": "docs/decisions/001-runtime-boundary.md",
+                    "message": "duplicate ADR prefix 001: "
+                    "docs/decisions/001-data-boundary.md, docs/decisions/001-runtime-boundary.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_adr_missing_required_sections(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
