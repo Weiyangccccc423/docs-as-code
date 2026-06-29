@@ -1984,7 +1984,10 @@ def _check_unresolved_items(root: Path, report: VerificationReport) -> None:
     path = root / "docs/unresolved.md"
     if not path.exists():
         return
-    rows = _markdown_table(path.read_text(encoding="utf-8"))
+    text = _read_markdown_text(root, path, report)
+    if text is None:
+        return
+    rows = _markdown_table(text)
     if not rows:
         return
     header = [_normalize_cell(cell) for cell in rows[0]]
@@ -2046,7 +2049,10 @@ def _check_glossary_items(root: Path, report: VerificationReport) -> None:
     path = root / "docs/glossary.md"
     if not path.exists():
         return
-    rows = _markdown_table(path.read_text(encoding="utf-8"))
+    text = _read_markdown_text(root, path, report)
+    if text is None:
+        return
+    rows = _markdown_table(text)
     if not rows:
         return
     header = [_normalize_cell(cell) for cell in rows[0]]
