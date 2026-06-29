@@ -959,6 +959,37 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_workflow_pack_manifest_file_directory_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            workflow = root / "docs/agent-workflow/workflow-pack/workflows/00-overview.md"
+            workflow.unlink()
+            workflow.mkdir()
+
+            report = verify(root)
+
+            self.assertIn(
+                "workflow pack file is not a file: "
+                "docs/agent-workflow/workflow-pack/workflows/00-overview.md",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "workflow_pack_file_not_file",
+                    "severity": "error",
+                    "path": "docs/agent-workflow/workflow-pack/workflows/00-overview.md",
+                    "message": (
+                        "workflow pack file is not a file: "
+                        "docs/agent-workflow/workflow-pack/workflows/00-overview.md"
+                    ),
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_rejects_missing_required_workflow_pack_manifest_entry(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -1168,6 +1199,30 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "severity": "error",
                     "path": "scripts/scaffold.py",
                     "message": "runtime file hash mismatch: scripts/scaffold.py",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_runtime_manifest_file_directory_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            runtime = root / "scripts/scaffold.py"
+            runtime.unlink()
+            runtime.mkdir()
+
+            report = verify(root)
+
+            self.assertIn("runtime file is not a file: scripts/scaffold.py", report.errors)
+            self.assertIn(
+                {
+                    "code": "runtime_file_not_file",
+                    "severity": "error",
+                    "path": "scripts/scaffold.py",
+                    "message": "runtime file is not a file: scripts/scaffold.py",
                 },
                 [finding.to_dict() for finding in report.findings],
             )

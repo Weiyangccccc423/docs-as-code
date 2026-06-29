@@ -2200,6 +2200,9 @@ def _check_runtime_manifest(root: Path, report: VerificationReport) -> None:
         if not path.exists():
             report.add_error("runtime_file_missing", f"runtime file is missing: {rel}", rel)
             continue
+        if not path.is_file():
+            report.add_error("runtime_file_not_file", f"runtime file is not a file: {rel}", rel)
+            continue
         if not _is_valid_manifest_size(expected_size):
             report.add_error("runtime_manifest_size_missing", f"runtime file size is missing or invalid: {rel}", manifest_rel)
         elif path.stat().st_size != expected_size:
@@ -2220,7 +2223,7 @@ def _check_runtime_manifest(root: Path, report: VerificationReport) -> None:
     for executable_path in RUNTIME_EXECUTABLE_PATHS:
         path = root / executable_path
         rel = executable_path.as_posix()
-        if path.exists() and (path.stat().st_mode & stat.S_IXUSR) == 0:
+        if path.is_file() and (path.stat().st_mode & stat.S_IXUSR) == 0:
             report.add_error("runtime_file_not_executable", f"runtime file is not executable: {rel}", rel)
 
 
@@ -2259,6 +2262,9 @@ def _check_workflow_pack_manifest(root: Path, report: VerificationReport) -> Non
         file_rel = f"{WORKFLOW_PACK_SNAPSHOT_ROOT}/{rel}"
         if not path.exists():
             report.add_error("workflow_pack_file_missing", f"workflow pack file is missing: {file_rel}", file_rel)
+            continue
+        if not path.is_file():
+            report.add_error("workflow_pack_file_not_file", f"workflow pack file is not a file: {file_rel}", file_rel)
             continue
         if not _is_valid_manifest_size(expected_size):
             report.add_error(
