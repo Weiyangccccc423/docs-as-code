@@ -3336,6 +3336,72 @@ class GovernanceScriptsTest(unittest.TestCase):
 
             self.assertEqual([], report.errors)
 
+    def test_verify_reports_acceptance_matrix_missing_required_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_traceable_test_strategy(root)
+            _write_indexed_doc(
+                root,
+                "docs/tests/02-acceptance-matrix.md",
+                "# Acceptance Matrix\n\n"
+                "| Acceptance | Design | API | Test |\n"
+                "| --- | --- | --- | --- |\n"
+                "| [A-001](../product/08-acceptance-criteria.md#a-001) | [System context](../architecture/01-system-context.md) | [API conventions](../api/00-conventions.md) | [Test strategy](01-strategy.md) |\n",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/tests/02-acceptance-matrix.md is missing acceptance matrix sections: Matrix, Uncovered Criteria",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "acceptance_matrix_missing_sections",
+                    "severity": "error",
+                    "path": "docs/tests/02-acceptance-matrix.md",
+                    "message": "docs/tests/02-acceptance-matrix.md is missing acceptance matrix sections: Matrix, Uncovered Criteria",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_acceptance_matrix_empty_required_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_traceable_test_strategy(root)
+            _write_indexed_doc(
+                root,
+                "docs/tests/02-acceptance-matrix.md",
+                _acceptance_matrix_doc().replace(
+                    "## Uncovered Criteria\n\n"
+                    "- none\n",
+                    "## Uncovered Criteria\n\n"
+                    "- TBD\n",
+                ),
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/tests/02-acceptance-matrix.md has empty acceptance matrix sections: Uncovered Criteria",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "acceptance_matrix_empty_sections",
+                    "severity": "error",
+                    "path": "docs/tests/02-acceptance-matrix.md",
+                    "message": "docs/tests/02-acceptance-matrix.md has empty acceptance matrix sections: Uncovered Criteria",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_acceptance_matrix_missing_required_columns(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

@@ -66,7 +66,7 @@ Load according to the design track:
    - API consumption map
    - error action map
 9. Create or complete `docs/tests/01-strategy.md` from product acceptance, API contracts, and architecture/backend/frontend design risks.
-10. Create or complete `docs/tests/02-acceptance-matrix.md` with `Acceptance`, `Design`, `API`, and `Test` columns.
+10. Create or complete `docs/tests/02-acceptance-matrix.md` with Matrix and Uncovered Criteria sections, and `Acceptance`, `Design`, `API`, and `Test` columns.
 11. Create or complete `docs/development/01-roadmap.md` with product links, a Milestones table using `ID`, `Status`, and `Milestone`, sequencing, risks, and deferred scope.
 12. Create or complete `docs/development/02-task-board.md` with Task Table, Status Policy, and Traceability Rules sections.
 13. Create ADRs in `docs/decisions/` for cross-module or high-cost decisions.
@@ -101,7 +101,7 @@ Design documents sufficient for creating a task board without guessing product m
 - `docs/frontend/01-modules.md` has non-placeholder Product Links, UI Links, Modules, State Ownership, Routes, and Open Decisions sections, and links to UI docs, API docs, `docs/frontend/02-api-consumption.md`, and product acceptance criteria.
 - `docs/frontend/02-api-consumption.md` has non-placeholder Product Links, API Links, Consumption Map, Loading States, and Error Actions sections, and links to frontend modules, API docs, and product acceptance criteria.
 - `docs/tests/01-strategy.md` has non-placeholder Product Links, Acceptance Links, Test Layers, Risk Coverage, and Non-Functional Checks sections, and links to product acceptance criteria, API docs, and architecture/backend/frontend design docs.
-- `docs/tests/02-acceptance-matrix.md` maps acceptance criteria to design, API, and test sources with local Markdown links.
+- `docs/tests/02-acceptance-matrix.md` has non-placeholder Matrix and Uncovered Criteria sections, and maps acceptance criteria to design, API, and test sources with local Markdown links.
 - `docs/development/01-roadmap.md` has non-placeholder Product Links, Milestones, Sequencing, Risks, and Deferred Scope sections, links to product scope plus product acceptance criteria, and uses a Milestones table with `ID`, `Status`, and `Milestone`.
 - `docs/development/02-task-board.md` has non-placeholder Task Table, Status Policy, and Traceability Rules sections.
 - ADRs have context, decision, consequences, and references.

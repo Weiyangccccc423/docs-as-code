@@ -178,6 +178,10 @@ TEST_STRATEGY_REQUIRED_SECTIONS = {
     "non-functional checks": "Non-Functional Checks",
 }
 ACCEPTANCE_MATRIX_REL = Path("docs/tests/02-acceptance-matrix.md")
+ACCEPTANCE_MATRIX_REQUIRED_SECTIONS = {
+    "matrix": "Matrix",
+    "uncovered criteria": "Uncovered Criteria",
+}
 ACCEPTANCE_MATRIX_REQUIRED_COLUMNS = {
     "acceptance": "Acceptance",
     "design": "Design",
@@ -1380,6 +1384,30 @@ def _check_acceptance_matrix_traceability(root: Path, report: VerificationReport
         return
     if SCAFFOLD_PLACEHOLDER in text:
         return
+
+    sections = _markdown_sections(text, min_level=2)
+    missing_sections = [
+        label
+        for key, label in ACCEPTANCE_MATRIX_REQUIRED_SECTIONS.items()
+        if key not in sections
+    ]
+    if missing_sections:
+        report.add_error(
+            "acceptance_matrix_missing_sections",
+            f"{rel} is missing acceptance matrix sections: {', '.join(missing_sections)}",
+            rel,
+        )
+    empty_sections = [
+        label
+        for key, label in ACCEPTANCE_MATRIX_REQUIRED_SECTIONS.items()
+        if key in sections and not _section_has_authored_content(sections[key])
+    ]
+    if empty_sections:
+        report.add_error(
+            "acceptance_matrix_empty_sections",
+            f"{rel} has empty acceptance matrix sections: {', '.join(empty_sections)}",
+            rel,
+        )
 
     rows, missing = _acceptance_matrix_rows(text)
     if missing:
