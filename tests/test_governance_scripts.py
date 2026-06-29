@@ -600,6 +600,72 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_root_readme_invalid_encoding_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            (root / "README.md").write_bytes(b"\xff")
+
+            report = verify(root)
+
+            self.assertIn("invalid Markdown encoding: README.md must be UTF-8", report.errors)
+            self.assertIn(
+                {
+                    "code": "markdown_invalid_encoding",
+                    "severity": "error",
+                    "path": "README.md",
+                    "message": "invalid Markdown encoding: README.md must be UTF-8",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_docs_readme_invalid_encoding_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            (root / "docs/README.md").write_bytes(b"\xff")
+
+            report = verify(root)
+
+            self.assertIn("invalid Markdown encoding: docs/README.md must be UTF-8", report.errors)
+            self.assertIn(
+                {
+                    "code": "markdown_invalid_encoding",
+                    "severity": "error",
+                    "path": "docs/README.md",
+                    "message": "invalid Markdown encoding: docs/README.md must be UTF-8",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_docs_agents_invalid_encoding_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            (root / "docs/AGENTS.md").write_bytes(b"\xff")
+
+            report = verify(root)
+
+            self.assertIn("invalid Markdown encoding: docs/AGENTS.md must be UTF-8", report.errors)
+            self.assertIn(
+                {
+                    "code": "markdown_invalid_encoding",
+                    "severity": "error",
+                    "path": "docs/AGENTS.md",
+                    "message": "invalid Markdown encoding: docs/AGENTS.md must be UTF-8",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_product_source_manifest_directory_without_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

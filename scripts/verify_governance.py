@@ -367,7 +367,9 @@ def verify(root: Path) -> VerificationReport:
 
     docs_root = root / "docs"
     docs_agents = docs_root / "AGENTS.md"
-    docs_agents_text = docs_agents.read_text(encoding="utf-8") if docs_agents.is_file() else ""
+    docs_agents_text = ""
+    if docs_agents.is_file():
+        docs_agents_text = _read_markdown_text(root, docs_agents, report) or ""
 
     if docs_root.is_dir():
         for child in sorted(docs_root.iterdir()):
@@ -431,10 +433,26 @@ def _is_effectively_empty(path: Path) -> bool:
     return not any(child.name != ".gitkeep" for child in path.iterdir())
 
 
+def _read_markdown_text(root: Path, path: Path, report: VerificationReport) -> str | None:
+    try:
+        return path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        rel = path.relative_to(root).as_posix()
+        if not any(finding.code == "markdown_invalid_encoding" and finding.path == rel for finding in report.findings):
+            report.add_error(
+                "markdown_invalid_encoding",
+                f"invalid Markdown encoding: {rel} must be UTF-8",
+                rel,
+            )
+        return None
+
+
 def _check_reserved_markers(root: Path, path: Path, report: VerificationReport) -> None:
     if not path.is_file():
         return
-    text = path.read_text(encoding="utf-8")
+    text = _read_markdown_text(root, path, report)
+    if text is None:
+        return
     for line in text.splitlines():
         if "预留" not in line and "[reserved]" not in line.lower():
             continue
@@ -2102,7 +2120,9 @@ def _check_readme_indexes(root: Path, report: VerificationReport) -> None:
             rel_readme = readme.relative_to(root).as_posix()
             report.add_error("docs_readme_not_file", f"{rel_readme} is not a file", rel_readme)
             continue
-        readme_text = readme.read_text(encoding="utf-8")
+        readme_text = _read_markdown_text(root, readme, report)
+        if readme_text is None:
+            continue
         for child in sorted(directory.glob("*.md")):
             if child.name in {"README.md", "AGENTS.md"} or child.name.startswith("_"):
                 continue
