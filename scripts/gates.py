@@ -14,6 +14,28 @@ except ImportError:  # pragma: no cover - direct script execution
 
 
 GATE_NAMES = ("product-structuring", "design-derivation", "implementation")
+IMPLEMENTATION_REQUIRED_FILES = (
+    ("architecture_system_context_present", "docs/architecture/01-system-context.md", "system context architecture doc exists"),
+    ("architecture_containers_present", "docs/architecture/02-containers.md", "containers architecture doc exists"),
+    (
+        "architecture_quality_attributes_present",
+        "docs/architecture/03-quality-attributes.md",
+        "quality attributes architecture doc exists",
+    ),
+    ("ui_interaction_model_present", "docs/ui/01-interaction-model.md", "UI interaction model exists"),
+    ("api_conventions_present", "docs/api/00-conventions.md", "API conventions doc exists"),
+    ("api_error_codes_present", "docs/api/error-codes.md", "API error codes registry exists"),
+    ("api_changelog_present", "docs/api/changelog.md", "API changelog exists"),
+    ("backend_modules_present", "docs/backend/01-modules.md", "backend modules doc exists"),
+    ("backend_data_model_present", "docs/backend/02-data-model.md", "backend data model doc exists"),
+    ("backend_external_services_present", "docs/backend/03-external-services.md", "backend external services doc exists"),
+    ("frontend_modules_present", "docs/frontend/01-modules.md", "frontend modules doc exists"),
+    ("frontend_api_consumption_present", "docs/frontend/02-api-consumption.md", "frontend API consumption doc exists"),
+    ("test_strategy_present", "docs/tests/01-strategy.md", "test strategy exists"),
+    ("acceptance_matrix_present", "docs/tests/02-acceptance-matrix.md", "acceptance matrix exists"),
+    ("roadmap_present", "docs/development/01-roadmap.md", "roadmap exists"),
+    ("task_board_present", "docs/development/02-task-board.md", "task board exists"),
+)
 
 
 @dataclass
@@ -136,13 +158,8 @@ def _add_implementation_requirements(requirements: list[GateRequirement], root: 
         ("development", "development plan docs exist"),
     ]:
         _add(requirements, f"{domain}_docs_present", _has_authored_markdown(root / "docs" / domain), f"docs/{domain}", message)
-    _add(
-        requirements,
-        "acceptance_matrix_present",
-        _is_authored_markdown_file(root / "docs/tests/02-acceptance-matrix.md"),
-        "docs/tests/02-acceptance-matrix.md",
-        "acceptance matrix exists",
-    )
+    for code, rel, message in IMPLEMENTATION_REQUIRED_FILES:
+        _add(requirements, code, _is_authored_markdown_file(root / rel), rel, message)
     _add(
         requirements,
         "task_board_ready_task_present",

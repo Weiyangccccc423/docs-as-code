@@ -47,6 +47,33 @@ def _api_conventions_doc() -> str:
     )
 
 
+def _api_error_codes_doc() -> str:
+    return (
+        "# API Error Codes\n\n"
+        "## Product Links\n\n"
+        "- [Product goals](../product/01-goals.md)\n"
+        "- [Acceptance](../product/08-acceptance-criteria.md)\n\n"
+        "## Error Taxonomy\n\n"
+        "- User-correctable errors use stable product-facing categories.\n\n"
+        "## Error Codes\n\n"
+        "- GOAL_VALIDATION_FAILED: the request conflicts with product validation rules.\n\n"
+        "## Retry Semantics\n\n"
+        "- Retry only idempotent requests with stable idempotency keys.\n\n"
+        "## Frontend Handling\n\n"
+        "- Frontend flows map known errors to visible recovery actions.\n"
+    )
+
+
+def _api_changelog_doc() -> str:
+    return (
+        "# API Changelog\n\n"
+        "## Change Log\n\n"
+        "- Initial contract baseline for the goal flow.\n\n"
+        "## Compatibility Notes\n\n"
+        "- Breaking changes require a new changelog entry before implementation.\n"
+    )
+
+
 def _roadmap_doc() -> str:
     return (
         "# Roadmap\n\n"
@@ -113,7 +140,7 @@ def _backend_modules_doc() -> str:
         "## Product Links\n\n"
         "- [Acceptance](../product/08-acceptance-criteria.md)\n\n"
         "## Architecture Links\n\n"
-        "- [Architecture context](../architecture/01-context.md)\n\n"
+        "- [Architecture context](../architecture/01-system-context.md)\n\n"
         "## Modules\n\n"
         "- Workflow module owns the primary goal-flow runtime behavior.\n\n"
         "## API Ownership\n\n"
@@ -132,7 +159,7 @@ def _test_strategy_doc() -> str:
         "## Product Links\n\n"
         "- [Acceptance](../product/08-acceptance-criteria.md)\n"
         "- [API conventions](../api/00-conventions.md)\n"
-        "- [Architecture context](../architecture/01-context.md)\n\n"
+        "- [Architecture context](../architecture/01-system-context.md)\n\n"
         "## Acceptance Links\n\n"
         "- [Acceptance](../product/08-acceptance-criteria.md)\n\n"
         "## Test Layers\n\n"
@@ -142,6 +169,59 @@ def _test_strategy_doc() -> str:
         "- Goal-flow risks are mapped back to acceptance and design sources before implementation.\n\n"
         "## Non-Functional Checks\n\n"
         "- Performance, security, and observability checks are planned for implementation handoff.\n"
+    )
+
+
+def _architecture_system_context_doc() -> str:
+    return (
+        "# System Context\n\n"
+        "## Product Links\n\n"
+        "- [Product goals](../product/01-goals.md)\n"
+        "- [Acceptance](../product/08-acceptance-criteria.md)\n\n"
+        "## Actors\n\n"
+        "- Product users operate the primary goal flow.\n\n"
+        "## External Systems\n\n"
+        "- No mandatory external systems are required for the first implementation slice.\n\n"
+        "## Trust Boundaries\n\n"
+        "- Authenticated user data remains inside the application boundary.\n\n"
+        "## Open Decisions\n\n"
+        "- none\n"
+    )
+
+
+def _architecture_containers_doc() -> str:
+    return (
+        "# Containers\n\n"
+        "## Product Links\n\n"
+        "- [Acceptance](../product/08-acceptance-criteria.md)\n"
+        "- [System context](01-system-context.md)\n\n"
+        "## Containers\n\n"
+        "- Web app, API, and persistence containers own the primary goal flow.\n\n"
+        "## Runtime Responsibilities\n\n"
+        "- API coordinates validation, persistence, and response contracts.\n\n"
+        "## Data Ownership\n\n"
+        "- Goal data is owned by the backend persistence boundary.\n\n"
+        "## Open Decisions\n\n"
+        "- none\n"
+    )
+
+
+def _architecture_quality_attributes_doc() -> str:
+    return (
+        "# Quality Attributes\n\n"
+        "## Product Links\n\n"
+        "- [Acceptance](../product/08-acceptance-criteria.md)\n"
+        "- [Containers](02-containers.md)\n\n"
+        "## Availability\n\n"
+        "- The primary goal flow should fail visibly and recoverably.\n\n"
+        "## Performance\n\n"
+        "- Primary interactions should complete within documented product expectations.\n\n"
+        "## Security\n\n"
+        "- User-owned data must stay scoped to authenticated ownership boundaries.\n\n"
+        "## Observability\n\n"
+        "- Failures emit traceable events for implementation verification.\n\n"
+        "## Tradeoffs\n\n"
+        "- Keep runtime boundaries simple until acceptance evidence requires separation.\n"
     )
 
 
@@ -205,7 +285,7 @@ def _acceptance_matrix_doc() -> str:
         "## Matrix\n\n"
         "| Acceptance | Design | API | Test |\n"
         "| --- | --- | --- | --- |\n"
-        "| [A-001](../product/08-acceptance-criteria.md#a-001) | [Architecture context](../architecture/01-context.md) | [API conventions](../api/00-conventions.md) | [Test strategy](01-strategy.md) |\n\n"
+        "| [A-001](../product/08-acceptance-criteria.md#a-001) | [Architecture context](../architecture/01-system-context.md) | [API conventions](../api/00-conventions.md) | [Test strategy](01-strategy.md) |\n\n"
         "## Uncovered Criteria\n\n"
         "- none\n"
     )
@@ -787,10 +867,45 @@ class GovernanceCliTest(unittest.TestCase):
                 path.write_text(f"# {domain}\n", encoding="utf-8")
                 _append_index(target / "docs" / domain / "README.md", filename)
 
+            missing_standard_files = subprocess.run(
+                [sys.executable, str(CLI), "gate", "implementation", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(1, missing_standard_files.returncode)
+            missing_standard_requirements = {
+                item["code"]: item for item in json.loads(missing_standard_files.stdout)["requirements"]
+            }
+            self.assertTrue(missing_standard_requirements["architecture_docs_present"]["ok"])
+            self.assertFalse(missing_standard_requirements["architecture_system_context_present"]["ok"])
+            self.assertFalse(missing_standard_requirements["architecture_containers_present"]["ok"])
+            self.assertFalse(missing_standard_requirements["architecture_quality_attributes_present"]["ok"])
+            self.assertFalse(missing_standard_requirements["api_error_codes_present"]["ok"])
+            self.assertFalse(missing_standard_requirements["api_changelog_present"]["ok"])
+
+            for filename, body in [
+                ("01-system-context.md", _architecture_system_context_doc()),
+                ("02-containers.md", _architecture_containers_doc()),
+                ("03-quality-attributes.md", _architecture_quality_attributes_doc()),
+            ]:
+                path = target / "docs/architecture" / filename
+                path.write_text(body, encoding="utf-8")
+                _append_index(target / "docs/architecture/README.md", filename)
             (target / "docs/api/00-conventions.md").write_text(
                 _api_conventions_doc(),
                 encoding="utf-8",
             )
+            (target / "docs/api/error-codes.md").write_text(
+                _api_error_codes_doc(),
+                encoding="utf-8",
+            )
+            _append_index(target / "docs/api/README.md", "error-codes.md")
+            (target / "docs/api/changelog.md").write_text(
+                _api_changelog_doc(),
+                encoding="utf-8",
+            )
+            _append_index(target / "docs/api/README.md", "changelog.md")
             (target / "docs/tests/01-strategy.md").write_text(
                 _test_strategy_doc(),
                 encoding="utf-8",
@@ -895,7 +1010,7 @@ class GovernanceCliTest(unittest.TestCase):
                 "# Task Board\n\n"
                 "| ID | Status | Task | Product | Design | API | Acceptance | Verification |\n"
                 "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
-                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/missing.md | docs/product/08-acceptance-criteria.md | make test |\n",
+                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-system-context.md | docs/api/missing.md | docs/product/08-acceptance-criteria.md | make test |\n",
                 encoding="utf-8",
             )
             _append_index(target / "docs/development/README.md", "02-task-board.md")
@@ -923,7 +1038,7 @@ class GovernanceCliTest(unittest.TestCase):
 
             task_board.write_text(
                 _task_board_doc(
-                    "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | make test |\n"
+                    "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-system-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | make test |\n"
                 ),
                 encoding="utf-8",
             )
