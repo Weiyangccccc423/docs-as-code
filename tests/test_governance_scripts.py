@@ -354,15 +354,20 @@ def _acceptance_matrix_doc(
 def _roadmap_doc(
     status: str = "Ready",
     product_links: str = "[PRD](../product/core/PRD.md), [Acceptance](../product/08-acceptance-criteria.md)",
+    milestone_table: str | None = None,
 ) -> str:
+    if milestone_table is None:
+        milestone_table = (
+            "| ID | Status | Milestone |\n"
+            "| --- | --- | --- |\n"
+            f"| TASK-001 | {status} | Goal flow |\n"
+        )
     return (
         "# Roadmap\n\n"
         "## Product Links\n\n"
         f"- {product_links}\n\n"
         "## Milestones\n\n"
-        "| ID | Status | Milestone |\n"
-        "| --- | --- | --- |\n"
-        f"| TASK-001 | {status} | Goal flow |\n\n"
+        f"{milestone_table}\n"
         "## Sequencing\n\n"
         "- Implement product goal flow foundations before deferred refinements.\n\n"
         "## Risks\n\n"
@@ -4128,6 +4133,159 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "severity": "error",
                     "path": "docs/development/01-roadmap.md",
                     "message": "docs/development/01-roadmap.md has empty roadmap sections: Risks",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_roadmap_milestone_missing_required_columns(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(
+                root,
+                "docs/development/01-roadmap.md",
+                _roadmap_doc(
+                    milestone_table=(
+                        "| ID | Status |\n"
+                        "| --- | --- |\n"
+                        "| TASK-001 | Ready |\n"
+                    )
+                ),
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/development/01-roadmap.md Milestones table is missing required columns: Milestone",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "roadmap_milestone_missing_columns",
+                    "severity": "error",
+                    "path": "docs/development/01-roadmap.md",
+                    "message": "docs/development/01-roadmap.md Milestones table is missing required columns: Milestone",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_roadmap_milestone_no_rows(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(
+                root,
+                "docs/development/01-roadmap.md",
+                _roadmap_doc(
+                    milestone_table=(
+                        "| ID | Status | Milestone |\n"
+                        "| --- | --- | --- |\n"
+                    )
+                ),
+            )
+
+            report = verify(root)
+
+            self.assertIn("docs/development/01-roadmap.md must contain at least one milestone row", report.errors)
+            self.assertIn(
+                {
+                    "code": "roadmap_milestone_no_rows",
+                    "severity": "error",
+                    "path": "docs/development/01-roadmap.md",
+                    "message": "docs/development/01-roadmap.md must contain at least one milestone row",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_roadmap_milestone_missing_required_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(
+                root,
+                "docs/development/01-roadmap.md",
+                _roadmap_doc(
+                    milestone_table=(
+                        "| ID | Status | Milestone |\n"
+                        "| --- | --- | --- |\n"
+                        "| TASK-001 | Ready | TBD |\n"
+                    )
+                ),
+            )
+
+            report = verify(root)
+
+            self.assertIn("roadmap milestone row TASK-001 is missing required fields: Milestone", report.errors)
+            self.assertIn(
+                {
+                    "code": "roadmap_milestone_row_missing_fields",
+                    "severity": "error",
+                    "path": "docs/development/01-roadmap.md",
+                    "message": "roadmap milestone row TASK-001 is missing required fields: Milestone",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_roadmap_milestone_invalid_status(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(root, "docs/development/01-roadmap.md", _roadmap_doc(status="Planning"))
+
+            report = verify(root)
+
+            self.assertIn("roadmap milestone row TASK-001 has invalid Status: Planning", report.errors)
+            self.assertIn(
+                {
+                    "code": "roadmap_milestone_invalid_status",
+                    "severity": "error",
+                    "path": "docs/development/01-roadmap.md",
+                    "message": "roadmap milestone row TASK-001 has invalid Status: Planning",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_duplicate_roadmap_milestone_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(
+                root,
+                "docs/development/01-roadmap.md",
+                _roadmap_doc(
+                    milestone_table=(
+                        "| ID | Status | Milestone |\n"
+                        "| --- | --- | --- |\n"
+                        "| TASK-001 | Ready | Goal flow |\n"
+                        "| TASK-001 | Backlog | Follow-up flow |\n"
+                    )
+                ),
+            )
+
+            report = verify(root)
+
+            self.assertIn("duplicate roadmap milestone ID: TASK-001", report.errors)
+            self.assertIn(
+                {
+                    "code": "roadmap_milestone_duplicate_id",
+                    "severity": "error",
+                    "path": "docs/development/01-roadmap.md",
+                    "message": "duplicate roadmap milestone ID: TASK-001",
                 },
                 [finding.to_dict() for finding in report.findings],
             )

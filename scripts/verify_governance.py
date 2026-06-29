@@ -50,6 +50,11 @@ ROADMAP_REQUIRED_SECTIONS = {
     "risks": "Risks",
     "deferred scope": "Deferred Scope",
 }
+ROADMAP_MILESTONE_REQUIRED_COLUMNS = {
+    "id": "ID",
+    "status": "Status",
+    "milestone": "Milestone",
+}
 PRODUCT_CHAPTER_RE = re.compile(r"^(?P<prefix>[0-9]{2})-[a-z0-9][a-z0-9-]*\.md$")
 API_ENDPOINT_CONTRACT_RE = re.compile(r"^(?P<prefix>[0-9]{2})-[a-z0-9][a-z0-9-]*\.md$")
 API_ENDPOINT_REQUIRED_SECTIONS = {
@@ -1966,6 +1971,50 @@ def _check_roadmap(root: Path, report: VerificationReport) -> None:
             rel,
         )
 
+    milestone_rows, milestone_missing = _roadmap_milestone_rows(sections["milestones"])
+    if milestone_missing:
+        report.add_error(
+            "roadmap_milestone_missing_columns",
+            f"{rel} Milestones table is missing required columns: "
+            f"{', '.join(ROADMAP_MILESTONE_REQUIRED_COLUMNS[column] for column in milestone_missing)}",
+            rel,
+        )
+    elif not milestone_rows:
+        report.add_error("roadmap_milestone_no_rows", f"{rel} must contain at least one milestone row", rel)
+    else:
+        seen_ids: set[str] = set()
+        for row in milestone_rows:
+            item_id = row.get("id", "").strip() or "(missing id)"
+            missing_fields = [
+                ROADMAP_MILESTONE_REQUIRED_COLUMNS[column]
+                for column in ROADMAP_MILESTONE_REQUIRED_COLUMNS
+                if _is_empty_roadmap_milestone_value(row.get(column, ""))
+            ]
+            if missing_fields:
+                report.add_error(
+                    "roadmap_milestone_row_missing_fields",
+                    f"roadmap milestone row {item_id} is missing required fields: {', '.join(missing_fields)}",
+                    rel,
+                )
+                continue
+            status = row.get("status", "").strip()
+            if _normalize_cell(status) not in TASK_BOARD_ALLOWED_STATUSES:
+                report.add_error(
+                    "roadmap_milestone_invalid_status",
+                    f"roadmap milestone row {item_id} has invalid Status: {status}",
+                    rel,
+                )
+                continue
+            item_key = _normalize_cell(item_id)
+            if item_key in seen_ids:
+                report.add_error(
+                    "roadmap_milestone_duplicate_id",
+                    f"duplicate roadmap milestone ID: {item_id}",
+                    rel,
+                )
+                continue
+            seen_ids.add(item_key)
+
     references = _local_markdown_references(root, path, text, include_bare=True, strip_code=False)
     _check_design_reference_group(
         report,
@@ -1983,6 +2032,37 @@ def _check_roadmap(root: Path, report: VerificationReport) -> None:
         "Acceptance",
         _is_product_acceptance_reference_path,
     )
+
+
+def _roadmap_milestone_rows(text: str) -> tuple[list[dict[str, str]], list[str]]:
+    table = _markdown_table(text)
+    if not table:
+        return [], list(ROADMAP_MILESTONE_REQUIRED_COLUMNS)
+    for index, row in enumerate(table):
+        header = [_normalize_cell(cell) for cell in row]
+        if not any(column in header for column in ROADMAP_MILESTONE_REQUIRED_COLUMNS):
+            continue
+        missing = [column for column in ROADMAP_MILESTONE_REQUIRED_COLUMNS if column not in header]
+        if missing:
+            return [], missing
+        rows: list[dict[str, str]] = []
+        for data in table[index + 1 :]:
+            if _is_separator_row(data):
+                continue
+            if not any(cell.strip() for cell in data):
+                continue
+            rows.append(
+                {
+                    column: _table_cell(data, header.index(column))
+                    for column in ROADMAP_MILESTONE_REQUIRED_COLUMNS
+                }
+            )
+        return rows, []
+    return [], list(ROADMAP_MILESTONE_REQUIRED_COLUMNS)
+
+
+def _is_empty_roadmap_milestone_value(value: str) -> bool:
+    return _normalize_cell(value) in TASK_BOARD_EMPTY_VALUES
 
 
 def _check_roadmap_task_board_status(root: Path, report: VerificationReport) -> None:

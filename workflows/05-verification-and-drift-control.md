@@ -88,6 +88,7 @@ Load:
    - `docs/tests/02-acceptance-matrix.md` uses `Acceptance`, `Design`, `API`, and `Test` columns with local Markdown links to matching source docs
    - ADRs under `docs/decisions/` include non-placeholder Context, Decision, Consequences, and References sections with local Markdown source links
    - `docs/development/01-roadmap.md` has non-placeholder Product Links, Milestones, Sequencing, Risks, and Deferred Scope sections, and links to product scope plus product acceptance criteria
+   - roadmap Milestones table uses `ID`, `Status`, and `Milestone`, has at least one row, has unique IDs, and uses standard task status values
    - roadmap tables with `ID` and `Status` columns agree with same-ID task board statuses
    - task board items have `ID`, `Status`, `Task`, `Product`, `Design`, `API`, `Acceptance`, and `Verification`
    - task board `Status` values are one of `Backlog`, `Ready`, `In Progress`, `Blocked`, `Done`, or `Deferred`
@@ -106,5 +107,6 @@ A verification report and a list of fixes, or a clean governance baseline.
 
 - Verification fails on source-of-truth conflicts.
 - The task board claims completion without evidence.
+- The roadmap lacks a valid milestone table.
 - Roadmap status conflicts with task board status.
 - A generated document is not indexed by its parent README.
