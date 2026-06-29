@@ -482,6 +482,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             workflow_manifest = json.loads((root / "docs/agent-workflow/workflow-pack/manifest.json").read_text(encoding="utf-8"))
             self.assertTrue(any(item["path"] == "workflows/00-overview.md" for item in workflow_manifest["files"]))
             self.assertIn("Demo Product", (root / "docs/product/core/PRD.md").read_text(encoding="utf-8"))
+            self.assertIn("`U-NNN`", (root / "docs/unresolved.md").read_text(encoding="utf-8"))
             manifest = json.loads((root / "docs/product/core/source/source-manifest.json").read_text(encoding="utf-8"))
             self.assertEqual("input-product.md", manifest["source"]["filename"])
             self.assertEqual("ready_for_structuring", manifest["import"]["status"])
@@ -715,6 +716,52 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "severity": "error",
                     "path": "docs/unresolved.md",
                     "message": "duplicate unresolved item ID: U-001",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_invalid_unresolved_id_format(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            unresolved = root / "docs/unresolved.md"
+            unresolved.write_text(
+                "# Unresolved Items\n\n"
+                "| ID | Domain | Description | Blocking Scope | Owner | Date |\n"
+                "| --- | --- | --- | --- | --- | --- |\n"
+                "| TODO-1 | API | Confirm auth model | none | TBD | 2026-06-26 |\n"
+                "| u-001 | Backend | Confirm persistence model | none | TBD | 2026-06-26 |\n",
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/unresolved.md row TODO-1 must use U-NNN unresolved item ID format",
+                report.errors,
+            )
+            self.assertIn(
+                "docs/unresolved.md row u-001 must use U-NNN unresolved item ID format",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "unresolved_invalid_id",
+                    "severity": "error",
+                    "path": "docs/unresolved.md",
+                    "message": "docs/unresolved.md row TODO-1 must use U-NNN unresolved item ID format",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+            self.assertIn(
+                {
+                    "code": "unresolved_invalid_id",
+                    "severity": "error",
+                    "path": "docs/unresolved.md",
+                    "message": "docs/unresolved.md row u-001 must use U-NNN unresolved item ID format",
                 },
                 [finding.to_dict() for finding in report.findings],
             )

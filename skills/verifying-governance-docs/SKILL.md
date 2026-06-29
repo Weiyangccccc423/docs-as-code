@@ -60,7 +60,7 @@ Treat `acceptance_matrix_*` findings as acceptance-traceability blockers: make `
 Treat `adr_missing_sections`, `adr_empty_sections`, and `adr_reference_missing` as ADR completeness blockers: add Context, Decision, Consequences, and References with local Markdown source links.
 Treat `adr_invalid_filename` and `adr_duplicate_prefix` as ADR identity blockers: rename ADRs under `docs/decisions/` to unique `NNN-<slug>.md` files and update indexes/links.
 Treat `glossary_*` findings as product-terminology blockers: fill required fields, remove duplicate terms, or link `Source` to existing local Markdown.
-Treat `unresolved_row_missing_fields` and `unresolved_duplicate_id` as ambiguity-registry blockers.
+Treat `unresolved_row_missing_fields`, `unresolved_invalid_id`, and `unresolved_duplicate_id` as ambiguity-registry blockers: use unique `U-NNN` IDs and fill Domain and Description.
 Treat `roadmap_missing_sections`, `roadmap_empty_sections`, and `roadmap_trace_reference_missing` as delivery-planning blockers: complete Product Links, Milestones, Sequencing, Risks, and Deferred Scope in `docs/development/01-roadmap.md`, and link to product scope plus product acceptance criteria.
 Treat `roadmap_milestone_*` findings as roadmap-structure blockers: make the Milestones table use `ID`, `Status`, and `Milestone`, include at least one row, fill all fields, use the standard task status vocabulary, and keep IDs unique.
 Treat `roadmap_task_status_conflict` as a delivery-planning blocker.
@@ -119,7 +119,7 @@ make ci
 - ADR files under `docs/decisions/` use unique `NNN-<slug>.md` names
 - ADRs under `docs/decisions/` include non-placeholder Context, Decision, Consequences, and References sections with local Markdown source links
 - glossary rows have unique `Term` values and filled `Meaning` and `Source` fields; `Source` links to existing local Markdown
-- unresolved rows have unique IDs and filled `Domain` and `Description`
+- unresolved rows have unique `U-NNN` IDs and filled `Domain` and `Description`
 - unresolved items use `none`, `-`, `n/a`, `non-blocking`, or `resolved` for non-blocking scope; any other `Blocking Scope` fails verification
 - `docs/development/01-roadmap.md` has non-placeholder Product Links, Milestones, Sequencing, Risks, and Deferred Scope sections, and links to product scope plus product acceptance criteria
 - roadmap Milestones table uses `ID`, `Status`, and `Milestone`, has at least one row, has unique IDs, and uses standard task status values

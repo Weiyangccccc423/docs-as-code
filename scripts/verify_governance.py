@@ -23,6 +23,7 @@ DOC_DIRS = {
 }
 
 NON_BLOCKING_SCOPES = {"", "-", "none", "n/a", "na", "non-blocking", "non blocking", "resolved"}
+UNRESOLVED_ID_RE = re.compile(r"^U-[0-9]{3}$")
 UNRESOLVED_REQUIRED_COLUMNS = {
     "id": "ID",
     "domain": "Domain",
@@ -1696,6 +1697,12 @@ def _check_unresolved_items(root: Path, report: VerificationReport) -> None:
                 "docs/unresolved.md",
             )
         if item_id != "(missing id)":
+            if UNRESOLVED_ID_RE.fullmatch(item_id) is None:
+                report.add_error(
+                    "unresolved_invalid_id",
+                    f"docs/unresolved.md row {item_id} must use U-NNN unresolved item ID format",
+                    "docs/unresolved.md",
+                )
             item_key = _normalize_cell(item_id)
             if item_key in seen_ids:
                 report.add_error(

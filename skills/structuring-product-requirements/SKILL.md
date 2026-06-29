@@ -36,7 +36,7 @@ Turn a preserved PRD into navigable product truth without changing its meaning.
 8. Extract acceptance criteria into a stable `NN-*acceptance*.md` chapter before design derivation.
 9. Extract success metrics when present.
 10. Add cross-domain terms to glossary with unique `Term`, filled `Meaning`, and a `Source` link to the local Markdown definition.
-11. Register ambiguous requirements before deriving design. Use unique IDs and fill `Domain` and `Description`; use `none`, `-`, `n/a`, `non-blocking`, or `resolved` only for items that do not block downstream work.
+11. Register ambiguous requirements before deriving design. Use unique `U-NNN` IDs and fill `Domain` and `Description`; use `none`, `-`, `n/a`, `non-blocking`, or `resolved` only for items that do not block downstream work.
 
 ## Stop Conditions
 

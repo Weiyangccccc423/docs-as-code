@@ -630,6 +630,7 @@ def _unresolved() -> str:
     return (
         "# Unresolved Items\n\n"
         "Agent must stop and ask when implementation touches an open item here.\n\n"
+        "`ID` values must use the `U-NNN` unresolved item format, such as `U-001`.\n\n"
         "`Blocking Scope` values other than empty, `-`, `none`, `n/a`, `non-blocking`, or `resolved` block governance verification.\n\n"
         "| ID | Domain | Description | Blocking Scope | Owner | Date |\n"
         "| --- | --- | --- | --- | --- | --- |\n"
