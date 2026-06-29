@@ -1017,6 +1017,114 @@ class GovernanceCliTest(unittest.TestCase):
                 verify_payload["errors"],
             )
 
+    def test_scaffold_product_can_add_chapters_while_product_placeholders_remain(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text("# Product\n\n## Goal\n\nShip governed projects.\n", encoding="utf-8")
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            first = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "scaffold",
+                    "product",
+                    str(target),
+                    "--chapter",
+                    "goals-and-requirements",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, first.returncode, first.stderr)
+
+            second = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "scaffold",
+                    "product",
+                    str(target),
+                    "--chapter",
+                    "acceptance-criteria",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, second.returncode, second.stderr)
+            payload = json.loads(second.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertIn("docs/product/08-acceptance-criteria.md", payload["created"])
+            self.assertIn(
+                "[Acceptance Criteria](../08-acceptance-criteria.md)",
+                (target / "docs/product/core/product-meta.md").read_text(encoding="utf-8"),
+            )
+
+    def test_scaffold_product_still_fails_on_non_placeholder_verification_errors(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text("# Product\n\n## Goal\n\nShip governed projects.\n", encoding="utf-8")
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            first = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "scaffold",
+                    "product",
+                    str(target),
+                    "--chapter",
+                    "goals-and-requirements",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, first.returncode, first.stderr)
+            rogue = target / "docs/rogue"
+            rogue.mkdir()
+            (rogue / "note.md").write_text("# Rogue\n", encoding="utf-8")
+
+            second = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "scaffold",
+                    "product",
+                    str(target),
+                    "--chapter",
+                    "acceptance-criteria",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, second.returncode)
+            payload = json.loads(second.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertIn("product-structuring gate failed", payload["errors"])
+            self.assertFalse((target / "docs/product/08-acceptance-criteria.md").exists())
+
     def test_advance_design_derivation_records_previous_phase(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "target"

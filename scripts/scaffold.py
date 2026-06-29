@@ -266,7 +266,7 @@ def scaffold_design(root: Path) -> ScaffoldResult:
 def scaffold_product(root: Path, chapters: list[str] | tuple[str, ...]) -> ScaffoldResult:
     root = root.resolve()
     gate = evaluate_gate(root, "product-structuring")
-    if not gate.ok:
+    if not _product_scaffold_gate_allows(gate):
         return ScaffoldResult(
             scaffold="product",
             target=str(root),
@@ -314,6 +314,30 @@ def scaffold_product(root: Path, chapters: list[str] | tuple[str, ...]) -> Scaff
             if product_meta not in result.indexed:
                 result.indexed.append(product_meta)
     return result
+
+
+def _product_scaffold_gate_allows(gate: Any) -> bool:
+    if gate.ok:
+        return True
+    failed_requirements = {requirement.code for requirement in gate.requirements if not requirement.ok}
+    if failed_requirements != {"verification_passed"}:
+        return False
+    findings = gate.verification.get("findings")
+    if not isinstance(findings, list):
+        return False
+    error_findings = [
+        finding
+        for finding in findings
+        if isinstance(finding, dict) and finding.get("severity") == "error"
+    ]
+    if not error_findings:
+        return False
+    return all(
+        finding.get("code") == "governance_scaffold_placeholder"
+        and isinstance(finding.get("path"), str)
+        and finding["path"].startswith("docs/product/")
+        for finding in error_findings
+    )
 
 
 def _should_skip_spec(root: Path, spec: ScaffoldSpec) -> bool:

@@ -33,14 +33,15 @@ Load:
    ```
 
    Available chapter keys: `background-and-problems`, `change-log`, `goals-and-requirements`, `functional-spec`, `acceptance-criteria`, `success-metrics`.
-3. Replace every `governance:scaffold-placeholder` with PRD-derived content before leaving this phase.
-4. Build or refine the product chapter map in `product-meta.md`.
-5. Split stable sections into `docs/product/NN-<slug>.md`; use unique two-digit prefixes for ordering.
-6. Extract acceptance criteria into a dedicated `NN-*acceptance*.md` product chapter before design derivation; give each criterion a stable unique `A-NNN` ID.
-7. Extract success metrics into a dedicated product chapter when present.
-8. Add cross-domain terms to `docs/glossary.md` with filled `Term`, `Meaning`, and `Source`; `Source` must link to the local Markdown document that defines the term.
-9. Register unresolved product or interaction questions in `docs/unresolved.md` with unique `U-NNN` IDs.
-10. Update `docs/product/README.md` so every product chapter file is indexed.
+3. If PRD review reveals another supported chapter before placeholders are replaced, rerun `scaffold product` with the additional `--chapter`. The command may proceed while existing `docs/product/` scaffold placeholders remain, but any other verification error still blocks it.
+4. Replace every `governance:scaffold-placeholder` with PRD-derived content before leaving this phase.
+5. Build or refine the product chapter map in `product-meta.md`.
+6. Split stable sections into `docs/product/NN-<slug>.md`; use unique two-digit prefixes for ordering.
+7. Extract acceptance criteria into a dedicated `NN-*acceptance*.md` product chapter before design derivation; give each criterion a stable unique `A-NNN` ID.
+8. Extract success metrics into a dedicated product chapter when present.
+9. Add cross-domain terms to `docs/glossary.md` with filled `Term`, `Meaning`, and `Source`; `Source` must link to the local Markdown document that defines the term.
+10. Register unresolved product or interaction questions in `docs/unresolved.md` with unique `U-NNN` IDs.
+11. Update `docs/product/README.md` so every product chapter file is indexed.
 
 Use `none`, `-`, `n/a`, `non-blocking`, or `resolved` in `Blocking Scope` only when the item does not block downstream work. Any other value blocks governance verification.
 
