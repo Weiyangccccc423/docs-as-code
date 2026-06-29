@@ -990,9 +990,8 @@ def _check_architecture_system_context_traceability(root: Path, report: Verifica
     rel = ARCHITECTURE_SYSTEM_CONTEXT_REL.as_posix()
     if not path.exists():
         return
-    try:
-        text = path.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
+    text = _read_markdown_text(root, path, report)
+    if text is None:
         return
     if SCAFFOLD_PLACEHOLDER in text:
         return
@@ -1046,9 +1045,8 @@ def _check_architecture_containers_traceability(root: Path, report: Verification
     rel = ARCHITECTURE_CONTAINERS_REL.as_posix()
     if not path.exists():
         return
-    try:
-        text = path.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
+    text = _read_markdown_text(root, path, report)
+    if text is None:
         return
     if SCAFFOLD_PLACEHOLDER in text:
         return
@@ -1103,9 +1101,8 @@ def _check_architecture_quality_attributes(root: Path, report: VerificationRepor
     rel = ARCHITECTURE_QUALITY_ATTRIBUTES_REL.as_posix()
     if not path.exists():
         return
-    try:
-        text = path.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
+    text = _read_markdown_text(root, path, report)
+    if text is None:
         return
     if SCAFFOLD_PLACEHOLDER in text:
         return

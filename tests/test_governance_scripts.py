@@ -782,6 +782,29 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_architecture_system_context_directory_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            system_context = root / "docs/architecture/01-system-context.md"
+            system_context.mkdir()
+
+            report = verify(root)
+
+            self.assertIn("Markdown path is not a file: docs/architecture/01-system-context.md", report.errors)
+            self.assertIn(
+                {
+                    "code": "markdown_not_file",
+                    "severity": "error",
+                    "path": "docs/architecture/01-system-context.md",
+                    "message": "Markdown path is not a file: docs/architecture/01-system-context.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_product_source_manifest_directory_without_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
