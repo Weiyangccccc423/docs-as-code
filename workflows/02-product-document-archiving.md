@@ -59,11 +59,11 @@ bin/governance verify <target> --json
 bin/governance gate product-structuring <target> --json
 ```
 
-Verification checks that the archived source still matches the manifest hash and that `can_derive_design` is true. Manual review must confirm that `PRD.md` preserves the original meaning before `product mark-ready --reviewed` is run.
+Verification checks that the archived source still matches the manifest hash and byte size, and that `can_derive_design` is true. Manual review must confirm that `PRD.md` preserves the original meaning before `product mark-ready --reviewed` is run.
 
 ## Stop Conditions
 
-- `source-manifest.json` is missing, invalid, or has a hash mismatch.
+- `source-manifest.json` is missing, invalid, or has a hash/size mismatch.
 - `source-manifest.json` reports `conversion_required` or `can_derive_design: false`.
 - Text extraction loses tables, constraints, diagrams, or acceptance rules.
 - Product terms are ambiguous enough to affect API, DB, UI, or module boundaries.

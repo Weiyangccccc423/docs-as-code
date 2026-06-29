@@ -562,6 +562,62 @@ class GovernanceScriptsTest(unittest.TestCase):
             report = verify(root)
             self.assertIn("archived product source hash mismatch: docs/product/core/source/product.md", report.errors)
 
+    def test_verify_rejects_archived_product_source_size_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            manifest_path = root / "docs/product/core/source/source-manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["archive"]["size_bytes"] += 1
+            manifest_path.write_text(
+                json.dumps(manifest, indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn("archived product source size mismatch: docs/product/core/source/product.md", report.errors)
+            self.assertIn(
+                {
+                    "code": "product_source_size_mismatch",
+                    "severity": "error",
+                    "path": "docs/product/core/source/product.md",
+                    "message": "archived product source size mismatch: docs/product/core/source/product.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_rejects_missing_archived_product_source_size(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            manifest_path = root / "docs/product/core/source/source-manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            del manifest["archive"]["size_bytes"]
+            manifest_path.write_text(
+                json.dumps(manifest, indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn("invalid product source manifest: archive.size_bytes is missing or invalid", report.errors)
+            self.assertIn(
+                {
+                    "code": "product_source_manifest_archive_size_missing",
+                    "severity": "error",
+                    "path": "docs/product/core/source/source-manifest.json",
+                    "message": "invalid product source manifest: archive.size_bytes is missing or invalid",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_rejects_tampered_workflow_pack_snapshot(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

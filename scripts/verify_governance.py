@@ -477,6 +477,16 @@ def _check_product_source_manifest(root: Path, report: VerificationReport) -> No
         report.add_error("product_source_archive_missing", f"archived product source is missing: {archived_rel}", archived_rel)
         return
 
+    expected_size = archive.get("size_bytes")
+    if not _is_valid_manifest_size(expected_size):
+        report.add_error(
+            "product_source_manifest_archive_size_missing",
+            "invalid product source manifest: archive.size_bytes is missing or invalid",
+            "docs/product/core/source/source-manifest.json",
+        )
+    elif archived_path.stat().st_size != expected_size:
+        report.add_error("product_source_size_mismatch", f"archived product source size mismatch: {archived_rel}", archived_rel)
+
     expected_hash = archive.get("sha256")
     if not isinstance(expected_hash, str) or not expected_hash:
         report.add_error(
