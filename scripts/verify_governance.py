@@ -2324,6 +2324,11 @@ def _check_roadmap_task_board_alignment(root: Path, report: VerificationReport) 
     if task_missing:
         return
 
+    roadmap_ids = {
+        _normalize_cell(row.get("id", "").strip())
+        for row in roadmap_rows
+        if TASK_ID_RE.fullmatch(row.get("id", "").strip()) is not None
+    }
     task_status_by_id = {_normalize_cell(row.get("id", "")): row.get("status", "").strip() for row in task_rows}
     for row in roadmap_rows:
         item_id = row.get("id", "").strip()
@@ -2345,6 +2350,20 @@ def _check_roadmap_task_board_alignment(root: Path, report: VerificationReport) 
             "roadmap_task_status_conflict",
             f"roadmap status for {item_id} is {roadmap_status} but task board status is {task_status}",
             ROADMAP_REL.as_posix(),
+        )
+    reported_missing_task_ids: set[str] = set()
+    for row in task_rows:
+        item_id = row.get("id", "").strip()
+        normalized_id = _normalize_cell(item_id)
+        if TASK_ID_RE.fullmatch(item_id) is None:
+            continue
+        if normalized_id in roadmap_ids or normalized_id in reported_missing_task_ids:
+            continue
+        reported_missing_task_ids.add(normalized_id)
+        report.add_error(
+            "task_board_roadmap_missing",
+            f"task board row {item_id} has no matching roadmap milestone",
+            TASK_BOARD_REL.as_posix(),
         )
 
 
