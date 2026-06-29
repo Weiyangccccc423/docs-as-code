@@ -828,6 +828,36 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_frontend_standard_doc_directories_without_traceback(self) -> None:
+        for rel in [
+            "docs/ui/01-interaction-model.md",
+            "docs/frontend/01-modules.md",
+            "docs/frontend/02-api-consumption.md",
+        ]:
+            with self.subTest(rel=rel), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                product = root / "product.md"
+                product.write_text("# Demo\n", encoding="utf-8")
+                bootstrap(root, product)
+
+                path = root / rel
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.mkdir()
+
+                report = verify(root)
+
+                message = f"Markdown path is not a file: {rel}"
+                self.assertIn(message, report.errors)
+                self.assertIn(
+                    {
+                        "code": "markdown_not_file",
+                        "severity": "error",
+                        "path": rel,
+                        "message": message,
+                    },
+                    [finding.to_dict() for finding in report.findings],
+                )
+
     def test_verify_reports_product_source_manifest_directory_without_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

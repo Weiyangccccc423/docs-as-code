@@ -1352,9 +1352,8 @@ def _check_ui_interaction_model(root: Path, report: VerificationReport) -> None:
     rel = UI_INTERACTION_MODEL_REL.as_posix()
     if not path.exists():
         return
-    try:
-        text = path.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
+    text = _read_markdown_text(root, path, report)
+    if text is None:
         return
     if SCAFFOLD_PLACEHOLDER in text:
         return
@@ -1408,9 +1407,8 @@ def _check_frontend_module_traceability(root: Path, report: VerificationReport) 
     rel = FRONTEND_MODULES_REL.as_posix()
     if not path.exists():
         return
-    try:
-        text = path.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
+    text = _read_markdown_text(root, path, report)
+    if text is None:
         return
     if SCAFFOLD_PLACEHOLDER in text:
         return
@@ -1467,9 +1465,8 @@ def _check_frontend_api_consumption(root: Path, report: VerificationReport) -> N
     rel = FRONTEND_API_CONSUMPTION_REL.as_posix()
     if not path.exists():
         return
-    try:
-        text = path.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
+    text = _read_markdown_text(root, path, report)
+    if text is None:
         return
     if SCAFFOLD_PLACEHOLDER in text:
         return
