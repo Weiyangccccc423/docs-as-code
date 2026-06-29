@@ -8,9 +8,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 try:
-    from .state import STATE_REL, merge_state, utc_now
+    from .state import STATE_REL, StateFileError, merge_state, utc_now
 except ImportError:  # pragma: no cover - direct script execution
-    from state import STATE_REL, merge_state, utc_now
+    from state import STATE_REL, StateFileError, merge_state, utc_now
 
 
 DOC_DIRS = [
@@ -373,25 +373,32 @@ def refresh_runtime(root: Path) -> RuntimeRefreshResult:
             ],
         )
 
-    refreshed: list[str] = []
-    _install_runtime(root, force=True)
-    refreshed.extend(path.as_posix() for path in _runtime_file_paths())
-    runtime_manifest = _write_runtime_manifest(root, force=True)
-    refreshed.append(runtime_manifest)
+    try:
+        refreshed: list[str] = []
+        _install_runtime(root, force=True)
+        refreshed.extend(path.as_posix() for path in _runtime_file_paths())
+        runtime_manifest = _write_runtime_manifest(root, force=True)
+        refreshed.append(runtime_manifest)
 
-    workflow_pack_files = _iter_workflow_pack_files()
-    workflow_pack_manifest = _install_workflow_pack_snapshot(root, force=True)
-    removed = _prune_workflow_pack_snapshot(root, workflow_pack_files)
-    refreshed.extend(f"{WORKFLOW_PACK_SNAPSHOT_ROOT}/{path.as_posix()}" for path in workflow_pack_files)
-    refreshed.append(workflow_pack_manifest)
-    refreshed = sorted(dict.fromkeys(refreshed))
+        workflow_pack_files = _iter_workflow_pack_files()
+        workflow_pack_manifest = _install_workflow_pack_snapshot(root, force=True)
+        removed = _prune_workflow_pack_snapshot(root, workflow_pack_files)
+        refreshed.extend(f"{WORKFLOW_PACK_SNAPSHOT_ROOT}/{path.as_posix()}" for path in workflow_pack_files)
+        refreshed.append(workflow_pack_manifest)
+        refreshed = sorted(dict.fromkeys(refreshed))
 
-    state = merge_state(
-        root,
-        runtime_manifest=runtime_manifest,
-        workflow_pack_manifest=workflow_pack_manifest,
-        runtime_refreshed_at=utc_now(),
-    )
+        state = merge_state(
+            root,
+            runtime_manifest=runtime_manifest,
+            workflow_pack_manifest=workflow_pack_manifest,
+            runtime_refreshed_at=utc_now(),
+        )
+    except (OSError, StateFileError) as error:
+        return RuntimeRefreshResult(
+            target=str(root),
+            ok=False,
+            errors=[f"runtime refresh failed: {error}"],
+        )
     return RuntimeRefreshResult(
         target=str(root),
         ok=True,
