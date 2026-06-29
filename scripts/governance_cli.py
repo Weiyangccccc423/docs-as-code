@@ -252,6 +252,24 @@ def _cmd_gate(args: argparse.Namespace) -> int:
 
 def _cmd_scaffold(args: argparse.Namespace) -> int:
     target = Path(args.target)
+    if args.scaffold != "product" and args.chapter:
+        payload = {
+            "scaffold": args.scaffold,
+            "target": str(target),
+            "ok": False,
+            "created": [],
+            "skipped": [],
+            "indexed": [],
+            "errors": [f"scaffold {args.scaffold} does not accept --chapter"],
+            "gate": {},
+        }
+        if args.json:
+            _print_json(payload)
+            return 1
+        print(f"Scaffold failed: {args.scaffold}")
+        for error in payload["errors"]:
+            print(f"- ERROR: {error}")
+        return 1
     if args.scaffold == "design":
         result = scaffold_design(target)
     elif args.scaffold == "product":

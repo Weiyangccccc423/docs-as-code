@@ -1125,6 +1125,32 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn("product-structuring gate failed", payload["errors"])
             self.assertFalse((target / "docs/product/08-acceptance-criteria.md").exists())
 
+    def test_scaffold_design_rejects_product_chapter_option(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            target.mkdir()
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "scaffold",
+                    "design",
+                    str(target),
+                    "--chapter",
+                    "acceptance-criteria",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, result.returncode)
+            payload = json.loads(result.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertIn("scaffold design does not accept --chapter", payload["errors"])
+
     def test_advance_design_derivation_records_previous_phase(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "target"
