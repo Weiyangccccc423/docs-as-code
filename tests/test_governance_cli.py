@@ -1190,6 +1190,77 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertTrue(requirements["api_endpoint_contract_present"]["ok"])
             self.assertFalse(requirements["verification_passed"]["ok"])
 
+    def test_scaffold_design_skips_starter_endpoint_when_contract_exists(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            (target / "docs/product/01-goals.md").write_text("# Goals\n\nSource: [PRD](core/PRD.md).\n", encoding="utf-8")
+            _append_index(target / "docs/product/README.md", "01-goals.md")
+            _append_product_meta_chapter(target, "01-goals.md")
+            (target / "docs/product/08-acceptance-criteria.md").write_text(
+                _acceptance_doc(),
+                encoding="utf-8",
+            )
+            _append_index(target / "docs/product/README.md", "08-acceptance-criteria.md")
+            _append_product_meta_chapter(target, "08-acceptance-criteria.md")
+            (target / "docs/api/error-codes.md").write_text(
+                _api_error_codes_doc(),
+                encoding="utf-8",
+            )
+            _append_index(target / "docs/api/README.md", "error-codes.md")
+            (target / "docs/ui/01-interaction-model.md").write_text(
+                _ui_interaction_model_doc(),
+                encoding="utf-8",
+            )
+            _append_index(target / "docs/ui/README.md", "01-interaction-model.md")
+            endpoint_root = target / "docs/api/endpoints"
+            endpoint_root.mkdir(parents=True, exist_ok=True)
+            (endpoint_root / "README.md").write_text(
+                "# API Endpoints\n\n"
+                "## Index\n\n"
+                "- `01-goal-flow.md` - goal flow endpoint\n",
+                encoding="utf-8",
+            )
+            (endpoint_root / "01-goal-flow.md").write_text(
+                _api_endpoint_contract_doc().replace(
+                    "../../frontend/02-api-consumption.md",
+                    "../../ui/01-interaction-model.md",
+                ),
+                encoding="utf-8",
+            )
+
+            scaffold = subprocess.run(
+                [sys.executable, str(CLI), "scaffold", "design", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, scaffold.returncode, scaffold.stderr)
+            payload = json.loads(scaffold.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertNotIn("docs/api/endpoints/01-endpoint-contract.md", payload["created"])
+            self.assertIn("docs/api/endpoints/01-endpoint-contract.md", payload["skipped"])
+            self.assertFalse((endpoint_root / "01-endpoint-contract.md").exists())
+
+            verify_result = subprocess.run(
+                [sys.executable, str(CLI), "verify", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            verify_payload = json.loads(verify_result.stdout)
+            finding_codes = {item["code"] for item in verify_payload["findings"]}
+            self.assertNotIn("api_endpoint_duplicate_prefix", finding_codes)
+
 
 if __name__ == "__main__":
     unittest.main()

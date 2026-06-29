@@ -11,6 +11,7 @@ except ImportError:  # pragma: no cover - direct script execution
 
 
 SCAFFOLD_PLACEHOLDER = "governance:scaffold-placeholder"
+STARTER_ENDPOINT_CONTRACT_PATH = "docs/api/endpoints/01-endpoint-contract.md"
 
 
 @dataclass(frozen=True)
@@ -201,6 +202,9 @@ def scaffold_design(root: Path) -> ScaffoldResult:
 
     result = ScaffoldResult(scaffold="design", target=str(root), ok=True, gate=gate.to_dict())
     for spec in DESIGN_SCAFFOLD:
+        if _should_skip_spec(root, spec):
+            result.skipped.append(spec.path)
+            continue
         path = root / spec.path
         if path.exists():
             result.skipped.append(spec.path)
@@ -211,6 +215,25 @@ def scaffold_design(root: Path) -> ScaffoldResult:
         if _ensure_index(root, spec):
             result.indexed.append(spec.path)
     return result
+
+
+def _should_skip_spec(root: Path, spec: ScaffoldSpec) -> bool:
+    if spec.path != STARTER_ENDPOINT_CONTRACT_PATH:
+        return False
+    if (root / spec.path).exists():
+        return False
+    return _has_endpoint_contract(root)
+
+
+def _has_endpoint_contract(root: Path) -> bool:
+    endpoint_root = root / "docs/api/endpoints"
+    if not endpoint_root.exists():
+        return False
+    for path in endpoint_root.glob("*.md"):
+        if path.name in {"README.md", "AGENTS.md"} or path.name.startswith("_"):
+            continue
+        return True
+    return False
 
 
 def _render_spec(spec: ScaffoldSpec) -> str:
