@@ -7,6 +7,8 @@ description: Use when deriving database schemas, entity ownership, lifecycle sta
 
 Data design must preserve product semantics and make runtime behavior testable.
 
+Read `references/backend-design-checklist.md` before writing data-model docs. Apply its Data Model, API Contract, Runtime Flow, Observability and Security, and Acceptance and Tests checks.
+
 ## Required Decisions
 
 - entity ownership
@@ -28,12 +30,14 @@ Data design must preserve product semantics and make runtime behavior testable.
    Stop on `ok: false` and repair by `requirements[].code`.
 
 2. Run `bin/governance scaffold design <target> --json` when standard data-model files are missing.
-3. Replace scaffold placeholders in data-model files with product-derived content.
-4. Start from product nouns and backend module ownership.
-5. Define state machines before writing fields.
-6. Add constraints for idempotency and cross-user isolation.
-7. Document query paths that justify indexes.
-8. Link schema choices to API contracts and acceptance criteria.
+3. Read `references/backend-design-checklist.md`.
+4. Replace scaffold placeholders in data-model files with product-derived content.
+5. Start from product nouns and backend module ownership.
+6. Define state machines before writing fields.
+7. Add constraints for idempotency and cross-user isolation.
+8. Document query paths that justify indexes.
+9. Link schema choices to API contracts and acceptance criteria.
+10. Re-check data ownership, lifecycle states, constraints, indexes, migrations, and tests against the backend checklist.
 
 ## Stop Conditions
 

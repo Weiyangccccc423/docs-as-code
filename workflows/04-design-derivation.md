@@ -55,6 +55,7 @@ Load according to the design track:
    - module documents
    - database schema
    - external service contracts
+   - `references/backend-design-checklist.md` checklist coverage
 7. Create database and lifecycle design:
    - entity ownership
    - state machines

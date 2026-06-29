@@ -15,7 +15,7 @@ Use architecture first, then module design.
 - `docs/api/`
 - `docs/unresolved.md`
 
-Read `references/backend-design-checklist.md` when the module touches data, async work, external services, or auth.
+Read `references/backend-design-checklist.md` before writing backend design docs. Use it as the completion checklist for module boundaries, data ownership, API ownership, runtime flows, observability, security, acceptance, and tests.
 
 ## Procedure
 
@@ -28,16 +28,18 @@ Read `references/backend-design-checklist.md` when the module touches data, asyn
    Stop on `ok: false` and repair by `requirements[].code`.
 
 2. Run `bin/governance scaffold design <target> --json` when standard backend files are missing.
-3. Replace scaffold placeholders in backend files with product-derived content.
-4. Identify module responsibility and boundaries.
-5. Name upstream and downstream modules.
-6. Link owned API endpoints from `docs/api/`.
-7. Link `docs/backend/01-modules.md` to `docs/backend/02-data-model.md`.
-8. Link `docs/backend/01-modules.md` to `docs/backend/03-external-services.md`, even when the document states there are no external services.
-9. Define data ownership and lifecycle states.
-10. Document external dependencies, retries, timeouts, and failure modes.
-11. Define observability and auth behavior.
-12. Link acceptance criteria and test strategy.
+3. Read `references/backend-design-checklist.md`.
+4. Replace scaffold placeholders in backend files with product-derived content.
+5. Identify module responsibility and boundaries.
+6. Name upstream and downstream modules.
+7. Link owned API endpoints from `docs/api/`.
+8. Link `docs/backend/01-modules.md` to `docs/backend/02-data-model.md`.
+9. Link `docs/backend/01-modules.md` to `docs/backend/03-external-services.md`, even when the document states there are no external services.
+10. Define data ownership and lifecycle states.
+11. Document external dependencies, retries, timeouts, and failure modes.
+12. Define observability and auth behavior.
+13. Link acceptance criteria and test strategy.
+14. Re-check the backend checklist before considering implementation tasks ready.
 
 ## Stop Conditions
 
