@@ -534,6 +534,9 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertTrue((root / "docs/agent-workflow/workflow-pack/references/architecture-methods.md").exists())
             workflow_manifest = json.loads((root / "docs/agent-workflow/workflow-pack/manifest.json").read_text(encoding="utf-8"))
             self.assertTrue(any(item["path"] == "workflows/00-overview.md" for item in workflow_manifest["files"]))
+            runtime_manifest = json.loads((root / "docs/agent-workflow/runtime-manifest.json").read_text(encoding="utf-8"))
+            self.assertTrue(any(item["path"] == "bin/governance" for item in runtime_manifest["files"]))
+            self.assertTrue(any(item["path"] == "scripts/verify_governance.py" for item in runtime_manifest["files"]))
             self.assertIn("Demo Product", (root / "docs/product/core/PRD.md").read_text(encoding="utf-8"))
             self.assertIn("`U-NNN`", (root / "docs/unresolved.md").read_text(encoding="utf-8"))
             manifest = json.loads((root / "docs/product/core/source/source-manifest.json").read_text(encoding="utf-8"))
@@ -600,6 +603,29 @@ class GovernanceScriptsTest(unittest.TestCase):
             report = verify(root)
             self.assertIn("product source requires conversion before design derivation: docs/product/core/source/product.docx", report.errors)
             self.assertIn("blocking unresolved item U-001 affects product structuring/design derivation", report.errors)
+
+    def test_verify_rejects_tampered_target_runtime(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            runtime = root / "scripts/scaffold.py"
+            runtime.write_text(runtime.read_text(encoding="utf-8") + "\n# tampered\n", encoding="utf-8")
+
+            report = verify(root)
+
+            self.assertIn("runtime file hash mismatch: scripts/scaffold.py", report.errors)
+            self.assertIn(
+                {
+                    "code": "runtime_file_hash_mismatch",
+                    "severity": "error",
+                    "path": "scripts/scaffold.py",
+                    "message": "runtime file hash mismatch: scripts/scaffold.py",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
 
     def test_verify_rejects_invalid_product_import_status(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

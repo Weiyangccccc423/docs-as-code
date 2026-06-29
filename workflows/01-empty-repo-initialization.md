@@ -76,7 +76,7 @@ Load:
 
 A repository skeleton with governance entry points, product core files, unresolved item registry, glossary, and domain-level docs entrances.
 
-The target receives a local governance runtime under `bin/` and `scripts/`, plus a workflow-pack snapshot under `docs/agent-workflow/workflow-pack/`. After initialization, use target-local commands when working inside the generated repository:
+The target receives a local governance runtime under `bin/` and `scripts/`, a runtime hash manifest at `docs/agent-workflow/runtime-manifest.json`, plus a workflow-pack snapshot under `docs/agent-workflow/workflow-pack/`. After initialization, use target-local commands when working inside the generated repository:
 
 ```bash
 bin/governance verify .

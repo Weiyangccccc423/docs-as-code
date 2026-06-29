@@ -44,6 +44,7 @@ RUNTIME_SCRIPT_FILES = [
     "state.py",
     "verify_governance.py",
 ]
+RUNTIME_MANIFEST_REL = "docs/agent-workflow/runtime-manifest.json"
 
 ROOT_GENERATED_FILES = [
     "README.md",
@@ -88,6 +89,36 @@ def _install_runtime(root: Path, force: bool = False) -> None:
         _copy_runtime_file(pack_root / "bin" / name, root / "bin" / name, force)
     for name in RUNTIME_SCRIPT_FILES:
         _copy_runtime_file(pack_root / "scripts" / name, root / "scripts" / name, force)
+
+
+def _runtime_file_paths() -> list[Path]:
+    paths = [Path("bin") / name for name in RUNTIME_BIN_FILES]
+    paths.extend(Path("scripts") / name for name in RUNTIME_SCRIPT_FILES)
+    return sorted(paths, key=lambda path: path.as_posix())
+
+
+def _write_runtime_manifest(root: Path, force: bool = False) -> str:
+    entries = []
+    for rel in _runtime_file_paths():
+        path = root / rel
+        if not path.exists():
+            continue
+        entries.append(
+            {
+                "path": rel.as_posix(),
+                "size_bytes": path.stat().st_size,
+                "sha256": _sha256(path),
+            }
+        )
+    manifest = {
+        "schema_version": 1,
+        "created_at": utc_now(),
+        "source": "target-local governance runtime",
+        "files": entries,
+    }
+    path = root / RUNTIME_MANIFEST_REL
+    _write_json(path, manifest, force=True)
+    return RUNTIME_MANIFEST_REL
 
 
 def _source_workflow_pack_root() -> Path:
@@ -205,6 +236,7 @@ def generated_file_paths(product_doc: Path | None = None) -> list[str]:
     paths = list(ROOT_GENERATED_FILES)
     paths.extend(f"bin/{name}" for name in RUNTIME_BIN_FILES)
     paths.extend(f"scripts/{name}" for name in RUNTIME_SCRIPT_FILES)
+    paths.append(RUNTIME_MANIFEST_REL)
     paths.extend(f"{WORKFLOW_PACK_SNAPSHOT_ROOT}/{path.as_posix()}" for path in _iter_workflow_pack_files())
     paths.extend(
         [
@@ -387,6 +419,7 @@ def bootstrap(
     root.mkdir(parents=True, exist_ok=True)
     project_name = project_name or "Project Workspace"
     _install_runtime(root, force)
+    runtime_manifest = _write_runtime_manifest(root, force)
 
     _safe_write(
         root / "README.md",
@@ -522,6 +555,7 @@ def bootstrap(
         archived_product=archived_rel,
         product_import_status=manifest["import"]["status"],
         product_can_derive_design=manifest["import"]["can_derive_design"],
+        runtime_manifest=runtime_manifest,
         workflow_pack_manifest=workflow_pack_manifest,
         generated_by="docs-as-code workflow pack",
     )

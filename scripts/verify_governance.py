@@ -47,6 +47,7 @@ ADR_REQUIRED_SECTIONS = {
 ADR_DECISION_RE = re.compile(r"^(?P<prefix>[0-9]{3})-[a-z0-9][a-z0-9-]*\.md$")
 SCAFFOLD_PLACEHOLDER = "governance:scaffold-placeholder"
 WORKFLOW_PACK_SNAPSHOT_ROOT = "docs/agent-workflow/workflow-pack"
+RUNTIME_MANIFEST_REL = Path("docs/agent-workflow/runtime-manifest.json")
 ROADMAP_REL = Path("docs/development/01-roadmap.md")
 ROADMAP_REQUIRED_SECTIONS = {
     "product links": "Product Links",
@@ -344,6 +345,7 @@ def verify(root: Path) -> VerificationReport:
     _check_readme_indexes(root, report)
     _check_local_markdown_links(root, report)
     _check_scaffold_placeholders(root, report)
+    _check_runtime_manifest(root, report)
     _check_workflow_pack_manifest(root, report)
     _check_task_board(root, report)
     _check_roadmap(root, report)
@@ -2028,6 +2030,41 @@ def _check_scaffold_placeholders(root: Path, report: VerificationReport) -> None
             f"{rel} still contains a governance scaffold placeholder",
             rel,
         )
+
+
+def _check_runtime_manifest(root: Path, report: VerificationReport) -> None:
+    manifest_path = root / RUNTIME_MANIFEST_REL
+    manifest_rel = RUNTIME_MANIFEST_REL.as_posix()
+    if not manifest_path.exists():
+        report.add_error("runtime_manifest_missing", f"missing runtime manifest: {manifest_rel}", manifest_rel)
+        return
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        report.add_error("runtime_manifest_invalid_json", f"invalid runtime manifest: {error.msg}", manifest_rel)
+        return
+    files = manifest.get("files")
+    if not isinstance(files, list):
+        report.add_error("runtime_manifest_invalid_schema", "invalid runtime manifest: files must be a list", manifest_rel)
+        return
+    for item in files:
+        if not isinstance(item, dict):
+            report.add_error("runtime_manifest_invalid_schema", "invalid runtime manifest: file entry must be an object", manifest_rel)
+            continue
+        rel = item.get("path")
+        expected_hash = item.get("sha256")
+        if not isinstance(rel, str) or not rel or Path(rel).is_absolute() or ".." in Path(rel).parts:
+            report.add_error("runtime_manifest_invalid_path", f"invalid runtime file path: {rel}", manifest_rel)
+            continue
+        path = root / rel
+        if not path.exists():
+            report.add_error("runtime_file_missing", f"runtime file is missing: {rel}", rel)
+            continue
+        if not isinstance(expected_hash, str) or not expected_hash:
+            report.add_error("runtime_manifest_hash_missing", f"runtime file hash is missing: {rel}", manifest_rel)
+            continue
+        if _sha256(path) != expected_hash:
+            report.add_error("runtime_file_hash_mismatch", f"runtime file hash mismatch: {rel}", rel)
 
 
 def _check_workflow_pack_manifest(root: Path, report: VerificationReport) -> None:
