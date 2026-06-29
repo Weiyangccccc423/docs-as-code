@@ -76,6 +76,7 @@ WORKFLOW_PACK_REQUIRED_PATHS = (
     "workflows/05-verification-and-drift-control.md",
 )
 RUNTIME_MANIFEST_REL = Path("docs/agent-workflow/runtime-manifest.json")
+PRODUCT_SOURCE_ARCHIVE_ROOT = Path("docs/product/core/source")
 RUNTIME_REQUIRED_BIN_FILES = (
     "governance",
     "governance-init",
@@ -471,10 +472,24 @@ def _check_product_source_manifest(root: Path, report: VerificationReport) -> No
             "docs/product/core/source/source-manifest.json",
         )
         return
+    if not _is_valid_product_source_archive_path(archived_rel):
+        report.add_error(
+            "product_source_manifest_archive_path_invalid",
+            "invalid product source manifest: archive.path must be a relative path under docs/product/core/source",
+            "docs/product/core/source/source-manifest.json",
+        )
+        return
 
     archived_path = root / archived_rel
     if not archived_path.exists():
         report.add_error("product_source_archive_missing", f"archived product source is missing: {archived_rel}", archived_rel)
+        return
+    if not archived_path.is_file():
+        report.add_error(
+            "product_source_manifest_archive_path_not_file",
+            f"invalid product source manifest: archive.path does not point to a file: {archived_rel}",
+            "docs/product/core/source/source-manifest.json",
+        )
         return
 
     expected_size = archive.get("size_bytes")
@@ -2233,6 +2248,17 @@ def _workflow_pack_snapshot_files(snapshot_root: Path) -> list[Path]:
 
 def _is_valid_manifest_size(value: object) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
+def _is_valid_product_source_archive_path(value: str) -> bool:
+    path = Path(value)
+    if path.is_absolute() or ".." in path.parts:
+        return False
+    try:
+        path.relative_to(PRODUCT_SOURCE_ARCHIVE_ROOT)
+    except ValueError:
+        return False
+    return path != PRODUCT_SOURCE_ARCHIVE_ROOT
 
 
 def _is_ignored_workflow_pack_file(path: Path) -> bool:

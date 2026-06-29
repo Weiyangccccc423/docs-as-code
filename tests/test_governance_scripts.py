@@ -618,6 +618,111 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_rejects_absolute_archived_product_source_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            manifest_path = root / "docs/product/core/source/source-manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["archive"]["path"] = str(root / "docs/product/core/source/product.md")
+            manifest_path.write_text(
+                json.dumps(manifest, indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "invalid product source manifest: archive.path must be a relative path under docs/product/core/source",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "product_source_manifest_archive_path_invalid",
+                    "severity": "error",
+                    "path": "docs/product/core/source/source-manifest.json",
+                    "message": (
+                        "invalid product source manifest: "
+                        "archive.path must be a relative path under docs/product/core/source"
+                    ),
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_rejects_traversing_archived_product_source_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            manifest_path = root / "docs/product/core/source/source-manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["archive"]["path"] = "docs/product/core/source/../source/product.md"
+            manifest_path.write_text(
+                json.dumps(manifest, indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "invalid product source manifest: archive.path must be a relative path under docs/product/core/source",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "product_source_manifest_archive_path_invalid",
+                    "severity": "error",
+                    "path": "docs/product/core/source/source-manifest.json",
+                    "message": (
+                        "invalid product source manifest: "
+                        "archive.path must be a relative path under docs/product/core/source"
+                    ),
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_rejects_archived_product_source_directory_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            directory = root / "docs/product/core/source/nested"
+            directory.mkdir()
+            manifest_path = root / "docs/product/core/source/source-manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["archive"]["path"] = "docs/product/core/source/nested"
+            manifest_path.write_text(
+                json.dumps(manifest, indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "invalid product source manifest: archive.path does not point to a file: "
+                "docs/product/core/source/nested",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "product_source_manifest_archive_path_not_file",
+                    "severity": "error",
+                    "path": "docs/product/core/source/source-manifest.json",
+                    "message": (
+                        "invalid product source manifest: archive.path does not point to a file: "
+                        "docs/product/core/source/nested"
+                    ),
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_rejects_tampered_workflow_pack_snapshot(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

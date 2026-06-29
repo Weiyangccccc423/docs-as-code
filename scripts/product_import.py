@@ -18,6 +18,7 @@ MANIFEST_REL = Path("docs/product/core/source/source-manifest.json")
 PRD_REL = Path("docs/product/core/PRD.md")
 PRODUCT_META_REL = Path("docs/product/core/product-meta.md")
 UNRESOLVED_REL = Path("docs/unresolved.md")
+PRODUCT_SOURCE_ARCHIVE_ROOT = Path("docs/product/core/source")
 CONVERSION_BLOCKER_ID = "U-001"
 CONVERSION_BLOCKER_DOMAIN = "Product Archiving"
 CONVERSION_PLACEHOLDER_MARKERS = (
@@ -170,9 +171,15 @@ def _check_archived_source(root: Path, manifest: dict[str, Any], errors: list[st
     if not isinstance(archived_rel, str) or not archived_rel:
         errors.append("invalid product source manifest: archive.path is missing")
         return
+    if not _is_valid_product_source_archive_path(archived_rel):
+        errors.append("invalid product source manifest: archive.path must be a relative path under docs/product/core/source")
+        return
     archived_path = root / archived_rel
     if not archived_path.exists():
         errors.append(f"archived product source is missing: {archived_rel}")
+        return
+    if not archived_path.is_file():
+        errors.append(f"invalid product source manifest: archive.path does not point to a file: {archived_rel}")
         return
     expected_hash = archive.get("sha256")
     if not isinstance(expected_hash, str) or not expected_hash:
@@ -180,6 +187,17 @@ def _check_archived_source(root: Path, manifest: dict[str, Any], errors: list[st
         return
     if _sha256(archived_path) != expected_hash:
         errors.append(f"archived product source hash mismatch: {archived_rel}")
+
+
+def _is_valid_product_source_archive_path(value: str) -> bool:
+    path = Path(value)
+    if path.is_absolute() or ".." in path.parts:
+        return False
+    try:
+        path.relative_to(PRODUCT_SOURCE_ARCHIVE_ROOT)
+    except ValueError:
+        return False
+    return path != PRODUCT_SOURCE_ARCHIVE_ROOT
 
 
 def _resolve_conversion_blocker(path: Path) -> bool:
