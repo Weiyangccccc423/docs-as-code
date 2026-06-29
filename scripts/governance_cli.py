@@ -14,6 +14,8 @@ from check_env import (
     collect_system_status,
     detect_package_manager,
     environment_ok,
+    install_command_text,
+    install_commands,
     missing_tools_by_level,
     write_repair_plan,
 )
@@ -195,15 +197,15 @@ def _cmd_env(args: argparse.Namespace) -> int:
         if not args.json:
             print(f"\nWrote repair plan: {path}")
             if needs_escalation:
-                packages = " ".join(sorted({item.package for item in install_plan}))
                 print(
                     "Installation requires root approval: "
-                    f"{package_manager.command} update && {package_manager.command} install -y {packages}"
+                    f"{install_command_text(install_commands(install_plan, package_manager))}"
                 )
             for result in install_results:
                 print(f"Install command exited {result['returncode']}: {result['command']}")
     missing_required = missing_tools_by_level(statuses, "required")
     missing_recommended = missing_tools_by_level(statuses, "recommended")
+    commands = install_commands(install_plan, package_manager)
     ok = environment_ok(statuses, args.strict)
     if args.json:
         _print_json(
@@ -219,6 +221,8 @@ def _cmd_env(args: argparse.Namespace) -> int:
                 "package_manager": package_manager.to_dict(),
                 "git": git.to_dict(),
                 "install_plan": [item.to_dict() for item in install_plan],
+                "install_commands": commands,
+                "install_command": install_command_text(commands),
                 "needs_escalation": needs_escalation,
                 "install_results": install_results,
                 "repairs": repairs,

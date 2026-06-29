@@ -35,7 +35,7 @@ bin/governance verify .
 bin/governance env --repair --target .
 ```
 
-Append `--json` when an agent needs stable output for branching or repair planning. JSON payloads must include an `ok` field whose value matches the command's success semantics: missing required tools always make `ok: false`, and missing recommended tools make `ok: false` only under `--strict`.
+Append `--json` when an agent needs stable output for branching or repair planning. JSON payloads must include an `ok` field whose value matches the command's success semantics: missing required tools always make `ok: false`, and missing recommended tools make `ok: false` only under `--strict`. When supported packages can repair the environment, JSON includes `install_commands` as argv arrays and `install_command` as the equivalent human-readable command string.
 
 ## Node.js Layer
 

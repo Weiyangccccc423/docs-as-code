@@ -74,7 +74,7 @@ make test
 make verify-pack
 ```
 
-`bin/governance env --repair` creates `.governance/env-repair.md`, reports system/package-manager/Git status, and prepares an install plan. Missing required tools make `ok: false`; missing recommended tools make `ok: false` only with `--strict`. It never calls `sudo`; supported apt installs run only when the process already has root privileges. Project-specific dependency installation should be handled after the target stack is known.
+`bin/governance env --repair` creates `.governance/env-repair.md`, reports system/package-manager/Git status, and prepares an install plan. Missing required tools make `ok: false`; missing recommended tools make `ok: false` only with `--strict`. JSON output includes `install_commands` and `install_command` when supported package installs are available. The command never calls `sudo`; supported apt installs run only when the process already has root privileges. Project-specific dependency installation should be handled after the target stack is known.
 
 `bin/governance init` runs a preflight check before writing files. Existing generated governance files cause initialization to fail unless `--force` is supplied. Use `init --check --json` to inspect conflicts without writing to the target.
 

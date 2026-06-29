@@ -367,6 +367,8 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn("package_manager", payload)
             self.assertIn("git", payload)
             self.assertIn("install_plan", payload)
+            self.assertIn("install_commands", payload)
+            self.assertIn("install_command", payload)
             self.assertIn("needs_escalation", payload)
             self.assertIn("missing_required", payload)
             self.assertIn("missing_recommended", payload)

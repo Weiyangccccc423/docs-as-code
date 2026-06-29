@@ -4,7 +4,15 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from scripts.check_env import PackageManager, ToolStatus, build_install_plan, environment_ok, missing_tools_by_level
+from scripts.check_env import (
+    PackageManager,
+    ToolStatus,
+    build_install_plan,
+    environment_ok,
+    install_command_text,
+    install_commands,
+    missing_tools_by_level,
+)
 from scripts.bootstrap_tree import InitPreflightError
 from scripts.bootstrap_tree import bootstrap
 from scripts.verify_governance import verify
@@ -5391,6 +5399,12 @@ class GovernanceScriptsTest(unittest.TestCase):
 
         self.assertEqual(["git"], [item.tool for item in non_strict])
         self.assertEqual(["git", "pandoc"], [item.tool for item in strict])
+        commands = install_commands(strict, apt)
+        self.assertEqual(
+            [["apt-get", "update"], ["apt-get", "install", "-y", "git", "pandoc"]],
+            commands,
+        )
+        self.assertEqual("apt-get update && apt-get install -y git pandoc", install_command_text(commands))
 
     def test_environment_ok_requires_required_tools_and_strict_recommended_tools(self) -> None:
         statuses = [

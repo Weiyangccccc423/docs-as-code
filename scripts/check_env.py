@@ -172,18 +172,28 @@ def environment_ok(statuses: list[ToolStatus], strict: bool) -> bool:
     return not (strict and missing_tools_by_level(statuses, "recommended"))
 
 
+def install_commands(plan: list[InstallPlanItem], package_manager: PackageManager) -> list[list[str]]:
+    if not plan or package_manager.name != "apt" or not package_manager.command:
+        return []
+    packages = sorted({item.package for item in plan})
+    return [
+        [package_manager.command, "update"],
+        [package_manager.command, "install", "-y", *packages],
+    ]
+
+
+def install_command_text(commands: list[list[str]]) -> str:
+    return " && ".join(" ".join(command) for command in commands)
+
+
 def apply_install_plan(
     plan: list[InstallPlanItem],
     package_manager: PackageManager,
     system: SystemStatus,
 ) -> list[dict[str, object]]:
-    if not plan or package_manager.name != "apt" or not package_manager.command or not system.is_root:
+    commands = install_commands(plan, package_manager)
+    if not commands or not system.is_root:
         return []
-    packages = sorted({item.package for item in plan})
-    commands = [
-        [package_manager.command, "update"],
-        [package_manager.command, "install", "-y", *packages],
-    ]
     results: list[dict[str, object]] = []
     for command in commands:
         result = subprocess.run(command, check=False, text=True, capture_output=True, timeout=300)
@@ -248,11 +258,11 @@ def write_repair_plan(
     )
     if install_plan:
         packages = " ".join(sorted({item.package for item in install_plan}))
+        commands = install_commands(install_plan, package_manager)
         lines.append(f"- Supported packages: `{packages}`")
         if needs_escalation:
             lines.append(
-                f"- Requires approval/root execution: `{package_manager.command} update && "
-                f"{package_manager.command} install -y {packages}`"
+                f"- Requires approval/root execution: `{install_command_text(commands)}`"
             )
         else:
             lines.append("- Installation can be attempted because this process is running as root.")
@@ -359,10 +369,9 @@ def main() -> int:
         )
         print(f"\nWrote repair plan: {path}")
         if needs_escalation:
-            packages = " ".join(sorted({item.package for item in install_plan}))
             print(
                 "Installation requires root approval: "
-                f"{package_manager.command} update && {package_manager.command} install -y {packages}"
+                f"{install_command_text(install_commands(install_plan, package_manager))}"
             )
         for result in install_results:
             print(f"Install command exited {result['returncode']}: {result['command']}")
