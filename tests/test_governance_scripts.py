@@ -627,6 +627,29 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_product_source_manifest_invalid_encoding_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            manifest_path = root / "docs/product/core/source/source-manifest.json"
+            manifest_path.write_bytes(b"\xff")
+
+            report = verify(root)
+
+            self.assertIn("invalid product source manifest encoding: expected UTF-8", report.errors)
+            self.assertIn(
+                {
+                    "code": "product_source_manifest_invalid_encoding",
+                    "severity": "error",
+                    "path": "docs/product/core/source/source-manifest.json",
+                    "message": "invalid product source manifest encoding: expected UTF-8",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_docs_root_file_without_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -1020,6 +1043,29 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_workflow_pack_manifest_invalid_encoding_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            manifest_path = root / "docs/agent-workflow/workflow-pack/manifest.json"
+            manifest_path.write_bytes(b"\xff")
+
+            report = verify(root)
+
+            self.assertIn("invalid workflow pack manifest encoding: expected UTF-8", report.errors)
+            self.assertIn(
+                {
+                    "code": "workflow_pack_manifest_invalid_encoding",
+                    "severity": "error",
+                    "path": "docs/agent-workflow/workflow-pack/manifest.json",
+                    "message": "invalid workflow pack manifest encoding: expected UTF-8",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_rejects_missing_required_workflow_pack_manifest_entry(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -1277,6 +1323,29 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "severity": "error",
                     "path": "docs/agent-workflow/runtime-manifest.json",
                     "message": "runtime manifest is not a file: docs/agent-workflow/runtime-manifest.json",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_runtime_manifest_invalid_encoding_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            manifest_path = root / "docs/agent-workflow/runtime-manifest.json"
+            manifest_path.write_bytes(b"\xff")
+
+            report = verify(root)
+
+            self.assertIn("invalid runtime manifest encoding: expected UTF-8", report.errors)
+            self.assertIn(
+                {
+                    "code": "runtime_manifest_invalid_encoding",
+                    "severity": "error",
+                    "path": "docs/agent-workflow/runtime-manifest.json",
+                    "message": "invalid runtime manifest encoding: expected UTF-8",
                 },
                 [finding.to_dict() for finding in report.findings],
             )

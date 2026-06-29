@@ -453,6 +453,13 @@ def _check_product_source_manifest(root: Path, report: VerificationReport) -> No
         return
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except UnicodeDecodeError:
+        report.add_error(
+            "product_source_manifest_invalid_encoding",
+            "invalid product source manifest encoding: expected UTF-8",
+            "docs/product/core/source/source-manifest.json",
+        )
+        return
     except json.JSONDecodeError as error:
         report.add_error(
             "product_source_manifest_invalid_json",
@@ -2177,6 +2184,9 @@ def _check_runtime_manifest(root: Path, report: VerificationReport) -> None:
         return
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except UnicodeDecodeError:
+        report.add_error("runtime_manifest_invalid_encoding", "invalid runtime manifest encoding: expected UTF-8", manifest_rel)
+        return
     except json.JSONDecodeError as error:
         report.add_error("runtime_manifest_invalid_json", f"invalid runtime manifest: {error.msg}", manifest_rel)
         return
@@ -2241,6 +2251,13 @@ def _check_workflow_pack_manifest(root: Path, report: VerificationReport) -> Non
         return
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except UnicodeDecodeError:
+        report.add_error(
+            "workflow_pack_manifest_invalid_encoding",
+            "invalid workflow pack manifest encoding: expected UTF-8",
+            manifest_rel,
+        )
+        return
     except json.JSONDecodeError as error:
         report.add_error("workflow_pack_manifest_invalid_json", f"invalid workflow pack manifest: {error.msg}", manifest_rel)
         return
