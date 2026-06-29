@@ -67,6 +67,10 @@ def _roadmap_doc() -> str:
 
 
 def _task_board_doc(rows: str) -> str:
+    rows = rows.replace(
+        "docs/product/08-acceptance-criteria.md",
+        "docs/product/08-acceptance-criteria.md#A-001",
+    )
     return (
         "# Task Board\n\n"
         "## Task Table\n\n"

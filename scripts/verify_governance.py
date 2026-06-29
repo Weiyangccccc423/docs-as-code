@@ -2329,7 +2329,25 @@ def _task_board_row_trace_reference_errors(root: Path, row: dict[str, str], task
                 "task_board_acceptance_reference_missing",
                 f"task board row {task_id} Acceptance field must reference a product acceptance chapter",
             ))
+        if (
+            column == "acceptance"
+            and all(reference.exists for reference in references)
+            and any(_is_product_acceptance_reference(reference) for reference in references)
+            and _task_board_acceptance_id(row.get(column, "")) is None
+        ):
+            errors.append((
+                "task_board_acceptance_id_missing",
+                f"task board row {task_id} Acceptance field must include A-NNN acceptance ID",
+            ))
     return errors
+
+
+def _task_board_acceptance_id(value: str) -> str | None:
+    label = _plain_cell_label(value)
+    match = ACCEPTANCE_ID_RE.search(label)
+    if match is None:
+        return None
+    return match.group(0)
 
 
 def _is_product_acceptance_reference(reference: LocalMarkdownReference) -> bool:

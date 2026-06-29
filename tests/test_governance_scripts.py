@@ -386,6 +386,14 @@ def _roadmap_doc(
 
 
 def _task_board_doc(rows: str) -> str:
+    rows = rows.replace(
+        "[Acceptance](../product/08-acceptance-criteria.md)",
+        "[A-001](../product/08-acceptance-criteria.md#a-001)",
+    )
+    rows = rows.replace(
+        "docs/product/08-acceptance-criteria.md",
+        "docs/product/08-acceptance-criteria.md#A-001",
+    )
     return (
         "# Task Board\n\n"
         "## Task Table\n\n"
@@ -4035,6 +4043,46 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_task_board_acceptance_without_acceptance_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_product_chapter(root, "01-goals.md", "Goals")
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
+            _write_indexed_doc(root, "docs/api/00-conventions.md", _api_conventions_doc())
+            _write_traceable_test_strategy(root)
+
+            task_board = root / "docs/development/02-task-board.md"
+            task_board.write_text(
+                "# Task Board\n\n"
+                "## Task Table\n\n"
+                "| ID | Status | Task | Product | Design | API | Acceptance | Verification |\n"
+                "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | [Acceptance](../product/08-acceptance-criteria.md) | make test |\n\n"
+                "## Status Policy\n\n"
+                "- Use Backlog, Ready, In Progress, Blocked, Done, or Deferred consistently with the implementation gate.\n\n"
+                "## Traceability Rules\n\n"
+                "- Product, Design, API, and Acceptance fields must link to existing local Markdown sources.\n",
+                encoding="utf-8",
+            )
+            _append_index(root / "docs/development/README.md", "02-task-board.md")
+
+            report = verify(root)
+
+            self.assertIn("task board row TASK-001 Acceptance field must include A-NNN acceptance ID", report.errors)
+            self.assertIn(
+                {
+                    "code": "task_board_acceptance_id_missing",
+                    "severity": "error",
+                    "path": "docs/development/02-task-board.md",
+                    "message": "task board row TASK-001 Acceptance field must include A-NNN acceptance ID",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_task_board_missing_trace_reference(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -4238,11 +4286,10 @@ class GovernanceScriptsTest(unittest.TestCase):
 
             task_board = root / "docs/development/02-task-board.md"
             task_board.write_text(
-                "# Task Board\n\n"
-                "| ID | Status | Task | Product | Design | API | Acceptance | Verification |\n"
-                "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
-                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | make test |\n"
-                "| TASK-002 | Blocked | Resolve goal edge case | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | Waiting for decision |\n",
+                _task_board_doc(
+                    "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | make test |\n"
+                    "| TASK-002 | Blocked | Resolve goal edge case | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | Waiting for decision |\n"
+                ),
                 encoding="utf-8",
             )
             _append_index(root / "docs/development/README.md", "02-task-board.md")
@@ -4285,11 +4332,10 @@ class GovernanceScriptsTest(unittest.TestCase):
 
             task_board = root / "docs/development/02-task-board.md"
             task_board.write_text(
-                "# Task Board\n\n"
-                "| ID | Status | Task | Product | Design | API | Acceptance | Verification |\n"
-                "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
-                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | make test |\n"
-                "| TASK-002 | Blocked | Resolve goal edge case | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | Blocked by U-001 |\n",
+                _task_board_doc(
+                    "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | make test |\n"
+                    "| TASK-002 | Blocked | Resolve goal edge case | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | Blocked by U-001 |\n"
+                ),
                 encoding="utf-8",
             )
             _append_index(root / "docs/development/README.md", "02-task-board.md")
@@ -4356,11 +4402,10 @@ class GovernanceScriptsTest(unittest.TestCase):
 
             task_board = root / "docs/development/02-task-board.md"
             task_board.write_text(
-                "# Task Board\n\n"
-                "| ID | Status | Task | Product | Design | API | Acceptance | Verification |\n"
-                "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
-                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | make test |\n"
-                "| TASK-002 | Done | Verify goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | make test |\n",
+                _task_board_doc(
+                    "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | make test |\n"
+                    "| TASK-002 | Done | Verify goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | make test |\n"
+                ),
                 encoding="utf-8",
             )
             _append_index(root / "docs/development/README.md", "02-task-board.md")
@@ -4421,11 +4466,10 @@ class GovernanceScriptsTest(unittest.TestCase):
 
             task_board = root / "docs/development/02-task-board.md"
             task_board.write_text(
-                "# Task Board\n\n"
-                "| ID | Status | Task | Product | Design | API | Acceptance | Verification |\n"
-                "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
-                "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | make test |\n"
-                "| TASK-002 | Done | Verify goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | docs/development/missing-log.md |\n",
+                _task_board_doc(
+                    "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | make test |\n"
+                    "| TASK-002 | Done | Verify goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | docs/development/missing-log.md |\n"
+                ),
                 encoding="utf-8",
             )
             _append_index(root / "docs/development/README.md", "02-task-board.md")
