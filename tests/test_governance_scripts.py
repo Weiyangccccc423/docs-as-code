@@ -12,6 +12,7 @@ from scripts.check_env import (
     install_command_text,
     install_commands,
     missing_tools_by_level,
+    repair_target_error,
 )
 from scripts.bootstrap_tree import InitPreflightError
 from scripts.bootstrap_tree import bootstrap
@@ -6181,6 +6182,21 @@ class GovernanceScriptsTest(unittest.TestCase):
 
         self.assertTrue(environment_ok(required_present, strict=False))
         self.assertFalse(environment_ok(required_present, strict=True))
+
+    def test_repair_target_error_rejects_file_targets(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / "target"
+            target.write_text("not a directory\n", encoding="utf-8")
+
+            self.assertEqual(
+                f"environment repair target is not a directory: {target}",
+                repair_target_error(target),
+            )
+            self.assertEqual(
+                f"environment repair target parent is not a directory: {target}",
+                repair_target_error(target / "child"),
+            )
 
 
 if __name__ == "__main__":

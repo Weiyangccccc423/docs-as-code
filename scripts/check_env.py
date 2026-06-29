@@ -210,6 +210,20 @@ def apply_install_plan(
     return results
 
 
+def repair_target_error(target: Path) -> str | None:
+    if target.exists():
+        if target.is_dir():
+            return None
+        return f"environment repair target is not a directory: {target}"
+    for ancestor in target.parents:
+        if not ancestor.exists():
+            continue
+        if not ancestor.is_dir():
+            return f"environment repair target parent is not a directory: {ancestor}"
+        return None
+    return None
+
+
 def write_repair_plan(
     target: Path,
     statuses: list[ToolStatus],
@@ -219,6 +233,9 @@ def write_repair_plan(
     install_plan: list[InstallPlanItem] | None = None,
     needs_escalation: bool = False,
 ) -> Path:
+    error = repair_target_error(target)
+    if error:
+        raise ValueError(error)
     missing = [status for status in statuses if not status.present]
     system = system or collect_system_status()
     package_manager = package_manager or detect_package_manager(system)
@@ -355,6 +372,10 @@ def main() -> int:
         print("- `pandoc` and `lychee` are optional during early product archiving but required for strict docs CI.")
         print("- Re-run `python3 scripts/check_env.py --strict` before declaring the workflow environment ready.")
     if args.repair:
+        target_error = repair_target_error(target)
+        if target_error:
+            print(f"ERROR: {target_error}")
+            return 1
         install_results = apply_install_plan(install_plan, package_manager, system)
         if install_results and all(result["returncode"] == 0 for result in install_results):
             statuses = collect_status()

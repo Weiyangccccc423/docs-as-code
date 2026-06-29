@@ -17,6 +17,7 @@ from check_env import (
     install_command_text,
     install_commands,
     missing_tools_by_level,
+    repair_target_error,
     write_repair_plan,
 )
 from gates import GATE_NAMES, evaluate_gate
@@ -172,11 +173,12 @@ def _cmd_status(args: argparse.Namespace) -> int:
 
 
 def _cmd_env(args: argparse.Namespace) -> int:
+    target = Path(args.target)
     missing: list[str] = []
     statuses = collect_status()
     system = collect_system_status()
     package_manager = detect_package_manager(system)
-    git = collect_git_status(Path(args.target))
+    git = collect_git_status(target)
     install_plan = build_install_plan(statuses, args.strict, package_manager)
     needs_escalation = bool(args.repair and install_plan and not system.is_root)
     install_results: list[dict[str, object]] = []
@@ -189,12 +191,44 @@ def _cmd_env(args: argparse.Namespace) -> int:
     repair_plan = None
     repairs: list[dict[str, object]] = []
     if args.repair:
+        target_error = repair_target_error(target)
+        if target_error:
+            missing_required = missing_tools_by_level(statuses, "required")
+            missing_recommended = missing_tools_by_level(statuses, "recommended")
+            commands = install_commands(install_plan, package_manager)
+            if args.json:
+                _print_json(
+                    {
+                        "ok": False,
+                        "target": str(target),
+                        "strict": args.strict,
+                        "errors": [target_error],
+                        "missing": missing,
+                        "missing_required": missing_required,
+                        "missing_recommended": missing_recommended,
+                        "tools": _tool_status_payload(statuses),
+                        "system": system.to_dict(),
+                        "package_manager": package_manager.to_dict(),
+                        "git": git.to_dict(),
+                        "install_plan": [item.to_dict() for item in install_plan],
+                        "install_commands": commands,
+                        "install_command": install_command_text(commands),
+                        "needs_escalation": needs_escalation,
+                        "install_results": install_results,
+                        "repairs": repairs,
+                        "repair_plan": repair_plan,
+                    }
+                )
+            else:
+                print("Environment repair failed:")
+                print(f"- ERROR: {target_error}")
+            return 1
         install_results = apply_install_plan(install_plan, package_manager, system)
         if install_results and all(result["returncode"] == 0 for result in install_results):
             statuses = collect_status()
             missing = [status.name for status in statuses if not status.present]
         path = write_repair_plan(
-            Path(args.target),
+            target,
             statuses,
             system=system,
             package_manager=package_manager,
@@ -221,7 +255,7 @@ def _cmd_env(args: argparse.Namespace) -> int:
         _print_json(
             {
                 "ok": ok,
-                "target": str(Path(args.target)),
+                "target": str(target),
                 "strict": args.strict,
                 "missing": missing,
                 "missing_required": missing_required,
