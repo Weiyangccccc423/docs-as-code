@@ -1517,6 +1517,8 @@ def _check_acceptance_matrix_traceability(root: Path, report: VerificationReport
             "existing Test docs",
             _is_test_reference,
         )
+    if "uncovered criteria" in sections:
+        _check_acceptance_matrix_product_coverage(root, report, seen_acceptance_ids, sections["uncovered criteria"])
 
 
 def _acceptance_matrix_rows(text: str) -> tuple[list[dict[str, str]], list[str]]:
@@ -1560,6 +1562,44 @@ def _acceptance_matrix_acceptance_id(value: str) -> str | None:
     if match is None:
         return None
     return match.group(0)
+
+
+def _check_acceptance_matrix_product_coverage(
+    root: Path,
+    report: VerificationReport,
+    matrix_acceptance_ids: set[str],
+    uncovered_criteria: str,
+) -> None:
+    product_acceptance_ids = _product_acceptance_ids(root)
+    if not product_acceptance_ids:
+        return
+    uncovered_acceptance_ids = set(ACCEPTANCE_ID_RE.findall(_strip_markdown_code(uncovered_criteria)))
+    covered_ids = matrix_acceptance_ids | uncovered_acceptance_ids
+    missing_ids = sorted(product_acceptance_ids - covered_ids)
+    if missing_ids:
+        report.add_error(
+            "acceptance_matrix_product_coverage_missing",
+            f"acceptance matrix must map or list uncovered product acceptance IDs: {', '.join(missing_ids)}",
+            ACCEPTANCE_MATRIX_REL.as_posix(),
+        )
+
+
+def _product_acceptance_ids(root: Path) -> set[str]:
+    product_root = root / "docs/product"
+    if not product_root.exists():
+        return set()
+    acceptance_ids: set[str] = set()
+    for path in sorted(product_root.glob("*.md")):
+        if PRODUCT_CHAPTER_RE.fullmatch(path.name) is None or "acceptance" not in path.stem.lower():
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        if SCAFFOLD_PLACEHOLDER in text:
+            continue
+        acceptance_ids.update(ACCEPTANCE_ID_RE.findall(_strip_markdown_code(text)))
+    return acceptance_ids
 
 
 def _check_acceptance_matrix_acceptance_id_source(

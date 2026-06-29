@@ -43,6 +43,16 @@ def _write_acceptance_chapter(root: Path) -> None:
     _append_product_meta_chapter(root, "08-acceptance-criteria.md")
 
 
+def _append_acceptance_criterion(root: Path, acceptance_id: str, title: str) -> None:
+    path = root / "docs/product/08-acceptance-criteria.md"
+    path.write_text(
+        path.read_text(encoding="utf-8")
+        + f"\n## {acceptance_id} {title}\n\n"
+        "- The additional acceptance criterion is traceable or explicitly uncovered.\n",
+        encoding="utf-8",
+    )
+
+
 def _write_api_error_codes_doc(root: Path) -> None:
     _write_indexed_doc(root, "docs/api/error-codes.md", _api_error_codes_doc())
 
@@ -3422,6 +3432,50 @@ class GovernanceScriptsTest(unittest.TestCase):
             report = verify(root)
 
             self.assertEqual([], report.errors)
+
+    def test_verify_allows_uncovered_acceptance_matrix_criteria(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_traceable_test_strategy(root)
+            _append_acceptance_criterion(root, "A-002", "Deferred Flow")
+            _write_indexed_doc(
+                root,
+                "docs/tests/02-acceptance-matrix.md",
+                _acceptance_matrix_doc().replace("- none\n", "- A-002 deferred until follow-up scope.\n"),
+            )
+
+            report = verify(root)
+
+            self.assertEqual([], report.errors)
+
+    def test_verify_reports_acceptance_matrix_missing_product_acceptance_coverage(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_traceable_test_strategy(root)
+            _append_acceptance_criterion(root, "A-002", "Deferred Flow")
+            _write_indexed_doc(root, "docs/tests/02-acceptance-matrix.md", _acceptance_matrix_doc())
+
+            report = verify(root)
+
+            self.assertIn(
+                "acceptance matrix must map or list uncovered product acceptance IDs: A-002",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "acceptance_matrix_product_coverage_missing",
+                    "severity": "error",
+                    "path": "docs/tests/02-acceptance-matrix.md",
+                    "message": "acceptance matrix must map or list uncovered product acceptance IDs: A-002",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
 
     def test_verify_reports_acceptance_matrix_missing_required_sections(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
