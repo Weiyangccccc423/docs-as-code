@@ -434,10 +434,18 @@ def _is_effectively_empty(path: Path) -> bool:
 
 
 def _read_markdown_text(root: Path, path: Path, report: VerificationReport) -> str | None:
+    rel = path.relative_to(root).as_posix()
+    if not path.is_file():
+        if not any(finding.code == "markdown_not_file" and finding.path == rel for finding in report.findings):
+            report.add_error(
+                "markdown_not_file",
+                f"Markdown path is not a file: {rel}",
+                rel,
+            )
+        return None
     try:
         return path.read_text(encoding="utf-8")
     except UnicodeDecodeError:
-        rel = path.relative_to(root).as_posix()
         if not any(finding.code == "markdown_invalid_encoding" and finding.path == rel for finding in report.findings):
             report.add_error(
                 "markdown_invalid_encoding",
@@ -744,9 +752,8 @@ def _check_api_conventions(root: Path, report: VerificationReport) -> None:
     rel = API_CONVENTIONS_REL.as_posix()
     if not path.exists():
         return
-    try:
-        text = path.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
+    text = _read_markdown_text(root, path, report)
+    if text is None:
         return
     if SCAFFOLD_PLACEHOLDER in text:
         return
@@ -800,9 +807,8 @@ def _check_api_error_codes(root: Path, report: VerificationReport) -> None:
     rel = API_ERROR_CODES_REL.as_posix()
     if not path.exists():
         return
-    try:
-        text = path.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
+    text = _read_markdown_text(root, path, report)
+    if text is None:
         return
     if SCAFFOLD_PLACEHOLDER in text:
         return
@@ -856,9 +862,8 @@ def _check_api_changelog(root: Path, report: VerificationReport) -> None:
     rel = API_CHANGELOG_REL.as_posix()
     if not path.exists():
         return
-    try:
-        text = path.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
+    text = _read_markdown_text(root, path, report)
+    if text is None:
         return
     if SCAFFOLD_PLACEHOLDER in text:
         return
@@ -891,9 +896,8 @@ def _check_api_changelog(root: Path, report: VerificationReport) -> None:
 
 def _check_api_endpoint_contract_sections(root: Path, path: Path, report: VerificationReport) -> None:
     rel = path.relative_to(root).as_posix()
-    try:
-        text = path.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
+    text = _read_markdown_text(root, path, report)
+    if text is None:
         return
     sections = _markdown_sections(text)
     missing = [

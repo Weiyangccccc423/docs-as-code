@@ -45,6 +45,7 @@ Treat `runtime_manifest_*`, `runtime_file_missing`, `runtime_file_not_file`, `ru
 Treat `workflow_pack_manifest_*`, `workflow_pack_file_hash_mismatch`, `workflow_pack_file_size_mismatch`, `workflow_pack_file_missing`, `workflow_pack_file_not_file`, and `workflow_pack_file_unmanifested` as workflow-pack integrity blockers: run `bin/governance runtime refresh <target> --json` from a trusted source workflow-pack checkout.
 Treat `required_file_not_file` as a document-integrity blocker: replace the reported directory or special path with the exact required file before continuing.
 Treat `required_directory_not_directory` as a document-integrity blocker: replace the reported file or special path with the exact required directory before continuing.
+Treat `markdown_not_file` as a document-integrity blocker: replace the reported directory or special path with the exact Markdown file before continuing.
 Treat `markdown_invalid_encoding` as a document-integrity blocker: rewrite the reported Markdown file as UTF-8 before continuing.
 Treat `docs_local_markdown_link_missing` as a document-integrity blocker: repair the link or create/index the referenced Markdown file.
 Treat `product_chapter_invalid_filename`, `product_chapter_duplicate_prefix`, `product_chapter_missing_prd_link`, and `product_meta_missing_chapter_link` as product-structuring blockers.

@@ -735,6 +735,53 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_api_conventions_directory_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            api_conventions = root / "docs/api/00-conventions.md"
+            api_conventions.mkdir()
+
+            report = verify(root)
+
+            self.assertIn("Markdown path is not a file: docs/api/00-conventions.md", report.errors)
+            self.assertIn(
+                {
+                    "code": "markdown_not_file",
+                    "severity": "error",
+                    "path": "docs/api/00-conventions.md",
+                    "message": "Markdown path is not a file: docs/api/00-conventions.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_api_endpoint_contract_directory_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            endpoint = root / "docs/api/endpoints/01-goal.md"
+            endpoint.parent.mkdir(parents=True, exist_ok=True)
+            endpoint.mkdir()
+
+            report = verify(root)
+
+            self.assertIn("Markdown path is not a file: docs/api/endpoints/01-goal.md", report.errors)
+            self.assertIn(
+                {
+                    "code": "markdown_not_file",
+                    "severity": "error",
+                    "path": "docs/api/endpoints/01-goal.md",
+                    "message": "Markdown path is not a file: docs/api/endpoints/01-goal.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_product_source_manifest_directory_without_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
