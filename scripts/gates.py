@@ -26,6 +26,7 @@ IMPLEMENTATION_REQUIRED_FILES = (
     ("api_conventions_present", "docs/api/00-conventions.md", "API conventions doc exists"),
     ("api_error_codes_present", "docs/api/error-codes.md", "API error codes registry exists"),
     ("api_changelog_present", "docs/api/changelog.md", "API changelog exists"),
+    ("api_endpoints_index_present", "docs/api/endpoints/README.md", "API endpoints index exists"),
     ("backend_modules_present", "docs/backend/01-modules.md", "backend modules doc exists"),
     ("backend_data_model_present", "docs/backend/02-data-model.md", "backend data model doc exists"),
     ("backend_external_services_present", "docs/backend/03-external-services.md", "backend external services doc exists"),
@@ -162,6 +163,13 @@ def _add_implementation_requirements(requirements: list[GateRequirement], root: 
         _add(requirements, code, _is_authored_markdown_file(root / rel), rel, message)
     _add(
         requirements,
+        "api_endpoint_contract_present",
+        _has_api_endpoint_contract(root),
+        "docs/api/endpoints",
+        "at least one API endpoint contract exists",
+    )
+    _add(
+        requirements,
         "task_board_ready_task_present",
         bool(task_board_ready_tasks(root)),
         "docs/development/02-task-board.md",
@@ -191,3 +199,13 @@ def _has_authored_markdown(directory: Path) -> bool:
 
 def _is_authored_markdown_file(path: Path) -> bool:
     return path.is_file() and not path.name.startswith("_")
+
+
+def _has_api_endpoint_contract(root: Path) -> bool:
+    endpoint_root = root / "docs/api/endpoints"
+    if not endpoint_root.exists():
+        return False
+    return any(
+        path.is_file() and path.name not in {"README.md", "AGENTS.md"} and not path.name.startswith("_")
+        for path in endpoint_root.glob("*.md")
+    )

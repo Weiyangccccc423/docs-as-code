@@ -74,6 +74,28 @@ def _api_changelog_doc() -> str:
     )
 
 
+def _api_endpoint_contract_doc() -> str:
+    return (
+        "# Goal Flow Endpoint\n\n"
+        "## Method and Path\n\n"
+        "POST /goals\n\n"
+        "## Auth\n\n"
+        "Authenticated user required.\n\n"
+        "## Idempotency\n\n"
+        "Client-provided idempotency keys protect retryable writes.\n\n"
+        "## Request Fields\n\n"
+        "- title: goal title.\n\n"
+        "## Response Fields\n\n"
+        "- id: created goal identifier.\n\n"
+        "## Error Codes\n\n"
+        "- [GOAL_VALIDATION_FAILED](../error-codes.md#goal_validation_failed)\n\n"
+        "## Upstream Links\n\n"
+        "- [Product goals](../../product/01-goals.md)\n\n"
+        "## Frontend Consumers\n\n"
+        "- [Frontend API consumption](../../frontend/02-api-consumption.md)\n"
+    )
+
+
 def _roadmap_doc() -> str:
     return (
         "# Roadmap\n\n"
@@ -883,6 +905,8 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertFalse(missing_standard_requirements["architecture_quality_attributes_present"]["ok"])
             self.assertFalse(missing_standard_requirements["api_error_codes_present"]["ok"])
             self.assertFalse(missing_standard_requirements["api_changelog_present"]["ok"])
+            self.assertFalse(missing_standard_requirements["api_endpoints_index_present"]["ok"])
+            self.assertFalse(missing_standard_requirements["api_endpoint_contract_present"]["ok"])
 
             for filename, body in [
                 ("01-system-context.md", _architecture_system_context_doc()),
@@ -975,6 +999,17 @@ class GovernanceCliTest(unittest.TestCase):
                 encoding="utf-8",
             )
             _append_index(target / "docs/frontend/README.md", "02-api-consumption.md")
+            endpoint_root = target / "docs/api/endpoints"
+            endpoint_root.mkdir(parents=True, exist_ok=True)
+            (endpoint_root / "README.md").write_text(
+                "# API Endpoints\n\n"
+                "- `01-goal-flow.md` - goal flow endpoint\n",
+                encoding="utf-8",
+            )
+            (endpoint_root / "01-goal-flow.md").write_text(
+                _api_endpoint_contract_doc(),
+                encoding="utf-8",
+            )
 
             missing_matrix = subprocess.run(
                 [sys.executable, str(CLI), "gate", "implementation", str(target), "--json"],
@@ -986,6 +1021,8 @@ class GovernanceCliTest(unittest.TestCase):
             missing_matrix_requirements = {item["code"]: item for item in json.loads(missing_matrix.stdout)["requirements"]}
             self.assertTrue(missing_matrix_requirements["ui_docs_present"]["ok"])
             self.assertTrue(missing_matrix_requirements["frontend_docs_present"]["ok"])
+            self.assertTrue(missing_matrix_requirements["api_endpoints_index_present"]["ok"])
+            self.assertTrue(missing_matrix_requirements["api_endpoint_contract_present"]["ok"])
             self.assertFalse(missing_matrix_requirements["acceptance_matrix_present"]["ok"])
 
             (target / "docs/tests/02-acceptance-matrix.md").write_text(

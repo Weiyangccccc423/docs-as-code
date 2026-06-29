@@ -54,7 +54,7 @@ Load:
    bin/governance advance implementation <target> --json
    ```
 
-   The implementation gate requires the standard handoff files from Phase 04; arbitrary Markdown in a docs domain is not enough.
+   The implementation gate requires the standard handoff files from Phase 04, including the API endpoint index and at least one endpoint contract; arbitrary Markdown in a docs domain is not enough.
 
 5. Before implementation starts, confirm:
    - no unregistered docs directories

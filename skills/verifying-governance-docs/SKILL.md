@@ -34,6 +34,7 @@ Treat gate requirement `product_acceptance_chapter_present` as a product-structu
 Treat gate requirement `acceptance_matrix_present` as an implementation-readiness blocker: create and index `docs/tests/02-acceptance-matrix.md` before marking tasks Ready for implementation.
 Treat gate requirements `ui_docs_present` and `frontend_docs_present` as design-derivation blockers: complete and index `docs/ui/` and `docs/frontend/` design documents before implementation handoff.
 Treat standard handoff `*_present` gate requirements as implementation-readiness blockers: create and index the exact reported `path` before implementation handoff.
+Treat gate requirement `api_endpoint_contract_present` as an API-contract blocker: create at least one indexed `docs/api/endpoints/NN-<slug>.md` endpoint contract.
 Treat `governance_scaffold_placeholder` as a design-authoring blocker, not a formatting issue.
 Treat `workflow_pack_file_hash_mismatch` and `workflow_pack_file_missing` as workflow-pack integrity blockers.
 Treat `docs_local_markdown_link_missing` as a document-integrity blocker: repair the link or create/index the referenced Markdown file.
