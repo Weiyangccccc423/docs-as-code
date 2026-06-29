@@ -990,6 +990,36 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_workflow_pack_manifest_directory_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            manifest_path = root / "docs/agent-workflow/workflow-pack/manifest.json"
+            manifest_path.unlink()
+            manifest_path.mkdir()
+
+            report = verify(root)
+
+            self.assertIn(
+                "workflow pack manifest is not a file: docs/agent-workflow/workflow-pack/manifest.json",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "workflow_pack_manifest_not_file",
+                    "severity": "error",
+                    "path": "docs/agent-workflow/workflow-pack/manifest.json",
+                    "message": (
+                        "workflow pack manifest is not a file: "
+                        "docs/agent-workflow/workflow-pack/manifest.json"
+                    ),
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_rejects_missing_required_workflow_pack_manifest_entry(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -1223,6 +1253,30 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "severity": "error",
                     "path": "scripts/scaffold.py",
                     "message": "runtime file is not a file: scripts/scaffold.py",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_runtime_manifest_directory_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            manifest_path = root / "docs/agent-workflow/runtime-manifest.json"
+            manifest_path.unlink()
+            manifest_path.mkdir()
+
+            report = verify(root)
+
+            self.assertIn("runtime manifest is not a file: docs/agent-workflow/runtime-manifest.json", report.errors)
+            self.assertIn(
+                {
+                    "code": "runtime_manifest_not_file",
+                    "severity": "error",
+                    "path": "docs/agent-workflow/runtime-manifest.json",
+                    "message": "runtime manifest is not a file: docs/agent-workflow/runtime-manifest.json",
                 },
                 [finding.to_dict() for finding in report.findings],
             )

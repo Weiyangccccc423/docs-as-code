@@ -2172,6 +2172,9 @@ def _check_runtime_manifest(root: Path, report: VerificationReport) -> None:
     if not manifest_path.exists():
         report.add_error("runtime_manifest_missing", f"missing runtime manifest: {manifest_rel}", manifest_rel)
         return
+    if not manifest_path.is_file():
+        report.add_error("runtime_manifest_not_file", f"runtime manifest is not a file: {manifest_rel}", manifest_rel)
+        return
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as error:
@@ -2232,6 +2235,9 @@ def _check_workflow_pack_manifest(root: Path, report: VerificationReport) -> Non
     manifest_rel = f"{WORKFLOW_PACK_SNAPSHOT_ROOT}/manifest.json"
     if not manifest_path.exists():
         report.add_error("workflow_pack_manifest_missing", f"missing workflow pack manifest: {manifest_rel}", manifest_rel)
+        return
+    if not manifest_path.is_file():
+        report.add_error("workflow_pack_manifest_not_file", f"workflow pack manifest is not a file: {manifest_rel}", manifest_rel)
         return
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
