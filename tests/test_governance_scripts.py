@@ -7272,6 +7272,44 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertFalse((product_root / "03-goals-and-requirements.md").exists())
             self.assertTrue(any("docs/product/README.md" in error for error in result.errors))
 
+    def test_scaffold_product_preflight_blocks_index_temp_path_without_partial_chapter(self) -> None:
+        class PassingGate:
+            ok = True
+            requirements: list[object] = []
+            verification: dict[str, object] = {"findings": []}
+
+            def to_dict(self) -> dict[str, object]:
+                return {"ok": True, "requirements": [], "verification": self.verification}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product_root = root / "docs/product"
+            product_root.mkdir(parents=True)
+            readme = product_root / "README.md"
+            readme.write_text("# Product\n\n## Index\n", encoding="utf-8")
+            meta = product_root / "core/product-meta.md"
+            meta.parent.mkdir(parents=True)
+            meta.write_text("# Product Meta\n\n## Chapter Map\n", encoding="utf-8")
+            original_readme = readme.read_text(encoding="utf-8")
+            original_meta = meta.read_text(encoding="utf-8")
+            (product_root / ".README.md.tmp").mkdir()
+            original_evaluate_gate = scaffold_module.evaluate_gate
+            scaffold_module.evaluate_gate = lambda _root, _gate: PassingGate()
+            try:
+                result = scaffold_module.scaffold_product(root, ["goals-and-requirements"])
+            finally:
+                scaffold_module.evaluate_gate = original_evaluate_gate
+
+            self.assertFalse(result.ok)
+            self.assertEqual([], result.created)
+            self.assertFalse((product_root / "03-goals-and-requirements.md").exists())
+            self.assertEqual(original_readme, readme.read_text(encoding="utf-8"))
+            self.assertEqual(original_meta, meta.read_text(encoding="utf-8"))
+            self.assertIn(
+                "scaffold index temp path is not a file: docs/product/.README.md.tmp",
+                result.errors,
+            )
+
     def test_scaffold_product_reports_index_directory(self) -> None:
         class PassingGate:
             ok = True

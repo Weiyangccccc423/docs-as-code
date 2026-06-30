@@ -356,12 +356,16 @@ def _preflight_scaffold_output_file(result: ScaffoldResult, path: Path) -> None:
         return
     if path.exists() and not path.is_file():
         _record_scaffold_read_error(result, "scaffold file", path, "is not a file")
+        return
+    if not path.exists():
+        _preflight_scaffold_temp_file(result, "scaffold file", path)
 
 
 def _preflight_scaffold_text_file(result: ScaffoldResult, label: str, path: Path) -> None:
     if not _preflight_scaffold_parent(result, label, path):
         return
     if not path.exists():
+        _preflight_scaffold_temp_file(result, label, path)
         return
     if not path.is_file():
         _record_scaffold_read_error(result, label, path, "is not a file")
@@ -370,9 +374,20 @@ def _preflight_scaffold_text_file(result: ScaffoldResult, label: str, path: Path
         path.read_text(encoding="utf-8")
     except UnicodeDecodeError:
         _record_scaffold_read_error(result, label, path, "must be UTF-8 Markdown")
+        return
     except OSError as error:
         reason = error.strerror or str(error)
         _record_scaffold_read_error(result, label, path, f"is unreadable: {reason}")
+        return
+    _preflight_scaffold_temp_file(result, label, path)
+
+
+def _preflight_scaffold_temp_file(result: ScaffoldResult, label: str, path: Path) -> None:
+    temp = _atomic_temp_path(path)
+    if not _preflight_scaffold_parent(result, f"{label} temp path", temp):
+        return
+    if temp.exists() and not temp.is_file():
+        _record_scaffold_read_error(result, f"{label} temp path", temp, "is not a file")
 
 
 def _preflight_scaffold_parent(result: ScaffoldResult, label: str, path: Path) -> bool:
@@ -392,13 +407,19 @@ def _preflight_scaffold_parent(result: ScaffoldResult, label: str, path: Path) -
 
 
 def _write_scaffold_file(path: Path, content: str, result: ScaffoldResult) -> bool:
+    temp = _atomic_temp_path(path)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(content, encoding="utf-8")
+        temp.write_text(content, encoding="utf-8")
+        temp.replace(path)
     except OSError as error:
         _record_scaffold_write_error(result, path, error)
         return False
     return True
+
+
+def _atomic_temp_path(path: Path) -> Path:
+    return path.with_name(f".{path.name}.tmp")
 
 
 def _record_scaffold_write_error(result: ScaffoldResult, path: Path, error: OSError) -> None:
@@ -549,12 +570,7 @@ def _ensure_index(root: Path, spec: ScaffoldSpec, result: ScaffoldResult) -> boo
     if "## Index" not in text:
         text = text.rstrip() + "\n\n## Index\n"
     text = text.rstrip() + f"\n\n- `{filename}` - {spec.index_description}\n"
-    try:
-        readme.write_text(text, encoding="utf-8")
-    except OSError as error:
-        _record_scaffold_write_error(result, readme, error)
-        return False
-    return True
+    return _write_scaffold_file(readme, text, result)
 
 
 def _ensure_product_meta_link(root: Path, spec: ScaffoldSpec, result: ScaffoldResult) -> bool:
@@ -576,12 +592,7 @@ def _ensure_product_meta_link(root: Path, spec: ScaffoldSpec, result: ScaffoldRe
     if "## Chapter Map" not in text:
         text = text.rstrip() + "\n\n## Chapter Map\n"
     text = text.rstrip() + f"\n\n- [{spec.title}]({rel_link})\n"
-    try:
-        meta.write_text(text, encoding="utf-8")
-    except OSError as error:
-        _record_scaffold_write_error(result, meta, error)
-        return False
-    return True
+    return _write_scaffold_file(meta, text, result)
 
 
 def _read_scaffold_text(result: ScaffoldResult, path: Path, label: str, default: str) -> str | None:
