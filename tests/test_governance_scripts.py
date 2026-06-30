@@ -2929,6 +2929,38 @@ class GovernanceScriptsTest(unittest.TestCase):
                 self.assertEqual("", result.stderr)
                 return result, json.loads(result.stdout)
 
+            child = Path(tmp) / "direct-bootstrap-target"
+            child_product = Path(tmp) / "direct-bootstrap-product.md"
+            child_product.write_text("# Direct Bootstrap Demo\n", encoding="utf-8")
+            bootstrap_check, bootstrap_check_payload = run_direct(
+                "bootstrap_tree.py",
+                "--target",
+                str(child),
+                "--product",
+                str(child_product),
+                "--check",
+                "--json",
+            )
+            self.assertEqual(0, bootstrap_check.returncode)
+            self.assertTrue(bootstrap_check_payload["ok"])
+            self.assertEqual(str(child.resolve()), bootstrap_check_payload["target"])
+            self.assertFalse(child.exists())
+
+            bootstrap_result, bootstrap_payload = run_direct(
+                "bootstrap_tree.py",
+                "--target",
+                str(child),
+                "--product",
+                str(child_product),
+                "--json",
+            )
+            self.assertEqual(0, bootstrap_result.returncode)
+            self.assertTrue(bootstrap_payload["ok"])
+            self.assertEqual(str(child.resolve()), bootstrap_payload["target"])
+            self.assertEqual("initialized", bootstrap_payload["state"]["phase"])
+            self.assertTrue((child / "scripts/bootstrap_tree.py").exists())
+            self.assertTrue((child / "docs/agent-workflow/workflow-pack/manifest.json").exists())
+
             env_result, env_payload = run_direct("check_env.py", "--target", ".", "--json")
             self.assertEqual(0, env_result.returncode)
             self.assertTrue(env_payload["ok"])
