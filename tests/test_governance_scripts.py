@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import scripts.bootstrap_tree as bootstrap_module
 import scripts.product_import as product_import_module
 import scripts.scaffold as scaffold_module
 from scripts.check_env import (
@@ -555,6 +556,31 @@ class GovernanceScriptsTest(unittest.TestCase):
 
             report = verify(root)
             self.assertEqual([], report.errors)
+
+    def test_copy_source_preserves_existing_archive_when_copy_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "input-product.md"
+            product.write_text("# Updated Product\n", encoding="utf-8")
+            source_dir = root / "docs/product/core/source"
+            existing_archive = source_dir / product.name
+            existing_archive.parent.mkdir(parents=True)
+            existing_archive.write_text("# Existing Archive\n", encoding="utf-8")
+            original_copy2 = bootstrap_module.shutil.copy2
+
+            def fail_after_partial_copy(_source: Path, target: Path) -> None:
+                target.write_text("# Partial Archive\n", encoding="utf-8")
+                raise OSError("simulated copy failure")
+
+            bootstrap_module.shutil.copy2 = fail_after_partial_copy
+            try:
+                with self.assertRaises(OSError):
+                    bootstrap_module._copy_source(product, source_dir, force=True)
+            finally:
+                bootstrap_module.shutil.copy2 = original_copy2
+
+            self.assertEqual("# Existing Archive\n", existing_archive.read_text(encoding="utf-8"))
+            self.assertFalse((source_dir / f".{product.name}.tmp").exists())
 
     def test_verify_reports_root_required_file_directory_without_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

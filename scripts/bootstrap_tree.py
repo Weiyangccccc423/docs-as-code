@@ -590,7 +590,7 @@ def _copy_source(product_doc: Path, source_dir: Path, force: bool = False) -> Pa
     target = source_dir / product_doc.name
     if target.exists() and not force:
         return target
-    shutil.copy2(product_doc, target)
+    _copy_file_atomic(product_doc, target)
     return target
 
 
