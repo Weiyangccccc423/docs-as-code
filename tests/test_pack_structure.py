@@ -53,6 +53,14 @@ class PackStructureTest(unittest.TestCase):
             self.assertRegex(frontmatter, rf"(?m)^name:\s*{re.escape(skill)}$", skill)
             self.assertRegex(frontmatter, r"(?m)^description:\s*Use when .+", skill)
 
+    def test_verifying_skill_prioritizes_structural_markdown_repairs(self) -> None:
+        text = (ROOT / "skills/verifying-governance-docs/SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("## Repair Order", text)
+        self.assertIn("Fix document-integrity findings first", text)
+        self.assertIn("markdown_not_file", text)
+        self.assertIn("markdown_invalid_encoding", text)
+        self.assertIn("rerun verification before interpreting downstream traceability findings", text)
+
     def test_verifier_workflow_pack_required_paths_match_bootstrap_snapshot(self) -> None:
         copied = [path.as_posix() for path in _iter_workflow_pack_files()]
         self.assertEqual(copied, list(WORKFLOW_PACK_REQUIRED_PATHS))

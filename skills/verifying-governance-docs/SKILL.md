@@ -32,6 +32,13 @@ bin/governance runtime refresh <target> --json
 Use `verify --json` `findings[].code` and `findings[].path` for deterministic repair routing. Use `errors` and `warnings` only for human-facing summaries.
 Use `gate --json` `requirements[].code` for phase-transition repair routing; `verification.findings[]` contains the embedded structural verification result.
 Use `advance --json` when the phase should be recorded in `.governance/state.json`.
+
+## Repair Order
+
+Fix document-integrity findings first: `required_file_not_file`, `required_directory_not_directory`, `docs_readme_not_file`, `markdown_not_file`, and `markdown_invalid_encoding`. When these findings affect a referenced source, acceptance chapter, task board, unresolved registry, README, or verification evidence file, repair that file and rerun verification before interpreting downstream traceability findings for the same area.
+
+Do not invent missing acceptance IDs, unresolved IDs, links, or evidence just to satisfy secondary findings while their referenced Markdown source is not readable. Restore the expected file shape and UTF-8 Markdown first, then use the next verification report as the source of repair work.
+
 Treat gate requirement `product_import_ready` as a product-archiving blocker: finish product conversion, run `bin/governance product mark-ready <target> --reviewed --method manual-reviewed-markdown --json`, or repair `docs/product/core/source/source-manifest.json` by the embedded verification findings.
 Treat gate requirement `product_acceptance_chapter_present` as a product-structuring blocker: create a sourced `NN-*acceptance*.md` product chapter or register the missing acceptance criteria as unresolved.
 Treat gate requirement `acceptance_matrix_present` as an implementation-readiness blocker: create and index `docs/tests/02-acceptance-matrix.md` before marking tasks Ready for implementation.
