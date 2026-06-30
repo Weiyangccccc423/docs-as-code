@@ -2751,6 +2751,60 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertEqual(0, cli_result.returncode, cli_result.stderr)
             self.assertIn("phase: initialized", cli_result.stdout)
 
+    def test_bootstrap_installed_direct_runtime_scripts_emit_json(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "target"
+            product = Path(tmp) / "product.docx"
+            product.write_bytes(b"fake docx bytes")
+            bootstrap(root, product)
+            (root / "docs/product/core/PRD.md").write_text("# Converted Product\n", encoding="utf-8")
+
+            def run_direct(script: str, *args: str) -> tuple[subprocess.CompletedProcess[str], dict[str, object]]:
+                result = subprocess.run(
+                    [sys.executable, str(root / "scripts" / script), *args],
+                    cwd=root,
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                self.assertEqual("", result.stderr)
+                return result, json.loads(result.stdout)
+
+            mark_ready, mark_ready_payload = run_direct("product_import.py", "mark-ready", ".", "--reviewed", "--json")
+            self.assertEqual(0, mark_ready.returncode)
+            self.assertTrue(mark_ready_payload["ok"])
+            self.assertEqual(str(root.resolve()), mark_ready_payload["target"])
+            self.assertTrue(mark_ready_payload["conversion_blocker_resolved"])
+
+            verify_result, verify_payload = run_direct("verify_governance.py", ".", "--json")
+            self.assertEqual(0, verify_result.returncode)
+            self.assertTrue(verify_payload["ok"])
+            self.assertEqual(".", verify_payload["target"])
+
+            gate_result, gate_payload = run_direct("gates.py", "product-structuring", ".", "--json")
+            self.assertEqual(0, gate_result.returncode)
+            self.assertTrue(gate_payload["ok"])
+            self.assertEqual("product-structuring", gate_payload["gate"])
+
+            advance_result, advance_payload = run_direct("phases.py", "product-structuring", ".", "--json")
+            self.assertEqual(0, advance_result.returncode)
+            self.assertTrue(advance_payload["ok"])
+            self.assertTrue(advance_payload["advanced"])
+            self.assertEqual("product-structuring", advance_payload["state"]["phase"])
+
+            scaffold_result, scaffold_payload = run_direct(
+                "scaffold.py",
+                "product",
+                ".",
+                "--chapter",
+                "goals-and-requirements",
+                "--json",
+            )
+            self.assertEqual(0, scaffold_result.returncode)
+            self.assertTrue(scaffold_payload["ok"])
+            self.assertIn("docs/product/03-goals-and-requirements.md", scaffold_payload["created"])
+            self.assertTrue((root / "docs/product/03-goals-and-requirements.md").exists())
+
     def test_product_import_main_json_marks_ready_after_review(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
