@@ -1180,6 +1180,61 @@ class GovernanceCliTest(unittest.TestCase):
             )
             self.assertEqual(0, verify_again.returncode, verify_again.stderr)
 
+    def test_runtime_refresh_check_json_reports_plan_without_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            target = base / "target"
+            product = base / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product)],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+
+            state_path = target / ".governance/state.json"
+            state_before = state_path.read_text(encoding="utf-8")
+            runtime = target / "scripts/scaffold.py"
+            runtime_before = runtime.read_text(encoding="utf-8")
+            runtime.write_text(runtime_before + "\n# tampered\n", encoding="utf-8")
+            workflow = target / "docs/agent-workflow/workflow-pack/workflows/00-overview.md"
+            workflow_before = workflow.read_text(encoding="utf-8")
+            workflow.write_text(workflow_before + "\nTampered.\n", encoding="utf-8")
+            stale_workflow = target / "docs/agent-workflow/workflow-pack/workflows/99-stale.md"
+            stale_workflow.write_text("# Stale Workflow\n", encoding="utf-8")
+
+            result = subprocess.run(
+                [sys.executable, str(CLI), "runtime", "refresh", str(target), "--check", "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertTrue(payload["check"])
+            self.assertEqual(str(target.resolve()), payload["target"])
+            self.assertEqual([], payload["refreshed"])
+            self.assertEqual([], payload["removed"])
+            self.assertIn("bin/governance", payload["would_refresh"])
+            self.assertIn("scripts/scaffold.py", payload["would_refresh"])
+            self.assertIn(
+                "docs/agent-workflow/workflow-pack/workflows/00-overview.md",
+                payload["would_refresh"],
+            )
+            self.assertIn(
+                "docs/agent-workflow/workflow-pack/workflows/99-stale.md",
+                payload["would_remove"],
+            )
+            self.assertEqual(state_before, state_path.read_text(encoding="utf-8"))
+            self.assertIn("# tampered", runtime.read_text(encoding="utf-8"))
+            self.assertIn("Tampered.", workflow.read_text(encoding="utf-8"))
+            self.assertTrue(stale_workflow.exists())
+
     def test_runtime_refresh_rejects_uninitialized_target_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "target"

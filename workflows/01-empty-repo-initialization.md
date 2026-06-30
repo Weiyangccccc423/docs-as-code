@@ -86,6 +86,7 @@ make verify-governance
 If runtime or workflow-pack snapshot verification fails, run the refresh command from a trusted source workflow-pack checkout:
 
 ```bash
+bin/governance runtime refresh <target> --check --json
 bin/governance runtime refresh <target> --json
 ```
 

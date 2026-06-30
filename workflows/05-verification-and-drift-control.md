@@ -48,7 +48,14 @@ Load:
    make verify-governance
    ```
 
-4. Before implementation starts, run the implementation gate:
+4. If verification reports target-local runtime or workflow-pack snapshot drift, inspect the refresh plan from a trusted source workflow-pack checkout before writing repairs:
+
+   ```bash
+   bin/governance runtime refresh <target> --check --json
+   bin/governance runtime refresh <target> --json
+   ```
+
+5. Before implementation starts, run the implementation gate:
 
    ```bash
    bin/governance advance implementation <target> --json
@@ -56,7 +63,7 @@ Load:
 
    The implementation gate requires the standard handoff files from Phase 04, including the API endpoint index and at least one endpoint contract; arbitrary Markdown in a docs domain is not enough.
 
-5. Before implementation starts, confirm:
+6. Before implementation starts, confirm:
    - no unregistered docs directories
    - no stale reserved markers
    - no `governance:scaffold-placeholder` markers

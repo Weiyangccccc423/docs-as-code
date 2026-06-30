@@ -225,24 +225,32 @@ def _install_workflow_pack_snapshot(root: Path, force: bool = False) -> str:
 
 
 def _prune_workflow_pack_snapshot(root: Path, keep: list[Path]) -> list[str]:
+    removed: list[str] = []
+    for rel in _stale_workflow_pack_snapshot_files(root, keep):
+        (root / rel).unlink()
+        removed.append(rel.as_posix())
     snapshot_root = root / WORKFLOW_PACK_SNAPSHOT_ROOT
-    if not snapshot_root.exists():
+    if snapshot_root.exists() and snapshot_root.is_dir():
+        for path in sorted(snapshot_root.rglob("*"), reverse=True):
+            if path.is_dir() and path != snapshot_root and not any(path.iterdir()):
+                path.rmdir()
+    return sorted(removed)
+
+
+def _stale_workflow_pack_snapshot_files(root: Path, keep: list[Path]) -> list[Path]:
+    snapshot_root = root / WORKFLOW_PACK_SNAPSHOT_ROOT
+    if not snapshot_root.exists() or not snapshot_root.is_dir():
         return []
     keep_paths = {path.as_posix() for path in keep}
-    removed: list[str] = []
-    for path in sorted(snapshot_root.rglob("*"), reverse=True):
-        if path.is_file():
-            if _is_ignored_pack_file(path):
-                continue
-            rel = path.relative_to(snapshot_root).as_posix()
-            if rel in keep_paths:
-                continue
-            path.unlink()
-            removed.append(f"{WORKFLOW_PACK_SNAPSHOT_ROOT}/{rel}")
+    stale: list[Path] = []
+    for path in sorted(snapshot_root.rglob("*")):
+        if not path.is_file() or _is_ignored_pack_file(path):
             continue
-        if path.is_dir() and path != snapshot_root and not any(path.iterdir()):
-            path.rmdir()
-    return sorted(removed)
+        rel = path.relative_to(snapshot_root).as_posix()
+        if rel in keep_paths:
+            continue
+        stale.append(Path(WORKFLOW_PACK_SNAPSHOT_ROOT) / rel)
+    return sorted(stale, key=lambda path: path.as_posix())
 
 
 def _workflow_pack_manifest(snapshot_root: Path, files: list[Path]) -> dict[str, object]:
@@ -310,6 +318,9 @@ class RuntimeRefreshResult:
     ok: bool
     refreshed: list[str] = field(default_factory=list)
     removed: list[str] = field(default_factory=list)
+    check: bool = False
+    would_refresh: list[str] = field(default_factory=list)
+    would_remove: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     state: dict[str, object] = field(default_factory=dict)
 
@@ -319,6 +330,9 @@ class RuntimeRefreshResult:
             "ok": self.ok,
             "refreshed": self.refreshed,
             "removed": self.removed,
+            "check": self.check,
+            "would_refresh": self.would_refresh,
+            "would_remove": self.would_remove,
             "errors": self.errors,
             "state": self.state,
         }
@@ -712,31 +726,48 @@ def _product_archive_preflight_conflicts(product_doc: Path | None) -> list[InitC
     return []
 
 
-def refresh_runtime(root: Path) -> RuntimeRefreshResult:
-    root = root.resolve()
+def _runtime_refresh_preflight(
+    root: Path,
+    check: bool = False,
+) -> tuple[RuntimeRefreshResult | None, list[Path], dict[str, object]]:
     if not (root / STATE_REL).exists():
-        return RuntimeRefreshResult(
-            target=str(root),
-            ok=False,
-            errors=[f"target is not an initialized governance repository: {STATE_REL.as_posix()} is missing"],
+        return (
+            RuntimeRefreshResult(
+                target=str(root),
+                ok=False,
+                check=check,
+                errors=[f"target is not an initialized governance repository: {STATE_REL.as_posix()} is missing"],
+            ),
+            [],
+            {},
         )
     pack_root = Path(__file__).resolve().parents[1].resolve()
     if pack_root == root:
-        return RuntimeRefreshResult(
-            target=str(root),
-            ok=False,
-            errors=[
-                "runtime refresh must be run from a trusted source workflow-pack checkout, "
-                "not the target-local runtime"
-            ],
+        return (
+            RuntimeRefreshResult(
+                target=str(root),
+                ok=False,
+                check=check,
+                errors=[
+                    "runtime refresh must be run from a trusted source workflow-pack checkout, "
+                    "not the target-local runtime"
+                ],
+            ),
+            [],
+            {},
         )
     try:
-        load_state(root)
+        state = load_state(root)
     except StateFileError as error:
-        return RuntimeRefreshResult(
-            target=str(root),
-            ok=False,
-            errors=[f"target governance state is invalid: {error}"],
+        return (
+            RuntimeRefreshResult(
+                target=str(root),
+                ok=False,
+                check=check,
+                errors=[f"target governance state is invalid: {error}"],
+            ),
+            [],
+            {},
         )
 
     workflow_pack_files = _iter_workflow_pack_files()
@@ -745,11 +776,41 @@ def refresh_runtime(root: Path) -> RuntimeRefreshResult:
         *_runtime_refresh_preflight_errors(root, workflow_pack_files),
     ]
     if preflight_errors:
-        return RuntimeRefreshResult(
-            target=str(root),
-            ok=False,
-            errors=[f"runtime refresh preflight failed: {error}" for error in preflight_errors],
+        return (
+            RuntimeRefreshResult(
+                target=str(root),
+                ok=False,
+                check=check,
+                errors=[f"runtime refresh preflight failed: {error}" for error in preflight_errors],
+            ),
+            [],
+            {},
         )
+
+    return None, workflow_pack_files, state
+
+
+def check_runtime_refresh(root: Path) -> RuntimeRefreshResult:
+    root = root.resolve()
+    error_result, workflow_pack_files, state = _runtime_refresh_preflight(root, check=True)
+    if error_result is not None:
+        return error_result
+
+    return RuntimeRefreshResult(
+        target=str(root),
+        ok=True,
+        check=True,
+        would_refresh=[path.as_posix() for path in _runtime_refresh_output_paths(workflow_pack_files)],
+        would_remove=[path.as_posix() for path in _stale_workflow_pack_snapshot_files(root, workflow_pack_files)],
+        state=state,
+    )
+
+
+def refresh_runtime(root: Path) -> RuntimeRefreshResult:
+    root = root.resolve()
+    error_result, workflow_pack_files, _state = _runtime_refresh_preflight(root)
+    if error_result is not None:
+        return error_result
 
     output_paths = _runtime_refresh_output_paths(workflow_pack_files)
     snapshots: dict[str, _FileSnapshot] = {}

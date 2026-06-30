@@ -38,10 +38,13 @@ bin/governance env --repair --target .
 When target-local runtime or workflow-pack integrity checks fail, run the refresh command from a trusted copy of this source workflow pack:
 
 ```bash
+bin/governance runtime refresh <target> --check --json
 bin/governance runtime refresh <target> --json
 ```
 
 The refresh command overwrites only generated `bin/`, `scripts/`, `docs/agent-workflow/runtime-manifest.json`, and `docs/agent-workflow/workflow-pack/` snapshot files. It does not rewrite product, design, planning, or implementation documents.
+
+Use `runtime refresh --check --json` before repair when an agent needs a no-write preflight. It reports `would_refresh` and `would_remove` paths while leaving target files and `.governance/state.json` unchanged.
 
 Append `--json` when an agent needs stable output for branching or repair planning. JSON payloads must include an `ok` field whose value matches the command's success semantics: missing required tools always make `ok: false`, and missing recommended tools make `ok: false` only under `--strict`. When supported packages can repair the environment, JSON includes `install_commands` as argv arrays and `install_command` as the equivalent human-readable command string.
 

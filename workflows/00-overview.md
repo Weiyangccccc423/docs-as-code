@@ -27,6 +27,7 @@ bin/governance env --repair --target .
 From a trusted source workflow-pack checkout, refresh generated target runtime and workflow-pack snapshot files without rewriting product or design documents:
 
 ```bash
+bin/governance runtime refresh <target> --check --json
 bin/governance runtime refresh <target> --json
 ```
 

@@ -4,7 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
-from bootstrap_tree import InitPreflightError, bootstrap, preflight_init, refresh_runtime
+from bootstrap_tree import InitPreflightError, bootstrap, check_runtime_refresh, preflight_init, refresh_runtime
 from check_env import (
     ToolStatus,
     apply_install_plan,
@@ -370,16 +370,23 @@ def _cmd_env(args: argparse.Namespace) -> int:
 
 def _cmd_runtime_refresh(args: argparse.Namespace) -> int:
     target = Path(args.target)
-    result = refresh_runtime(target)
+    result = check_runtime_refresh(target) if args.check else refresh_runtime(target)
     payload = result.to_dict()
     if args.json:
         _print_json(payload)
         return 0 if result.ok else 1
     if not result.ok:
-        print("Runtime refresh failed:")
+        print("Runtime refresh preflight failed:" if args.check else "Runtime refresh failed:")
         for error in result.errors:
             print(f"- ERROR: {error}")
         return 1
+    if args.check:
+        print("Runtime refresh preflight passed.")
+        for path in result.would_refresh:
+            print(f"- WOULD REFRESH: {path}")
+        for path in result.would_remove:
+            print(f"- WOULD REMOVE: {path}")
+        return 0
     print(f"Runtime refreshed: {target}")
     for path in result.refreshed:
         print(f"- REFRESHED: {path}")
@@ -530,6 +537,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Refresh generated bin/, scripts/, and workflow-pack snapshot files from this workflow pack.",
     )
     runtime_refresh.add_argument("target", nargs="?", default=".")
+    runtime_refresh.add_argument("--check", action="store_true", help="Run refresh preflight without writing files.")
     runtime_refresh.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     runtime_refresh.set_defaults(func=_cmd_runtime_refresh)
 

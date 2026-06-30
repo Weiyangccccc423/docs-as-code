@@ -53,6 +53,7 @@ Create the minimum structure needed for reliable docs-as-code work.
 7. If generated runtime or workflow-pack snapshot integrity fails, repair it from a trusted source workflow-pack checkout:
 
    ```bash
+   bin/governance runtime refresh <target> --check --json
    bin/governance runtime refresh <target> --json
    ```
 
