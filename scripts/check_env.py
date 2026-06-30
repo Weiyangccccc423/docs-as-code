@@ -196,7 +196,15 @@ def apply_install_plan(
         return []
     results: list[dict[str, object]] = []
     for command in commands:
-        result = subprocess.run(command, check=False, text=True, capture_output=True, timeout=300)
+        try:
+            result = subprocess.run(command, check=False, text=True, capture_output=True, timeout=300)
+        except subprocess.TimeoutExpired as error:
+            results.append(_failed_install_result(command, 124, f"timed out after {error.timeout} seconds"))
+            break
+        except OSError as error:
+            reason = error.strerror or str(error)
+            results.append(_failed_install_result(command, 127, reason))
+            break
         results.append(
             {
                 "command": " ".join(command),
@@ -208,6 +216,15 @@ def apply_install_plan(
         if result.returncode != 0:
             break
     return results
+
+
+def _failed_install_result(command: list[str], returncode: int, stderr: str) -> dict[str, object]:
+    return {
+        "command": " ".join(command),
+        "returncode": returncode,
+        "stdout": "",
+        "stderr": stderr[-2000:],
+    }
 
 
 def repair_target_error(target: Path) -> str | None:

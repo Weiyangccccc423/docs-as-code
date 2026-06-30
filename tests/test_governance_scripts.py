@@ -7716,6 +7716,60 @@ class GovernanceScriptsTest(unittest.TestCase):
         self.assertTrue(environment_ok(required_present, strict=False))
         self.assertFalse(environment_ok(required_present, strict=True))
 
+    def test_apply_install_plan_reports_command_start_failure_without_traceback(self) -> None:
+        plan = [check_env_module.InstallPlanItem("git", "git", "apt")]
+        apt = PackageManager(name="apt", command="/usr/bin/apt-get", supported=True)
+        system = check_env_module.SystemStatus(
+            platform="linux",
+            os_id="ubuntu",
+            os_like="debian",
+            pretty_name="Ubuntu",
+            is_root=True,
+        )
+        original_run = check_env_module.subprocess.run
+
+        def raise_os_error(*_args: object, **_kwargs: object) -> object:
+            raise OSError(2, "No such file or directory")
+
+        check_env_module.subprocess.run = raise_os_error
+        try:
+            results = check_env_module.apply_install_plan(plan, apt, system)
+        finally:
+            check_env_module.subprocess.run = original_run
+
+        self.assertEqual(1, len(results))
+        self.assertEqual("/usr/bin/apt-get update", results[0]["command"])
+        self.assertEqual(127, results[0]["returncode"])
+        self.assertEqual("", results[0]["stdout"])
+        self.assertIn("No such file or directory", results[0]["stderr"])
+
+    def test_apply_install_plan_reports_timeout_without_traceback(self) -> None:
+        plan = [check_env_module.InstallPlanItem("git", "git", "apt")]
+        apt = PackageManager(name="apt", command="/usr/bin/apt-get", supported=True)
+        system = check_env_module.SystemStatus(
+            platform="linux",
+            os_id="ubuntu",
+            os_like="debian",
+            pretty_name="Ubuntu",
+            is_root=True,
+        )
+        original_run = check_env_module.subprocess.run
+
+        def raise_timeout(command: list[str], **_kwargs: object) -> object:
+            raise subprocess.TimeoutExpired(command, timeout=300)
+
+        check_env_module.subprocess.run = raise_timeout
+        try:
+            results = check_env_module.apply_install_plan(plan, apt, system)
+        finally:
+            check_env_module.subprocess.run = original_run
+
+        self.assertEqual(1, len(results))
+        self.assertEqual("/usr/bin/apt-get update", results[0]["command"])
+        self.assertEqual(124, results[0]["returncode"])
+        self.assertEqual("", results[0]["stdout"])
+        self.assertIn("timed out after 300 seconds", results[0]["stderr"])
+
     def test_repair_target_error_rejects_file_targets(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
