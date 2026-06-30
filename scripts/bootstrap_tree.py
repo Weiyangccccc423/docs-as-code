@@ -407,6 +407,10 @@ def _runtime_refresh_preflight_errors(root: Path, workflow_pack_files: list[Path
         if target.exists() and not target.is_file():
             append(target, "runtime refresh output path is not a file")
 
+    state_temp = root / STATE_REL.with_name(f".{STATE_REL.name}.tmp")
+    if state_temp.exists() and not state_temp.is_file():
+        append(state_temp, "state temp path is not a file")
+
     return errors
 
 
