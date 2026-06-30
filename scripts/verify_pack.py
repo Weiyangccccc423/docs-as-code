@@ -19,6 +19,13 @@ WORKFLOW_PACK_RESOURCE_PATHS = (
     "references",
     "templates",
 )
+PACK_LINK_CHECK_RESOURCE_PATHS = (
+    "README.md",
+    "AGENTS.md",
+    "workflows",
+    "skills",
+    "references",
+)
 SOURCE_PACK_REQUIRED_PATHS = tuple(
     dict.fromkeys(
         (
@@ -32,6 +39,8 @@ SOURCE_PACK_REQUIRED_PATHS = tuple(
     )
 )
 IGNORED_PACK_FILE_NAMES = {".DS_Store", "manifest.json"}
+MARKDOWN_LINK_RE = re.compile(r"(?<!!)\[[^\]]*]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
+MARKDOWN_REFERENCE_DEFINITION_RE = re.compile(r"^\s{0,3}\[[^\]]+]:\s*(\S+)", re.MULTILINE)
 PHASE_WORKFLOW_PATHS = (
     "workflows/01-empty-repo-initialization.md",
     "workflows/02-product-document-archiving.md",
@@ -117,6 +126,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_required_files(root, findings)
     _check_phase_workflow_sections(root, findings)
     _check_skill_frontmatter(root, findings)
+    _check_local_markdown_links(root, findings)
     _check_workflow_pack_file_list(root, findings)
     return PackReport(str(root), findings)
 
@@ -176,7 +186,46 @@ def _check_phase_workflow_sections(root: Path, findings: list[PackFinding]) -> N
                         f"workflow phase missing section '{section}': {rel}",
                         rel,
                     )
+            )
+
+
+def _check_local_markdown_links(root: Path, findings: list[PackFinding]) -> None:
+    for path in _iter_pack_link_check_files(root):
+        rel = path.relative_to(root).as_posix()
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            findings.append(
+                PackFinding(
+                    "pack_markdown_invalid_encoding",
+                    f"pack Markdown file must be UTF-8: {rel}",
+                    rel,
                 )
+            )
+            continue
+        except OSError as error:
+            findings.append(
+                PackFinding(
+                    "pack_markdown_unreadable",
+                    f"pack Markdown file is unreadable: {rel}: {_os_error_reason(error)}",
+                    rel,
+                )
+            )
+            continue
+        for target in _extract_local_markdown_link_targets(text):
+            reference = _resolve_local_markdown_link(root, path, target)
+            if reference is None:
+                continue
+            reference_rel, exists = reference
+            if exists:
+                continue
+            findings.append(
+                PackFinding(
+                    "pack_local_markdown_link_missing",
+                    f"{rel} links to missing local Markdown target: {reference_rel}",
+                    rel,
+                )
+            )
 
 
 def _check_skill_frontmatter(root: Path, findings: list[PackFinding]) -> None:
@@ -273,6 +322,66 @@ def _check_single_skill_frontmatter(
 
 def _normalize_heading(value: str) -> str:
     return re.sub(r"\s+", " ", value.strip().lower())
+
+
+def _iter_pack_link_check_files(root: Path) -> list[Path]:
+    files: list[Path] = []
+    for rel in PACK_LINK_CHECK_RESOURCE_PATHS:
+        source = root / rel
+        if not source.exists():
+            continue
+        if source.is_file():
+            if source.suffix == ".md" and not _is_ignored_pack_file(source):
+                files.append(source)
+            continue
+        for path in sorted(source.rglob("*.md")):
+            if path.is_file() and not _is_ignored_pack_file(path):
+                files.append(path)
+    return sorted(files, key=lambda path: path.relative_to(root).as_posix())
+
+
+def _extract_local_markdown_link_targets(text: str) -> list[str]:
+    text = _strip_markdown_code(text)
+    targets = [match.group(1) for match in MARKDOWN_LINK_RE.finditer(text)]
+    targets.extend(match.group(1) for match in MARKDOWN_REFERENCE_DEFINITION_RE.finditer(text))
+    return targets
+
+
+def _resolve_local_markdown_link(root: Path, source_path: Path, target: str) -> tuple[str, bool] | None:
+    raw = target.strip()
+    target = raw.strip("`").strip("<>").strip().rstrip(".,;")
+    if not target or target.startswith("#") or _is_external_reference_target(target):
+        return None
+    target = target.replace("\\", "/").split("#", 1)[0].split("?", 1)[0]
+    if target.startswith("/"):
+        target = target.lstrip("/")
+        base = root
+    else:
+        base = source_path.parent
+    if not target.endswith(".md"):
+        return None
+    candidate = (base / Path(target)).resolve()
+    try:
+        rel = candidate.relative_to(root.resolve()).as_posix()
+    except ValueError:
+        return (target, False)
+    return (rel, candidate.is_file())
+
+
+def _is_external_reference_target(target: str) -> bool:
+    lowered = target.lower()
+    return (
+        "://" in lowered
+        or lowered.startswith("mailto:")
+        or lowered.startswith("tel:")
+        or lowered.startswith("urn:")
+    )
+
+
+def _strip_markdown_code(text: str) -> str:
+    text = re.sub(r"(?s)```.*?```", "", text)
+    text = re.sub(r"(?s)~~~.*?~~~", "", text)
+    return re.sub(r"`[^`\n]*`", "", text)
 
 
 def _check_workflow_pack_file_list(root: Path, findings: list[PackFinding]) -> None:

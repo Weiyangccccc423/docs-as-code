@@ -85,6 +85,33 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_missing_local_markdown_links(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            workflow = target / "workflows/00-overview.md"
+            workflow.write_text(
+                workflow.read_text(encoding="utf-8")
+                + "\nBroken source-pack link: [Missing](missing-reference.md)\n",
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_local_markdown_link_missing"
+                    and finding.path == "workflows/00-overview.md"
+                    and "workflows/missing-reference.md" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_makefile_verify_pack_runs_pack_verifier(self) -> None:
         text = (ROOT / "Makefile").read_text(encoding="utf-8")
         self.assertRegex(text, r"(?m)^\tpython3 scripts/verify_pack\.py$")
