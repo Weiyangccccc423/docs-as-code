@@ -504,8 +504,12 @@ def _product_archive_preflight_conflicts(product_doc: Path | None) -> list[InitC
     if product_doc is None or not product_doc.exists() or not product_doc.is_file():
         return []
     archive_rel = Path("docs/product/core/source") / product_doc.name
-    if archive_rel.as_posix() in set(generated_file_paths(None)):
+    generated_paths = {Path(path) for path in generated_file_paths(None)}
+    if archive_rel in generated_paths:
         return [InitConflict(archive_rel.as_posix(), "product archive path overlaps generated output")]
+    generated_temp_paths = {_atomic_temp_path(path) for path in generated_paths if path != STATE_REL}
+    if archive_rel in generated_temp_paths:
+        return [InitConflict(archive_rel.as_posix(), "product archive path overlaps generated file temp path")]
     return []
 
 

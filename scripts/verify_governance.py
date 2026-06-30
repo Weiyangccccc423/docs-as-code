@@ -78,6 +78,7 @@ WORKFLOW_PACK_REQUIRED_PATHS = (
 RUNTIME_MANIFEST_REL = Path("docs/agent-workflow/runtime-manifest.json")
 PRODUCT_SOURCE_ARCHIVE_ROOT = Path("docs/product/core/source")
 PRODUCT_SOURCE_MANIFEST_REL = Path("docs/product/core/source/source-manifest.json")
+PRODUCT_SOURCE_MANIFEST_TEMP_REL = Path("docs/product/core/source/.source-manifest.json.tmp")
 RUNTIME_REQUIRED_BIN_FILES = (
     "governance",
     "governance-init",
@@ -2370,7 +2371,7 @@ def _is_valid_product_source_archive_path(value: str) -> bool:
         path.relative_to(PRODUCT_SOURCE_ARCHIVE_ROOT)
     except ValueError:
         return False
-    return path not in {PRODUCT_SOURCE_ARCHIVE_ROOT, PRODUCT_SOURCE_MANIFEST_REL}
+    return path not in {PRODUCT_SOURCE_ARCHIVE_ROOT, PRODUCT_SOURCE_MANIFEST_REL, PRODUCT_SOURCE_MANIFEST_TEMP_REL}
 
 
 def _is_ignored_workflow_pack_file(path: Path) -> bool:

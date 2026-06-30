@@ -290,7 +290,7 @@ def _is_valid_product_source_archive_path(value: str) -> bool:
         path.relative_to(PRODUCT_SOURCE_ARCHIVE_ROOT)
     except ValueError:
         return False
-    return path not in {PRODUCT_SOURCE_ARCHIVE_ROOT, MANIFEST_REL}
+    return path not in {PRODUCT_SOURCE_ARCHIVE_ROOT, MANIFEST_REL, _atomic_temp_path(MANIFEST_REL)}
 
 
 def _is_valid_manifest_size(value: object) -> bool:
