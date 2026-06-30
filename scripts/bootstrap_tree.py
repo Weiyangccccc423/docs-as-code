@@ -321,6 +321,9 @@ def preflight_init(root: Path, product_doc: Path | None = None, force: bool = Fa
         if product_resolved is not None and target.resolve() == product_resolved:
             conflicts.append(InitConflict(rel, "product document path overlaps generated output"))
             continue
+        if target.exists() and not target.is_file():
+            conflicts.append(InitConflict(rel, "generated file path is not a file"))
+            continue
         if not force and target.exists():
             conflicts.append(InitConflict(rel, "generated file already exists"))
 

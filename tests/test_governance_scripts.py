@@ -17,6 +17,7 @@ from scripts.check_env import (
 )
 from scripts.bootstrap_tree import InitPreflightError
 from scripts.bootstrap_tree import bootstrap
+from scripts.bootstrap_tree import preflight_init
 from scripts.gates import evaluate_gate
 from scripts.state import StateFileError, load_state, merge_state
 from scripts.verify_governance import task_board_ready_tasks, verify
@@ -2006,6 +2007,21 @@ class GovernanceScriptsTest(unittest.TestCase):
             )
             self.assertEqual("# Existing\n", readme.read_text(encoding="utf-8"))
             self.assertFalse((root / "docs/README.md").exists())
+
+    def test_preflight_rejects_generated_directory_even_with_force(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            (root / "README.md").mkdir()
+
+            result = preflight_init(root, product, force=True)
+
+            self.assertFalse(result.ok)
+            self.assertIn(
+                {"path": "README.md", "reason": "generated file path is not a file"},
+                [conflict.to_dict() for conflict in result.conflicts],
+            )
 
     def test_bootstrap_installs_target_runtime(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
