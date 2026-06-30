@@ -7125,7 +7125,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertEqual(state_path, context.exception.path)
             self.assertEqual("not a file", context.exception.reason)
 
-    def test_scaffold_product_records_index_write_failure(self) -> None:
+    def test_scaffold_product_preflight_blocks_index_directory_without_partial_chapter(self) -> None:
         class PassingGate:
             ok = True
             requirements: list[object] = []
@@ -7147,7 +7147,8 @@ class GovernanceScriptsTest(unittest.TestCase):
                 scaffold_module.evaluate_gate = original_evaluate_gate
 
             self.assertFalse(result.ok)
-            self.assertIn("docs/product/03-goals-and-requirements.md", result.created)
+            self.assertEqual([], result.created)
+            self.assertFalse((product_root / "03-goals-and-requirements.md").exists())
             self.assertTrue(any("docs/product/README.md" in error for error in result.errors))
 
     def test_scaffold_product_reports_index_directory(self) -> None:
@@ -7172,7 +7173,8 @@ class GovernanceScriptsTest(unittest.TestCase):
                 scaffold_module.evaluate_gate = original_evaluate_gate
 
             self.assertFalse(result.ok)
-            self.assertIn("docs/product/03-goals-and-requirements.md", result.created)
+            self.assertEqual([], result.created)
+            self.assertFalse((product_root / "03-goals-and-requirements.md").exists())
             self.assertIn("scaffold index is not a file: docs/product/README.md", result.errors)
 
     def test_scaffold_product_reports_index_invalid_encoding(self) -> None:
@@ -7197,7 +7199,8 @@ class GovernanceScriptsTest(unittest.TestCase):
                 scaffold_module.evaluate_gate = original_evaluate_gate
 
             self.assertFalse(result.ok)
-            self.assertIn("docs/product/03-goals-and-requirements.md", result.created)
+            self.assertEqual([], result.created)
+            self.assertFalse((product_root / "03-goals-and-requirements.md").exists())
             self.assertIn("scaffold index must be UTF-8 Markdown: docs/product/README.md", result.errors)
 
     def test_scaffold_product_reports_product_meta_directory(self) -> None:
@@ -7224,7 +7227,8 @@ class GovernanceScriptsTest(unittest.TestCase):
                 scaffold_module.evaluate_gate = original_evaluate_gate
 
             self.assertFalse(result.ok)
-            self.assertIn("docs/product/03-goals-and-requirements.md", result.created)
+            self.assertEqual([], result.created)
+            self.assertFalse((product_root / "03-goals-and-requirements.md").exists())
             self.assertIn("scaffold product meta is not a file: docs/product/core/product-meta.md", result.errors)
 
     def test_scaffold_product_reports_product_meta_invalid_encoding(self) -> None:
@@ -7252,7 +7256,8 @@ class GovernanceScriptsTest(unittest.TestCase):
                 scaffold_module.evaluate_gate = original_evaluate_gate
 
             self.assertFalse(result.ok)
-            self.assertIn("docs/product/03-goals-and-requirements.md", result.created)
+            self.assertEqual([], result.created)
+            self.assertFalse((product_root / "03-goals-and-requirements.md").exists())
             self.assertIn(
                 "scaffold product meta must be UTF-8 Markdown: docs/product/core/product-meta.md",
                 result.errors,

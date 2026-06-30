@@ -295,11 +295,16 @@ def scaffold_product(root: Path, chapters: list[str] | tuple[str, ...]) -> Scaff
 
     result = ScaffoldResult(scaffold="product", target=str(root), ok=True, gate=gate.to_dict())
     seen: set[str] = set()
+    specs: list[ScaffoldSpec] = []
     for chapter in chapters:
         if chapter in seen:
             continue
         seen.add(chapter)
-        spec = PRODUCT_SCAFFOLD_BY_KEY[chapter]
+        specs.append(PRODUCT_SCAFFOLD_BY_KEY[chapter])
+    if not _preflight_product_scaffold(root, specs, result):
+        return result
+
+    for spec in specs:
         path = root / spec.path
         if path.exists():
             result.skipped.append(spec.path)
@@ -314,6 +319,58 @@ def scaffold_product(root: Path, chapters: list[str] | tuple[str, ...]) -> Scaff
             if product_meta not in result.indexed:
                 result.indexed.append(product_meta)
     return result
+
+
+def _preflight_product_scaffold(root: Path, specs: list[ScaffoldSpec], result: ScaffoldResult) -> bool:
+    support_paths: set[tuple[str, Path]] = set()
+    for spec in specs:
+        path = root / spec.path
+        _preflight_scaffold_output_file(result, path)
+        support_paths.add(("scaffold index", path.parent / "README.md"))
+        support_paths.add(("scaffold product meta", root / "docs/product/core/product-meta.md"))
+    for label, path in sorted(support_paths, key=lambda item: (item[0], item[1].as_posix())):
+        _preflight_scaffold_text_file(result, label, path)
+    return result.ok
+
+
+def _preflight_scaffold_output_file(result: ScaffoldResult, path: Path) -> None:
+    if not _preflight_scaffold_parent(result, "scaffold file", path):
+        return
+    if path.exists() and not path.is_file():
+        _record_scaffold_read_error(result, "scaffold file", path, "is not a file")
+
+
+def _preflight_scaffold_text_file(result: ScaffoldResult, label: str, path: Path) -> None:
+    if not _preflight_scaffold_parent(result, label, path):
+        return
+    if not path.exists():
+        return
+    if not path.is_file():
+        _record_scaffold_read_error(result, label, path, "is not a file")
+        return
+    try:
+        path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        _record_scaffold_read_error(result, label, path, "must be UTF-8 Markdown")
+    except OSError as error:
+        reason = error.strerror or str(error)
+        _record_scaffold_read_error(result, label, path, f"is unreadable: {reason}")
+
+
+def _preflight_scaffold_parent(result: ScaffoldResult, label: str, path: Path) -> bool:
+    root = Path(result.target).resolve()
+    try:
+        rel = path.resolve().relative_to(root)
+    except ValueError:
+        _record_scaffold_read_error(result, label, path.parent, "parent is outside target")
+        return False
+    current = root
+    for part in rel.parts[:-1]:
+        current = current / part
+        if current.exists() and not current.is_dir():
+            _record_scaffold_read_error(result, label, current, "parent is not a directory")
+            return False
+    return True
 
 
 def _write_scaffold_file(path: Path, content: str, result: ScaffoldResult) -> bool:
