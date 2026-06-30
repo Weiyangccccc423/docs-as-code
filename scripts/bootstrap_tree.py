@@ -375,6 +375,41 @@ def _generated_parent_conflict(root: Path, rel: Path) -> InitConflict | None:
     return None
 
 
+def _runtime_refresh_output_paths(workflow_pack_files: list[Path]) -> list[Path]:
+    paths = _runtime_file_paths()
+    paths.append(Path(RUNTIME_MANIFEST_REL))
+    paths.extend(Path(WORKFLOW_PACK_SNAPSHOT_ROOT) / path for path in workflow_pack_files)
+    paths.append(Path(WORKFLOW_PACK_SNAPSHOT_ROOT) / "manifest.json")
+    return sorted(dict.fromkeys(paths), key=lambda path: path.as_posix())
+
+
+def _runtime_refresh_preflight_errors(root: Path, workflow_pack_files: list[Path]) -> list[str]:
+    errors: list[str] = []
+    seen: set[tuple[str, str]] = set()
+
+    def append(path: Path, reason: str) -> None:
+        key = (str(path), reason)
+        if key in seen:
+            return
+        seen.add(key)
+        errors.append(f"{path}: {reason}")
+
+    if root.exists() and not root.is_dir():
+        append(root, "target path is not a directory")
+        return errors
+
+    for rel in _runtime_refresh_output_paths(workflow_pack_files):
+        parent_conflict = _generated_parent_conflict(root, rel)
+        if parent_conflict is not None:
+            append(root / parent_conflict.path, "parent path is not a directory")
+            continue
+        target = root / rel
+        if target.exists() and not target.is_file():
+            append(target, "runtime refresh output path is not a file")
+
+    return errors
+
+
 def _product_preflight_conflicts(product_doc: Path | None) -> list[InitConflict]:
     if product_doc is None:
         return []
@@ -423,6 +458,15 @@ def refresh_runtime(root: Path) -> RuntimeRefreshResult:
             errors=[f"target governance state is invalid: {error}"],
         )
 
+    workflow_pack_files = _iter_workflow_pack_files()
+    preflight_errors = _runtime_refresh_preflight_errors(root, workflow_pack_files)
+    if preflight_errors:
+        return RuntimeRefreshResult(
+            target=str(root),
+            ok=False,
+            errors=[f"runtime refresh preflight failed: {error}" for error in preflight_errors],
+        )
+
     try:
         refreshed: list[str] = []
         _install_runtime(root, force=True)
@@ -430,7 +474,6 @@ def refresh_runtime(root: Path) -> RuntimeRefreshResult:
         runtime_manifest = _write_runtime_manifest(root, force=True)
         refreshed.append(runtime_manifest)
 
-        workflow_pack_files = _iter_workflow_pack_files()
         workflow_pack_manifest = _install_workflow_pack_snapshot(root, force=True)
         removed = _prune_workflow_pack_snapshot(root, workflow_pack_files)
         refreshed.extend(f"{WORKFLOW_PACK_SNAPSHOT_ROOT}/{path.as_posix()}" for path in workflow_pack_files)
