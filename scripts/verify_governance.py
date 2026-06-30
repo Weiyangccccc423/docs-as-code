@@ -630,7 +630,10 @@ def _check_product_chapter_links(root: Path, report: VerificationReport) -> None
     prd_path = root / prd_rel
     for chapter in chapters:
         rel = chapter.relative_to(root).as_posix()
-        if not _markdown_file_references_path(root, chapter, prd_path):
+        text = _read_markdown_text(root, chapter, report)
+        if text is None:
+            continue
+        if not _markdown_text_references_path(root, chapter, text, prd_path):
             report.add_error(
                 "product_chapter_missing_prd_link",
                 f"{rel} must link back to {prd_rel}",
@@ -640,9 +643,12 @@ def _check_product_chapter_links(root: Path, report: VerificationReport) -> None
     meta = root / "docs/product/core/product-meta.md"
     if not meta.exists():
         return
+    meta_text = _read_markdown_text(root, meta, report)
+    if meta_text is None:
+        return
     for chapter in chapters:
         rel = chapter.relative_to(root).as_posix()
-        if not _markdown_file_references_path(root, meta, chapter):
+        if not _markdown_text_references_path(root, meta, meta_text, chapter):
             report.add_error(
                 "product_meta_missing_chapter_link",
                 f"docs/product/core/product-meta.md must link to product chapter: {rel}",
@@ -691,9 +697,8 @@ def _check_product_acceptance_chapter_ids(root: Path, chapters: list[Path], repo
         if "acceptance" not in chapter.stem.lower():
             continue
         rel = chapter.relative_to(root).as_posix()
-        try:
-            text = chapter.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
+        text = _read_markdown_text(root, chapter, report)
+        if text is None:
             continue
         if SCAFFOLD_PLACEHOLDER in text:
             continue
@@ -3080,6 +3085,10 @@ def _markdown_file_references_path(root: Path, source_path: Path, target_path: P
         text = source_path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return False
+    return _markdown_text_references_path(root, source_path, text, target_path)
+
+
+def _markdown_text_references_path(root: Path, source_path: Path, text: str, target_path: Path) -> bool:
     try:
         expected = target_path.resolve().relative_to(root.resolve()).as_posix()
     except ValueError:

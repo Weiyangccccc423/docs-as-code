@@ -725,12 +725,45 @@ class GovernanceScriptsTest(unittest.TestCase):
             report = verify(root)
 
             self.assertIn("invalid Markdown encoding: docs/product/01-goals.md must be UTF-8", report.errors)
+            self.assertNotIn("docs/product/01-goals.md must link back to docs/product/core/PRD.md", report.errors)
             self.assertIn(
                 {
                     "code": "markdown_invalid_encoding",
                     "severity": "error",
                     "path": "docs/product/01-goals.md",
                     "message": "invalid Markdown encoding: docs/product/01-goals.md must be UTF-8",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_product_meta_invalid_encoding_without_false_missing_chapter_link(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            chapter = root / "docs/product/01-goals.md"
+            chapter.write_text("# Goals\n\nSource: [PRD](core/PRD.md).\n", encoding="utf-8")
+            _append_index(root / "docs/product/README.md", "01-goals.md")
+            (root / "docs/product/core/product-meta.md").write_bytes(b"\xff")
+
+            report = verify(root)
+
+            self.assertIn(
+                "invalid Markdown encoding: docs/product/core/product-meta.md must be UTF-8",
+                report.errors,
+            )
+            self.assertNotIn(
+                "docs/product/core/product-meta.md must link to product chapter: docs/product/01-goals.md",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "markdown_invalid_encoding",
+                    "severity": "error",
+                    "path": "docs/product/core/product-meta.md",
+                    "message": "invalid Markdown encoding: docs/product/core/product-meta.md must be UTF-8",
                 },
                 [finding.to_dict() for finding in report.findings],
             )
