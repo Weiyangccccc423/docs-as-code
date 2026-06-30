@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 
 import scripts.bootstrap_tree as bootstrap_module
+import scripts.check_env as check_env_module
 import scripts.product_import as product_import_module
 import scripts.scaffold as scaffold_module
 from scripts.check_env import (
@@ -7450,6 +7451,30 @@ class GovernanceScriptsTest(unittest.TestCase):
                 str(context.exception),
             )
             self.assertEqual("# Existing Plan\n", repair_plan.read_text(encoding="utf-8"))
+
+    def test_write_repair_plan_cleans_temp_after_replace_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            repair_plan = target / ".governance/env-repair.md"
+            repair_plan.parent.mkdir(parents=True)
+            repair_plan.write_text("# Existing Plan\n", encoding="utf-8")
+            temp_path = repair_plan.with_name(".env-repair.md.tmp")
+            original_replace = check_env_module.Path.replace
+
+            def fail_replace(self: Path, destination: Path) -> Path:
+                if self == temp_path and destination == repair_plan:
+                    raise OSError("simulated replace failure")
+                return original_replace(self, destination)
+
+            check_env_module.Path.replace = fail_replace
+            try:
+                with self.assertRaises(OSError):
+                    write_repair_plan(target, [])
+            finally:
+                check_env_module.Path.replace = original_replace
+
+            self.assertEqual("# Existing Plan\n", repair_plan.read_text(encoding="utf-8"))
+            self.assertFalse(temp_path.exists())
 
     def test_merge_state_reports_unwritable_state_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
