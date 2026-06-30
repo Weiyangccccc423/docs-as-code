@@ -69,10 +69,28 @@ WORKFLOW_PACK_RESOURCE_PATHS = [
 
 
 def _safe_write(path: Path, content: str, force: bool = False) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists() and not force:
         return
-    path.write_text(content, encoding="utf-8")
+    _write_atomic_text(path, content)
+
+
+def _write_atomic_text(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp = _atomic_temp_path(path)
+    try:
+        temp.write_text(content, encoding="utf-8")
+        temp.replace(path)
+    except OSError:
+        if temp.exists() and temp.is_file():
+            try:
+                temp.unlink()
+            except OSError:
+                pass
+        raise
+
+
+def _atomic_temp_path(path: Path) -> Path:
+    return path.with_name(f".{path.name}.tmp")
 
 
 def _copy_runtime_file(source: Path, target: Path, force: bool = False) -> None:
@@ -332,6 +350,20 @@ def preflight_init(root: Path, product_doc: Path | None = None, force: bool = Fa
             continue
         if not force and target.exists():
             _append_init_conflict(conflicts, conflict_keys, InitConflict(rel, "generated file already exists"))
+            continue
+        if Path(rel) != STATE_REL:
+            temp_rel = _atomic_temp_path(Path(rel))
+            temp_parent_conflict = _generated_parent_conflict(root, temp_rel)
+            if temp_parent_conflict is not None:
+                _append_init_conflict(conflicts, conflict_keys, temp_parent_conflict)
+                continue
+            temp = root / temp_rel
+            if temp.exists() and not temp.is_file():
+                _append_init_conflict(
+                    conflicts,
+                    conflict_keys,
+                    InitConflict(temp_rel.as_posix(), "generated file temp path is not a file"),
+                )
 
     state_temp_rel = STATE_REL.with_name(f".{STATE_REL.name}.tmp")
     state_temp = root / state_temp_rel
@@ -548,10 +580,9 @@ def _sha256(path: Path) -> str:
 
 
 def _write_json(path: Path, payload: dict[str, object], force: bool = False) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists() and not force:
         return
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    _write_atomic_text(path, json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n")
 
 
 def _product_source_manifest(
@@ -805,7 +836,7 @@ def _append_conversion_unresolved_item(root: Path, manifest: dict[str, object]) 
         f"| U-001 | Product Archiving | {description} | "
         f"product structuring/design derivation | TBD | {utc_now().split('T', 1)[0]} |\n"
     )
-    path.write_text(text.rstrip() + "\n" + row, encoding="utf-8")
+    _write_atomic_text(path, text.rstrip() + "\n" + row)
 
 
 def _domain_title(name: str) -> str:

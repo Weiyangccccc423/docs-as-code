@@ -2040,6 +2040,30 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [conflict.to_dict() for conflict in result.conflicts],
             )
 
+    def test_preflight_rejects_generated_temp_path_without_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            temp_path = root / ".README.md.tmp"
+            temp_path.mkdir()
+
+            result = preflight_init(root, product, force=True)
+
+            self.assertFalse(result.ok)
+            self.assertIn(
+                {"path": ".README.md.tmp", "reason": "generated file temp path is not a file"},
+                [conflict.to_dict() for conflict in result.conflicts],
+            )
+            with self.assertRaises(InitPreflightError) as context:
+                bootstrap(root, product, force=True)
+            self.assertIn(
+                {"path": ".README.md.tmp", "reason": "generated file temp path is not a file"},
+                [conflict.to_dict() for conflict in context.exception.result.conflicts],
+            )
+            self.assertFalse((root / "README.md").exists())
+            self.assertFalse((root / "docs/README.md").exists())
+
     def test_preflight_rejects_file_target(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "target"

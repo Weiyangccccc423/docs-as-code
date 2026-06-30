@@ -828,6 +828,43 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertFalse((target / "README.md").exists())
             self.assertFalse((target / ".governance/state.json").exists())
 
+    def test_init_json_rejects_blocked_generated_temp_path_without_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            target = base / "target"
+            target.mkdir()
+            product = base / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+            (target / ".README.md.tmp").mkdir()
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "init",
+                    "--target",
+                    str(target),
+                    "--product",
+                    str(product),
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, result.returncode)
+            self.assertEqual("", result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertIn(
+                {"path": ".README.md.tmp", "reason": "generated file temp path is not a file"},
+                payload["conflicts"],
+            )
+            self.assertFalse((target / "README.md").exists())
+            self.assertFalse((target / "docs/README.md").exists())
+            self.assertFalse((target / ".governance/state.json").exists())
+
     def test_runtime_refresh_repairs_target_runtime_and_workflow_pack(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
