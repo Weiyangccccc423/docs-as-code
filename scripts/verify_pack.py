@@ -32,6 +32,21 @@ SOURCE_PACK_REQUIRED_PATHS = tuple(
     )
 )
 IGNORED_PACK_FILE_NAMES = {".DS_Store", "manifest.json"}
+PHASE_WORKFLOW_PATHS = (
+    "workflows/01-empty-repo-initialization.md",
+    "workflows/02-product-document-archiving.md",
+    "workflows/03-product-structuring.md",
+    "workflows/04-design-derivation.md",
+    "workflows/05-verification-and-drift-control.md",
+)
+PHASE_WORKFLOW_REQUIRED_SECTIONS = (
+    "Input",
+    "Skills",
+    "Procedure",
+    "Output",
+    "Verification",
+    "Stop Conditions",
+)
 
 
 @dataclass(frozen=True)
@@ -100,6 +115,7 @@ def verify_pack(root: Path) -> PackReport:
         return PackReport(str(root), findings)
 
     _check_required_files(root, findings)
+    _check_phase_workflow_sections(root, findings)
     _check_skill_frontmatter(root, findings)
     _check_workflow_pack_file_list(root, findings)
     return PackReport(str(root), findings)
@@ -124,6 +140,43 @@ def _check_required_files(root: Path, findings: list[PackFinding]) -> None:
                     rel,
                 )
             )
+
+
+def _check_phase_workflow_sections(root: Path, findings: list[PackFinding]) -> None:
+    for rel in PHASE_WORKFLOW_PATHS:
+        path = root / rel
+        if not path.exists() or not path.is_file():
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            findings.append(
+                PackFinding(
+                    "pack_workflow_invalid_encoding",
+                    f"workflow file must be UTF-8 Markdown: {rel}",
+                    rel,
+                )
+            )
+            continue
+        except OSError as error:
+            findings.append(
+                PackFinding(
+                    "pack_workflow_unreadable",
+                    f"workflow file is unreadable: {rel}: {_os_error_reason(error)}",
+                    rel,
+                )
+            )
+            continue
+        sections = {_normalize_heading(match) for match in re.findall(r"(?m)^##\s+(.+?)\s*$", text)}
+        for section in PHASE_WORKFLOW_REQUIRED_SECTIONS:
+            if _normalize_heading(section) not in sections:
+                findings.append(
+                    PackFinding(
+                        "pack_workflow_section_missing",
+                        f"workflow phase missing section '{section}': {rel}",
+                        rel,
+                    )
+                )
 
 
 def _check_skill_frontmatter(root: Path, findings: list[PackFinding]) -> None:
@@ -216,6 +269,10 @@ def _check_single_skill_frontmatter(
                 rel,
             )
         )
+
+
+def _normalize_heading(value: str) -> str:
+    return re.sub(r"\s+", " ", value.strip().lower())
 
 
 def _check_workflow_pack_file_list(root: Path, findings: list[PackFinding]) -> None:

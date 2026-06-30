@@ -51,7 +51,7 @@ Load:
 
 Use `none`, `-`, `n/a`, `non-blocking`, or `resolved` in `Blocking Scope` only when the item does not block downstream work. Any other value blocks governance verification.
 
-## Output Pattern
+## Output
 
 ```text
 docs/product/

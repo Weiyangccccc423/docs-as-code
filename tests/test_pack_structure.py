@@ -1,5 +1,6 @@
 import json
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -7,6 +8,7 @@ import unittest
 from pathlib import Path
 
 from scripts.bootstrap_tree import _iter_workflow_pack_files
+from scripts.verify_pack import verify_pack
 from scripts.verify_governance import WORKFLOW_PACK_REQUIRED_PATHS
 
 
@@ -52,6 +54,34 @@ class PackStructureTest(unittest.TestCase):
                     finding["code"] == "pack_required_file_missing"
                     and finding["path"] == "README.md"
                     for finding in payload["findings"]
+                )
+            )
+
+    def test_verify_pack_reports_missing_phase_workflow_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            workflow = target / "workflows/01-empty-repo-initialization.md"
+            text = workflow.read_text(encoding="utf-8")
+            self.assertIn("## Verification", text)
+            workflow.write_text(
+                re.sub(r"\n## Verification\n.*?(?=\n## Output\n)", "\n", text, flags=re.S),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_workflow_section_missing"
+                    and finding.path == "workflows/01-empty-repo-initialization.md"
+                    and "Verification" in finding.message
+                    for finding in report.findings
                 )
             )
 

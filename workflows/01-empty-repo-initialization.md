@@ -77,6 +77,17 @@ Load:
    bin/governance status <target>
    ```
 
+## Verification
+
+Initialization is complete only when the generated target passes:
+
+```bash
+bin/governance verify <target>
+bin/governance status <target>
+```
+
+Use `bin/governance verify <target> --check --json` first when automation needs findings without updating `.governance/state.json`.
+
 ## Output
 
 A repository skeleton with governance entry points, product core files, unresolved item registry, glossary, and domain-level docs entrances.
