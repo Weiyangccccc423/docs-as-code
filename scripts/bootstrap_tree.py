@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import shutil
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -479,6 +480,47 @@ def _runtime_refresh_preflight_errors(root: Path, workflow_pack_files: list[Path
     return errors
 
 
+def _runtime_refresh_source_errors(pack_root: Path, workflow_pack_files: list[Path]) -> list[str]:
+    errors: list[str] = []
+    seen: set[tuple[str, str]] = set()
+
+    def append(path: Path, reason: str) -> None:
+        key = (path.as_posix(), reason)
+        if key in seen:
+            return
+        seen.add(key)
+        errors.append(f"{path.as_posix()}: {reason}")
+
+    for rel in _runtime_file_paths():
+        _check_runtime_refresh_source_file(pack_root / rel, rel, append)
+
+    source_root = _source_workflow_pack_root()
+    for rel in WORKFLOW_PACK_RESOURCE_PATHS:
+        source = source_root / rel
+        if not source.exists():
+            append(Path(rel), "workflow-pack source path is missing")
+        elif not source.is_file() and not source.is_dir():
+            append(Path(rel), "workflow-pack source path is neither a file nor a directory")
+    for rel in workflow_pack_files:
+        _check_runtime_refresh_source_file(source_root / rel, rel, append)
+    return errors
+
+
+def _check_runtime_refresh_source_file(source: Path, rel: Path, append: Callable[[Path, str], None]) -> None:
+    if not source.exists():
+        append(rel, "source file is missing")
+        return
+    if not source.is_file():
+        append(rel, "source path is not a file")
+        return
+    try:
+        with source.open("rb") as handle:
+            handle.read(1)
+    except OSError as error:
+        reason = error.strerror or str(error)
+        append(rel, f"source file is unreadable: {reason}")
+
+
 def _product_preflight_conflicts(product_doc: Path | None) -> list[InitConflict]:
     if product_doc is None:
         return []
@@ -541,7 +583,10 @@ def refresh_runtime(root: Path) -> RuntimeRefreshResult:
         )
 
     workflow_pack_files = _iter_workflow_pack_files()
-    preflight_errors = _runtime_refresh_preflight_errors(root, workflow_pack_files)
+    preflight_errors = [
+        *_runtime_refresh_source_errors(pack_root, workflow_pack_files),
+        *_runtime_refresh_preflight_errors(root, workflow_pack_files),
+    ]
     if preflight_errors:
         return RuntimeRefreshResult(
             target=str(root),

@@ -583,6 +583,29 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertEqual("# Existing Archive\n", existing_archive.read_text(encoding="utf-8"))
             self.assertFalse((source_dir / f".{product.name}.tmp").exists())
 
+    def test_runtime_refresh_rejects_missing_source_runtime_without_partial_refresh(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            wrapper = root / "bin/governance"
+            wrapper.write_text(wrapper.read_text(encoding="utf-8") + "\n# tampered\n", encoding="utf-8")
+            original_runtime_scripts = bootstrap_module.RUNTIME_SCRIPT_FILES
+            bootstrap_module.RUNTIME_SCRIPT_FILES = [*original_runtime_scripts, "missing_runtime_source.py"]
+            try:
+                result = bootstrap_module.refresh_runtime(root)
+            finally:
+                bootstrap_module.RUNTIME_SCRIPT_FILES = original_runtime_scripts
+
+            self.assertFalse(result.ok)
+            self.assertEqual([], result.refreshed)
+            self.assertIn(
+                "runtime refresh preflight failed: scripts/missing_runtime_source.py: source file is missing",
+                result.errors,
+            )
+            self.assertIn("# tampered", wrapper.read_text(encoding="utf-8"))
+
     def test_verify_reports_root_required_file_directory_without_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
