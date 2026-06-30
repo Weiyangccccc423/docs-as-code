@@ -1,5 +1,8 @@
+import contextlib
+import io
 import json
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -7769,6 +7772,43 @@ class GovernanceScriptsTest(unittest.TestCase):
         self.assertEqual(124, results[0]["returncode"])
         self.assertEqual("", results[0]["stdout"])
         self.assertIn("timed out after 300 seconds", results[0]["stderr"])
+
+    def test_check_env_main_reports_repair_plan_write_failure_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            target.mkdir()
+            statuses = [
+                ToolStatus(
+                    name="python3",
+                    present=True,
+                    version="Python 3",
+                    note="Required",
+                    level="required",
+                    install_package="python3",
+                )
+            ]
+            original_argv = sys.argv
+            original_collect_status = check_env_module.collect_status
+            original_write_repair_plan = check_env_module.write_repair_plan
+
+            def raise_os_error(*_args: object, **_kwargs: object) -> Path:
+                raise OSError(28, "No space left on device")
+
+            sys.argv = ["check_env.py", "--repair", "--target", str(target)]
+            check_env_module.collect_status = lambda: statuses
+            check_env_module.write_repair_plan = raise_os_error
+            stdout = io.StringIO()
+            try:
+                with contextlib.redirect_stdout(stdout):
+                    returncode = check_env_module.main()
+            finally:
+                sys.argv = original_argv
+                check_env_module.collect_status = original_collect_status
+                check_env_module.write_repair_plan = original_write_repair_plan
+
+            self.assertEqual(1, returncode)
+            self.assertIn("ERROR: environment repair failed: No space left on device", stdout.getvalue())
+            self.assertFalse((target / ".governance/env-repair.md").exists())
 
     def test_repair_target_error_rejects_file_targets(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

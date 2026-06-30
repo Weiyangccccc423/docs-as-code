@@ -425,14 +425,19 @@ def main() -> int:
         if install_results and all(result["returncode"] == 0 for result in install_results):
             statuses = collect_status()
             missing = [status.name for status in statuses if not status.present]
-        path = write_repair_plan(
-            target,
-            statuses,
-            system=system,
-            package_manager=package_manager,
-            install_plan=install_plan,
-            needs_escalation=needs_escalation,
-        )
+        try:
+            path = write_repair_plan(
+                target,
+                statuses,
+                system=system,
+                package_manager=package_manager,
+                install_plan=install_plan,
+                needs_escalation=needs_escalation,
+            )
+        except (OSError, ValueError) as error:
+            reason = error.strerror if isinstance(error, OSError) and error.strerror else str(error)
+            print(f"ERROR: environment repair failed: {reason}")
+            return 1
         print(f"\nWrote repair plan: {path}")
         if needs_escalation:
             print(
