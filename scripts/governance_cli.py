@@ -101,33 +101,50 @@ def _cmd_verify(args: argparse.Namespace) -> int:
     if target.exists() and not target.is_dir():
         raise StateFileError(target / STATE_REL, "unwritable: target path is not a directory")
     state = {}
+    state_error = ""
+    state_error_path = ""
     if (target / STATE_REL).exists():
-        state = merge_state(
-            target,
-            last_verification={
-                "ok": report.ok,
-                "errors": report.errors,
-                "warnings": report.warnings,
-                "findings": [finding.to_dict() for finding in report.findings],
-            },
-        )
+        try:
+            state = merge_state(
+                target,
+                last_verification={
+                    "ok": report.ok,
+                    "errors": report.errors,
+                    "warnings": report.warnings,
+                    "findings": [finding.to_dict() for finding in report.findings],
+                },
+            )
+        except StateFileError as error:
+            state_error = str(error)
+            state_error_path = str(error.path)
+            try:
+                state = load_state(target)
+            except StateFileError:
+                state = {}
+    errors = list(report.errors)
+    if state_error:
+        errors.append(f"failed to update verification state: {state_error}")
+    ok = report.ok and not state_error
     if args.json:
-        _print_json(
-            {
-                "ok": report.ok,
-                "target": str(target),
-                "errors": report.errors,
-                "warnings": report.warnings,
-                "findings": [finding.to_dict() for finding in report.findings],
-                "state": state,
-            }
-        )
-        return 0 if report.ok else 1
-    if report.ok:
+        payload = {
+            "ok": ok,
+            "target": str(target),
+            "errors": errors,
+            "warnings": report.warnings,
+            "findings": [finding.to_dict() for finding in report.findings],
+            "state": state,
+        }
+        if state_error:
+            payload["state_error"] = state_error
+            payload["error"] = state_error
+            payload["path"] = state_error_path
+        _print_json(payload)
+        return 0 if ok else 1
+    if ok:
         print("Governance verification passed.")
         return 0
     print("Governance verification failed:")
-    for error in report.errors:
+    for error in errors:
         print(f"- ERROR: {error}")
     for warning in report.warnings:
         print(f"- WARN: {warning}")

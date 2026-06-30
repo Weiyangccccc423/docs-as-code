@@ -1529,6 +1529,52 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual(str(state_path), payload["path"])
             self.assertIn("root must be an object", payload["error"])
 
+    def test_verify_json_reports_state_update_failure_with_findings_shape(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+
+            init_result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "init",
+                    "--target",
+                    str(target),
+                    "--product",
+                    str(product),
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            state_path = target / ".governance/state.json"
+            original_state = json.loads(state_path.read_text(encoding="utf-8"))
+            state_temp = target / ".governance/.state.json.tmp"
+            state_temp.mkdir()
+
+            verify_result = subprocess.run(
+                [sys.executable, str(CLI), "verify", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, verify_result.returncode)
+            self.assertEqual("", verify_result.stderr)
+            payload = json.loads(verify_result.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertEqual(str(target), payload["target"])
+            self.assertIn("findings", payload)
+            self.assertIn("warnings", payload)
+            self.assertIn("state", payload)
+            self.assertIn("state_error", payload)
+            self.assertIn("failed to update verification state", payload["errors"][0])
+            self.assertIn("unwritable", payload["state_error"])
+            self.assertEqual(original_state, json.loads(state_path.read_text(encoding="utf-8")))
+
     def test_verify_json_does_not_create_state_for_uninitialized_target(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "target"
