@@ -606,6 +606,83 @@ class GovernanceScriptsTest(unittest.TestCase):
             )
             self.assertIn("# tampered", wrapper.read_text(encoding="utf-8"))
 
+    def test_runtime_refresh_rolls_back_runtime_files_when_copy_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            wrapper = root / "bin/governance"
+            init_wrapper = root / "bin/governance-init"
+            wrapper.write_text(wrapper.read_text(encoding="utf-8") + "\n# stale governance\n", encoding="utf-8")
+            init_wrapper.write_text(
+                init_wrapper.read_text(encoding="utf-8") + "\n# stale governance init\n",
+                encoding="utf-8",
+            )
+            original_wrapper = wrapper.read_text(encoding="utf-8")
+            original_init_wrapper = init_wrapper.read_text(encoding="utf-8")
+            original_copy_runtime_file = bootstrap_module._copy_runtime_file
+
+            def fail_after_copy(source: Path, target: Path, force: bool = False) -> None:
+                original_copy_runtime_file(source, target, force)
+                if target == init_wrapper:
+                    raise OSError("simulated runtime copy failure")
+
+            bootstrap_module._copy_runtime_file = fail_after_copy
+            try:
+                result = bootstrap_module.refresh_runtime(root)
+            finally:
+                bootstrap_module._copy_runtime_file = original_copy_runtime_file
+
+            self.assertFalse(result.ok)
+            self.assertEqual([], result.refreshed)
+            self.assertIn("runtime refresh failed: simulated runtime copy failure", result.errors)
+            self.assertEqual(original_wrapper, wrapper.read_text(encoding="utf-8"))
+            self.assertEqual(original_init_wrapper, init_wrapper.read_text(encoding="utf-8"))
+            self.assertFalse((wrapper.parent / ".governance.tmp").exists())
+            self.assertFalse((init_wrapper.parent / ".governance-init.tmp").exists())
+
+    def test_runtime_refresh_rolls_back_snapshot_and_runtime_when_state_update_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            runtime = root / "scripts/scaffold.py"
+            runtime.write_text(runtime.read_text(encoding="utf-8") + "\n# stale runtime\n", encoding="utf-8")
+            stale_snapshot = root / "docs/agent-workflow/workflow-pack/obsolete.md"
+            stale_snapshot.write_text("# Obsolete local snapshot\n", encoding="utf-8")
+            workflow_manifest = root / "docs/agent-workflow/workflow-pack/manifest.json"
+            runtime_manifest = root / "docs/agent-workflow/runtime-manifest.json"
+            state_path = root / ".governance/state.json"
+            original_runtime = runtime.read_text(encoding="utf-8")
+            original_workflow_manifest = workflow_manifest.read_text(encoding="utf-8")
+            original_runtime_manifest = runtime_manifest.read_text(encoding="utf-8")
+            original_state = state_path.read_text(encoding="utf-8")
+            original_merge_state = bootstrap_module.merge_state
+
+            def raise_state_error(root_arg: Path, **_updates: object) -> dict[str, object]:
+                raise StateFileError(root_arg / ".governance/state.json", "unwritable: No space left on device")
+
+            bootstrap_module.merge_state = raise_state_error
+            try:
+                result = bootstrap_module.refresh_runtime(root)
+            finally:
+                bootstrap_module.merge_state = original_merge_state
+
+            self.assertFalse(result.ok)
+            self.assertEqual([], result.refreshed)
+            self.assertEqual([], result.removed)
+            self.assertTrue(
+                any(error.startswith("runtime refresh failed: invalid governance state file: ") for error in result.errors),
+                result.errors,
+            )
+            self.assertEqual(original_runtime, runtime.read_text(encoding="utf-8"))
+            self.assertEqual("# Obsolete local snapshot\n", stale_snapshot.read_text(encoding="utf-8"))
+            self.assertEqual(original_workflow_manifest, workflow_manifest.read_text(encoding="utf-8"))
+            self.assertEqual(original_runtime_manifest, runtime_manifest.read_text(encoding="utf-8"))
+            self.assertEqual(original_state, state_path.read_text(encoding="utf-8"))
+
     def test_init_preflight_rejects_missing_source_runtime_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "target"

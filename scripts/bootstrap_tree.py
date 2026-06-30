@@ -90,6 +90,23 @@ def _write_atomic_text(path: Path, content: str) -> None:
         raise
 
 
+def _write_atomic_bytes(path: Path, content: bytes, mode: int | None = None) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp = _atomic_temp_path(path)
+    try:
+        temp.write_bytes(content)
+        if mode is not None:
+            temp.chmod(mode)
+        temp.replace(path)
+    except OSError:
+        if temp.exists() and temp.is_file():
+            try:
+                temp.unlink()
+            except OSError:
+                pass
+        raise
+
+
 def _atomic_temp_path(path: Path) -> Path:
     return path.with_name(f".{path.name}.tmp")
 
@@ -307,6 +324,13 @@ class RuntimeRefreshResult:
         }
 
 
+@dataclass(frozen=True)
+class _FileSnapshot:
+    exists: bool
+    content: bytes = b""
+    mode: int | None = None
+
+
 def generated_file_paths(product_doc: Path | None = None) -> list[str]:
     paths = list(ROOT_GENERATED_FILES)
     paths.extend(f"bin/{name}" for name in RUNTIME_BIN_FILES)
@@ -457,6 +481,17 @@ def _runtime_refresh_output_paths(workflow_pack_files: list[Path]) -> list[Path]
     return sorted(dict.fromkeys(paths), key=lambda path: path.as_posix())
 
 
+def _runtime_refresh_snapshot_paths(root: Path, workflow_pack_files: list[Path]) -> list[Path]:
+    paths = set(_runtime_refresh_output_paths(workflow_pack_files))
+    paths.add(STATE_REL)
+    snapshot_root = root / WORKFLOW_PACK_SNAPSHOT_ROOT
+    if snapshot_root.exists() and snapshot_root.is_dir():
+        for path in snapshot_root.rglob("*"):
+            if path.is_file():
+                paths.add(path.relative_to(root))
+    return sorted(paths, key=lambda path: path.as_posix())
+
+
 def _runtime_refresh_preflight_errors(root: Path, workflow_pack_files: list[Path]) -> list[str]:
     errors: list[str] = []
     seen: set[tuple[str, str]] = set()
@@ -528,6 +563,55 @@ def _source_preflight_conflicts(pack_root: Path, workflow_pack_files: list[Path]
     for rel in workflow_pack_files:
         _check_runtime_refresh_source_file(source_root / rel, rel, append)
     return conflicts
+
+
+def _snapshot_files(root: Path, rels: list[Path]) -> dict[str, _FileSnapshot]:
+    snapshots: dict[str, _FileSnapshot] = {}
+    for rel in rels:
+        path = root / rel
+        rel_key = rel.as_posix()
+        if path.exists():
+            stat = path.stat()
+            snapshots[rel_key] = _FileSnapshot(exists=True, content=path.read_bytes(), mode=stat.st_mode)
+        else:
+            snapshots[rel_key] = _FileSnapshot(exists=False)
+    return snapshots
+
+
+def _rollback_runtime_refresh(
+    root: Path,
+    snapshots: dict[str, _FileSnapshot],
+    output_paths: list[Path],
+) -> list[str]:
+    rollback_errors: list[str] = []
+    output_keys = {rel.as_posix() for rel in output_paths}
+    for rel_key in sorted(output_keys - set(snapshots), reverse=True):
+        path = root / rel_key
+        if not path.exists():
+            continue
+        try:
+            path.unlink()
+        except OSError as error:
+            rollback_errors.append(f"failed to remove new refresh output {rel_key}: {_os_error_reason(error)}")
+
+    for rel_key, snapshot in sorted(snapshots.items(), reverse=True):
+        try:
+            _restore_snapshot(root / rel_key, snapshot)
+        except OSError as error:
+            rollback_errors.append(f"failed to rollback refresh output {rel_key}: {_os_error_reason(error)}")
+    return rollback_errors
+
+
+def _restore_snapshot(path: Path, snapshot: _FileSnapshot) -> None:
+    if snapshot.exists:
+        _write_atomic_bytes(path, snapshot.content, snapshot.mode)
+        return
+    if path.exists():
+        path.unlink()
+
+
+def _os_error_reason(error: OSError) -> str:
+    return error.strerror or str(error)
 
 
 def _check_runtime_refresh_source_file(source: Path, rel: Path, append: Callable[[Path, str], None]) -> None:
@@ -618,7 +702,10 @@ def refresh_runtime(root: Path) -> RuntimeRefreshResult:
             errors=[f"runtime refresh preflight failed: {error}" for error in preflight_errors],
         )
 
+    output_paths = _runtime_refresh_output_paths(workflow_pack_files)
+    snapshots: dict[str, _FileSnapshot] = {}
     try:
+        snapshots = _snapshot_files(root, _runtime_refresh_snapshot_paths(root, workflow_pack_files))
         refreshed: list[str] = []
         _install_runtime(root, force=True)
         refreshed.extend(path.as_posix() for path in _runtime_file_paths())
@@ -638,10 +725,13 @@ def refresh_runtime(root: Path) -> RuntimeRefreshResult:
             runtime_refreshed_at=utc_now(),
         )
     except (OSError, StateFileError) as error:
+        rollback_errors = _rollback_runtime_refresh(root, snapshots, output_paths)
+        errors = [f"runtime refresh failed: {error}"]
+        errors.extend(rollback_errors)
         return RuntimeRefreshResult(
             target=str(root),
             ok=False,
-            errors=[f"runtime refresh failed: {error}"],
+            errors=errors,
         )
     return RuntimeRefreshResult(
         target=str(root),
