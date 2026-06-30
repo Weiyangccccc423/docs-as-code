@@ -7679,6 +7679,82 @@ class GovernanceScriptsTest(unittest.TestCase):
                 )
             )
 
+    def test_scaffold_product_stops_after_write_failure_without_later_chapters(self) -> None:
+        class PassingGate:
+            ok = True
+            requirements: list[object] = []
+            verification: dict[str, object] = {"findings": []}
+
+            def to_dict(self) -> dict[str, object]:
+                return {"ok": True, "requirements": [], "verification": self.verification}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            first_chapter = root / "docs/product/03-goals-and-requirements.md"
+            later_chapter = root / "docs/product/08-acceptance-criteria.md"
+            temp_path = first_chapter.with_name(".03-goals-and-requirements.md.tmp")
+            original_evaluate_gate = scaffold_module.evaluate_gate
+            original_replace = scaffold_module.Path.replace
+
+            def fail_replace(self: Path, target: Path) -> Path:
+                if self == temp_path and target == first_chapter:
+                    raise OSError("simulated replace failure")
+                return original_replace(self, target)
+
+            scaffold_module.evaluate_gate = lambda _root, _gate: PassingGate()
+            scaffold_module.Path.replace = fail_replace
+            try:
+                result = scaffold_module.scaffold_product(
+                    root,
+                    ["goals-and-requirements", "acceptance-criteria"],
+                )
+            finally:
+                scaffold_module.evaluate_gate = original_evaluate_gate
+                scaffold_module.Path.replace = original_replace
+
+            self.assertFalse(result.ok)
+            self.assertEqual([], result.created)
+            self.assertFalse(first_chapter.exists())
+            self.assertFalse(later_chapter.exists())
+            self.assertFalse((root / "docs/product/README.md").exists())
+            self.assertFalse((root / "docs/product/core/product-meta.md").exists())
+
+    def test_scaffold_design_stops_after_write_failure_without_later_files(self) -> None:
+        class PassingGate:
+            ok = True
+            requirements: list[object] = []
+            verification: dict[str, object] = {"findings": []}
+
+            def to_dict(self) -> dict[str, object]:
+                return {"ok": True, "requirements": [], "verification": self.verification}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            first_file = root / "docs/architecture/01-system-context.md"
+            later_file = root / "docs/api/00-conventions.md"
+            temp_path = first_file.with_name(".01-system-context.md.tmp")
+            original_evaluate_gate = scaffold_module.evaluate_gate
+            original_replace = scaffold_module.Path.replace
+
+            def fail_replace(self: Path, target: Path) -> Path:
+                if self == temp_path and target == first_file:
+                    raise OSError("simulated replace failure")
+                return original_replace(self, target)
+
+            scaffold_module.evaluate_gate = lambda _root, _gate: PassingGate()
+            scaffold_module.Path.replace = fail_replace
+            try:
+                result = scaffold_module.scaffold_design(root)
+            finally:
+                scaffold_module.evaluate_gate = original_evaluate_gate
+                scaffold_module.Path.replace = original_replace
+
+            self.assertFalse(result.ok)
+            self.assertEqual([], result.created)
+            self.assertFalse(first_file.exists())
+            self.assertFalse(later_file.exists())
+            self.assertFalse((root / "docs/architecture/README.md").exists())
+
     def test_scaffold_product_reports_index_directory(self) -> None:
         class PassingGate:
             ok = True

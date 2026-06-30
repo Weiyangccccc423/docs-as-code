@@ -257,15 +257,19 @@ def scaffold_design(root: Path) -> ScaffoldResult:
         return result
 
     for spec in specs:
+        if not result.ok:
+            break
         path = root / spec.path
         if path.exists():
             result.skipped.append(spec.path)
         else:
             if not _write_scaffold_file(path, _render_spec(spec), result):
-                continue
+                break
             result.created.append(spec.path)
         if _ensure_index(root, spec, result):
             result.indexed.append(spec.path)
+        if not result.ok:
+            break
     return result
 
 
@@ -323,19 +327,25 @@ def scaffold_product(root: Path, chapters: list[str] | tuple[str, ...]) -> Scaff
         return result
 
     for spec in specs:
+        if not result.ok:
+            break
         path = root / spec.path
         if path.exists():
             result.skipped.append(spec.path)
         else:
             if not _write_scaffold_file(path, _render_spec(spec), result):
-                continue
+                break
             result.created.append(spec.path)
         if _ensure_index(root, spec, result):
             result.indexed.append(spec.path)
+        if not result.ok:
+            break
         if _ensure_product_meta_link(root, spec, result):
             product_meta = "docs/product/core/product-meta.md"
             if product_meta not in result.indexed:
                 result.indexed.append(product_meta)
+        if not result.ok:
+            break
     return result
 
 
