@@ -8341,6 +8341,135 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertIn("ERROR: environment repair failed: No space left on device", stdout.getvalue())
             self.assertFalse((target / ".governance/env-repair.md").exists())
 
+    def test_check_env_main_json_reports_tools_and_repair_plan(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            target.mkdir()
+            statuses = [
+                ToolStatus(
+                    name="python3",
+                    present=True,
+                    version="Python 3",
+                    note="Required",
+                    level="required",
+                    install_package="python3",
+                ),
+                ToolStatus(
+                    name="pandoc",
+                    present=False,
+                    version="",
+                    note="Recommended",
+                    level="recommended",
+                    install_package="pandoc",
+                ),
+            ]
+            system = check_env_module.SystemStatus(
+                platform="linux",
+                os_id="ubuntu",
+                os_like="debian",
+                pretty_name="Ubuntu",
+                is_root=False,
+            )
+            package_manager = PackageManager("apt", "/usr/bin/apt-get", True)
+            git = check_env_module.GitStatus(
+                installed=True,
+                is_repo=True,
+                branch="main",
+                user_name="Weiyangccccc423",
+                user_email="1809835575@qq.com",
+            )
+            original_argv = sys.argv
+            original_collect_status = check_env_module.collect_status
+            original_collect_system_status = check_env_module.collect_system_status
+            original_detect_package_manager = check_env_module.detect_package_manager
+            original_collect_git_status = check_env_module.collect_git_status
+            sys.argv = ["check_env.py", "--repair", "--target", str(target), "--json"]
+            check_env_module.collect_status = lambda: statuses
+            check_env_module.collect_system_status = lambda: system
+            check_env_module.detect_package_manager = lambda _system=None: package_manager
+            check_env_module.collect_git_status = lambda _target: git
+            stdout = io.StringIO()
+            try:
+                with contextlib.redirect_stdout(stdout):
+                    returncode = check_env_module.main()
+            finally:
+                sys.argv = original_argv
+                check_env_module.collect_status = original_collect_status
+                check_env_module.collect_system_status = original_collect_system_status
+                check_env_module.detect_package_manager = original_detect_package_manager
+                check_env_module.collect_git_status = original_collect_git_status
+
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(0, returncode)
+            self.assertTrue(payload["ok"])
+            self.assertEqual(str(target), payload["target"])
+            self.assertFalse(payload["strict"])
+            self.assertEqual(["pandoc"], payload["missing"])
+            self.assertEqual([], payload["missing_required"])
+            self.assertEqual(["pandoc"], payload["missing_recommended"])
+            self.assertEqual("Ubuntu", payload["system"]["pretty_name"])
+            self.assertEqual("apt", payload["package_manager"]["name"])
+            self.assertEqual("main", payload["git"]["branch"])
+            self.assertEqual([], payload["install_plan"])
+            self.assertEqual([], payload["install_commands"])
+            self.assertEqual("", payload["install_command"])
+            self.assertFalse(payload["needs_escalation"])
+            self.assertEqual(str(target / ".governance/env-repair.md"), payload["repair_plan"])
+            self.assertTrue(any(item["kind"] == "repair_plan" for item in payload["repairs"]))
+
+    def test_check_env_main_json_rejects_file_repair_target(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            target.write_text("not a directory\n", encoding="utf-8")
+            statuses = [
+                ToolStatus(
+                    name="python3",
+                    present=True,
+                    version="Python 3",
+                    note="Required",
+                    level="required",
+                    install_package="python3",
+                )
+            ]
+            system = check_env_module.SystemStatus(
+                platform="linux",
+                os_id="ubuntu",
+                os_like="debian",
+                pretty_name="Ubuntu",
+                is_root=False,
+            )
+            package_manager = PackageManager("apt", "/usr/bin/apt-get", True)
+            git = check_env_module.GitStatus(False, False, "", "", "")
+            original_argv = sys.argv
+            original_collect_status = check_env_module.collect_status
+            original_collect_system_status = check_env_module.collect_system_status
+            original_detect_package_manager = check_env_module.detect_package_manager
+            original_collect_git_status = check_env_module.collect_git_status
+            sys.argv = ["check_env.py", "--repair", "--target", str(target), "--json"]
+            check_env_module.collect_status = lambda: statuses
+            check_env_module.collect_system_status = lambda: system
+            check_env_module.detect_package_manager = lambda _system=None: package_manager
+            check_env_module.collect_git_status = lambda _target: git
+            stdout = io.StringIO()
+            try:
+                with contextlib.redirect_stdout(stdout):
+                    returncode = check_env_module.main()
+            finally:
+                sys.argv = original_argv
+                check_env_module.collect_status = original_collect_status
+                check_env_module.collect_system_status = original_collect_system_status
+                check_env_module.detect_package_manager = original_detect_package_manager
+                check_env_module.collect_git_status = original_collect_git_status
+
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(1, returncode)
+            self.assertFalse(payload["ok"])
+            self.assertEqual(str(target), payload["target"])
+            self.assertEqual([f"environment repair target is not a directory: {target}"], payload["errors"])
+            self.assertIsNone(payload["repair_plan"])
+            self.assertEqual([], payload["repairs"])
+            self.assertTrue(target.is_file())
+
     def test_repair_target_error_rejects_file_targets(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

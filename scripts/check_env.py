@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import platform
 import shutil
@@ -227,6 +228,60 @@ def _failed_install_result(command: list[str], returncode: int, stderr: str) -> 
     }
 
 
+def _tool_status_payload(statuses: list[ToolStatus]) -> list[dict[str, object]]:
+    return [
+        {
+            "name": status.name,
+            "present": status.present,
+            "version": status.version,
+            "note": status.note,
+            "level": status.level,
+            "install_package": status.install_package,
+        }
+        for status in statuses
+    ]
+
+
+def _env_payload(
+    target: Path,
+    *,
+    strict: bool,
+    statuses: list[ToolStatus],
+    system: SystemStatus,
+    package_manager: PackageManager,
+    git: GitStatus,
+    install_plan: list[InstallPlanItem],
+    needs_escalation: bool,
+    install_results: list[dict[str, object]],
+    repairs: list[dict[str, object]],
+    repair_plan: str | None,
+    errors: list[str] | None = None,
+) -> dict[str, object]:
+    commands = install_commands(install_plan, package_manager)
+    payload: dict[str, object] = {
+        "ok": environment_ok(statuses, strict) and not errors,
+        "target": str(target),
+        "strict": strict,
+        "missing": [status.name for status in statuses if not status.present],
+        "missing_required": missing_tools_by_level(statuses, "required"),
+        "missing_recommended": missing_tools_by_level(statuses, "recommended"),
+        "tools": _tool_status_payload(statuses),
+        "system": system.to_dict(),
+        "package_manager": package_manager.to_dict(),
+        "git": git.to_dict(),
+        "install_plan": [item.to_dict() for item in install_plan],
+        "install_commands": commands,
+        "install_command": install_command_text(commands),
+        "needs_escalation": needs_escalation,
+        "install_results": install_results,
+        "repairs": repairs,
+        "repair_plan": repair_plan,
+    }
+    if errors is not None:
+        payload["errors"] = errors
+    return payload
+
+
 def repair_target_error(target: Path) -> str | None:
     if target.exists():
         if target.is_dir():
@@ -395,6 +450,7 @@ def main() -> int:
     )
     parser.add_argument("--repair", action="store_true", help="Write a local environment repair plan.")
     parser.add_argument("--target", default=".", help="Target directory for repair artifacts.")
+    parser.add_argument("--json", action="store_true", help="Print a machine-readable environment report.")
     args = parser.parse_args()
 
     target = Path(args.target)
@@ -402,16 +458,21 @@ def main() -> int:
     statuses = collect_status()
     system = collect_system_status()
     package_manager = detect_package_manager(system)
+    git = collect_git_status(target)
     install_plan = build_install_plan(statuses, args.strict, package_manager)
     needs_escalation = bool(args.repair and install_plan and not system.is_root)
+    install_results: list[dict[str, object]] = []
+    repair_plan = None
+    repairs: list[dict[str, object]] = []
 
     for status in statuses:
         mark = "OK" if status.present else "MISSING"
-        print(f"{mark:7} {status.name:10} {status.version or status.note}")
+        if not args.json:
+            print(f"{mark:7} {status.name:10} {status.version or status.note}")
         if not status.present:
             missing.append(status.name)
 
-    if missing:
+    if missing and not args.json:
         print("\nRepair guidance:")
         print("- Install missing system tools with your OS package manager.")
         print("- `pandoc` and `lychee` are optional during early product archiving but required for strict docs CI.")
@@ -419,7 +480,30 @@ def main() -> int:
     if args.repair:
         target_error = repair_target_error(target)
         if target_error:
-            print(f"ERROR: {target_error}")
+            if args.json:
+                print(
+                    json.dumps(
+                        _env_payload(
+                            target,
+                            strict=args.strict,
+                            statuses=statuses,
+                            system=system,
+                            package_manager=package_manager,
+                            git=git,
+                            install_plan=install_plan,
+                            needs_escalation=needs_escalation,
+                            install_results=install_results,
+                            repairs=repairs,
+                            repair_plan=repair_plan,
+                            errors=[target_error],
+                        ),
+                        ensure_ascii=False,
+                        indent=2,
+                        sort_keys=True,
+                    )
+                )
+            else:
+                print(f"ERROR: {target_error}")
             return 1
         install_results = apply_install_plan(install_plan, package_manager, system)
         if install_results and all(result["returncode"] == 0 for result in install_results):
@@ -436,16 +520,65 @@ def main() -> int:
             )
         except (OSError, ValueError) as error:
             reason = error.strerror if isinstance(error, OSError) and error.strerror else str(error)
-            print(f"ERROR: environment repair failed: {reason}")
+            repair_error = f"environment repair failed: {reason}"
+            if args.json:
+                print(
+                    json.dumps(
+                        _env_payload(
+                            target,
+                            strict=args.strict,
+                            statuses=statuses,
+                            system=system,
+                            package_manager=package_manager,
+                            git=git,
+                            install_plan=install_plan,
+                            needs_escalation=needs_escalation,
+                            install_results=install_results,
+                            repairs=repairs,
+                            repair_plan=repair_plan,
+                            errors=[repair_error],
+                        ),
+                        ensure_ascii=False,
+                        indent=2,
+                        sort_keys=True,
+                    )
+                )
+            else:
+                print(f"ERROR: {repair_error}")
             return 1
-        print(f"\nWrote repair plan: {path}")
-        if needs_escalation:
-            print(
-                "Installation requires root approval: "
-                f"{install_command_text(install_commands(install_plan, package_manager))}"
+        repair_plan = str(path)
+        repairs.append({"kind": "directory", "path": str(path.parent), "status": "ensured"})
+        repairs.append({"kind": "repair_plan", "path": repair_plan, "status": "written"})
+        if not args.json:
+            print(f"\nWrote repair plan: {path}")
+            if needs_escalation:
+                print(
+                    "Installation requires root approval: "
+                    f"{install_command_text(install_commands(install_plan, package_manager))}"
+                )
+            for result in install_results:
+                print(f"Install command exited {result['returncode']}: {result['command']}")
+    if args.json:
+        print(
+            json.dumps(
+                _env_payload(
+                    target,
+                    strict=args.strict,
+                    statuses=statuses,
+                    system=system,
+                    package_manager=package_manager,
+                    git=git,
+                    install_plan=install_plan,
+                    needs_escalation=needs_escalation,
+                    install_results=install_results,
+                    repairs=repairs,
+                    repair_plan=repair_plan,
+                ),
+                ensure_ascii=False,
+                indent=2,
+                sort_keys=True,
             )
-        for result in install_results:
-            print(f"Install command exited {result['returncode']}: {result['command']}")
+        )
     return 0 if environment_ok(statuses, args.strict) else 1
 
 
