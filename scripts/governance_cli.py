@@ -23,7 +23,13 @@ from check_env import (
 from gates import GATE_NAMES, evaluate_gate
 from phases import PHASE_NAMES, advance_phase
 from product_import import check_product_import_ready, mark_product_import_ready
-from scaffold import PRODUCT_CHAPTER_CHOICES, scaffold_design, scaffold_product
+from scaffold import (
+    PRODUCT_CHAPTER_CHOICES,
+    check_scaffold_design,
+    check_scaffold_product,
+    scaffold_design,
+    scaffold_product,
+)
 from state import STATE_REL, StateFileError, load_state, merge_state
 from verify_governance import verify
 
@@ -417,9 +423,13 @@ def _cmd_scaffold(args: argparse.Namespace) -> int:
             "scaffold": args.scaffold,
             "target": str(target),
             "ok": False,
+            "check": args.check,
             "created": [],
             "skipped": [],
             "indexed": [],
+            "would_create": [],
+            "would_skip": [],
+            "would_index": [],
             "errors": [f"scaffold {args.scaffold} does not accept --chapter"],
             "gate": {},
         }
@@ -431,9 +441,9 @@ def _cmd_scaffold(args: argparse.Namespace) -> int:
             print(f"- ERROR: {error}")
         return 1
     if args.scaffold == "design":
-        result = scaffold_design(target)
+        result = check_scaffold_design(target) if args.check else scaffold_design(target)
     elif args.scaffold == "product":
-        result = scaffold_product(target, args.chapter)
+        result = check_scaffold_product(target, args.chapter) if args.check else scaffold_product(target, args.chapter)
     else:  # pragma: no cover - argparse choices prevent this
         raise ValueError(f"unknown scaffold: {args.scaffold}")
     payload = result.to_dict()
@@ -445,6 +455,15 @@ def _cmd_scaffold(args: argparse.Namespace) -> int:
         for error in result.errors:
             print(f"- ERROR: {error}")
         return 1
+    if args.check:
+        print(f"Scaffold preflight passed: {args.scaffold}")
+        for path in result.would_create:
+            print(f"- WOULD CREATE: {path}")
+        for path in result.would_skip:
+            print(f"- WOULD SKIP: {path}")
+        for path in result.would_index:
+            print(f"- WOULD INDEX: {path}")
+        return 0
     print(f"Scaffold created: {args.scaffold}")
     for path in result.created:
         print(f"- CREATED: {path}")
@@ -567,6 +586,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=[],
         help="Product chapter to scaffold. Repeat for multiple chapters.",
     )
+    scaffold.add_argument("--check", action="store_true", help="Run scaffold preflight without writing files.")
     scaffold.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     scaffold.set_defaults(func=_cmd_scaffold)
 

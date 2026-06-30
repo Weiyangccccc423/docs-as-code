@@ -3010,6 +3010,22 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertTrue(advance_payload["advanced"])
             self.assertEqual("product-structuring", advance_payload["state"]["phase"])
 
+            scaffold_check, scaffold_check_payload = run_direct(
+                "scaffold.py",
+                "product",
+                ".",
+                "--chapter",
+                "goals-and-requirements",
+                "--check",
+                "--json",
+            )
+            self.assertEqual(0, scaffold_check.returncode)
+            self.assertTrue(scaffold_check_payload["ok"])
+            self.assertTrue(scaffold_check_payload["check"])
+            self.assertEqual([], scaffold_check_payload["created"])
+            self.assertIn("docs/product/03-goals-and-requirements.md", scaffold_check_payload["would_create"])
+            self.assertFalse((root / "docs/product/03-goals-and-requirements.md").exists())
+
             scaffold_result, scaffold_payload = run_direct(
                 "scaffold.py",
                 "product",

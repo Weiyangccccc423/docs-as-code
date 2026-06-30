@@ -2694,6 +2694,58 @@ class GovernanceCliTest(unittest.TestCase):
                 verify_payload["errors"],
             )
 
+    def test_scaffold_product_check_json_reports_plan_without_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text("# Product\n\n## Goal\n\nShip governed projects.\n", encoding="utf-8")
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            readme_path = target / "docs/product/README.md"
+            meta_path = target / "docs/product/core/product-meta.md"
+            readme_before = readme_path.read_text(encoding="utf-8")
+            meta_before = meta_path.read_text(encoding="utf-8")
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "scaffold",
+                    "product",
+                    str(target),
+                    "--chapter",
+                    "goals-and-requirements",
+                    "--chapter",
+                    "acceptance-criteria",
+                    "--check",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertTrue(payload["check"])
+            self.assertEqual([], payload["created"])
+            self.assertEqual([], payload["indexed"])
+            self.assertIn("docs/product/03-goals-and-requirements.md", payload["would_create"])
+            self.assertIn("docs/product/08-acceptance-criteria.md", payload["would_create"])
+            self.assertIn("docs/product/03-goals-and-requirements.md", payload["would_index"])
+            self.assertIn("docs/product/08-acceptance-criteria.md", payload["would_index"])
+            self.assertIn("docs/product/core/product-meta.md", payload["would_index"])
+            self.assertFalse((target / "docs/product/03-goals-and-requirements.md").exists())
+            self.assertFalse((target / "docs/product/08-acceptance-criteria.md").exists())
+            self.assertEqual(readme_before, readme_path.read_text(encoding="utf-8"))
+            self.assertEqual(meta_before, meta_path.read_text(encoding="utf-8"))
+
     def test_scaffold_product_can_add_chapters_while_product_placeholders_remain(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "target"
@@ -3259,6 +3311,52 @@ class GovernanceCliTest(unittest.TestCase):
             requirements = {item["code"]: item for item in json.loads(gate.stdout)["requirements"]}
             self.assertTrue(requirements["api_endpoint_contract_present"]["ok"])
             self.assertFalse(requirements["verification_passed"]["ok"])
+
+    def test_scaffold_design_check_json_reports_plan_without_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            (target / "docs/product/01-goals.md").write_text("# Goals\n\nSource: [PRD](core/PRD.md).\n", encoding="utf-8")
+            _append_index(target / "docs/product/README.md", "01-goals.md")
+            _append_product_meta_chapter(target, "01-goals.md")
+            (target / "docs/product/08-acceptance-criteria.md").write_text(
+                _acceptance_doc(),
+                encoding="utf-8",
+            )
+            _append_index(target / "docs/product/README.md", "08-acceptance-criteria.md")
+            _append_product_meta_chapter(target, "08-acceptance-criteria.md")
+            architecture_readme = target / "docs/architecture/README.md"
+            architecture_readme_before = architecture_readme.read_text(encoding="utf-8")
+
+            scaffold = subprocess.run(
+                [sys.executable, str(CLI), "scaffold", "design", str(target), "--check", "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, scaffold.returncode, scaffold.stderr)
+            payload = json.loads(scaffold.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertTrue(payload["check"])
+            self.assertEqual([], payload["created"])
+            self.assertEqual([], payload["indexed"])
+            self.assertIn("docs/architecture/01-system-context.md", payload["would_create"])
+            self.assertIn("docs/api/endpoints/README.md", payload["would_create"])
+            self.assertIn("docs/api/endpoints/01-endpoint-contract.md", payload["would_create"])
+            self.assertIn("docs/architecture/01-system-context.md", payload["would_index"])
+            self.assertIn("docs/api/endpoints/01-endpoint-contract.md", payload["would_index"])
+            self.assertFalse((target / "docs/architecture/01-system-context.md").exists())
+            self.assertFalse((target / "docs/api/endpoints/01-endpoint-contract.md").exists())
+            self.assertEqual(architecture_readme_before, architecture_readme.read_text(encoding="utf-8"))
 
     def test_scaffold_design_skips_starter_endpoint_when_contract_exists(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -30,7 +30,7 @@ Turn a preserved PRD into navigable product truth without changing its meaning.
 2. Read `core/source/source-manifest.json`.
 3. Stop if `can_derive_design` is not true or the manifest hash does not verify.
 4. Build the chapter map in `product-meta.md`.
-5. Create only chapters supported by the PRD, using `NN-<slug>.md` filenames with unique `NN` prefixes.
+5. Preview and create only PRD-supported chapter scaffolds with `bin/governance scaffold product <target> --chapter <chapter-key> --check --json`, then run the same command without `--check` when the plan is correct; keep `NN-<slug>.md` filenames with unique `NN` prefixes.
 6. Link every chapter back to `core/PRD.md`.
 7. Link every `NN-*.md` chapter from `core/product-meta.md`.
 8. Extract acceptance criteria into a stable `NN-*acceptance*.md` chapter before design derivation. Give each criterion a stable unique `A-NNN` ID.

@@ -31,9 +31,13 @@ class ScaffoldResult:
     scaffold: str
     target: str
     ok: bool
+    check: bool = False
     created: list[str] = field(default_factory=list)
     skipped: list[str] = field(default_factory=list)
     indexed: list[str] = field(default_factory=list)
+    would_create: list[str] = field(default_factory=list)
+    would_skip: list[str] = field(default_factory=list)
+    would_index: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     gate: dict[str, Any] = field(default_factory=dict)
 
@@ -42,9 +46,13 @@ class ScaffoldResult:
             "scaffold": self.scaffold,
             "target": self.target,
             "ok": self.ok,
+            "check": self.check,
             "created": self.created,
             "skipped": self.skipped,
             "indexed": self.indexed,
+            "would_create": self.would_create,
+            "would_skip": self.would_skip,
+            "would_index": self.would_index,
             "errors": self.errors,
             "gate": self.gate,
         }
@@ -243,6 +251,32 @@ PRODUCT_SCAFFOLD_BY_KEY: dict[str, ScaffoldSpec] = {
 PRODUCT_CHAPTER_CHOICES = tuple(PRODUCT_SCAFFOLD_BY_KEY)
 
 
+def check_scaffold_design(root: Path) -> ScaffoldResult:
+    root = root.resolve()
+    gate = evaluate_gate(root, "design-derivation")
+    if not gate.ok:
+        return ScaffoldResult(
+            scaffold="design",
+            target=str(root),
+            ok=False,
+            check=True,
+            errors=["design-derivation gate failed"],
+            gate=gate.to_dict(),
+        )
+
+    result = ScaffoldResult(scaffold="design", target=str(root), ok=True, check=True, gate=gate.to_dict())
+    specs: list[ScaffoldSpec] = []
+    for spec in DESIGN_SCAFFOLD:
+        if _should_skip_spec(root, spec):
+            result.would_skip.append(spec.path)
+            continue
+        specs.append(spec)
+    if not _preflight_design_scaffold(root, specs, result):
+        return result
+    _plan_scaffold(root, specs, include_product_meta=False, result=result)
+    return result
+
+
 def scaffold_design(root: Path) -> ScaffoldResult:
     root = root.resolve()
     gate = evaluate_gate(root, "design-derivation")
@@ -297,6 +331,53 @@ def _preflight_design_scaffold(root: Path, specs: list[ScaffoldSpec], result: Sc
     for label, path in sorted(support_paths, key=lambda item: (item[0], item[1].as_posix())):
         _preflight_scaffold_text_file(result, label, path)
     return result.ok
+
+
+def check_scaffold_product(root: Path, chapters: list[str] | tuple[str, ...]) -> ScaffoldResult:
+    root = root.resolve()
+    gate = evaluate_gate(root, "product-structuring")
+    if not _product_scaffold_gate_allows(gate):
+        return ScaffoldResult(
+            scaffold="product",
+            target=str(root),
+            ok=False,
+            check=True,
+            errors=["product-structuring gate failed"],
+            gate=gate.to_dict(),
+        )
+    if not chapters:
+        return ScaffoldResult(
+            scaffold="product",
+            target=str(root),
+            ok=False,
+            check=True,
+            errors=["at least one product chapter must be selected"],
+            gate=gate.to_dict(),
+        )
+
+    unknown = [chapter for chapter in chapters if chapter not in PRODUCT_SCAFFOLD_BY_KEY]
+    if unknown:
+        return ScaffoldResult(
+            scaffold="product",
+            target=str(root),
+            ok=False,
+            check=True,
+            errors=[f"unknown product chapter: {chapter}" for chapter in unknown],
+            gate=gate.to_dict(),
+        )
+
+    result = ScaffoldResult(scaffold="product", target=str(root), ok=True, check=True, gate=gate.to_dict())
+    seen: set[str] = set()
+    specs: list[ScaffoldSpec] = []
+    for chapter in chapters:
+        if chapter in seen:
+            continue
+        seen.add(chapter)
+        specs.append(PRODUCT_SCAFFOLD_BY_KEY[chapter])
+    if not _preflight_product_scaffold(root, specs, result):
+        return result
+    _plan_scaffold(root, specs, include_product_meta=True, result=result)
+    return result
 
 
 def scaffold_product(root: Path, chapters: list[str] | tuple[str, ...]) -> ScaffoldResult:
@@ -390,6 +471,53 @@ def _scaffold_output_paths(specs: list[ScaffoldSpec], include_product_meta: bool
     if include_product_meta:
         paths.add(Path("docs/product/core/product-meta.md"))
     return sorted(paths, key=lambda path: path.as_posix())
+
+
+def _plan_scaffold(
+    root: Path,
+    specs: list[ScaffoldSpec],
+    include_product_meta: bool,
+    result: ScaffoldResult,
+) -> None:
+    for spec in specs:
+        path = root / spec.path
+        if path.exists():
+            result.would_skip.append(spec.path)
+        else:
+            result.would_create.append(spec.path)
+        if _would_index(root, spec, result):
+            result.would_index.append(spec.path)
+        if include_product_meta and _would_product_meta_link(root, spec, result):
+            product_meta = "docs/product/core/product-meta.md"
+            if product_meta not in result.would_index:
+                result.would_index.append(product_meta)
+
+
+def _would_index(root: Path, spec: ScaffoldSpec, result: ScaffoldResult) -> bool:
+    path = root / spec.path
+    if path.name == "README.md":
+        return False
+    readme = path.parent / "README.md"
+    text = _read_scaffold_text(
+        result,
+        readme,
+        "scaffold index",
+        f"# {path.parent.relative_to(root).as_posix()}\n",
+    )
+    if text is None:
+        return False
+    return path.name not in text
+
+
+def _would_product_meta_link(root: Path, spec: ScaffoldSpec, result: ScaffoldResult) -> bool:
+    path = root / spec.path
+    if not path.as_posix().startswith(str(root / "docs/product")):
+        return False
+    meta = root / "docs/product/core/product-meta.md"
+    text = _read_scaffold_text(result, meta, "scaffold product meta", "# Product Meta\n\n## Chapter Map\n")
+    if text is None:
+        return False
+    return f"../{path.name}" not in text
 
 
 def _snapshot_files(root: Path, rels: list[Path]) -> dict[str, _FileSnapshot]:
@@ -757,6 +885,7 @@ def main() -> int:
         default=[],
         help="Product chapter to scaffold. Repeat for multiple chapters.",
     )
+    parser.add_argument("--check", action="store_true", help="Run scaffold preflight without writing files.")
     parser.add_argument("--json", action="store_true", help="Print a machine-readable scaffold result.")
     args = parser.parse_args()
     target = Path(args.target)
@@ -765,9 +894,13 @@ def main() -> int:
             "scaffold": args.scaffold,
             "target": str(target),
             "ok": False,
+            "check": args.check,
             "created": [],
             "skipped": [],
             "indexed": [],
+            "would_create": [],
+            "would_skip": [],
+            "would_index": [],
             "errors": [f"scaffold {args.scaffold} does not accept --chapter"],
             "gate": {},
         }
@@ -779,9 +912,9 @@ def main() -> int:
             print(f"- ERROR: {error}")
         return 1
     if args.scaffold == "design":
-        result = scaffold_design(target)
+        result = check_scaffold_design(target) if args.check else scaffold_design(target)
     elif args.scaffold == "product":
-        result = scaffold_product(target, args.chapter)
+        result = check_scaffold_product(target, args.chapter) if args.check else scaffold_product(target, args.chapter)
     else:  # pragma: no cover - argparse choices prevent this
         raise ValueError(f"unknown scaffold: {args.scaffold}")
     if args.json:
@@ -792,6 +925,15 @@ def main() -> int:
         for error in result.errors:
             print(f"- ERROR: {error}")
         return 1
+    if args.check:
+        print(f"Scaffold preflight passed: {args.scaffold}")
+        for path in result.would_create:
+            print(f"- WOULD CREATE: {path}")
+        for path in result.would_skip:
+            print(f"- WOULD SKIP: {path}")
+        for path in result.would_index:
+            print(f"- WOULD INDEX: {path}")
+        return 0
     print(f"Scaffold created: {args.scaffold}")
     for path in result.created:
         print(f"- CREATED: {path}")

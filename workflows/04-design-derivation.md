@@ -32,10 +32,11 @@ Load according to the design track:
 2. Create the standard design document scaffold when files are missing:
 
    ```bash
+   bin/governance scaffold design <target> --check --json
    bin/governance scaffold design <target> --json
    ```
 
-   The scaffold includes a starter endpoint contract at `docs/api/endpoints/01-endpoint-contract.md` only when no endpoint contract already exists, and standard table skeletons for the acceptance matrix, roadmap, and task board; replace or rename scaffolds with product-derived content before implementation handoff. Replace all `governance:scaffold-placeholder` markers before implementation handoff.
+   `--check` reports `would_create`, `would_skip`, and `would_index` without writing placeholders. The scaffold includes a starter endpoint contract at `docs/api/endpoints/01-endpoint-contract.md` only when no endpoint contract already exists, and standard table skeletons for the acceptance matrix, roadmap, and task board; replace or rename scaffolds with product-derived content before implementation handoff. Replace all `governance:scaffold-placeholder` markers before implementation handoff.
 
 3. Create or complete `docs/architecture/` views:
    - system context

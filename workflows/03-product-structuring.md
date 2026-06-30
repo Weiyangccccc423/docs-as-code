@@ -29,10 +29,15 @@ Load:
    bin/governance scaffold product <target> \
      --chapter goals-and-requirements \
      --chapter acceptance-criteria \
+     --check \
+     --json
+   bin/governance scaffold product <target> \
+     --chapter goals-and-requirements \
+     --chapter acceptance-criteria \
      --json
    ```
 
-   Available chapter keys: `background-and-problems`, `change-log`, `goals-and-requirements`, `functional-spec`, `acceptance-criteria`, `success-metrics`.
+   `--check` reports `would_create`, `would_skip`, and `would_index` without writing placeholders. Available chapter keys: `background-and-problems`, `change-log`, `goals-and-requirements`, `functional-spec`, `acceptance-criteria`, `success-metrics`.
 3. If PRD review reveals another supported chapter before placeholders are replaced, rerun `scaffold product` with the additional `--chapter`. The command may proceed while existing `docs/product/` scaffold placeholders remain, but any other verification error still blocks it.
 4. Replace every `governance:scaffold-placeholder` with PRD-derived content before leaving this phase.
 5. Build or refine the product chapter map in `product-meta.md`.

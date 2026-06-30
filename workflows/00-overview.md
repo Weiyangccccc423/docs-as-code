@@ -64,16 +64,18 @@ bin/governance advance implementation <target> --json
 After the product-structuring gate passes, use the deterministic product scaffold to create only source-supported product chapters:
 
 ```bash
+bin/governance scaffold product <target> --chapter goals-and-requirements --chapter acceptance-criteria --check --json
 bin/governance scaffold product <target> --chapter goals-and-requirements --chapter acceptance-criteria --json
 ```
 
 After the design-derivation gate passes, use the deterministic design scaffold when standard design files are missing:
 
 ```bash
+bin/governance scaffold design <target> --check --json
 bin/governance scaffold design <target> --json
 ```
 
-Scaffold placeholders block verification until replaced with product-derived content.
+Use `--check` to inspect `would_create`, `would_skip`, and `would_index` before writing scaffold placeholders. Scaffold placeholders block verification until replaced with product-derived content.
 
 ## Source-of-Truth Flow
 
