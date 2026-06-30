@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import argparse
 import copy
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -122,3 +124,31 @@ def advance_phase(root: Path, phase: str) -> AdvanceResult:
         gate=gate.to_dict(),
         state=state,
     )
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Advance docs-as-code workflow phases after gates pass.")
+    parser.add_argument("phase", choices=PHASE_NAMES, help="Phase to advance to.")
+    parser.add_argument("target", nargs="?", default=".", help="Repository root to update.")
+    parser.add_argument("--json", action="store_true", help="Print a machine-readable advance result.")
+    args = parser.parse_args()
+    result = advance_phase(Path(args.target), args.phase)
+    if args.json:
+        print(json.dumps(result.to_dict(), ensure_ascii=False, indent=2, sort_keys=True))
+        return 0 if result.ok else 1
+    if result.ok:
+        print(f"Advanced phase: {args.phase}")
+        return 0
+    print(f"Advance failed: {args.phase}")
+    for error in result.errors:
+        print(f"- ERROR: {error}")
+    for requirement in result.gate.get("requirements", []):
+        if isinstance(requirement, dict) and not requirement.get("ok"):
+            path = requirement.get("path")
+            suffix = f" ({path})" if path else ""
+            print(f"- {requirement.get('code')}: {requirement.get('message')}{suffix}")
+    return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -10,6 +10,7 @@ from pathlib import Path
 import scripts.bootstrap_tree as bootstrap_module
 import scripts.check_env as check_env_module
 import scripts.gates as gates_module
+import scripts.phases as phases_module
 import scripts.product_import as product_import_module
 import scripts.scaffold as scaffold_module
 import scripts.verify_governance as verify_governance_module
@@ -611,6 +612,59 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertFalse(requirements["product_chapters_present"]["ok"])
             self.assertFalse(requirements["product_acceptance_chapter_present"]["ok"])
             self.assertTrue(payload["verification"]["ok"])
+
+    def test_phases_main_json_advances_product_structuring(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            original_argv = sys.argv
+            sys.argv = ["phases.py", "product-structuring", str(root), "--json"]
+            stdout = io.StringIO()
+            try:
+                with contextlib.redirect_stdout(stdout):
+                    returncode = phases_module.main()
+            finally:
+                sys.argv = original_argv
+
+            payload = json.loads(stdout.getvalue())
+            state = load_state(root)
+            self.assertEqual(0, returncode)
+            self.assertTrue(payload["ok"])
+            self.assertTrue(payload["advanced"])
+            self.assertEqual("product-structuring", payload["phase"])
+            self.assertEqual(str(root.resolve()), payload["target"])
+            self.assertEqual("product-structuring", payload["state"]["phase"])
+            self.assertEqual("initialized", payload["state"]["phase_history"][0]["from_phase"])
+            self.assertEqual("product-structuring", payload["state"]["phase_history"][0]["gate"])
+            self.assertEqual("product-structuring", state["phase"])
+
+    def test_phases_main_json_failed_gate_does_not_advance(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            original_argv = sys.argv
+            sys.argv = ["phases.py", "design-derivation", str(root), "--json"]
+            stdout = io.StringIO()
+            try:
+                with contextlib.redirect_stdout(stdout):
+                    returncode = phases_module.main()
+            finally:
+                sys.argv = original_argv
+
+            payload = json.loads(stdout.getvalue())
+            state = load_state(root)
+            self.assertEqual(1, returncode)
+            self.assertFalse(payload["ok"])
+            self.assertFalse(payload["advanced"])
+            self.assertEqual("design-derivation", payload["phase"])
+            self.assertEqual(str(root.resolve()), payload["target"])
+            self.assertEqual(["design-derivation gate failed"], payload["errors"])
+            self.assertEqual("initialized", state["phase"])
+            self.assertNotIn("phase_history", state)
 
     def test_verify_governance_main_json_reports_ok_for_clean_target(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
