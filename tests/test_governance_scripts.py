@@ -2184,6 +2184,41 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertFalse((root / "README.md").exists())
             self.assertFalse((root / "docs/README.md").exists())
 
+    def test_preflight_rejects_invalid_state_even_with_force_without_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            readme = root / "README.md"
+            readme.write_text("# Existing\n", encoding="utf-8")
+            state_path = root / ".governance/state.json"
+            state_path.parent.mkdir()
+            state_path.write_text("{not json\n", encoding="utf-8")
+
+            result = preflight_init(root, product, force=True)
+
+            self.assertFalse(result.ok)
+            self.assertTrue(
+                any(
+                    conflict.path == ".governance/state.json"
+                    and conflict.reason.startswith("existing governance state is invalid: invalid JSON:")
+                    for conflict in result.conflicts
+                ),
+                [conflict.to_dict() for conflict in result.conflicts],
+            )
+            with self.assertRaises(InitPreflightError) as context:
+                bootstrap(root, product, force=True)
+            self.assertTrue(
+                any(
+                    conflict.path == ".governance/state.json"
+                    and conflict.reason.startswith("existing governance state is invalid: invalid JSON:")
+                    for conflict in context.exception.result.conflicts
+                ),
+                [conflict.to_dict() for conflict in context.exception.result.conflicts],
+            )
+            self.assertEqual("# Existing\n", readme.read_text(encoding="utf-8"))
+            self.assertEqual("{not json\n", state_path.read_text(encoding="utf-8"))
+
     def test_preflight_rejects_product_archive_generated_output_collision(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "target"

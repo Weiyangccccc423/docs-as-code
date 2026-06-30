@@ -350,6 +350,7 @@ def preflight_init(root: Path, product_doc: Path | None = None, force: bool = Fa
     conflicts.extend(_target_preflight_conflicts(root))
     conflicts.extend(_product_preflight_conflicts(product_doc))
     conflicts.extend(_product_archive_preflight_conflicts(product_doc))
+    conflicts.extend(_state_preflight_conflicts(root, force))
     conflict_keys = {(conflict.path, conflict.reason) for conflict in conflicts}
 
     for rel in paths:
@@ -410,6 +411,19 @@ def _target_preflight_conflicts(root: Path) -> list[InitConflict]:
         current = current.parent
     if current.exists() and not current.is_dir():
         return [InitConflict(str(current), "target parent path is not a directory")]
+    return []
+
+
+def _state_preflight_conflicts(root: Path, force: bool) -> list[InitConflict]:
+    if not force:
+        return []
+    state = root / STATE_REL
+    if not state.exists() or not state.is_file():
+        return []
+    try:
+        load_state(root)
+    except StateFileError as error:
+        return [InitConflict(STATE_REL.as_posix(), f"existing governance state is invalid: {error.reason}")]
     return []
 
 

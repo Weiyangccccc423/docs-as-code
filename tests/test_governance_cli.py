@@ -791,6 +791,51 @@ class GovernanceCliTest(unittest.TestCase):
             )
             self.assertEqual("not a directory\n", (target / "docs").read_text(encoding="utf-8"))
 
+    def test_init_force_json_rejects_invalid_state_without_partial_overwrite(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            target = base / "target"
+            target.mkdir()
+            product = base / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+            readme = target / "README.md"
+            readme.write_text("# Existing\n", encoding="utf-8")
+            state_path = target / ".governance/state.json"
+            state_path.parent.mkdir()
+            state_path.write_text("{not json\n", encoding="utf-8")
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "init",
+                    "--target",
+                    str(target),
+                    "--product",
+                    str(product),
+                    "--force",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, result.returncode)
+            self.assertEqual("", result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertTrue(
+                any(
+                    conflict["path"] == ".governance/state.json"
+                    and conflict["reason"].startswith("existing governance state is invalid: invalid JSON:")
+                    for conflict in payload["conflicts"]
+                ),
+                payload["conflicts"],
+            )
+            self.assertEqual("# Existing\n", readme.read_text(encoding="utf-8"))
+            self.assertEqual("{not json\n", state_path.read_text(encoding="utf-8"))
+
     def test_init_json_rejects_blocked_state_temp_path_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
