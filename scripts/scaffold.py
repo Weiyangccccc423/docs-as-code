@@ -328,8 +328,22 @@ def _write_scaffold_file(path: Path, content: str, result: ScaffoldResult) -> bo
 
 def _record_scaffold_write_error(result: ScaffoldResult, path: Path, error: OSError) -> None:
     reason = error.strerror or str(error)
+    rel = _result_relative_path(result, path)
     result.ok = False
-    result.errors.append(f"failed to write scaffold file {path}: {reason}")
+    result.errors.append(f"failed to write scaffold file {rel}: {reason}")
+
+
+def _record_scaffold_read_error(result: ScaffoldResult, label: str, path: Path, message: str) -> None:
+    rel = _result_relative_path(result, path)
+    result.ok = False
+    result.errors.append(f"{label} {message}: {rel}")
+
+
+def _result_relative_path(result: ScaffoldResult, path: Path) -> str:
+    try:
+        return path.resolve().relative_to(Path(result.target).resolve()).as_posix()
+    except ValueError:
+        return str(path)
 
 
 def _product_scaffold_gate_allows(gate: Any) -> bool:
@@ -443,12 +457,16 @@ def _ensure_index(root: Path, spec: ScaffoldSpec, result: ScaffoldResult) -> boo
     readme = path.parent / "README.md"
     try:
         readme.parent.mkdir(parents=True, exist_ok=True)
-        if readme.exists():
-            text = readme.read_text(encoding="utf-8")
-        else:
-            text = f"# {path.parent.relative_to(root).as_posix()}\n"
     except OSError as error:
         _record_scaffold_write_error(result, readme, error)
+        return False
+    text = _read_scaffold_text(
+        result,
+        readme,
+        "scaffold index",
+        f"# {path.parent.relative_to(root).as_posix()}\n",
+    )
+    if text is None:
         return False
     filename = path.name
     if filename in text:
@@ -471,12 +489,11 @@ def _ensure_product_meta_link(root: Path, spec: ScaffoldSpec, result: ScaffoldRe
     meta = root / "docs/product/core/product-meta.md"
     try:
         meta.parent.mkdir(parents=True, exist_ok=True)
-        if meta.exists():
-            text = meta.read_text(encoding="utf-8")
-        else:
-            text = "# Product Meta\n\n## Chapter Map\n"
     except OSError as error:
         _record_scaffold_write_error(result, meta, error)
+        return False
+    text = _read_scaffold_text(result, meta, "scaffold product meta", "# Product Meta\n\n## Chapter Map\n")
+    if text is None:
         return False
     rel_link = f"../{path.name}"
     if rel_link in text:
@@ -490,3 +507,19 @@ def _ensure_product_meta_link(root: Path, spec: ScaffoldSpec, result: ScaffoldRe
         _record_scaffold_write_error(result, meta, error)
         return False
     return True
+
+
+def _read_scaffold_text(result: ScaffoldResult, path: Path, label: str, default: str) -> str | None:
+    if not path.exists():
+        return default
+    if not path.is_file():
+        _record_scaffold_read_error(result, label, path, "is not a file")
+        return None
+    try:
+        return path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        _record_scaffold_read_error(result, label, path, "must be UTF-8 Markdown")
+    except OSError as error:
+        reason = error.strerror or str(error)
+        _record_scaffold_read_error(result, label, path, f"is unreadable: {reason}")
+    return None

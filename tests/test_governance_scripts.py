@@ -7076,6 +7076,114 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertIn("docs/product/03-goals-and-requirements.md", result.created)
             self.assertTrue(any("docs/product/README.md" in error for error in result.errors))
 
+    def test_scaffold_product_reports_index_directory(self) -> None:
+        class PassingGate:
+            ok = True
+            requirements: list[object] = []
+            verification: dict[str, object] = {"findings": []}
+
+            def to_dict(self) -> dict[str, object]:
+                return {"ok": True, "requirements": [], "verification": self.verification}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product_root = root / "docs/product"
+            product_root.mkdir(parents=True)
+            (product_root / "README.md").mkdir()
+            original_evaluate_gate = scaffold_module.evaluate_gate
+            scaffold_module.evaluate_gate = lambda _root, _gate: PassingGate()
+            try:
+                result = scaffold_module.scaffold_product(root, ["goals-and-requirements"])
+            finally:
+                scaffold_module.evaluate_gate = original_evaluate_gate
+
+            self.assertFalse(result.ok)
+            self.assertIn("docs/product/03-goals-and-requirements.md", result.created)
+            self.assertIn("scaffold index is not a file: docs/product/README.md", result.errors)
+
+    def test_scaffold_product_reports_index_invalid_encoding(self) -> None:
+        class PassingGate:
+            ok = True
+            requirements: list[object] = []
+            verification: dict[str, object] = {"findings": []}
+
+            def to_dict(self) -> dict[str, object]:
+                return {"ok": True, "requirements": [], "verification": self.verification}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product_root = root / "docs/product"
+            product_root.mkdir(parents=True)
+            (product_root / "README.md").write_bytes(b"\xff")
+            original_evaluate_gate = scaffold_module.evaluate_gate
+            scaffold_module.evaluate_gate = lambda _root, _gate: PassingGate()
+            try:
+                result = scaffold_module.scaffold_product(root, ["goals-and-requirements"])
+            finally:
+                scaffold_module.evaluate_gate = original_evaluate_gate
+
+            self.assertFalse(result.ok)
+            self.assertIn("docs/product/03-goals-and-requirements.md", result.created)
+            self.assertIn("scaffold index must be UTF-8 Markdown: docs/product/README.md", result.errors)
+
+    def test_scaffold_product_reports_product_meta_directory(self) -> None:
+        class PassingGate:
+            ok = True
+            requirements: list[object] = []
+            verification: dict[str, object] = {"findings": []}
+
+            def to_dict(self) -> dict[str, object]:
+                return {"ok": True, "requirements": [], "verification": self.verification}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product_root = root / "docs/product"
+            product_root.mkdir(parents=True)
+            (product_root / "README.md").write_text("# Product\n", encoding="utf-8")
+            meta = product_root / "core/product-meta.md"
+            meta.mkdir(parents=True)
+            original_evaluate_gate = scaffold_module.evaluate_gate
+            scaffold_module.evaluate_gate = lambda _root, _gate: PassingGate()
+            try:
+                result = scaffold_module.scaffold_product(root, ["goals-and-requirements"])
+            finally:
+                scaffold_module.evaluate_gate = original_evaluate_gate
+
+            self.assertFalse(result.ok)
+            self.assertIn("docs/product/03-goals-and-requirements.md", result.created)
+            self.assertIn("scaffold product meta is not a file: docs/product/core/product-meta.md", result.errors)
+
+    def test_scaffold_product_reports_product_meta_invalid_encoding(self) -> None:
+        class PassingGate:
+            ok = True
+            requirements: list[object] = []
+            verification: dict[str, object] = {"findings": []}
+
+            def to_dict(self) -> dict[str, object]:
+                return {"ok": True, "requirements": [], "verification": self.verification}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product_root = root / "docs/product"
+            product_root.mkdir(parents=True)
+            (product_root / "README.md").write_text("# Product\n", encoding="utf-8")
+            meta = product_root / "core/product-meta.md"
+            meta.parent.mkdir(parents=True)
+            meta.write_bytes(b"\xff")
+            original_evaluate_gate = scaffold_module.evaluate_gate
+            scaffold_module.evaluate_gate = lambda _root, _gate: PassingGate()
+            try:
+                result = scaffold_module.scaffold_product(root, ["goals-and-requirements"])
+            finally:
+                scaffold_module.evaluate_gate = original_evaluate_gate
+
+            self.assertFalse(result.ok)
+            self.assertIn("docs/product/03-goals-and-requirements.md", result.created)
+            self.assertIn(
+                "scaffold product meta must be UTF-8 Markdown: docs/product/core/product-meta.md",
+                result.errors,
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
