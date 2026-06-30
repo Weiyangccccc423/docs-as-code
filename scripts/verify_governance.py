@@ -1826,10 +1826,8 @@ def _check_acceptance_matrix_acceptance_id_source(
                 f"acceptance matrix row {row_label} Acceptance link fragment {fragment_id} does not match Acceptance ID {acceptance_id}",
                 ACCEPTANCE_MATRIX_REL.as_posix(),
             )
-    if product_acceptance_refs and not any(
-        _product_acceptance_reference_has_id(root, reference, acceptance_id)
-        for reference in product_acceptance_refs
-    ):
+    has_acceptance_id = _product_acceptance_references_have_id(root, product_acceptance_refs, acceptance_id, report)
+    if product_acceptance_refs and has_acceptance_id is False:
         report.add_error(
             "acceptance_matrix_acceptance_id_unknown",
             f"acceptance matrix row {row_label} Acceptance ID {acceptance_id} is not defined in referenced product acceptance chapter",
@@ -2494,7 +2492,7 @@ def _check_task_board(root: Path, report: VerificationReport) -> None:
             )
             continue
         seen_ids.add(task_key)
-        reference_errors = _task_board_row_trace_reference_errors(root, row, task_id)
+        reference_errors = _task_board_row_trace_reference_errors(root, row, task_id, report)
         if reference_errors:
             for code, message in reference_errors:
                 report.add_error(code, message, rel)
@@ -2831,7 +2829,12 @@ def _task_board_row_acceptance_mapped(row: dict[str, str], matrix_ids: set[str])
     return acceptance_id is not None and acceptance_id in matrix_ids
 
 
-def _task_board_row_trace_reference_errors(root: Path, row: dict[str, str], task_id: str) -> list[tuple[str, str]]:
+def _task_board_row_trace_reference_errors(
+    root: Path,
+    row: dict[str, str],
+    task_id: str,
+    report: VerificationReport | None = None,
+) -> list[tuple[str, str]]:
     errors: list[tuple[str, str]] = []
     for column in TASK_BOARD_REFERENCE_COLUMNS:
         label = TASK_BOARD_REQUIRED_COLUMNS[column]
@@ -2874,9 +2877,10 @@ def _task_board_row_trace_reference_errors(root: Path, row: dict[str, str], task
                     "task_board_acceptance_id_missing",
                     f"task board row {task_id} Acceptance field must include A-NNN acceptance ID",
                 ))
-            elif product_acceptance_refs and acceptance_id is not None and not any(
-                _product_acceptance_reference_has_id(root, reference, acceptance_id)
-                for reference in product_acceptance_refs
+            elif (
+                product_acceptance_refs
+                and acceptance_id is not None
+                and _product_acceptance_references_have_id(root, product_acceptance_refs, acceptance_id, report) is False
             ):
                 errors.append((
                     "task_board_acceptance_id_unknown",
@@ -2922,11 +2926,40 @@ def _reference_fragment_acceptance_id(reference: LocalMarkdownReference) -> str 
     return match.group(0).upper()
 
 
-def _product_acceptance_reference_has_id(root: Path, reference: LocalMarkdownReference, acceptance_id: str) -> bool:
-    try:
-        text = (root / reference.rel).read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        return False
+def _product_acceptance_references_have_id(
+    root: Path,
+    references: list[LocalMarkdownReference],
+    acceptance_id: str,
+    report: VerificationReport | None = None,
+) -> bool | None:
+    saw_unreadable = False
+    for reference in references:
+        has_id = _product_acceptance_reference_has_id(root, reference, acceptance_id, report)
+        if has_id is True:
+            return True
+        if has_id is None:
+            saw_unreadable = True
+    if saw_unreadable:
+        return None
+    return False
+
+
+def _product_acceptance_reference_has_id(
+    root: Path,
+    reference: LocalMarkdownReference,
+    acceptance_id: str,
+    report: VerificationReport | None = None,
+) -> bool | None:
+    path = root / reference.rel
+    if report is None:
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            return False
+    else:
+        text = _read_markdown_text(root, path, report)
+        if text is None:
+            return None
     return _text_contains_identifier(_strip_markdown_code(text), acceptance_id)
 
 
