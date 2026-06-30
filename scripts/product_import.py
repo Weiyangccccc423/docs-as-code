@@ -238,17 +238,24 @@ def _check_conversion_blocker_registry(root: Path, errors: list[str]) -> None:
 
 
 def _check_output_targets(root: Path, errors: list[str]) -> None:
-    _check_output_target(root, PRODUCT_META_REL, "product metadata", errors)
-    _check_output_target(root, STATE_REL, "product import state", errors)
+    _check_atomic_output_target(root, MANIFEST_REL, "product source manifest", errors)
+    _check_atomic_output_target(root, PRODUCT_META_REL, "product metadata", errors)
+    _check_atomic_output_target(root, STATE_REL, "product import state", errors)
+    if (root / UNRESOLVED_REL).exists():
+        _check_atomic_output_target(root, UNRESOLVED_REL, "conversion blocker registry", errors)
 
 
-def _check_output_target(root: Path, rel: Path, label: str, errors: list[str]) -> None:
+def _check_atomic_output_target(root: Path, rel: Path, label: str, errors: list[str]) -> None:
     path = root / rel
     if path.parent.exists() and not path.parent.is_dir():
         errors.append(f"{path.parent.relative_to(root).as_posix()} is not a directory; cannot update {label}")
         return
     if path.exists() and not path.is_file():
         errors.append(f"{rel.as_posix()} is not a file; cannot update {label}")
+        return
+    temp = _atomic_temp_path(path)
+    if temp.exists() and not temp.is_file():
+        errors.append(f"{temp.relative_to(root).as_posix()} is not a file; cannot prepare {label}")
 
 
 def _is_valid_product_source_archive_path(value: str) -> bool:
@@ -306,7 +313,7 @@ def _resolve_conversion_blocker(path: Path) -> bool:
         lines[index] = _join_table_row(cells)
         changed = True
     if changed:
-        path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+        _write_text(path, "\n".join(lines).rstrip() + "\n")
     return changed
 
 
@@ -342,13 +349,22 @@ def _normalize_cell(value: str) -> str:
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    _write_atomic_text(path, json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n")
 
 
 def _write_text(path: Path, content: str) -> None:
+    _write_atomic_text(path, content)
+
+
+def _write_atomic_text(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
+    temp = _atomic_temp_path(path)
+    temp.write_text(content, encoding="utf-8")
+    temp.replace(path)
+
+
+def _atomic_temp_path(path: Path) -> Path:
+    return path.with_name(f".{path.name}.tmp")
 
 
 def _sha256(path: Path) -> str:
