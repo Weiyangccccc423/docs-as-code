@@ -333,6 +333,15 @@ def preflight_init(root: Path, product_doc: Path | None = None, force: bool = Fa
         if not force and target.exists():
             _append_init_conflict(conflicts, conflict_keys, InitConflict(rel, "generated file already exists"))
 
+    state_temp_rel = STATE_REL.with_name(f".{STATE_REL.name}.tmp")
+    state_temp = root / state_temp_rel
+    if state_temp.exists() and not state_temp.is_file():
+        _append_init_conflict(
+            conflicts,
+            conflict_keys,
+            InitConflict(state_temp_rel.as_posix(), "state temp path is not a file"),
+        )
+
     return InitPreflightResult(
         target=str(root),
         ok=not conflicts,
