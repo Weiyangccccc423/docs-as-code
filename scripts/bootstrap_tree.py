@@ -94,12 +94,26 @@ def _atomic_temp_path(path: Path) -> Path:
 
 
 def _copy_runtime_file(source: Path, target: Path, force: bool = False) -> None:
-    target.parent.mkdir(parents=True, exist_ok=True)
     if source.resolve() == target.resolve():
         return
     if target.exists() and not force:
         return
-    shutil.copy2(source, target)
+    _copy_file_atomic(source, target)
+
+
+def _copy_file_atomic(source: Path, target: Path) -> None:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temp = _atomic_temp_path(target)
+    try:
+        shutil.copy2(source, temp)
+        temp.replace(target)
+    except OSError:
+        if temp.exists() and temp.is_file():
+            try:
+                temp.unlink()
+            except OSError:
+                pass
+        raise
 
 
 def _install_runtime(root: Path, force: bool = False) -> None:
@@ -447,6 +461,15 @@ def _runtime_refresh_preflight_errors(root: Path, workflow_pack_files: list[Path
         target = root / rel
         if target.exists() and not target.is_file():
             append(target, "runtime refresh output path is not a file")
+            continue
+        temp_rel = _atomic_temp_path(rel)
+        temp_parent_conflict = _generated_parent_conflict(root, temp_rel)
+        if temp_parent_conflict is not None:
+            append(root / temp_parent_conflict.path, "temp parent path is not a directory")
+            continue
+        temp = root / temp_rel
+        if temp.exists() and not temp.is_file():
+            append(temp, "runtime refresh temp path is not a file")
 
     state_temp = root / STATE_REL.with_name(f".{STATE_REL.name}.tmp")
     if state_temp.exists() and not state_temp.is_file():
