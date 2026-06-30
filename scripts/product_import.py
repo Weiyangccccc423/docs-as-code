@@ -201,13 +201,24 @@ def _check_archived_source(root: Path, manifest: dict[str, Any], errors: list[st
     expected_size = archive.get("size_bytes")
     if not _is_valid_manifest_size(expected_size):
         errors.append("invalid product source manifest: archive.size_bytes is missing or invalid")
-    elif archived_path.stat().st_size != expected_size:
-        errors.append(f"archived product source size mismatch: {archived_rel}")
+    else:
+        try:
+            actual_size = archived_path.stat().st_size
+        except OSError as error:
+            errors.append(f"archived product source is unreadable: {archived_rel}: {_os_error_reason(error)}")
+            return
+        if actual_size != expected_size:
+            errors.append(f"archived product source size mismatch: {archived_rel}")
     expected_hash = archive.get("sha256")
     if not isinstance(expected_hash, str) or not expected_hash:
         errors.append("invalid product source manifest: archive.sha256 is missing")
         return
-    if _sha256(archived_path) != expected_hash:
+    try:
+        actual_hash = _sha256(archived_path)
+    except OSError as error:
+        errors.append(f"archived product source is unreadable: {archived_rel}: {_os_error_reason(error)}")
+        return
+    if actual_hash != expected_hash:
         errors.append(f"archived product source hash mismatch: {archived_rel}")
 
 

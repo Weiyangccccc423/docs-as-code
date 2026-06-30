@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import scripts.product_import as product_import_module
 import scripts.scaffold as scaffold_module
 from scripts.check_env import (
     PackageManager,
@@ -2104,6 +2105,33 @@ class GovernanceScriptsTest(unittest.TestCase):
             )
             self.assertEqual(0, cli_result.returncode, cli_result.stderr)
             self.assertIn("phase: initialized", cli_result.stdout)
+
+    def test_product_mark_ready_reports_archived_source_hash_read_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.docx"
+            product.write_bytes(b"fake docx bytes")
+            bootstrap(root, product)
+            (root / "docs/product/core/PRD.md").write_text("# Converted Product\n", encoding="utf-8")
+
+            original_sha256 = product_import_module._sha256
+
+            def raise_os_error(_path: Path) -> str:
+                raise OSError(13, "Permission denied")
+
+            product_import_module._sha256 = raise_os_error
+            try:
+                result = product_import_module.mark_product_import_ready(root, reviewed=True)
+            finally:
+                product_import_module._sha256 = original_sha256
+
+            self.assertFalse(result.ok)
+            self.assertIn(
+                "archived product source is unreadable: docs/product/core/source/product.docx: Permission denied",
+                result.errors,
+            )
+            manifest = json.loads((root / "docs/product/core/source/source-manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual("conversion_required", manifest["import"]["status"])
 
     def test_target_runtime_marks_converted_product_ready(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
