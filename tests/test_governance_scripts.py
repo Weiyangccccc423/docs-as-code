@@ -18,7 +18,7 @@ from scripts.check_env import (
 from scripts.bootstrap_tree import InitPreflightError
 from scripts.bootstrap_tree import bootstrap
 from scripts.gates import evaluate_gate
-from scripts.state import StateFileError, merge_state
+from scripts.state import StateFileError, load_state, merge_state
 from scripts.verify_governance import task_board_ready_tasks, verify
 
 
@@ -7050,6 +7050,18 @@ class GovernanceScriptsTest(unittest.TestCase):
 
             self.assertEqual(target / ".governance/state.json", context.exception.path)
             self.assertIn("unwritable", context.exception.reason)
+
+    def test_load_state_reports_state_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp)
+            state_path = target / ".governance/state.json"
+            state_path.mkdir(parents=True)
+
+            with self.assertRaises(StateFileError) as context:
+                load_state(target)
+
+            self.assertEqual(state_path, context.exception.path)
+            self.assertEqual("not a file", context.exception.reason)
 
     def test_scaffold_product_records_index_write_failure(self) -> None:
         class PassingGate:

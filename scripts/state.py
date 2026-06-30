@@ -28,6 +28,8 @@ def load_state(root: Path) -> dict[str, Any]:
     path = state_path(root)
     if not path.exists():
         return {}
+    if not path.is_file():
+        raise StateFileError(path, "not a file")
     try:
         state = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as error:
