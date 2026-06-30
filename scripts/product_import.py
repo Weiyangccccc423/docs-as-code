@@ -59,6 +59,12 @@ class ProductImportReadyResult:
         }
 
 
+@dataclass(frozen=True)
+class _FileSnapshot:
+    exists: bool
+    content: bytes = b""
+
+
 def mark_product_import_ready(root: Path, method: str = "manual-reviewed-markdown", reviewed: bool = False) -> ProductImportReadyResult:
     root = root.resolve()
     method = method.strip()
@@ -100,7 +106,9 @@ def mark_product_import_ready(root: Path, method: str = "manual-reviewed-markdow
     updated: list[str] = []
     blocker_resolved = False
     state: dict[str, Any] = {}
+    snapshots: dict[str, _FileSnapshot] = {}
     try:
+        snapshots = _snapshot_files(root, (MANIFEST_REL, PRODUCT_META_REL, UNRESOLVED_REL))
         _write_json(root / MANIFEST_REL, manifest)
         updated.append(MANIFEST_REL.as_posix())
         _write_text(root / PRODUCT_META_REL, _product_meta(manifest))
@@ -125,6 +133,10 @@ def mark_product_import_ready(root: Path, method: str = "manual-reviewed-markdow
         errors.append(f"failed to update product import readiness: {error}")
 
     if errors:
+        rollback_errors = _rollback_updated_files(root, snapshots, updated)
+        errors.extend(rollback_errors)
+        if UNRESOLVED_REL.as_posix() not in updated:
+            blocker_resolved = False
         result_manifest = manifest if MANIFEST_REL.as_posix() in updated else original_manifest
         return ProductImportReadyResult(
             target=str(root),
@@ -150,6 +162,40 @@ def mark_product_import_ready(root: Path, method: str = "manual-reviewed-markdow
         manifest=manifest,
         state=state,
     )
+
+
+def _snapshot_files(root: Path, rels: tuple[Path, ...]) -> dict[str, _FileSnapshot]:
+    snapshots: dict[str, _FileSnapshot] = {}
+    for rel in rels:
+        path = root / rel
+        if path.exists():
+            snapshots[rel.as_posix()] = _FileSnapshot(exists=True, content=path.read_bytes())
+        else:
+            snapshots[rel.as_posix()] = _FileSnapshot(exists=False)
+    return snapshots
+
+
+def _rollback_updated_files(root: Path, snapshots: dict[str, _FileSnapshot], updated: list[str]) -> list[str]:
+    rollback_errors: list[str] = []
+    for rel_posix in list(reversed(updated)):
+        snapshot = snapshots.get(rel_posix)
+        if snapshot is None:
+            continue
+        try:
+            _restore_file(root / rel_posix, snapshot)
+        except OSError as error:
+            rollback_errors.append(f"failed to rollback {rel_posix}: {_os_error_reason(error)}")
+        else:
+            updated.remove(rel_posix)
+    return rollback_errors
+
+
+def _restore_file(path: Path, snapshot: _FileSnapshot) -> None:
+    if snapshot.exists:
+        _write_atomic_bytes(path, snapshot.content)
+        return
+    if path.exists():
+        path.unlink()
 
 
 def _load_manifest(root: Path, errors: list[str]) -> dict[str, Any]:
@@ -396,6 +442,21 @@ def _write_atomic_text(path: Path, content: str) -> None:
     temp = _atomic_temp_path(path)
     try:
         temp.write_text(content, encoding="utf-8")
+        temp.replace(path)
+    except OSError:
+        if temp.exists() and temp.is_file():
+            try:
+                temp.unlink()
+            except OSError:
+                pass
+        raise
+
+
+def _write_atomic_bytes(path: Path, content: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp = _atomic_temp_path(path)
+    try:
+        temp.write_bytes(content)
         temp.replace(path)
     except OSError:
         if temp.exists() and temp.is_file():

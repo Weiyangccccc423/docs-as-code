@@ -2470,6 +2470,85 @@ class GovernanceScriptsTest(unittest.TestCase):
             manifest = json.loads((root / "docs/product/core/source/source-manifest.json").read_text(encoding="utf-8"))
             self.assertEqual("conversion_required", manifest["import"]["status"])
 
+    def test_product_mark_ready_reports_product_meta_write_failure_without_partial_ready_state(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.docx"
+            product.write_bytes(b"fake docx bytes")
+            bootstrap(root, product)
+            (root / "docs/product/core/PRD.md").write_text("# Converted Product\n", encoding="utf-8")
+            manifest_path = root / "docs/product/core/source/source-manifest.json"
+            product_meta_path = root / "docs/product/core/product-meta.md"
+            unresolved_path = root / "docs/unresolved.md"
+            state_path = root / ".governance/state.json"
+            original_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            original_product_meta = product_meta_path.read_text(encoding="utf-8")
+            original_unresolved = unresolved_path.read_text(encoding="utf-8")
+            original_state = json.loads(state_path.read_text(encoding="utf-8"))
+            original_write_text = product_import_module._write_text
+
+            def raise_os_error(path: Path, content: str) -> None:
+                if path == product_meta_path:
+                    raise OSError(28, "No space left on device")
+                original_write_text(path, content)
+
+            product_import_module._write_text = raise_os_error
+            try:
+                result = product_import_module.mark_product_import_ready(root, reviewed=True)
+            finally:
+                product_import_module._write_text = original_write_text
+
+            self.assertFalse(result.ok)
+            self.assertEqual([], result.updated)
+            self.assertIn("failed to update product import readiness: No space left on device", result.errors)
+            self.assertEqual(original_manifest, json.loads(manifest_path.read_text(encoding="utf-8")))
+            self.assertEqual("conversion_required", result.manifest["import"]["status"])
+            self.assertEqual(original_product_meta, product_meta_path.read_text(encoding="utf-8"))
+            self.assertEqual(original_unresolved, unresolved_path.read_text(encoding="utf-8"))
+            self.assertEqual(original_state, json.loads(state_path.read_text(encoding="utf-8")))
+
+    def test_product_mark_ready_rolls_back_document_updates_when_state_update_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.docx"
+            product.write_bytes(b"fake docx bytes")
+            bootstrap(root, product)
+            (root / "docs/product/core/PRD.md").write_text("# Converted Product\n", encoding="utf-8")
+            manifest_path = root / "docs/product/core/source/source-manifest.json"
+            product_meta_path = root / "docs/product/core/product-meta.md"
+            unresolved_path = root / "docs/unresolved.md"
+            state_path = root / ".governance/state.json"
+            original_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            original_product_meta = product_meta_path.read_text(encoding="utf-8")
+            original_unresolved = unresolved_path.read_text(encoding="utf-8")
+            original_state = json.loads(state_path.read_text(encoding="utf-8"))
+            original_merge_state = product_import_module.merge_state
+
+            def raise_state_error(root_arg: Path, **_updates: object) -> dict[str, object]:
+                raise StateFileError(root_arg / ".governance/state.json", "unwritable: No space left on device")
+
+            product_import_module.merge_state = raise_state_error
+            try:
+                result = product_import_module.mark_product_import_ready(root, reviewed=True)
+            finally:
+                product_import_module.merge_state = original_merge_state
+
+            self.assertFalse(result.ok)
+            self.assertEqual([], result.updated)
+            self.assertTrue(
+                any(
+                    error.startswith("failed to update product import readiness: invalid governance state file: ")
+                    for error in result.errors
+                ),
+                result.errors,
+            )
+            self.assertFalse(result.conversion_blocker_resolved)
+            self.assertEqual(original_manifest, json.loads(manifest_path.read_text(encoding="utf-8")))
+            self.assertEqual("conversion_required", result.manifest["import"]["status"])
+            self.assertEqual(original_product_meta, product_meta_path.read_text(encoding="utf-8"))
+            self.assertEqual(original_unresolved, unresolved_path.read_text(encoding="utf-8"))
+            self.assertEqual(original_state, json.loads(state_path.read_text(encoding="utf-8")))
+
     def test_product_mark_ready_rejects_invalid_state_without_partial_ready_state(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
