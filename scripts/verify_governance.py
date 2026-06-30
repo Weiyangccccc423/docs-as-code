@@ -2502,7 +2502,7 @@ def _check_task_board(root: Path, report: VerificationReport) -> None:
             for code, message in blocked_errors:
                 report.add_error(code, message, rel)
             continue
-        evidence_errors = _task_board_done_evidence_errors(root, row, task_id)
+        evidence_errors = _task_board_done_evidence_errors(root, row, task_id, report)
         if evidence_errors:
             for message in evidence_errors:
                 report.add_error("task_board_done_evidence_missing", message, rel)
@@ -3027,17 +3027,29 @@ def _is_test_reference(reference: LocalMarkdownReference) -> bool:
     return len(path.parts) >= 2 and path.parts[0] == "docs" and path.parts[1] == "tests"
 
 
-def _task_board_done_evidence_errors(root: Path, row: dict[str, str], task_id: str) -> list[str]:
+def _task_board_done_evidence_errors(
+    root: Path,
+    row: dict[str, str],
+    task_id: str,
+    report: VerificationReport | None = None,
+) -> list[str]:
     if _normalize_cell(row.get("status", "")) not in TASK_BOARD_DONE_STATUSES:
         return []
     references = _task_board_local_references(root, row.get("verification", ""))
     if not references:
         return [f"task board row {task_id} is Done but Verification has no local Markdown evidence"]
-    return [
-        f"task board row {task_id} references missing Verification evidence: {reference.rel}"
-        for reference in references
-        if not reference.exists
-    ]
+    errors: list[str] = []
+    for reference in references:
+        path = root / reference.rel
+        if reference.exists:
+            if report is not None:
+                _read_markdown_text(root, path, report)
+            continue
+        if report is not None and path.exists():
+            _read_markdown_text(root, path, report)
+            continue
+        errors.append(f"task board row {task_id} references missing Verification evidence: {reference.rel}")
+    return errors
 
 
 def _task_board_blocked_unresolved_errors(
