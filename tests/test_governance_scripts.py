@@ -638,6 +638,40 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertFalse((root / "docs").exists())
             self.assertFalse((root / "bin/governance").exists())
 
+    def test_bootstrap_main_reports_write_failure_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            root = base / "target"
+            product = base / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            original_argv = sys.argv
+            original_safe_write = bootstrap_module._safe_write
+
+            def fail_after_root_readme(path: Path, content: str, force: bool = False) -> None:
+                original_safe_write(path, content, force)
+                if path == root / "README.md":
+                    raise OSError(28, "No space left on device")
+
+            sys.argv = [
+                "bootstrap_tree.py",
+                "--target",
+                str(root),
+                "--product",
+                str(product),
+            ]
+            bootstrap_module._safe_write = fail_after_root_readme
+            stdout = io.StringIO()
+            try:
+                with contextlib.redirect_stdout(stdout):
+                    returncode = bootstrap_module.main()
+            finally:
+                sys.argv = original_argv
+                bootstrap_module._safe_write = original_safe_write
+
+            self.assertEqual(1, returncode)
+            self.assertIn("Initialization failed: No space left on device", stdout.getvalue())
+            self.assertFalse(root.exists())
+
     def test_runtime_refresh_rejects_missing_source_runtime_without_partial_refresh(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

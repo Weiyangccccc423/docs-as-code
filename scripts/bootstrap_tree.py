@@ -1260,8 +1260,23 @@ def main() -> int:
     parser.add_argument("--force", action="store_true", help="Overwrite existing generated files.")
     args = parser.parse_args()
     product = Path(args.product) if args.product else None
-    bootstrap(Path(args.target), product, force=args.force, profile=args.profile, project_name=args.project_name)
+    try:
+        bootstrap(Path(args.target), product, force=args.force, profile=args.profile, project_name=args.project_name)
+    except InitPreflightError as error:
+        print("Initialization preflight failed:")
+        for conflict in error.result.conflicts:
+            print(f"- {conflict.path}: {conflict.reason}")
+        return 1
+    except (OSError, StateFileError) as error:
+        print(f"Initialization failed: {_bootstrap_error_reason(error)}")
+        return 1
     return 0
+
+
+def _bootstrap_error_reason(error: OSError | StateFileError) -> str:
+    if isinstance(error, OSError):
+        return error.strerror or str(error)
+    return str(error)
 
 
 if __name__ == "__main__":
