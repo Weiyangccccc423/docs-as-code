@@ -445,6 +445,43 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual([], payload["repairs"])
             self.assertTrue(governance.is_file())
 
+    def test_env_repair_json_rejects_blocked_repair_plan_temp_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            repair_plan = target / ".governance/env-repair.md"
+            repair_plan.parent.mkdir(parents=True)
+            repair_plan.write_text("# Existing Plan\n", encoding="utf-8")
+            temp_path = repair_plan.with_name(".env-repair.md.tmp")
+            temp_path.mkdir()
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "env",
+                    "--target",
+                    str(target),
+                    "--repair",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, result.returncode)
+            self.assertEqual("", result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertEqual(str(target), payload["target"])
+            self.assertEqual(
+                [f"environment repair plan temp path is not a file: {temp_path}"],
+                payload["errors"],
+            )
+            self.assertIsNone(payload["repair_plan"])
+            self.assertEqual([], payload["repairs"])
+            self.assertEqual("# Existing Plan\n", repair_plan.read_text(encoding="utf-8"))
+
     def test_init_check_json_does_not_write_files(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)

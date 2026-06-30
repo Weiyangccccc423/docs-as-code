@@ -15,6 +15,7 @@ from scripts.check_env import (
     install_commands,
     missing_tools_by_level,
     repair_target_error,
+    write_repair_plan,
 )
 from scripts.bootstrap_tree import InitPreflightError
 from scripts.bootstrap_tree import bootstrap
@@ -7179,6 +7180,27 @@ class GovernanceScriptsTest(unittest.TestCase):
                 f"environment repair plan path is not a file: {repair_plan}",
                 repair_target_error(target),
             )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / "target"
+            repair_plan = target / ".governance/env-repair.md"
+            repair_plan.parent.mkdir(parents=True)
+            repair_plan.write_text("# Existing Plan\n", encoding="utf-8")
+            temp_path = repair_plan.with_name(".env-repair.md.tmp")
+            temp_path.mkdir()
+
+            self.assertEqual(
+                f"environment repair plan temp path is not a file: {temp_path}",
+                repair_target_error(target),
+            )
+            with self.assertRaises(ValueError) as context:
+                write_repair_plan(target, [])
+            self.assertEqual(
+                f"environment repair plan temp path is not a file: {temp_path}",
+                str(context.exception),
+            )
+            self.assertEqual("# Existing Plan\n", repair_plan.read_text(encoding="utf-8"))
 
     def test_merge_state_reports_unwritable_state_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

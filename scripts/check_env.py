@@ -219,6 +219,9 @@ def repair_target_error(target: Path) -> str | None:
             repair_plan = governance_dir / "env-repair.md"
             if repair_plan.exists() and not repair_plan.is_file():
                 return f"environment repair plan path is not a file: {repair_plan}"
+            repair_plan_temp = _atomic_temp_path(repair_plan)
+            if repair_plan_temp.exists() and not repair_plan_temp.is_file():
+                return f"environment repair plan temp path is not a file: {repair_plan_temp}"
             return None
         return f"environment repair target is not a directory: {target}"
     for ancestor in target.parents:
@@ -301,8 +304,19 @@ def write_repair_plan(
             "- Install `lychee` before enforcing strict link checks.",
         ]
     )
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    _write_atomic_text(path, "\n".join(lines) + "\n")
     return path
+
+
+def _write_atomic_text(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp = _atomic_temp_path(path)
+    temp.write_text(content, encoding="utf-8")
+    temp.replace(path)
+
+
+def _atomic_temp_path(path: Path) -> Path:
+    return path.with_name(f".{path.name}.tmp")
 
 
 def _version(tool: str) -> str:
