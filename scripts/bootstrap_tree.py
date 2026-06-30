@@ -8,9 +8,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 try:
-    from .state import STATE_REL, StateFileError, merge_state, utc_now
+    from .state import STATE_REL, StateFileError, load_state, merge_state, utc_now
 except ImportError:  # pragma: no cover - direct script execution
-    from state import STATE_REL, StateFileError, merge_state, utc_now
+    from state import STATE_REL, StateFileError, load_state, merge_state, utc_now
 
 
 DOC_DIRS = [
@@ -413,6 +413,14 @@ def refresh_runtime(root: Path) -> RuntimeRefreshResult:
                 "runtime refresh must be run from a trusted source workflow-pack checkout, "
                 "not the target-local runtime"
             ],
+        )
+    try:
+        load_state(root)
+    except StateFileError as error:
+        return RuntimeRefreshResult(
+            target=str(root),
+            ok=False,
+            errors=[f"target governance state is invalid: {error}"],
         )
 
     try:

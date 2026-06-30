@@ -857,6 +857,41 @@ class GovernanceCliTest(unittest.TestCase):
             )
             self.assertFalse((target / "docs/agent-workflow/runtime-manifest.json").exists())
 
+    def test_runtime_refresh_rejects_invalid_state_without_partial_refresh(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            target = base / "target"
+            product = base / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product)],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            runtime = target / "scripts/scaffold.py"
+            runtime.write_text(runtime.read_text(encoding="utf-8") + "\n# tampered\n", encoding="utf-8")
+            state_path = target / ".governance/state.json"
+            state_path.write_text("{not json\n", encoding="utf-8")
+
+            result = subprocess.run(
+                [sys.executable, str(CLI), "runtime", "refresh", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, result.returncode)
+            self.assertEqual("", result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertEqual(str(target.resolve()), payload["target"])
+            self.assertIn("target governance state is invalid", payload["errors"][0])
+            self.assertIn("invalid JSON", payload["errors"][0])
+            self.assertIn("# tampered", runtime.read_text(encoding="utf-8"))
+
     def test_runtime_refresh_reports_unwritable_runtime_without_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
