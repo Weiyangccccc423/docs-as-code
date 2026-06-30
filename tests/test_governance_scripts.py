@@ -2692,6 +2692,70 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertEqual(0, cli_result.returncode, cli_result.stderr)
             self.assertIn("phase: initialized", cli_result.stdout)
 
+    def test_product_import_main_json_marks_ready_after_review(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.docx"
+            product.write_bytes(b"fake docx bytes")
+            bootstrap(root, product)
+            (root / "docs/product/core/PRD.md").write_text("# Converted Product\n", encoding="utf-8")
+            original_argv = sys.argv
+            sys.argv = [
+                "product_import.py",
+                "mark-ready",
+                str(root),
+                "--reviewed",
+                "--method",
+                "manual-reviewed-markdown",
+                "--json",
+            ]
+            stdout = io.StringIO()
+            try:
+                with contextlib.redirect_stdout(stdout):
+                    returncode = product_import_module.main()
+            finally:
+                sys.argv = original_argv
+
+            payload = json.loads(stdout.getvalue())
+            manifest = json.loads((root / "docs/product/core/source/source-manifest.json").read_text(encoding="utf-8"))
+            state = load_state(root)
+            self.assertEqual(0, returncode)
+            self.assertTrue(payload["ok"])
+            self.assertTrue(payload["reviewed"])
+            self.assertEqual("manual-reviewed-markdown", payload["method"])
+            self.assertEqual(str(root.resolve()), payload["target"])
+            self.assertTrue(payload["conversion_blocker_resolved"])
+            self.assertIn("docs/product/core/source/source-manifest.json", payload["updated"])
+            self.assertIn(".governance/state.json", payload["updated"])
+            self.assertEqual("ready_for_structuring", manifest["import"]["status"])
+            self.assertTrue(manifest["import"]["can_derive_design"])
+            self.assertEqual("ready_for_structuring", state["product_import_status"])
+
+    def test_product_import_main_json_requires_review_confirmation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.docx"
+            product.write_bytes(b"fake docx bytes")
+            bootstrap(root, product)
+            (root / "docs/product/core/PRD.md").write_text("# Converted Product\n", encoding="utf-8")
+            original_argv = sys.argv
+            sys.argv = ["product_import.py", "mark-ready", str(root), "--json"]
+            stdout = io.StringIO()
+            try:
+                with contextlib.redirect_stdout(stdout):
+                    returncode = product_import_module.main()
+            finally:
+                sys.argv = original_argv
+
+            payload = json.loads(stdout.getvalue())
+            manifest = json.loads((root / "docs/product/core/source/source-manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(1, returncode)
+            self.assertFalse(payload["ok"])
+            self.assertFalse(payload["reviewed"])
+            self.assertEqual(str(root.resolve()), payload["target"])
+            self.assertIn("manual review confirmation is required", payload["errors"])
+            self.assertEqual("conversion_required", manifest["import"]["status"])
+
     def test_product_mark_ready_reports_archived_source_hash_read_failure(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

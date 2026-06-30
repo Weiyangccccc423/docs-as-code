@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import copy
 import hashlib
 import json
@@ -481,3 +482,41 @@ def _sha256(path: Path) -> str:
 
 def _os_error_reason(error: OSError) -> str:
     return error.strerror or error.__class__.__name__
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Manage docs-as-code product document import readiness.")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    mark_ready = subparsers.add_parser("mark-ready", help="Mark reviewed product import ready for structuring.")
+    mark_ready.add_argument("target", nargs="?", default=".", help="Repository root to update.")
+    mark_ready.add_argument("--reviewed", action="store_true", help="Confirm PRD was manually reviewed.")
+    mark_ready.add_argument(
+        "--method",
+        default="manual-reviewed-markdown",
+        help="Reviewed conversion method to record in the source manifest.",
+    )
+    mark_ready.add_argument("--json", action="store_true", help="Print a machine-readable readiness result.")
+    args = parser.parse_args()
+    if args.command == "mark-ready":
+        result = mark_product_import_ready(Path(args.target), method=args.method, reviewed=args.reviewed)
+        if args.json:
+            print(json.dumps(result.to_dict(), ensure_ascii=False, indent=2, sort_keys=True))
+            return 0 if result.ok else 1
+        if not result.ok:
+            print("Product import is not ready:")
+            for error in result.errors:
+                print(f"- ERROR: {error}")
+            for warning in result.warnings:
+                print(f"- WARN: {warning}")
+            return 1
+        print("Product import marked ready for structuring.")
+        for path in result.updated:
+            print(f"- UPDATED: {path}")
+        for warning in result.warnings:
+            print(f"- WARN: {warning}")
+        return 0
+    raise ValueError(f"unknown product import command: {args.command}")
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
