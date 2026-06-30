@@ -2929,6 +2929,17 @@ class GovernanceScriptsTest(unittest.TestCase):
                 self.assertEqual("", result.stderr)
                 return result, json.loads(result.stdout)
 
+            env_result, env_payload = run_direct("check_env.py", "--target", ".", "--json")
+            self.assertEqual(0, env_result.returncode)
+            self.assertTrue(env_payload["ok"])
+            self.assertEqual(".", env_payload["target"])
+            self.assertIn("tools", env_payload)
+            self.assertIn("system", env_payload)
+            self.assertIn("package_manager", env_payload)
+            self.assertIn("missing_required", env_payload)
+            self.assertIn("missing_recommended", env_payload)
+            self.assertIn("needs_escalation", env_payload)
+
             mark_ready, mark_ready_payload = run_direct("product_import.py", "mark-ready", ".", "--reviewed", "--json")
             self.assertEqual(0, mark_ready.returncode)
             self.assertTrue(mark_ready_payload["ok"])
