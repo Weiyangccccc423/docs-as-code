@@ -2491,6 +2491,66 @@ class GovernanceCliTest(unittest.TestCase):
             )
             self.assertEqual(0, gate_result.returncode, gate_result.stderr)
 
+    def test_product_mark_ready_check_json_reports_plan_without_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.docx"
+            product.write_bytes(b"fake docx bytes")
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            (target / "docs/product/core/PRD.md").write_text(
+                "# Converted Product\n\n"
+                "## Goal\n\n"
+                "Ship governed projects from reviewed product input.\n",
+                encoding="utf-8",
+            )
+
+            manifest_path = target / "docs/product/core/source/source-manifest.json"
+            unresolved_path = target / "docs/unresolved.md"
+            state_path = target / ".governance/state.json"
+            manifest_before = manifest_path.read_text(encoding="utf-8")
+            unresolved_before = unresolved_path.read_text(encoding="utf-8")
+            state_before = state_path.read_text(encoding="utf-8")
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "product",
+                    "mark-ready",
+                    str(target),
+                    "--reviewed",
+                    "--method",
+                    "manual-reviewed-markdown",
+                    "--check",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertTrue(payload["check"])
+            self.assertEqual([], payload["updated"])
+            self.assertEqual("ready_for_structuring", payload["manifest"]["import"]["status"])
+            self.assertTrue(payload["manifest"]["import"]["can_derive_design"])
+            self.assertTrue(payload["would_resolve_conversion_blocker"])
+            self.assertIn("docs/product/core/source/source-manifest.json", payload["would_update"])
+            self.assertIn("docs/product/core/product-meta.md", payload["would_update"])
+            self.assertIn("docs/unresolved.md", payload["would_update"])
+            self.assertIn(".governance/state.json", payload["would_update"])
+            self.assertEqual(manifest_before, manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual(unresolved_before, unresolved_path.read_text(encoding="utf-8"))
+            self.assertEqual(state_before, state_path.read_text(encoding="utf-8"))
+
     def test_gate_design_derivation_requires_product_chapter(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "target"

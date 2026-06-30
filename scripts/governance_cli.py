@@ -22,7 +22,7 @@ from check_env import (
 )
 from gates import GATE_NAMES, evaluate_gate
 from phases import PHASE_NAMES, advance_phase
-from product_import import mark_product_import_ready
+from product_import import check_product_import_ready, mark_product_import_ready
 from scaffold import PRODUCT_CHAPTER_CHOICES, scaffold_design, scaffold_product
 from state import STATE_REL, StateFileError, load_state, merge_state
 from verify_governance import verify
@@ -475,18 +475,28 @@ def _cmd_advance(args: argparse.Namespace) -> int:
 
 def _cmd_product_mark_ready(args: argparse.Namespace) -> int:
     target = Path(args.target)
-    result = mark_product_import_ready(target, method=args.method, reviewed=args.reviewed)
+    if args.check:
+        result = check_product_import_ready(target, method=args.method, reviewed=args.reviewed)
+    else:
+        result = mark_product_import_ready(target, method=args.method, reviewed=args.reviewed)
     payload = result.to_dict()
     if args.json:
         _print_json(payload)
         return 0 if result.ok else 1
     if not result.ok:
-        print("Product import is not ready:")
+        print("Product import readiness preflight failed:" if args.check else "Product import is not ready:")
         for error in result.errors:
             print(f"- ERROR: {error}")
         for warning in result.warnings:
             print(f"- WARN: {warning}")
         return 1
+    if args.check:
+        print("Product import readiness preflight passed.")
+        for path in result.would_update:
+            print(f"- WOULD UPDATE: {path}")
+        for warning in result.warnings:
+            print(f"- WARN: {warning}")
+        return 0
     print("Product import marked ready for structuring.")
     for path in result.updated:
         print(f"- UPDATED: {path}")
@@ -576,6 +586,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Confirm docs/product/core/PRD.md has reviewed Markdown content preserving source meaning.",
     )
+    mark_ready.add_argument("--check", action="store_true", help="Run readiness preflight without writing files.")
     mark_ready.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     mark_ready.set_defaults(func=_cmd_product_mark_ready)
 

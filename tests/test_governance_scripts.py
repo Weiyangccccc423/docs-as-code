@@ -2972,6 +2972,22 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertIn("missing_recommended", env_payload)
             self.assertIn("needs_escalation", env_payload)
 
+            mark_ready_check, mark_ready_check_payload = run_direct(
+                "product_import.py",
+                "mark-ready",
+                ".",
+                "--reviewed",
+                "--check",
+                "--json",
+            )
+            self.assertEqual(0, mark_ready_check.returncode)
+            self.assertTrue(mark_ready_check_payload["ok"])
+            self.assertTrue(mark_ready_check_payload["check"])
+            self.assertEqual([], mark_ready_check_payload["updated"])
+            self.assertIn("docs/product/core/source/source-manifest.json", mark_ready_check_payload["would_update"])
+            manifest = json.loads((root / "docs/product/core/source/source-manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual("conversion_required", manifest["import"]["status"])
+
             mark_ready, mark_ready_payload = run_direct("product_import.py", "mark-ready", ".", "--reviewed", "--json")
             self.assertEqual(0, mark_ready.returncode)
             self.assertTrue(mark_ready_payload["ok"])
@@ -3323,6 +3339,21 @@ class GovernanceScriptsTest(unittest.TestCase):
                 "Use reviewed product input for downstream structuring.\n",
                 encoding="utf-8",
             )
+
+            check_result = subprocess.run(
+                [str(root / "bin/governance"), "product", "mark-ready", ".", "--reviewed", "--check", "--json"],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, check_result.returncode, check_result.stderr)
+            check_payload = json.loads(check_result.stdout)
+            self.assertTrue(check_payload["ok"])
+            self.assertTrue(check_payload["check"])
+            self.assertEqual([], check_payload["updated"])
+            manifest = json.loads((root / "docs/product/core/source/source-manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual("conversion_required", manifest["import"]["status"])
 
             result = subprocess.run(
                 [str(root / "bin/governance"), "product", "mark-ready", ".", "--reviewed", "--json"],

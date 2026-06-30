@@ -38,10 +38,13 @@ class ProductImportReadyResult:
     ok: bool
     reviewed: bool
     method: str
+    check: bool = False
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     updated: list[str] = field(default_factory=list)
+    would_update: list[str] = field(default_factory=list)
     conversion_blocker_resolved: bool = False
+    would_resolve_conversion_blocker: bool = False
     manifest: dict[str, Any] = field(default_factory=dict)
     state: dict[str, Any] = field(default_factory=dict)
 
@@ -51,10 +54,13 @@ class ProductImportReadyResult:
             "ok": self.ok,
             "reviewed": self.reviewed,
             "method": self.method,
+            "check": self.check,
             "errors": self.errors,
             "warnings": self.warnings,
             "updated": self.updated,
+            "would_update": self.would_update,
             "conversion_blocker_resolved": self.conversion_blocker_resolved,
+            "would_resolve_conversion_blocker": self.would_resolve_conversion_blocker,
             "manifest": self.manifest,
             "state": self.state,
         }
@@ -66,7 +72,126 @@ class _FileSnapshot:
     content: bytes = b""
 
 
+@dataclass
+class _ProductImportReadyPlan:
+    target: str
+    reviewed: bool
+    method: str
+    errors: list[str]
+    warnings: list[str]
+    manifest: dict[str, Any]
+    reviewed_at: str = ""
+    would_update: list[str] = field(default_factory=list)
+    would_resolve_conversion_blocker: bool = False
+    state: dict[str, Any] = field(default_factory=dict)
+
+
+def check_product_import_ready(
+    root: Path,
+    method: str = "manual-reviewed-markdown",
+    reviewed: bool = False,
+) -> ProductImportReadyResult:
+    plan = _build_product_import_ready_plan(root, method=method, reviewed=reviewed)
+    return ProductImportReadyResult(
+        target=plan.target,
+        ok=not plan.errors,
+        reviewed=plan.reviewed,
+        method=plan.method,
+        check=True,
+        errors=plan.errors,
+        warnings=plan.warnings,
+        would_update=plan.would_update,
+        would_resolve_conversion_blocker=plan.would_resolve_conversion_blocker,
+        manifest=plan.manifest,
+        state=plan.state,
+    )
+
+
 def mark_product_import_ready(root: Path, method: str = "manual-reviewed-markdown", reviewed: bool = False) -> ProductImportReadyResult:
+    root = root.resolve()
+    plan = _build_product_import_ready_plan(root, method=method, reviewed=reviewed)
+    if plan.errors:
+        return ProductImportReadyResult(
+            target=plan.target,
+            ok=False,
+            reviewed=plan.reviewed,
+            method=plan.method,
+            errors=plan.errors,
+            warnings=plan.warnings,
+            manifest=plan.manifest,
+            state=plan.state,
+        )
+
+    original_manifest = _load_manifest(root, [])
+    manifest = copy.deepcopy(plan.manifest)
+    warnings = list(plan.warnings)
+    errors: list[str] = []
+    updated: list[str] = []
+    blocker_resolved = False
+    state: dict[str, Any] = {}
+    snapshots: dict[str, _FileSnapshot] = {}
+    try:
+        snapshots = _snapshot_files(root, (MANIFEST_REL, PRODUCT_META_REL, UNRESOLVED_REL))
+        _write_json(root / MANIFEST_REL, manifest)
+        updated.append(MANIFEST_REL.as_posix())
+        _write_text(root / PRODUCT_META_REL, _product_meta(manifest))
+        updated.append(PRODUCT_META_REL.as_posix())
+        blocker_resolved = _resolve_conversion_blocker(root / UNRESOLVED_REL)
+        if blocker_resolved:
+            updated.append(UNRESOLVED_REL.as_posix())
+        elif plan.would_resolve_conversion_blocker:
+            warnings.append(f"{CONVERSION_BLOCKER_ID} conversion blocker was not found or was already resolved")
+
+        state = merge_state(
+            root,
+            product_import_status="ready_for_structuring",
+            product_can_derive_design=True,
+            product_conversion_method=plan.method,
+            product_conversion_reviewed_at=plan.reviewed_at,
+        )
+        updated.append(".governance/state.json")
+    except OSError as error:
+        errors.append(f"failed to update product import readiness: {_os_error_reason(error)}")
+    except StateFileError as error:
+        errors.append(f"failed to update product import readiness: {error}")
+
+    if errors:
+        rollback_errors = _rollback_updated_files(root, snapshots, updated)
+        errors.extend(rollback_errors)
+        if UNRESOLVED_REL.as_posix() not in updated:
+            blocker_resolved = False
+        result_manifest = manifest if MANIFEST_REL.as_posix() in updated else original_manifest
+        return ProductImportReadyResult(
+            target=str(root),
+            ok=False,
+            reviewed=plan.reviewed,
+            method=plan.method,
+            errors=errors,
+            warnings=warnings,
+            updated=updated,
+            conversion_blocker_resolved=blocker_resolved,
+            manifest=result_manifest,
+            state=state,
+        )
+
+    return ProductImportReadyResult(
+        target=str(root),
+        ok=True,
+        reviewed=plan.reviewed,
+        method=plan.method,
+        warnings=warnings,
+        updated=updated,
+        conversion_blocker_resolved=blocker_resolved,
+        manifest=manifest,
+        state=state,
+    )
+
+
+def _build_product_import_ready_plan(
+    root: Path,
+    method: str = "manual-reviewed-markdown",
+    reviewed: bool = False,
+) -> _ProductImportReadyPlan:
     root = root.resolve()
     method = method.strip()
     errors: list[str] = []
@@ -85,82 +210,50 @@ def mark_product_import_ready(root: Path, method: str = "manual-reviewed-markdow
     if imported.get("status") == "no_source":
         errors.append("product source is missing; cannot mark import ready")
 
+    state = _load_current_state(root) if not errors else {}
     if errors:
-        return ProductImportReadyResult(
+        return _ProductImportReadyPlan(
             target=str(root),
-            ok=False,
             reviewed=reviewed,
             method=method,
             errors=errors,
             warnings=warnings,
             manifest=manifest,
-        )
-
-    original_manifest = copy.deepcopy(manifest)
-    reviewed_at = utc_now()
-    imported["status"] = "ready_for_structuring"
-    imported["conversion_method"] = method
-    imported["can_derive_design"] = True
-    imported["reviewed_at"] = reviewed_at
-    manifest["import"] = imported
-
-    updated: list[str] = []
-    blocker_resolved = False
-    state: dict[str, Any] = {}
-    snapshots: dict[str, _FileSnapshot] = {}
-    try:
-        snapshots = _snapshot_files(root, (MANIFEST_REL, PRODUCT_META_REL, UNRESOLVED_REL))
-        _write_json(root / MANIFEST_REL, manifest)
-        updated.append(MANIFEST_REL.as_posix())
-        _write_text(root / PRODUCT_META_REL, _product_meta(manifest))
-        updated.append(PRODUCT_META_REL.as_posix())
-        blocker_resolved = _resolve_conversion_blocker(root / UNRESOLVED_REL)
-        if blocker_resolved:
-            updated.append(UNRESOLVED_REL.as_posix())
-        else:
-            warnings.append(f"{CONVERSION_BLOCKER_ID} conversion blocker was not found or was already resolved")
-
-        state = merge_state(
-            root,
-            product_import_status="ready_for_structuring",
-            product_can_derive_design=True,
-            product_conversion_method=method,
-            product_conversion_reviewed_at=reviewed_at,
-        )
-        updated.append(".governance/state.json")
-    except OSError as error:
-        errors.append(f"failed to update product import readiness: {_os_error_reason(error)}")
-    except StateFileError as error:
-        errors.append(f"failed to update product import readiness: {error}")
-
-    if errors:
-        rollback_errors = _rollback_updated_files(root, snapshots, updated)
-        errors.extend(rollback_errors)
-        if UNRESOLVED_REL.as_posix() not in updated:
-            blocker_resolved = False
-        result_manifest = manifest if MANIFEST_REL.as_posix() in updated else original_manifest
-        return ProductImportReadyResult(
-            target=str(root),
-            ok=False,
-            reviewed=reviewed,
-            method=method,
-            errors=errors,
-            warnings=warnings,
-            updated=updated,
-            conversion_blocker_resolved=blocker_resolved,
-            manifest=result_manifest,
             state=state,
         )
 
-    return ProductImportReadyResult(
+    planned_manifest = copy.deepcopy(manifest)
+    planned_imported = planned_manifest.get("import")
+    if not isinstance(planned_imported, dict):
+        planned_imported = {}
+    reviewed_at = utc_now()
+    planned_imported["status"] = "ready_for_structuring"
+    planned_imported["conversion_method"] = method
+    planned_imported["can_derive_design"] = True
+    planned_imported["reviewed_at"] = reviewed_at
+    planned_manifest["import"] = planned_imported
+
+    would_resolve = _conversion_blocker_would_resolve(root / UNRESOLVED_REL)
+    if not would_resolve:
+        warnings.append(f"{CONVERSION_BLOCKER_ID} conversion blocker was not found or was already resolved")
+    would_update = [
+        MANIFEST_REL.as_posix(),
+        PRODUCT_META_REL.as_posix(),
+    ]
+    if would_resolve:
+        would_update.append(UNRESOLVED_REL.as_posix())
+    would_update.append(STATE_REL.as_posix())
+
+    return _ProductImportReadyPlan(
         target=str(root),
-        ok=True,
         reviewed=reviewed,
         method=method,
+        errors=errors,
         warnings=warnings,
-        updated=updated,
-        conversion_blocker_resolved=blocker_resolved,
-        manifest=manifest,
+        manifest=planned_manifest,
+        reviewed_at=reviewed_at,
+        would_update=would_update,
+        would_resolve_conversion_blocker=would_resolve,
         state=state,
     )
 
@@ -327,6 +420,16 @@ def _check_state_readable(root: Path, errors: list[str]) -> None:
         errors.append(f"product import state is invalid: {error}")
 
 
+def _load_current_state(root: Path) -> dict[str, Any]:
+    path = root / STATE_REL
+    if not path.exists() or not path.is_file():
+        return {}
+    try:
+        return load_state(root)
+    except StateFileError:
+        return {}
+
+
 def _check_atomic_output_target(root: Path, rel: Path, label: str, errors: list[str]) -> None:
     path = root / rel
     if path.parent.exists() and not path.parent.is_dir():
@@ -397,6 +500,42 @@ def _resolve_conversion_blocker(path: Path) -> bool:
     if changed:
         _write_text(path, "\n".join(lines).rstrip() + "\n")
     return changed
+
+
+def _conversion_blocker_would_resolve(path: Path) -> bool:
+    if not path.exists() or not path.is_file():
+        return False
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError):
+        return False
+    header_index = _find_unresolved_table_header(lines)
+    if header_index is None:
+        return False
+    header = [_normalize_cell(cell) for cell in _split_table_row(lines[header_index])]
+    try:
+        id_index = header.index("id")
+        domain_index = header.index("domain")
+        blocking_index = header.index("blocking scope")
+    except ValueError:
+        return False
+
+    for line in lines[header_index + 1 :]:
+        if not line.lstrip().startswith("|"):
+            continue
+        cells = _split_table_row(line)
+        if _is_separator_row(cells):
+            continue
+        if len(cells) <= max(id_index, domain_index, blocking_index):
+            continue
+        if cells[id_index].strip() != CONVERSION_BLOCKER_ID:
+            continue
+        if cells[domain_index].strip() != CONVERSION_BLOCKER_DOMAIN:
+            continue
+        if _normalize_cell(cells[blocking_index]) == "resolved":
+            continue
+        return True
+    return False
 
 
 def _find_unresolved_table_header(lines: list[str]) -> int | None:
@@ -495,20 +634,31 @@ def main() -> int:
         default="manual-reviewed-markdown",
         help="Reviewed conversion method to record in the source manifest.",
     )
+    mark_ready.add_argument("--check", action="store_true", help="Run readiness preflight without writing files.")
     mark_ready.add_argument("--json", action="store_true", help="Print a machine-readable readiness result.")
     args = parser.parse_args()
     if args.command == "mark-ready":
-        result = mark_product_import_ready(Path(args.target), method=args.method, reviewed=args.reviewed)
+        if args.check:
+            result = check_product_import_ready(Path(args.target), method=args.method, reviewed=args.reviewed)
+        else:
+            result = mark_product_import_ready(Path(args.target), method=args.method, reviewed=args.reviewed)
         if args.json:
             print(json.dumps(result.to_dict(), ensure_ascii=False, indent=2, sort_keys=True))
             return 0 if result.ok else 1
         if not result.ok:
-            print("Product import is not ready:")
+            print("Product import readiness preflight failed:" if args.check else "Product import is not ready:")
             for error in result.errors:
                 print(f"- ERROR: {error}")
             for warning in result.warnings:
                 print(f"- WARN: {warning}")
             return 1
+        if args.check:
+            print("Product import readiness preflight passed.")
+            for path in result.would_update:
+                print(f"- WOULD UPDATE: {path}")
+            for warning in result.warnings:
+                print(f"- WARN: {warning}")
+            return 0
         print("Product import marked ready for structuring.")
         for path in result.updated:
             print(f"- UPDATED: {path}")

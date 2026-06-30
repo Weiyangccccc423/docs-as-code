@@ -53,6 +53,7 @@ The `implementation` gate requires a traceable task board with at least one `Rea
 When a non-Markdown product source has been converted and `docs/product/core/PRD.md` has been manually reviewed against the archived original, close out the import state deterministically:
 
 ```bash
+bin/governance product mark-ready /path/to/new-project --reviewed --method manual-reviewed-markdown --check --json
 bin/governance product mark-ready /path/to/new-project --reviewed --method manual-reviewed-markdown --json
 bin/governance gate product-structuring /path/to/new-project --json
 ```

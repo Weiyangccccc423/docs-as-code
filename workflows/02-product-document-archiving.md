@@ -31,10 +31,11 @@ Load:
 7. After the readable Markdown PRD has been manually reviewed against the archived source, use the deterministic closeout command instead of editing manifest metadata by hand:
 
    ```bash
+   bin/governance product mark-ready <target> --reviewed --method manual-reviewed-markdown --check --json
    bin/governance product mark-ready <target> --reviewed --method manual-reviewed-markdown --json
    ```
 
-   The command updates `source-manifest.json`, refreshes `product-meta.md`, records state, and marks the bootstrap conversion blocker `U-001` as `resolved`.
+   The `--check` command reports `would_update` without writing files. The write command updates `source-manifest.json`, refreshes `product-meta.md`, records state, and marks the bootstrap conversion blocker `U-001` as `resolved`.
 
 ## Recommended Conversion Rules
 

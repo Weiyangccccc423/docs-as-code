@@ -25,6 +25,8 @@ For agent automation, use JSON and branch on `ok`:
 ```bash
 bin/governance verify <target> --json
 bin/governance env --strict --repair --target <target> --json
+bin/governance product mark-ready <target> --reviewed --method manual-reviewed-markdown --check --json
+bin/governance product mark-ready <target> --reviewed --method manual-reviewed-markdown --json
 bin/governance gate implementation <target> --json
 bin/governance advance implementation <target> --json
 bin/governance runtime refresh <target> --check --json
@@ -41,14 +43,14 @@ Fix document-integrity findings first: `required_file_not_file`, `required_direc
 
 Do not invent missing acceptance IDs, unresolved IDs, links, or evidence just to satisfy secondary findings while their referenced Markdown source is not readable. Restore the expected file shape and UTF-8 Markdown first, then use the next verification report as the source of repair work.
 
-Treat gate requirement `product_import_ready` as a product-archiving blocker: finish product conversion, run `bin/governance product mark-ready <target> --reviewed --method manual-reviewed-markdown --json`, or repair `docs/product/core/source/source-manifest.json` by the embedded verification findings.
+Treat gate requirement `product_import_ready` as a product-archiving blocker: finish product conversion, run `bin/governance product mark-ready <target> --reviewed --method manual-reviewed-markdown --check --json`, then run it without `--check`, or repair `docs/product/core/source/source-manifest.json` by the embedded verification findings.
 Treat gate requirement `product_acceptance_chapter_present` as a product-structuring blocker: create a sourced `NN-*acceptance*.md` product chapter or register the missing acceptance criteria as unresolved.
 Treat gate requirement `acceptance_matrix_present` as an implementation-readiness blocker: create and index `docs/tests/02-acceptance-matrix.md` before marking tasks Ready for implementation.
 Treat gate requirements `ui_docs_present` and `frontend_docs_present` as design-derivation blockers: complete and index `docs/ui/` and `docs/frontend/` design documents before implementation handoff.
 Treat standard handoff `*_present` gate requirements as implementation-readiness blockers: create and index the exact reported `path` before implementation handoff.
 Treat gate requirement `api_endpoint_contract_present` as an API-contract blocker: create at least one indexed `docs/api/endpoints/NN-<slug>.md` endpoint contract.
 Treat `product_source_missing`, `product_source_archive_missing`, `product_source_hash_mismatch`, `product_source_size_mismatch`, `product_source_manifest_*`, `product_source_import_status_invalid`, and `product_source_import_inconsistent` as product-archiving blockers: repair the source archive and manifest before deriving product structure.
-Treat `product_source_conversion_required` as a product-archiving blocker: replace the PRD conversion wrapper with reviewed Markdown and use `bin/governance product mark-ready <target> --reviewed --method manual-reviewed-markdown --json`.
+Treat `product_source_conversion_required` as a product-archiving blocker: replace the PRD conversion wrapper with reviewed Markdown and use `bin/governance product mark-ready <target> --reviewed --method manual-reviewed-markdown --check --json`, then run it without `--check`.
 Treat `governance_scaffold_placeholder` as an authoring blocker, not a formatting issue. If `path` starts with `docs/product/`, replace it with PRD-derived product content before design derivation; otherwise replace it with product-derived design, test, or planning content before implementation handoff.
 Treat `runtime_manifest_*`, `runtime_file_missing`, `runtime_file_not_file`, `runtime_file_hash_mismatch`, `runtime_file_size_mismatch`, and `runtime_file_not_executable` as target-local governance runtime integrity blockers: run `bin/governance runtime refresh <target> --check --json` from a trusted source workflow-pack checkout, then run `bin/governance runtime refresh <target> --json` before trusting target-local commands.
 Treat `workflow_pack_manifest_*`, `workflow_pack_file_hash_mismatch`, `workflow_pack_file_size_mismatch`, `workflow_pack_file_missing`, `workflow_pack_file_not_file`, and `workflow_pack_file_unmanifested` as workflow-pack integrity blockers: run `bin/governance runtime refresh <target> --check --json` from a trusted source workflow-pack checkout, then run `bin/governance runtime refresh <target> --json`.
