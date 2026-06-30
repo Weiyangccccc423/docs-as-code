@@ -1442,6 +1442,27 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertTrue(status_payload["ok"])
             self.assertEqual("service", status_payload["state"]["profile"])
 
+    def test_status_json_reports_missing_state_with_status_shape(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            target.mkdir()
+
+            status_result = subprocess.run(
+                [sys.executable, str(CLI), "status", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, status_result.returncode)
+            self.assertEqual("", status_result.stderr)
+            payload = json.loads(status_result.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertEqual(str(target), payload["target"])
+            self.assertEqual({}, payload["state"])
+            self.assertEqual(["No governance state found."], payload["errors"])
+            self.assertEqual("No governance state found.", payload["error"])
+
     def test_status_json_reports_invalid_state_without_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "target"
@@ -1479,6 +1500,8 @@ class GovernanceCliTest(unittest.TestCase):
             payload = json.loads(status_result.stdout)
             self.assertFalse(payload["ok"])
             self.assertEqual(str(target), payload["target"])
+            self.assertEqual({}, payload["state"])
+            self.assertIn("invalid governance state file", payload["errors"][0])
             self.assertEqual(str(state_path), payload["path"])
             self.assertIn("invalid governance state file", payload["error"])
             self.assertIn("invalid JSON", payload["error"])

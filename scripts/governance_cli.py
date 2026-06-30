@@ -153,7 +153,23 @@ def _cmd_verify(args: argparse.Namespace) -> int:
 
 def _cmd_status(args: argparse.Namespace) -> int:
     target = Path(args.target)
-    state = load_state(target)
+    try:
+        state = load_state(target)
+    except StateFileError as error:
+        if args.json:
+            _print_json(
+                {
+                    "ok": False,
+                    "target": str(target),
+                    "error": str(error),
+                    "errors": [str(error)],
+                    "path": str(error.path),
+                    "state": {},
+                }
+            )
+        else:
+            print(f"State file error: {error}")
+        return 1
     if not state:
         if args.json:
             _print_json(
@@ -161,6 +177,8 @@ def _cmd_status(args: argparse.Namespace) -> int:
                     "ok": False,
                     "target": str(target),
                     "error": "No governance state found.",
+                    "errors": ["No governance state found."],
+                    "state": {},
                 }
             )
             return 1
