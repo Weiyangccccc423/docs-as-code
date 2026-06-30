@@ -1,15 +1,16 @@
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 try:
     from .gates import GATE_NAMES, evaluate_gate
-    from .state import load_state, save_state, utc_now
+    from .state import StateFileError, load_state, save_state, utc_now
 except ImportError:  # pragma: no cover - direct script execution
     from gates import GATE_NAMES, evaluate_gate
-    from state import load_state, save_state, utc_now
+    from state import StateFileError, load_state, save_state, utc_now
 
 
 PHASE_NAMES = GATE_NAMES
@@ -41,7 +42,17 @@ def advance_phase(root: Path, phase: str) -> AdvanceResult:
     if phase not in PHASE_NAMES:
         raise ValueError(f"unknown phase: {phase}")
     root = root.resolve()
-    gate = evaluate_gate(root, phase)
+    try:
+        gate = evaluate_gate(root, phase)
+    except StateFileError as error:
+        return AdvanceResult(
+            phase=phase,
+            target=str(root),
+            ok=False,
+            advanced=False,
+            errors=[f"failed to advance phase: {error}"],
+            gate={},
+        )
     if not gate.ok:
         return AdvanceResult(
             phase=phase,
@@ -53,7 +64,19 @@ def advance_phase(root: Path, phase: str) -> AdvanceResult:
             state=gate.state,
         )
 
-    state = load_state(root)
+    try:
+        state = load_state(root)
+    except StateFileError as error:
+        return AdvanceResult(
+            phase=phase,
+            target=str(root),
+            ok=False,
+            advanced=False,
+            errors=[f"failed to advance phase: {error}"],
+            gate=gate.to_dict(),
+            state=gate.state,
+        )
+    original_state = copy.deepcopy(state)
     previous_phase = state.get("phase")
     advanced_at = utc_now()
     history = state.get("phase_history")
@@ -79,7 +102,18 @@ def advance_phase(root: Path, phase: str) -> AdvanceResult:
             "updated_at": advanced_at,
         }
     )
-    save_state(root, state)
+    try:
+        save_state(root, state)
+    except StateFileError as error:
+        return AdvanceResult(
+            phase=phase,
+            target=str(root),
+            ok=False,
+            advanced=False,
+            errors=[f"failed to advance phase: {error}"],
+            gate=gate.to_dict(),
+            state=original_state,
+        )
     return AdvanceResult(
         phase=phase,
         target=str(root),

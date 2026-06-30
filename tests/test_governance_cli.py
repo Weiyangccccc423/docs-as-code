@@ -1699,6 +1699,39 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual("initialized", state["phase"])
             self.assertNotIn("phase_history", state)
 
+    def test_advance_reports_state_write_failure_without_partial_phase_update(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            state_temp = target / ".governance/.state.json.tmp"
+            state_temp.mkdir()
+
+            advance = subprocess.run(
+                [sys.executable, str(CLI), "advance", "product-structuring", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, advance.returncode)
+            self.assertEqual("", advance.stderr)
+            payload = json.loads(advance.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertFalse(payload["advanced"])
+            self.assertIn("failed to advance phase: invalid governance state file", payload["errors"][0])
+            self.assertIn("unwritable", payload["errors"][0])
+            state = json.loads((target / ".governance/state.json").read_text(encoding="utf-8"))
+            self.assertEqual("initialized", state["phase"])
+            self.assertNotIn("phase_history", state)
+
     def test_gate_product_structuring_uses_manifest_after_conversion(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "target"
