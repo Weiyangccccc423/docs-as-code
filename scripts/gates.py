@@ -6,10 +6,10 @@ from pathlib import Path
 from typing import Any
 
 try:
-    from .state import load_state
+    from .state import STATE_REL, StateFileError, load_state
     from .verify_governance import task_board_ready_tasks, verify
 except ImportError:  # pragma: no cover - direct script execution
-    from state import load_state
+    from state import STATE_REL, StateFileError, load_state
     from verify_governance import task_board_ready_tasks, verify
 
 
@@ -79,10 +79,26 @@ def evaluate_gate(root: Path, gate: str) -> GateResult:
     if gate not in GATE_NAMES:
         raise ValueError(f"unknown gate: {gate}")
     root = root.resolve()
-    state = load_state(root)
+    try:
+        state = load_state(root)
+    except StateFileError as error:
+        return GateResult(
+            gate=gate,
+            target=str(root),
+            ok=False,
+            requirements=[
+                GateRequirement(
+                    code="state_readable",
+                    ok=False,
+                    path=STATE_REL.as_posix(),
+                    message=str(error),
+                )
+            ],
+        )
     report = verify(root)
     requirements: list[GateRequirement] = []
 
+    _add(requirements, "state_readable", True, STATE_REL.as_posix(), "governance state is readable")
     _add(requirements, "state_present", bool(state), ".governance/state.json", "governance state exists")
     _add(requirements, "verification_passed", report.ok, "", "governance verification passes")
 

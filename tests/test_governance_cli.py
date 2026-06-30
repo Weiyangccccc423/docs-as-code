@@ -1643,6 +1643,42 @@ class GovernanceCliTest(unittest.TestCase):
             requirements = {item["code"]: item for item in payload["requirements"]}
             self.assertTrue(requirements["product_import_ready"]["ok"])
 
+    def test_gate_json_reports_invalid_state_with_gate_shape(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            state_path = target / ".governance/state.json"
+            state_path.write_text("{not json\n", encoding="utf-8")
+
+            gate_result = subprocess.run(
+                [sys.executable, str(CLI), "gate", "product-structuring", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, gate_result.returncode)
+            self.assertEqual("", gate_result.stderr)
+            payload = json.loads(gate_result.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertEqual("product-structuring", payload["gate"])
+            self.assertEqual(str(target.resolve()), payload["target"])
+            self.assertEqual({}, payload["state"])
+            self.assertEqual({}, payload["verification"])
+            requirements = {item["code"]: item for item in payload["requirements"]}
+            self.assertFalse(requirements["state_readable"]["ok"])
+            self.assertEqual(".governance/state.json", requirements["state_readable"]["path"])
+            self.assertIn("invalid governance state file", requirements["state_readable"]["message"])
+
     def test_advance_product_structuring_updates_phase_history(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "target"
