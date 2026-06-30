@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -225,3 +226,28 @@ def _has_api_endpoint_contract(root: Path) -> bool:
         path.is_file() and path.name not in {"README.md", "AGENTS.md"} and not path.name.startswith("_")
         for path in endpoint_root.glob("*.md")
     )
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Check docs-as-code workflow phase gates.")
+    parser.add_argument("gate", choices=GATE_NAMES, help="Gate to evaluate.")
+    parser.add_argument("target", nargs="?", default=".", help="Repository root to check.")
+    parser.add_argument("--json", action="store_true", help="Print a machine-readable gate result.")
+    args = parser.parse_args()
+    result = evaluate_gate(Path(args.target), args.gate)
+    if args.json:
+        print(json.dumps(result.to_dict(), ensure_ascii=False, indent=2, sort_keys=True))
+        return 0 if result.ok else 1
+    if result.ok:
+        print(f"Gate passed: {args.gate}")
+        return 0
+    print(f"Gate failed: {args.gate}")
+    for requirement in result.requirements:
+        if not requirement.ok:
+            suffix = f" ({requirement.path})" if requirement.path else ""
+            print(f"- {requirement.code}: {requirement.message}{suffix}")
+    return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

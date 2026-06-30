@@ -9,6 +9,7 @@ from pathlib import Path
 
 import scripts.bootstrap_tree as bootstrap_module
 import scripts.check_env as check_env_module
+import scripts.gates as gates_module
 import scripts.product_import as product_import_module
 import scripts.scaffold as scaffold_module
 import scripts.verify_governance as verify_governance_module
@@ -561,6 +562,55 @@ class GovernanceScriptsTest(unittest.TestCase):
 
             report = verify(root)
             self.assertEqual([], report.errors)
+
+    def test_gates_main_json_reports_ok_for_product_structuring_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            original_argv = sys.argv
+            sys.argv = ["gates.py", "product-structuring", str(root), "--json"]
+            stdout = io.StringIO()
+            try:
+                with contextlib.redirect_stdout(stdout):
+                    returncode = gates_module.main()
+            finally:
+                sys.argv = original_argv
+
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(0, returncode)
+            self.assertTrue(payload["ok"])
+            self.assertEqual("product-structuring", payload["gate"])
+            self.assertEqual(str(root.resolve()), payload["target"])
+            self.assertTrue(all(requirement["ok"] for requirement in payload["requirements"]))
+            self.assertTrue(payload["verification"]["ok"])
+
+    def test_gates_main_json_reports_structured_failed_requirements(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            original_argv = sys.argv
+            sys.argv = ["gates.py", "design-derivation", str(root), "--json"]
+            stdout = io.StringIO()
+            try:
+                with contextlib.redirect_stdout(stdout):
+                    returncode = gates_module.main()
+            finally:
+                sys.argv = original_argv
+
+            payload = json.loads(stdout.getvalue())
+            requirements = {item["code"]: item for item in payload["requirements"]}
+            self.assertEqual(1, returncode)
+            self.assertFalse(payload["ok"])
+            self.assertEqual("design-derivation", payload["gate"])
+            self.assertEqual(str(root.resolve()), payload["target"])
+            self.assertTrue(requirements["verification_passed"]["ok"])
+            self.assertFalse(requirements["product_chapters_present"]["ok"])
+            self.assertFalse(requirements["product_acceptance_chapter_present"]["ok"])
+            self.assertTrue(payload["verification"]["ok"])
 
     def test_verify_governance_main_json_reports_ok_for_clean_target(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
