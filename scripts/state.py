@@ -46,10 +46,17 @@ def load_state(root: Path) -> dict[str, Any]:
 
 def save_state(root: Path, state: dict[str, Any]) -> None:
     path = state_path(root)
+    tmp_path = path.with_name(f".{path.name}.tmp")
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(state, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        tmp_path.write_text(json.dumps(state, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        tmp_path.replace(path)
     except OSError as error:
+        if tmp_path.exists() and tmp_path.is_file():
+            try:
+                tmp_path.unlink()
+            except OSError:
+                pass
         reason = error.strerror or str(error)
         raise StateFileError(path, f"unwritable: {reason}") from error
 

@@ -7165,6 +7165,22 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertEqual(target / ".governance/state.json", context.exception.path)
             self.assertIn("unwritable", context.exception.reason)
 
+    def test_merge_state_preserves_existing_state_when_atomic_temp_path_is_blocked(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp)
+            state_path = target / ".governance/state.json"
+            state_path.parent.mkdir()
+            original = {"phase": "initialized", "profile": "service"}
+            state_path.write_text(json.dumps(original, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            (state_path.parent / ".state.json.tmp").mkdir()
+
+            with self.assertRaises(StateFileError) as context:
+                merge_state(target, phase="product-structuring")
+
+            self.assertEqual(state_path, context.exception.path)
+            self.assertIn("unwritable", context.exception.reason)
+            self.assertEqual(original, json.loads(state_path.read_text(encoding="utf-8")))
+
     def test_load_state_reports_state_directory(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp)
