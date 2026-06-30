@@ -2848,6 +2848,68 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertEqual(0, cli_result.returncode, cli_result.stderr)
             self.assertIn("phase: initialized", cli_result.stdout)
 
+    def test_bootstrap_installed_init_and_verify_wrappers_are_self_hosting(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            root = base / "source-target"
+            product = base / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            nested = base / "nested-target"
+            nested_product = base / "nested-product.md"
+            nested_product.write_text("# Nested Demo\n", encoding="utf-8")
+
+            preflight = subprocess.run(
+                [
+                    str(root / "bin/governance-init"),
+                    "--check",
+                    "--target",
+                    str(nested),
+                    "--product",
+                    str(nested_product),
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, preflight.returncode, preflight.stderr)
+            preflight_payload = json.loads(preflight.stdout)
+            self.assertTrue(preflight_payload["ok"])
+            self.assertEqual(str(nested.resolve()), preflight_payload["target"])
+            self.assertFalse(nested.exists())
+
+            init = subprocess.run(
+                [
+                    str(root / "bin/governance-init"),
+                    "--target",
+                    str(nested),
+                    "--product",
+                    str(nested_product),
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init.returncode, init.stderr)
+            init_payload = json.loads(init.stdout)
+            self.assertTrue(init_payload["ok"])
+            self.assertEqual(str(nested.resolve()), init_payload["target"])
+            self.assertEqual("initialized", init_payload["state"]["phase"])
+            self.assertTrue((nested / "docs/agent-workflow/workflow-pack/manifest.json").exists())
+
+            verify = subprocess.run(
+                [str(nested / "bin/governance-verify"), str(nested), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, verify.returncode, verify.stderr)
+            verify_payload = json.loads(verify.stdout)
+            self.assertTrue(verify_payload["ok"])
+            self.assertEqual(str(nested), verify_payload["target"])
+
     def test_bootstrap_installed_direct_runtime_scripts_emit_json(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "target"
