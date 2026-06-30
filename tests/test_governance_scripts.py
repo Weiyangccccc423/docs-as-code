@@ -8010,6 +8010,57 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertFalse((root / "docs/product/README.md").exists())
             self.assertFalse((root / "docs/product/core/product-meta.md").exists())
 
+    def test_scaffold_product_rolls_back_earlier_writes_when_later_chapter_fails(self) -> None:
+        class PassingGate:
+            ok = True
+            requirements: list[object] = []
+            verification: dict[str, object] = {"findings": []}
+
+            def to_dict(self) -> dict[str, object]:
+                return {"ok": True, "requirements": [], "verification": self.verification}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product_root = root / "docs/product"
+            product_root.mkdir(parents=True)
+            readme = product_root / "README.md"
+            readme.write_text("# Product\n\n## Index\n", encoding="utf-8")
+            meta = product_root / "core/product-meta.md"
+            meta.parent.mkdir(parents=True)
+            meta.write_text("# Product Meta\n\n## Chapter Map\n", encoding="utf-8")
+            first_chapter = product_root / "03-goals-and-requirements.md"
+            later_chapter = product_root / "08-acceptance-criteria.md"
+            later_temp_path = later_chapter.with_name(".08-acceptance-criteria.md.tmp")
+            original_readme = readme.read_text(encoding="utf-8")
+            original_meta = meta.read_text(encoding="utf-8")
+            original_evaluate_gate = scaffold_module.evaluate_gate
+            original_replace = scaffold_module.Path.replace
+
+            def fail_later_replace(self: Path, target: Path) -> Path:
+                if self == later_temp_path and target == later_chapter:
+                    raise OSError("simulated replace failure")
+                return original_replace(self, target)
+
+            scaffold_module.evaluate_gate = lambda _root, _gate: PassingGate()
+            scaffold_module.Path.replace = fail_later_replace
+            try:
+                result = scaffold_module.scaffold_product(
+                    root,
+                    ["goals-and-requirements", "acceptance-criteria"],
+                )
+            finally:
+                scaffold_module.evaluate_gate = original_evaluate_gate
+                scaffold_module.Path.replace = original_replace
+
+            self.assertFalse(result.ok)
+            self.assertEqual([], result.created)
+            self.assertEqual([], result.indexed)
+            self.assertFalse(first_chapter.exists())
+            self.assertFalse(later_chapter.exists())
+            self.assertFalse(later_temp_path.exists())
+            self.assertEqual(original_readme, readme.read_text(encoding="utf-8"))
+            self.assertEqual(original_meta, meta.read_text(encoding="utf-8"))
+
     def test_scaffold_design_stops_after_write_failure_without_later_files(self) -> None:
         class PassingGate:
             ok = True
@@ -8044,6 +8095,44 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertEqual([], result.created)
             self.assertFalse(first_file.exists())
             self.assertFalse(later_file.exists())
+            self.assertFalse((root / "docs/architecture/README.md").exists())
+
+    def test_scaffold_design_rolls_back_earlier_writes_when_later_file_fails(self) -> None:
+        class PassingGate:
+            ok = True
+            requirements: list[object] = []
+            verification: dict[str, object] = {"findings": []}
+
+            def to_dict(self) -> dict[str, object]:
+                return {"ok": True, "requirements": [], "verification": self.verification}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            first_file = root / "docs/architecture/01-system-context.md"
+            later_file = root / "docs/architecture/02-containers.md"
+            later_temp_path = later_file.with_name(".02-containers.md.tmp")
+            original_evaluate_gate = scaffold_module.evaluate_gate
+            original_replace = scaffold_module.Path.replace
+
+            def fail_later_replace(self: Path, target: Path) -> Path:
+                if self == later_temp_path and target == later_file:
+                    raise OSError("simulated replace failure")
+                return original_replace(self, target)
+
+            scaffold_module.evaluate_gate = lambda _root, _gate: PassingGate()
+            scaffold_module.Path.replace = fail_later_replace
+            try:
+                result = scaffold_module.scaffold_design(root)
+            finally:
+                scaffold_module.evaluate_gate = original_evaluate_gate
+                scaffold_module.Path.replace = original_replace
+
+            self.assertFalse(result.ok)
+            self.assertEqual([], result.created)
+            self.assertEqual([], result.indexed)
+            self.assertFalse(first_file.exists())
+            self.assertFalse(later_file.exists())
+            self.assertFalse(later_temp_path.exists())
             self.assertFalse((root / "docs/architecture/README.md").exists())
 
     def test_scaffold_product_reports_index_directory(self) -> None:

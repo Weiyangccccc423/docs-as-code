@@ -48,6 +48,13 @@ class ScaffoldResult:
         }
 
 
+@dataclass(frozen=True)
+class _FileSnapshot:
+    exists: bool
+    content: bytes = b""
+    mode: int | None = None
+
+
 DESIGN_SCAFFOLD: tuple[ScaffoldSpec, ...] = (
     ScaffoldSpec(
         "docs/architecture/01-system-context.md",
@@ -256,6 +263,9 @@ def scaffold_design(root: Path) -> ScaffoldResult:
     if not _preflight_design_scaffold(root, specs, result):
         return result
 
+    output_paths = _scaffold_output_paths(specs, include_product_meta=False)
+    snapshots = _snapshot_files(root, output_paths)
+    existing_dirs = _snapshot_output_dirs(root, output_paths)
     for spec in specs:
         if not result.ok:
             break
@@ -270,6 +280,8 @@ def scaffold_design(root: Path) -> ScaffoldResult:
             result.indexed.append(spec.path)
         if not result.ok:
             break
+    if not result.ok:
+        _rollback_scaffold_outputs(root, snapshots, output_paths, existing_dirs, result)
     return result
 
 
@@ -326,6 +338,9 @@ def scaffold_product(root: Path, chapters: list[str] | tuple[str, ...]) -> Scaff
     if not _preflight_product_scaffold(root, specs, result):
         return result
 
+    output_paths = _scaffold_output_paths(specs, include_product_meta=True)
+    snapshots = _snapshot_files(root, output_paths)
+    existing_dirs = _snapshot_output_dirs(root, output_paths)
     for spec in specs:
         if not result.ok:
             break
@@ -346,6 +361,8 @@ def scaffold_product(root: Path, chapters: list[str] | tuple[str, ...]) -> Scaff
                 result.indexed.append(product_meta)
         if not result.ok:
             break
+    if not result.ok:
+        _rollback_scaffold_outputs(root, snapshots, output_paths, existing_dirs, result)
     return result
 
 
@@ -359,6 +376,86 @@ def _preflight_product_scaffold(root: Path, specs: list[ScaffoldSpec], result: S
     for label, path in sorted(support_paths, key=lambda item: (item[0], item[1].as_posix())):
         _preflight_scaffold_text_file(result, label, path)
     return result.ok
+
+
+def _scaffold_output_paths(specs: list[ScaffoldSpec], include_product_meta: bool) -> list[Path]:
+    paths: set[Path] = set()
+    for spec in specs:
+        path = Path(spec.path)
+        paths.add(path)
+        if path.name != "README.md":
+            paths.add(path.parent / "README.md")
+    if include_product_meta:
+        paths.add(Path("docs/product/core/product-meta.md"))
+    return sorted(paths, key=lambda path: path.as_posix())
+
+
+def _snapshot_files(root: Path, rels: list[Path]) -> dict[str, _FileSnapshot]:
+    snapshots: dict[str, _FileSnapshot] = {}
+    for rel in rels:
+        path = root / rel
+        rel_key = rel.as_posix()
+        if path.exists():
+            stat = path.stat()
+            snapshots[rel_key] = _FileSnapshot(exists=True, content=path.read_bytes(), mode=stat.st_mode)
+        else:
+            snapshots[rel_key] = _FileSnapshot(exists=False)
+    return snapshots
+
+
+def _snapshot_output_dirs(root: Path, rels: list[Path]) -> set[str]:
+    dirs: set[str] = set()
+    for rel in rels:
+        current = root / rel.parent
+        while current != root and current.is_relative_to(root):
+            if current.exists() and current.is_dir():
+                dirs.add(current.relative_to(root).as_posix())
+            current = current.parent
+    return dirs
+
+
+def _rollback_scaffold_outputs(
+    root: Path,
+    snapshots: dict[str, _FileSnapshot],
+    output_paths: list[Path],
+    existing_dirs: set[str],
+    result: ScaffoldResult,
+) -> None:
+    rollback_errors: list[str] = []
+    for rel_key, snapshot in sorted(snapshots.items(), reverse=True):
+        try:
+            _restore_snapshot(root / rel_key, snapshot)
+        except OSError as error:
+            rollback_errors.append(f"failed to rollback scaffold output {rel_key}: {_os_error_reason(error)}")
+    rollback_errors.extend(_cleanup_scaffold_dirs(root, output_paths, existing_dirs))
+    result.created.clear()
+    result.indexed.clear()
+    result.errors.extend(rollback_errors)
+
+
+def _restore_snapshot(path: Path, snapshot: _FileSnapshot) -> None:
+    if snapshot.exists:
+        _write_atomic_bytes(path, snapshot.content, snapshot.mode)
+        return
+    if path.exists():
+        path.unlink()
+
+
+def _cleanup_scaffold_dirs(root: Path, output_paths: list[Path], existing_dirs: set[str]) -> list[str]:
+    errors: list[str] = []
+    dirs = {root / rel.parent for rel in output_paths if rel.parent != Path(".")}
+    for directory in sorted(dirs, key=lambda path: len(path.parts), reverse=True):
+        try:
+            if not directory.exists() or not directory.is_dir() or any(directory.iterdir()):
+                continue
+            rel = directory.relative_to(root).as_posix()
+            if rel in existing_dirs:
+                continue
+            directory.rmdir()
+        except OSError as error:
+            rel = directory.relative_to(root).as_posix()
+            errors.append(f"failed to remove empty scaffold directory {rel}: {_os_error_reason(error)}")
+    return errors
 
 
 def _preflight_scaffold_output_file(result: ScaffoldResult, path: Path) -> None:
@@ -433,12 +530,29 @@ def _write_scaffold_file(path: Path, content: str, result: ScaffoldResult) -> bo
     return True
 
 
+def _write_atomic_bytes(path: Path, content: bytes, mode: int | None = None) -> None:
+    temp = _atomic_temp_path(path)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temp.write_bytes(content)
+        if mode is not None:
+            temp.chmod(mode)
+        temp.replace(path)
+    except OSError:
+        if temp.exists() and temp.is_file():
+            try:
+                temp.unlink()
+            except OSError:
+                pass
+        raise
+
+
 def _atomic_temp_path(path: Path) -> Path:
     return path.with_name(f".{path.name}.tmp")
 
 
 def _record_scaffold_write_error(result: ScaffoldResult, path: Path, error: OSError) -> None:
-    reason = error.strerror or str(error)
+    reason = _os_error_reason(error)
     rel = _result_relative_path(result, path)
     result.ok = False
     result.errors.append(f"failed to write scaffold file {rel}: {reason}")
@@ -455,6 +569,10 @@ def _result_relative_path(result: ScaffoldResult, path: Path) -> str:
         return path.resolve().relative_to(Path(result.target).resolve()).as_posix()
     except ValueError:
         return str(path)
+
+
+def _os_error_reason(error: OSError) -> str:
+    return error.strerror or str(error)
 
 
 def _product_scaffold_gate_allows(gate: Any) -> bool:
