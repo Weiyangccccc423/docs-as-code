@@ -1,4 +1,8 @@
+import json
 import re
+import subprocess
+import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -10,6 +14,51 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class PackStructureTest(unittest.TestCase):
+    def test_verify_pack_script_json_reports_ok(self) -> None:
+        result = subprocess.run(
+            [sys.executable, str(ROOT / "scripts/verify_pack.py"), "--json"],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertTrue(payload["ok"])
+        self.assertEqual(str(ROOT.resolve()), payload["target"])
+        self.assertEqual([], payload["errors"])
+        self.assertEqual([], payload["findings"])
+
+    def test_verify_pack_script_json_reports_missing_required_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            target.mkdir()
+
+            result = subprocess.run(
+                [sys.executable, str(ROOT / "scripts/verify_pack.py"), str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, result.returncode)
+            self.assertEqual("", result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertEqual(str(target.resolve()), payload["target"])
+            self.assertIn("missing required pack file: README.md", payload["errors"])
+            self.assertTrue(
+                any(
+                    finding["code"] == "pack_required_file_missing"
+                    and finding["path"] == "README.md"
+                    for finding in payload["findings"]
+                )
+            )
+
+    def test_makefile_verify_pack_runs_pack_verifier(self) -> None:
+        text = (ROOT / "Makefile").read_text(encoding="utf-8")
+        self.assertRegex(text, r"(?m)^\tpython3 scripts/verify_pack\.py$")
+
     def test_required_workflow_pack_files_exist(self) -> None:
         required = [
             "README.md",
