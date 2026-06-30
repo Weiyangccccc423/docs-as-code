@@ -383,8 +383,16 @@ def _write_text(path: Path, content: str) -> None:
 def _write_atomic_text(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temp = _atomic_temp_path(path)
-    temp.write_text(content, encoding="utf-8")
-    temp.replace(path)
+    try:
+        temp.write_text(content, encoding="utf-8")
+        temp.replace(path)
+    except OSError:
+        if temp.exists() and temp.is_file():
+            try:
+                temp.unlink()
+            except OSError:
+                pass
+        raise
 
 
 def _atomic_temp_path(path: Path) -> Path:

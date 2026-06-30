@@ -2386,6 +2386,29 @@ class GovernanceScriptsTest(unittest.TestCase):
             manifest = json.loads((root / "docs/product/core/source/source-manifest.json").read_text(encoding="utf-8"))
             self.assertEqual("conversion_required", manifest["import"]["status"])
 
+    def test_product_import_atomic_write_cleans_temp_after_replace_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            path = root / "source-manifest.json"
+            path.write_text("# Existing\n", encoding="utf-8")
+            temp_path = path.with_name(".source-manifest.json.tmp")
+            original_replace = product_import_module.Path.replace
+
+            def fail_replace(self: Path, target: Path) -> Path:
+                if self == temp_path and target == path:
+                    raise OSError("simulated replace failure")
+                return original_replace(self, target)
+
+            product_import_module.Path.replace = fail_replace
+            try:
+                with self.assertRaises(OSError):
+                    product_import_module._write_text(path, "# Updated\n")
+            finally:
+                product_import_module.Path.replace = original_replace
+
+            self.assertEqual("# Existing\n", path.read_text(encoding="utf-8"))
+            self.assertFalse(temp_path.exists())
+
     def test_target_runtime_marks_converted_product_ready(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
