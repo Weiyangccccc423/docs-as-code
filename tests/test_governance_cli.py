@@ -614,6 +614,42 @@ class GovernanceCliTest(unittest.TestCase):
             )
             self.assertFalse((target / "docs/README.md").exists())
 
+    def test_init_force_json_rejects_generated_parent_file_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            target = base / "target"
+            target.mkdir()
+            product = base / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+            (target / "docs").write_text("not a directory\n", encoding="utf-8")
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "init",
+                    "--target",
+                    str(target),
+                    "--product",
+                    str(product),
+                    "--force",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, result.returncode)
+            self.assertEqual("", result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertIn(
+                {"path": "docs", "reason": "generated parent path is not a directory"},
+                payload["conflicts"],
+            )
+            self.assertEqual("not a directory\n", (target / "docs").read_text(encoding="utf-8"))
+
     def test_runtime_refresh_repairs_target_runtime_and_workflow_pack(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)

@@ -2023,6 +2023,21 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [conflict.to_dict() for conflict in result.conflicts],
             )
 
+    def test_preflight_rejects_generated_parent_file_even_with_force(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            (root / "scripts").write_text("not a directory\n", encoding="utf-8")
+
+            result = preflight_init(root, product, force=True)
+
+            self.assertFalse(result.ok)
+            self.assertIn(
+                {"path": "scripts", "reason": "generated parent path is not a directory"},
+                [conflict.to_dict() for conflict in result.conflicts],
+            )
+
     def test_bootstrap_installs_target_runtime(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

@@ -315,17 +315,22 @@ def preflight_init(root: Path, product_doc: Path | None = None, force: bool = Fa
     product_resolved = product_doc.resolve() if product_doc is not None and product_doc.exists() else None
 
     conflicts.extend(_product_preflight_conflicts(product_doc))
+    conflict_keys = {(conflict.path, conflict.reason) for conflict in conflicts}
 
     for rel in paths:
         target = root / rel
         if product_resolved is not None and target.resolve() == product_resolved:
-            conflicts.append(InitConflict(rel, "product document path overlaps generated output"))
+            _append_init_conflict(conflicts, conflict_keys, InitConflict(rel, "product document path overlaps generated output"))
+            continue
+        parent_conflict = _generated_parent_conflict(root, Path(rel))
+        if parent_conflict is not None:
+            _append_init_conflict(conflicts, conflict_keys, parent_conflict)
             continue
         if target.exists() and not target.is_file():
-            conflicts.append(InitConflict(rel, "generated file path is not a file"))
+            _append_init_conflict(conflicts, conflict_keys, InitConflict(rel, "generated file path is not a file"))
             continue
         if not force and target.exists():
-            conflicts.append(InitConflict(rel, "generated file already exists"))
+            _append_init_conflict(conflicts, conflict_keys, InitConflict(rel, "generated file already exists"))
 
     return InitPreflightResult(
         target=str(root),
@@ -334,6 +339,25 @@ def preflight_init(root: Path, product_doc: Path | None = None, force: bool = Fa
         product=product,
         would_write=paths,
     )
+
+
+def _append_init_conflict(conflicts: list[InitConflict], keys: set[tuple[str, str]], conflict: InitConflict) -> None:
+    key = (conflict.path, conflict.reason)
+    if key in keys:
+        return
+    keys.add(key)
+    conflicts.append(conflict)
+
+
+def _generated_parent_conflict(root: Path, rel: Path) -> InitConflict | None:
+    current = root
+    parts: list[str] = []
+    for part in rel.parts[:-1]:
+        current = current / part
+        parts.append(part)
+        if current.exists() and not current.is_dir():
+            return InitConflict(Path(*parts).as_posix(), "generated parent path is not a directory")
+    return None
 
 
 def _product_preflight_conflicts(product_doc: Path | None) -> list[InitConflict]:
