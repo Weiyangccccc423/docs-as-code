@@ -12,8 +12,10 @@ Create the minimum structure needed for reliable docs-as-code work.
 1. Run environment check:
 
    ```bash
-   bin/governance env --repair --target <target> --json
+   bin/governance env --repair --check --target <target> --json
    ```
+
+   Stop on `ok: false`. Inspect `would_repair`, `install_commands`, and `needs_escalation` before running `bin/governance env --repair --target <target> --json`.
 
 2. Run preflight without writing files:
 

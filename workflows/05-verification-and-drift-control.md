@@ -38,10 +38,10 @@ Load:
 2. Run environment check:
 
    ```bash
-   bin/governance env --strict --repair --target <target>
+   bin/governance env --strict --repair --check --target <target> --json
    ```
 
-   Agents may use `--json` and must treat `ok: false` as a stop condition. If `needs_escalation` is true, do not run `install_commands` or `install_command` without explicit approval.
+   Agents must treat `ok: false` as a stop condition. `--check` reports `would_repair` without writing `.governance/env-repair.md` or installing packages. If `needs_escalation` is true, do not run `install_commands` or `install_command` without explicit approval.
 
 3. If the target project has a Makefile, run its verification entry:
 

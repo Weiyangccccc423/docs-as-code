@@ -12,7 +12,7 @@ Prefer deterministic checks before manual review.
 ```bash
 bin/governance verify <target> --check
 bin/governance verify <target>
-bin/governance env --strict --repair --target <target>
+bin/governance env --strict --repair --check --target <target>
 bin/governance gate product-structuring <target>
 bin/governance gate design-derivation <target>
 bin/governance gate implementation <target>
@@ -27,7 +27,7 @@ For agent automation, use JSON and branch on `ok`:
 ```bash
 bin/governance verify <target> --check --json
 bin/governance verify <target> --json
-bin/governance env --strict --repair --target <target> --json
+bin/governance env --strict --repair --check --target <target> --json
 bin/governance product mark-ready <target> --reviewed --method manual-reviewed-markdown --check --json
 bin/governance product mark-ready <target> --reviewed --method manual-reviewed-markdown --json
 bin/governance gate implementation <target> --json

@@ -381,6 +381,44 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertTrue(any(tool["name"] == "python3" for tool in payload["tools"]))
             self.assertEqual(str(target / ".governance/env-repair.md"), payload["repair_plan"])
 
+    def test_env_repair_check_json_reports_plan_without_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            target.mkdir()
+            repair_plan = target / ".governance/env-repair.md"
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "env",
+                    "--target",
+                    str(target),
+                    "--repair",
+                    "--check",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertIn(result.returncode, (0, 1), result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["ok"], result.returncode == 0)
+            self.assertTrue(payload["check"])
+            self.assertEqual([], payload["repairs"])
+            self.assertIsNone(payload["repair_plan"])
+            self.assertTrue(
+                any(
+                    item["kind"] == "repair_plan"
+                    and item["path"] == str(repair_plan)
+                    and item["status"] == "would_write"
+                    for item in payload["would_repair"]
+                )
+            )
+            self.assertFalse(repair_plan.exists())
+
     def test_env_repair_json_rejects_file_target(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "target"

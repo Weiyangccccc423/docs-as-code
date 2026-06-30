@@ -3013,6 +3013,15 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertIn("missing_recommended", env_payload)
             self.assertIn("needs_escalation", env_payload)
 
+            env_check_result, env_check_payload = run_direct("check_env.py", "--repair", "--check", "--target", ".", "--json")
+            self.assertEqual(0, env_check_result.returncode)
+            self.assertTrue(env_check_payload["ok"])
+            self.assertTrue(env_check_payload["check"])
+            self.assertEqual([], env_check_payload["repairs"])
+            self.assertIsNone(env_check_payload["repair_plan"])
+            self.assertTrue(any(item["kind"] == "repair_plan" for item in env_check_payload["would_repair"]))
+            self.assertFalse((root / ".governance/env-repair.md").exists())
+
             mark_ready_check, mark_ready_check_payload = run_direct(
                 "product_import.py",
                 "mark-ready",
@@ -8561,6 +8570,79 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertFalse(payload["needs_escalation"])
             self.assertEqual(str(target / ".governance/env-repair.md"), payload["repair_plan"])
             self.assertTrue(any(item["kind"] == "repair_plan" for item in payload["repairs"]))
+
+    def test_check_env_main_repair_check_json_reports_plan_without_writing_or_installing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            target.mkdir()
+            statuses = [
+                ToolStatus(
+                    name="git",
+                    present=False,
+                    version="",
+                    note="Required",
+                    level="required",
+                    install_package="git",
+                ),
+                ToolStatus(
+                    name="python3",
+                    present=True,
+                    version="Python 3",
+                    note="Required",
+                    level="required",
+                    install_package="python3",
+                ),
+            ]
+            system = check_env_module.SystemStatus(
+                platform="linux",
+                os_id="ubuntu",
+                os_like="debian",
+                pretty_name="Ubuntu",
+                is_root=True,
+            )
+            package_manager = PackageManager("apt", "/usr/bin/apt-get", True)
+            git = check_env_module.GitStatus(False, False, "", "", "")
+            original_argv = sys.argv
+            original_collect_status = check_env_module.collect_status
+            original_collect_system_status = check_env_module.collect_system_status
+            original_detect_package_manager = check_env_module.detect_package_manager
+            original_collect_git_status = check_env_module.collect_git_status
+            original_apply_install_plan = check_env_module.apply_install_plan
+            sys.argv = ["check_env.py", "--repair", "--check", "--target", str(target), "--json"]
+            check_env_module.collect_status = lambda: statuses
+            check_env_module.collect_system_status = lambda: system
+            check_env_module.detect_package_manager = lambda _system=None: package_manager
+            check_env_module.collect_git_status = lambda _target: git
+
+            def fail_install(*_args: object, **_kwargs: object) -> list[dict[str, object]]:
+                raise AssertionError("check mode must not execute install commands")
+
+            check_env_module.apply_install_plan = fail_install
+            stdout = io.StringIO()
+            try:
+                with contextlib.redirect_stdout(stdout):
+                    returncode = check_env_module.main()
+            finally:
+                sys.argv = original_argv
+                check_env_module.collect_status = original_collect_status
+                check_env_module.collect_system_status = original_collect_system_status
+                check_env_module.detect_package_manager = original_detect_package_manager
+                check_env_module.collect_git_status = original_collect_git_status
+                check_env_module.apply_install_plan = original_apply_install_plan
+
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(1, returncode)
+            self.assertFalse(payload["ok"])
+            self.assertTrue(payload["check"])
+            self.assertEqual(["git"], payload["missing_required"])
+            self.assertEqual([{"tool": "git", "package": "git", "manager": "apt"}], payload["install_plan"])
+            self.assertEqual([["/usr/bin/apt-get", "update"], ["/usr/bin/apt-get", "install", "-y", "git"]], payload["install_commands"])
+            self.assertFalse(payload["needs_escalation"])
+            self.assertEqual([], payload["install_results"])
+            self.assertEqual([], payload["repairs"])
+            self.assertIsNone(payload["repair_plan"])
+            self.assertTrue(any(item["kind"] == "repair_plan" for item in payload["would_repair"]))
+            self.assertFalse((target / ".governance/env-repair.md").exists())
 
     def test_check_env_main_json_rejects_file_repair_target(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

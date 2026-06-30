@@ -246,6 +246,7 @@ def _env_payload(
     target: Path,
     *,
     strict: bool,
+    check: bool = False,
     statuses: list[ToolStatus],
     system: SystemStatus,
     package_manager: PackageManager,
@@ -255,6 +256,7 @@ def _env_payload(
     install_results: list[dict[str, object]],
     repairs: list[dict[str, object]],
     repair_plan: str | None,
+    would_repair: list[dict[str, object]] | None = None,
     errors: list[str] | None = None,
 ) -> dict[str, object]:
     commands = install_commands(install_plan, package_manager)
@@ -262,6 +264,7 @@ def _env_payload(
         "ok": environment_ok(statuses, strict) and not errors,
         "target": str(target),
         "strict": strict,
+        "check": check,
         "missing": [status.name for status in statuses if not status.present],
         "missing_required": missing_tools_by_level(statuses, "required"),
         "missing_recommended": missing_tools_by_level(statuses, "recommended"),
@@ -276,10 +279,19 @@ def _env_payload(
         "install_results": install_results,
         "repairs": repairs,
         "repair_plan": repair_plan,
+        "would_repair": would_repair or [],
     }
     if errors is not None:
         payload["errors"] = errors
     return payload
+
+
+def planned_repair_actions(target: Path) -> list[dict[str, object]]:
+    repair_plan = target / ".governance/env-repair.md"
+    return [
+        {"kind": "directory", "path": str(repair_plan.parent), "status": "would_ensure"},
+        {"kind": "repair_plan", "path": str(repair_plan), "status": "would_write"},
+    ]
 
 
 def repair_target_error(target: Path) -> str | None:
@@ -449,6 +461,7 @@ def main() -> int:
         help="Also return non-zero when recommended tools are missing; required tools always block.",
     )
     parser.add_argument("--repair", action="store_true", help="Write a local environment repair plan.")
+    parser.add_argument("--check", action="store_true", help="Preview repair actions without writing files or installing packages.")
     parser.add_argument("--target", default=".", help="Target directory for repair artifacts.")
     parser.add_argument("--json", action="store_true", help="Print a machine-readable environment report.")
     args = parser.parse_args()
@@ -486,6 +499,7 @@ def main() -> int:
                         _env_payload(
                             target,
                             strict=args.strict,
+                            check=args.check,
                             statuses=statuses,
                             system=system,
                             package_manager=package_manager,
@@ -505,6 +519,41 @@ def main() -> int:
             else:
                 print(f"ERROR: {target_error}")
             return 1
+        if args.check:
+            would_repair = planned_repair_actions(target)
+            if args.json:
+                print(
+                    json.dumps(
+                        _env_payload(
+                            target,
+                            strict=args.strict,
+                            check=True,
+                            statuses=statuses,
+                            system=system,
+                            package_manager=package_manager,
+                            git=git,
+                            install_plan=install_plan,
+                            needs_escalation=needs_escalation,
+                            install_results=install_results,
+                            repairs=repairs,
+                            repair_plan=repair_plan,
+                            would_repair=would_repair,
+                        ),
+                        ensure_ascii=False,
+                        indent=2,
+                        sort_keys=True,
+                    )
+                )
+            else:
+                print("\nEnvironment repair preflight:")
+                for item in would_repair:
+                    print(f"- {item['status']}: {item['path']}")
+                if needs_escalation:
+                    print(
+                        "Installation requires root approval: "
+                        f"{install_command_text(install_commands(install_plan, package_manager))}"
+                    )
+            return 0 if environment_ok(statuses, args.strict) else 1
         install_results = apply_install_plan(install_plan, package_manager, system)
         if install_results and all(result["returncode"] == 0 for result in install_results):
             statuses = collect_status()
@@ -527,6 +576,7 @@ def main() -> int:
                         _env_payload(
                             target,
                             strict=args.strict,
+                            check=args.check,
                             statuses=statuses,
                             system=system,
                             package_manager=package_manager,
@@ -564,6 +614,7 @@ def main() -> int:
                 _env_payload(
                     target,
                     strict=args.strict,
+                    check=args.check,
                     statuses=statuses,
                     system=system,
                     package_manager=package_manager,

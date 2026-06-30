@@ -19,11 +19,16 @@ Load:
 1. Check environment:
 
    ```bash
-   bin/governance env --repair --target <target> --json
+   bin/governance env --repair --check --target <target> --json
    ```
 
-   Stop when `ok` is false. Missing required tools block initialization; rerun after repair.
-   If `needs_escalation` is true, show `install_commands` or `install_command` to the user and get approval before running package-manager commands outside the CLI.
+   Stop when `ok` is false. Missing required tools block initialization; inspect `would_repair`, then rerun after repair.
+   If `needs_escalation` is true, show `install_commands` or `install_command` to the user and get approval before running package-manager commands.
+   When a repair artifact or approved root package install is needed, run:
+
+   ```bash
+   bin/governance env --repair --target <target> --json
+   ```
 
 2. Run initialization preflight:
 

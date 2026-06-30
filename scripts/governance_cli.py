@@ -17,6 +17,7 @@ from check_env import (
     install_command_text,
     install_commands,
     missing_tools_by_level,
+    planned_repair_actions,
     repair_target_error,
     write_repair_plan,
 )
@@ -248,6 +249,7 @@ def _cmd_status(args: argparse.Namespace) -> int:
 
 def _cmd_env(args: argparse.Namespace) -> int:
     target = Path(args.target)
+    check = bool(getattr(args, "check", False))
     missing: list[str] = []
     statuses = collect_status()
     system = collect_system_status()
@@ -276,6 +278,7 @@ def _cmd_env(args: argparse.Namespace) -> int:
                         "ok": False,
                         "target": str(target),
                         "strict": args.strict,
+                        "check": check,
                         "errors": [target_error],
                         "missing": missing,
                         "missing_required": missing_required,
@@ -291,12 +294,49 @@ def _cmd_env(args: argparse.Namespace) -> int:
                         "install_results": install_results,
                         "repairs": repairs,
                         "repair_plan": repair_plan,
+                        "would_repair": [],
                     }
                 )
             else:
                 print("Environment repair failed:")
                 print(f"- ERROR: {target_error}")
             return 1
+        if check:
+            would_repair = planned_repair_actions(target)
+            if args.json:
+                _print_json(
+                    {
+                        "ok": environment_ok(statuses, args.strict),
+                        "target": str(target),
+                        "strict": args.strict,
+                        "check": True,
+                        "missing": missing,
+                        "missing_required": missing_tools_by_level(statuses, "required"),
+                        "missing_recommended": missing_tools_by_level(statuses, "recommended"),
+                        "tools": _tool_status_payload(statuses),
+                        "system": system.to_dict(),
+                        "package_manager": package_manager.to_dict(),
+                        "git": git.to_dict(),
+                        "install_plan": [item.to_dict() for item in install_plan],
+                        "install_commands": install_commands(install_plan, package_manager),
+                        "install_command": install_command_text(install_commands(install_plan, package_manager)),
+                        "needs_escalation": needs_escalation,
+                        "install_results": install_results,
+                        "repairs": repairs,
+                        "repair_plan": repair_plan,
+                        "would_repair": would_repair,
+                    }
+                )
+            else:
+                print("\nEnvironment repair preflight:")
+                for item in would_repair:
+                    print(f"- {item['status']}: {item['path']}")
+                if needs_escalation:
+                    print(
+                        "Installation requires root approval: "
+                        f"{install_command_text(install_commands(install_plan, package_manager))}"
+                    )
+            return 0 if environment_ok(statuses, args.strict) else 1
         install_results = apply_install_plan(install_plan, package_manager, system)
         if install_results and all(result["returncode"] == 0 for result in install_results):
             statuses = collect_status()
@@ -322,6 +362,7 @@ def _cmd_env(args: argparse.Namespace) -> int:
                         "ok": False,
                         "target": str(target),
                         "strict": args.strict,
+                        "check": check,
                         "errors": [repair_error],
                         "missing": missing,
                         "missing_required": missing_required,
@@ -337,6 +378,7 @@ def _cmd_env(args: argparse.Namespace) -> int:
                         "install_results": install_results,
                         "repairs": repairs,
                         "repair_plan": repair_plan,
+                        "would_repair": [],
                     }
                 )
             else:
@@ -365,6 +407,7 @@ def _cmd_env(args: argparse.Namespace) -> int:
                 "ok": ok,
                 "target": str(target),
                 "strict": args.strict,
+                "check": check,
                 "missing": missing,
                 "missing_required": missing_required,
                 "missing_recommended": missing_recommended,
@@ -379,6 +422,7 @@ def _cmd_env(args: argparse.Namespace) -> int:
                 "install_results": install_results,
                 "repairs": repairs,
                 "repair_plan": repair_plan,
+                "would_repair": [],
             }
         )
     return 0 if ok else 1
@@ -572,6 +616,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Also fail when recommended tools are missing; required tools always fail.",
     )
     env.add_argument("--repair", action="store_true")
+    env.add_argument("--check", action="store_true", help="Preview repair actions without writing files or installing packages.")
     env.add_argument("--target", default=".")
     env.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     env.set_defaults(func=_cmd_env)

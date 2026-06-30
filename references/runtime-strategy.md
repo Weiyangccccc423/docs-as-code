@@ -48,6 +48,8 @@ Use `runtime refresh --check --json` before repair when an agent needs a no-writ
 
 Append `--json` when an agent needs stable output for branching or repair planning. JSON payloads must include an `ok` field whose value matches the command's success semantics: missing required tools always make `ok: false`, and missing recommended tools make `ok: false` only under `--strict`. When supported packages can repair the environment, JSON includes `install_commands` as argv arrays and `install_command` as the equivalent human-readable command string.
 
+Use `env --repair --check --json` before environment repair when an agent needs a no-write preflight. It reports `would_repair`, `install_commands`, and `needs_escalation` while leaving `.governance/env-repair.md` absent or unchanged and without executing package-manager commands.
+
 ## Node.js Layer
 
 Use Node.js for ecosystem-specific enhancement after the target stack is known:
@@ -72,7 +74,7 @@ The Python standard-library implementation remains the reference behavior.
 
 ## Repair Policy
 
-Environment repair may create local governance directories and write repair plans. It may execute supported apt installs only when the process already has root privileges. It must not call `sudo`, change global Git configuration, or install project dependencies.
+Environment repair may create local governance directories and write repair plans. It may execute supported apt installs only when the process already has root privileges. Under `--check`, it must not write repair plans or execute package-manager commands. It must not call `sudo`, change global Git configuration, or install project dependencies.
 
 Repair scope follows strictness:
 
