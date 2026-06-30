@@ -112,6 +112,36 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_unknown_skill_references(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            workflow = target / "workflows/04-design-derivation.md"
+            workflow.write_text(
+                workflow.read_text(encoding="utf-8").replace(
+                    "`designing-api-contracts`",
+                    "`missing-api-skill`",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_skill_reference_missing"
+                    and finding.path == "workflows/04-design-derivation.md"
+                    and "missing-api-skill" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_makefile_verify_pack_runs_pack_verifier(self) -> None:
         text = (ROOT / "Makefile").read_text(encoding="utf-8")
         self.assertRegex(text, r"(?m)^\tpython3 scripts/verify_pack\.py$")

@@ -41,6 +41,7 @@ SOURCE_PACK_REQUIRED_PATHS = tuple(
 IGNORED_PACK_FILE_NAMES = {".DS_Store", "manifest.json"}
 MARKDOWN_LINK_RE = re.compile(r"(?<!!)\[[^\]]*]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 MARKDOWN_REFERENCE_DEFINITION_RE = re.compile(r"^\s{0,3}\[[^\]]+]:\s*(\S+)", re.MULTILINE)
+SKILL_NAME_RE = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)+$")
 PHASE_WORKFLOW_PATHS = (
     "workflows/01-empty-repo-initialization.md",
     "workflows/02-product-document-archiving.md",
@@ -126,6 +127,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_required_files(root, findings)
     _check_phase_workflow_sections(root, findings)
     _check_skill_frontmatter(root, findings)
+    _check_skill_references(root, findings)
     _check_local_markdown_links(root, findings)
     _check_workflow_pack_file_list(root, findings)
     return PackReport(str(root), findings)
@@ -187,6 +189,41 @@ def _check_phase_workflow_sections(root: Path, findings: list[PackFinding]) -> N
                         rel,
                     )
             )
+
+
+def _check_skill_references(root: Path, findings: list[PackFinding]) -> None:
+    skill_names = _available_skill_names(root)
+    references: dict[str, set[str]] = {}
+    for rel, section in _skill_reference_sections():
+        path = root / rel
+        if not path.exists() or not path.is_file():
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        section_text = _markdown_section(text, section)
+        if section_text is None:
+            continue
+        for skill in _extract_skill_tokens(section_text):
+            references.setdefault(skill, set()).add(rel)
+            if skill in skill_names:
+                continue
+            findings.append(
+                PackFinding(
+                    "pack_skill_reference_missing",
+                    f"{rel} references missing skill: {skill}",
+                    rel,
+                )
+            )
+    for skill in sorted(skill_names - set(references)):
+        findings.append(
+            PackFinding(
+                "pack_skill_unreferenced",
+                f"skill is not referenced by workflow routing: {skill}",
+                f"skills/{skill}/SKILL.md",
+            )
+        )
 
 
 def _check_local_markdown_links(root: Path, findings: list[PackFinding]) -> None:
@@ -324,6 +361,47 @@ def _normalize_heading(value: str) -> str:
     return re.sub(r"\s+", " ", value.strip().lower())
 
 
+def _available_skill_names(root: Path) -> set[str]:
+    skills_root = root / "skills"
+    if not skills_root.exists() or not skills_root.is_dir():
+        return set()
+    return {
+        path.name
+        for path in skills_root.iterdir()
+        if path.is_dir() and (path / "SKILL.md").is_file()
+    }
+
+
+def _skill_reference_sections() -> list[tuple[str, str]]:
+    sections = [("workflows/00-overview.md", "Phase Map")]
+    sections.extend((rel, "Skills") for rel in PHASE_WORKFLOW_PATHS)
+    sections.append(("skills/using-governance-workflow/SKILL.md", "Route"))
+    return sections
+
+
+def _markdown_section(text: str, heading: str) -> str | None:
+    pattern = re.compile(r"(?m)^##\s+(.+?)\s*$")
+    matches = list(pattern.finditer(text))
+    wanted = _normalize_heading(heading)
+    for index, match in enumerate(matches):
+        if _normalize_heading(match.group(1)) != wanted:
+            continue
+        start = match.end()
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+        return text[start:end]
+    return None
+
+
+def _extract_skill_tokens(text: str) -> list[str]:
+    text = _strip_fenced_markdown_code(text)
+    tokens = []
+    for token in re.findall(r"`([^`\n]+)`", text):
+        token = token.strip()
+        if SKILL_NAME_RE.fullmatch(token):
+            tokens.append(token)
+    return tokens
+
+
 def _iter_pack_link_check_files(root: Path) -> list[Path]:
     files: list[Path] = []
     for rel in PACK_LINK_CHECK_RESOURCE_PATHS:
@@ -379,9 +457,13 @@ def _is_external_reference_target(target: str) -> bool:
 
 
 def _strip_markdown_code(text: str) -> str:
-    text = re.sub(r"(?s)```.*?```", "", text)
-    text = re.sub(r"(?s)~~~.*?~~~", "", text)
+    text = _strip_fenced_markdown_code(text)
     return re.sub(r"`[^`\n]*`", "", text)
+
+
+def _strip_fenced_markdown_code(text: str) -> str:
+    text = re.sub(r"(?s)```.*?```", "", text)
+    return re.sub(r"(?s)~~~.*?~~~", "", text)
 
 
 def _check_workflow_pack_file_list(root: Path, findings: list[PackFinding]) -> None:
