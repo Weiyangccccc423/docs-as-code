@@ -348,6 +348,9 @@ def preflight_init(root: Path, product_doc: Path | None = None, force: bool = Fa
     product_resolved = product_doc.resolve() if product_doc is not None and product_doc.exists() else None
 
     conflicts.extend(_target_preflight_conflicts(root))
+    conflicts.extend(
+        _source_preflight_conflicts(Path(__file__).resolve().parents[1].resolve(), _iter_workflow_pack_files())
+    )
     conflicts.extend(_product_preflight_conflicts(product_doc))
     conflicts.extend(_product_archive_preflight_conflicts(product_doc))
     conflicts.extend(_state_preflight_conflicts(root, force))
@@ -495,7 +498,14 @@ def _runtime_refresh_preflight_errors(root: Path, workflow_pack_files: list[Path
 
 
 def _runtime_refresh_source_errors(pack_root: Path, workflow_pack_files: list[Path]) -> list[str]:
-    errors: list[str] = []
+    return [
+        f"{conflict.path}: {conflict.reason}"
+        for conflict in _source_preflight_conflicts(pack_root, workflow_pack_files)
+    ]
+
+
+def _source_preflight_conflicts(pack_root: Path, workflow_pack_files: list[Path]) -> list[InitConflict]:
+    conflicts: list[InitConflict] = []
     seen: set[tuple[str, str]] = set()
 
     def append(path: Path, reason: str) -> None:
@@ -503,7 +513,7 @@ def _runtime_refresh_source_errors(pack_root: Path, workflow_pack_files: list[Pa
         if key in seen:
             return
         seen.add(key)
-        errors.append(f"{path.as_posix()}: {reason}")
+        conflicts.append(InitConflict(path.as_posix(), reason))
 
     for rel in _runtime_file_paths():
         _check_runtime_refresh_source_file(pack_root / rel, rel, append)
@@ -517,7 +527,7 @@ def _runtime_refresh_source_errors(pack_root: Path, workflow_pack_files: list[Pa
             append(Path(rel), "workflow-pack source path is neither a file nor a directory")
     for rel in workflow_pack_files:
         _check_runtime_refresh_source_file(source_root / rel, rel, append)
-    return errors
+    return conflicts
 
 
 def _check_runtime_refresh_source_file(source: Path, rel: Path, append: Callable[[Path, str], None]) -> None:

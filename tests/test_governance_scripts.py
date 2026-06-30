@@ -606,6 +606,31 @@ class GovernanceScriptsTest(unittest.TestCase):
             )
             self.assertIn("# tampered", wrapper.read_text(encoding="utf-8"))
 
+    def test_init_preflight_rejects_missing_source_runtime_without_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            original_runtime_scripts = bootstrap_module.RUNTIME_SCRIPT_FILES
+            bootstrap_module.RUNTIME_SCRIPT_FILES = [*original_runtime_scripts, "missing_runtime_source.py"]
+            try:
+                result = preflight_init(root, product)
+                with self.assertRaises(InitPreflightError) as context:
+                    bootstrap(root, product)
+            finally:
+                bootstrap_module.RUNTIME_SCRIPT_FILES = original_runtime_scripts
+
+            self.assertFalse(result.ok)
+            self.assertIn(
+                {"path": "scripts/missing_runtime_source.py", "reason": "source file is missing"},
+                [conflict.to_dict() for conflict in result.conflicts],
+            )
+            self.assertIn(
+                {"path": "scripts/missing_runtime_source.py", "reason": "source file is missing"},
+                [conflict.to_dict() for conflict in context.exception.result.conflicts],
+            )
+            self.assertFalse(root.exists())
+
     def test_verify_reports_root_required_file_directory_without_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
