@@ -32,7 +32,8 @@ After initialization, prefer the target-local CLI:
 
 ```bash
 bin/governance verify .
-bin/governance env --repair --target .
+bin/governance env --repair --check --target . --json
+bin/governance env --repair --target . --json
 ```
 
 When target-local runtime or workflow-pack integrity checks fail, run the refresh command from a trusted copy of this source workflow pack:

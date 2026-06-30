@@ -21,7 +21,8 @@ Generated target repositories receive their own copy of `bin/` and `scripts/` pl
 
 ```bash
 bin/governance verify .
-bin/governance env --repair --target .
+bin/governance env --repair --check --target . --json
+bin/governance env --repair --target . --json
 ```
 
 From a trusted source workflow-pack checkout, refresh generated target runtime and workflow-pack snapshot files without rewriting product or design documents:

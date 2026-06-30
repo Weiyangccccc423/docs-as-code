@@ -17,6 +17,16 @@ Use this as the router skill for the workflow pack.
 | Product is structured and design is needed | `designing-system-architecture`, then `designing-api-contracts` |
 | Any phase claims completion | `verifying-governance-docs` |
 
+## Environment Preflight
+
+Before repair or strict verification, preview environment changes without writing files or installing packages:
+
+```bash
+bin/governance env --repair --check --target <target> --json
+```
+
+Stop on `ok: false` when missing required tools block the current phase. Inspect `would_repair`, `install_commands`, and `needs_escalation`; run `bin/governance env --repair --target <target> --json` only when the repair plan should be written or approved package installation should proceed.
+
 ## Phase Gates
 
 Before loading downstream skills or changing phase, run the target-local gate when available:
