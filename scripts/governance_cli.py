@@ -78,6 +78,17 @@ def _cmd_init(args: argparse.Namespace) -> int:
         else:
             _print_init_conflicts(error.result.conflicts)
         return 1
+    except (OSError, StateFileError) as error:
+        message = _init_error_message(error)
+        if args.json:
+            payload = preflight.to_dict()
+            payload["ok"] = False
+            payload["errors"] = [message]
+            _print_json(payload)
+        else:
+            print("Initialization failed:")
+            print(f"- {message}")
+        return 1
     if args.json:
         payload = preflight_init(target, product, force=True).to_dict()
         payload["ok"] = True
@@ -93,6 +104,14 @@ def _print_init_conflicts(conflicts: list) -> None:
     print("Initialization preflight failed:")
     for conflict in conflicts:
         print(f"- {conflict.path}: {conflict.reason}")
+
+
+def _init_error_message(error: OSError | StateFileError) -> str:
+    if isinstance(error, OSError):
+        reason = error.strerror or str(error)
+    else:
+        reason = str(error)
+    return f"initialization failed: {reason}"
 
 
 def _cmd_verify(args: argparse.Namespace) -> int:

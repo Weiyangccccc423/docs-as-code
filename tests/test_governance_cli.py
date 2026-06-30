@@ -552,6 +552,51 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn("docs/agent-workflow/workflow-pack/skills/using-governance-workflow/SKILL.md", payload["would_write"])
             self.assertFalse(target.exists())
 
+    def test_init_json_reports_bootstrap_write_failure_without_traceback(self) -> None:
+        scripts_dir = str(ROOT / "scripts")
+        if scripts_dir not in sys.path:
+            sys.path.insert(0, scripts_dir)
+        governance_cli = importlib.import_module("governance_cli")
+        bootstrap_tree = importlib.import_module("bootstrap_tree")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            target = base / "target"
+            product = base / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+            original_safe_write = bootstrap_tree._safe_write
+
+            def fail_after_root_readme(path: Path, content: str, force: bool = False) -> None:
+                original_safe_write(path, content, force)
+                if path == target / "README.md":
+                    raise OSError(28, "No space left on device")
+
+            bootstrap_tree._safe_write = fail_after_root_readme
+            stdout = io.StringIO()
+            try:
+                with contextlib.redirect_stdout(stdout):
+                    returncode = governance_cli._cmd_init(
+                        SimpleNamespace(
+                            target=str(target),
+                            product=str(product),
+                            force=False,
+                            check=False,
+                            json=True,
+                            profile="unknown",
+                            project_name=None,
+                        )
+                    )
+            finally:
+                bootstrap_tree._safe_write = original_safe_write
+
+            self.assertEqual(1, returncode)
+            payload = json.loads(stdout.getvalue())
+            self.assertFalse(payload["ok"])
+            self.assertEqual(str(target.resolve()), payload["target"])
+            self.assertEqual(["initialization failed: No space left on device"], payload["errors"])
+            self.assertEqual([], payload["conflicts"])
+            self.assertFalse(target.exists())
+
     def test_init_json_reports_conflicts_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
