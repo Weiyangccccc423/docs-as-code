@@ -492,6 +492,10 @@ def _runtime_refresh_snapshot_paths(root: Path, workflow_pack_files: list[Path])
     return sorted(paths, key=lambda path: path.as_posix())
 
 
+def _bootstrap_output_paths(product_doc: Path | None) -> list[Path]:
+    return [Path(path) for path in generated_file_paths(product_doc)]
+
+
 def _runtime_refresh_preflight_errors(root: Path, workflow_pack_files: list[Path]) -> list[str]:
     errors: list[str] = []
     seen: set[tuple[str, str]] = set()
@@ -578,10 +582,12 @@ def _snapshot_files(root: Path, rels: list[Path]) -> dict[str, _FileSnapshot]:
     return snapshots
 
 
-def _rollback_runtime_refresh(
+def _rollback_file_outputs(
     root: Path,
     snapshots: dict[str, _FileSnapshot],
     output_paths: list[Path],
+    operation: str,
+    remove_root_if_empty: bool = False,
 ) -> list[str]:
     rollback_errors: list[str] = []
     output_keys = {rel.as_posix() for rel in output_paths}
@@ -592,14 +598,38 @@ def _rollback_runtime_refresh(
         try:
             path.unlink()
         except OSError as error:
-            rollback_errors.append(f"failed to remove new refresh output {rel_key}: {_os_error_reason(error)}")
+            rollback_errors.append(f"failed to remove new {operation} output {rel_key}: {_os_error_reason(error)}")
 
     for rel_key, snapshot in sorted(snapshots.items(), reverse=True):
         try:
             _restore_snapshot(root / rel_key, snapshot)
         except OSError as error:
-            rollback_errors.append(f"failed to rollback refresh output {rel_key}: {_os_error_reason(error)}")
+            rollback_errors.append(f"failed to rollback {operation} output {rel_key}: {_os_error_reason(error)}")
+    rollback_errors.extend(_cleanup_output_dirs(root, output_paths, remove_root_if_empty))
     return rollback_errors
+
+
+def _rollback_runtime_refresh(
+    root: Path,
+    snapshots: dict[str, _FileSnapshot],
+    output_paths: list[Path],
+) -> list[str]:
+    return _rollback_file_outputs(root, snapshots, output_paths, "runtime refresh")
+
+
+def _rollback_bootstrap_outputs(
+    root: Path,
+    snapshots: dict[str, _FileSnapshot],
+    output_paths: list[Path],
+    root_existed_before: bool,
+) -> list[str]:
+    return _rollback_file_outputs(
+        root,
+        snapshots,
+        output_paths,
+        "bootstrap",
+        remove_root_if_empty=not root_existed_before,
+    )
 
 
 def _restore_snapshot(path: Path, snapshot: _FileSnapshot) -> None:
@@ -608,6 +638,25 @@ def _restore_snapshot(path: Path, snapshot: _FileSnapshot) -> None:
         return
     if path.exists():
         path.unlink()
+
+
+def _cleanup_output_dirs(root: Path, output_paths: list[Path], remove_root_if_empty: bool) -> list[str]:
+    errors: list[str] = []
+    dirs = {root / rel.parent for rel in output_paths if rel.parent != Path(".")}
+    for directory in sorted(dirs, key=lambda path: len(path.parts), reverse=True):
+        try:
+            if directory.exists() and directory.is_dir() and not any(directory.iterdir()):
+                directory.rmdir()
+        except OSError as error:
+            rel = directory.relative_to(root).as_posix() if directory != root else "."
+            errors.append(f"failed to remove empty output directory {rel}: {_os_error_reason(error)}")
+    if remove_root_if_empty:
+        try:
+            if root.exists() and root.is_dir() and not any(root.iterdir()):
+                root.rmdir()
+        except OSError as error:
+            errors.append(f"failed to remove empty output directory .: {_os_error_reason(error)}")
+    return errors
 
 
 def _os_error_reason(error: OSError) -> str:
@@ -866,6 +915,23 @@ def bootstrap(
     preflight = preflight_init(root, product_doc, force=force)
     if not preflight.ok:
         raise InitPreflightError(preflight)
+    output_paths = _bootstrap_output_paths(product_doc)
+    snapshots = _snapshot_files(root, output_paths)
+    root_existed_before = root.exists()
+    try:
+        _write_bootstrap_outputs(root, product_doc, force, profile, project_name)
+    except (OSError, StateFileError):
+        _rollback_bootstrap_outputs(root, snapshots, output_paths, root_existed_before)
+        raise
+
+
+def _write_bootstrap_outputs(
+    root: Path,
+    product_doc: Path | None = None,
+    force: bool = False,
+    profile: str = "unknown",
+    project_name: str | None = None,
+) -> None:
     root.mkdir(parents=True, exist_ok=True)
     project_name = project_name or "Project Workspace"
     _install_runtime(root, force)

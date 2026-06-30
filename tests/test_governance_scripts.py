@@ -583,6 +583,58 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertEqual("# Existing Archive\n", existing_archive.read_text(encoding="utf-8"))
             self.assertFalse((source_dir / f".{product.name}.tmp").exists())
 
+    def test_bootstrap_rolls_back_new_target_when_write_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            root = base / "target"
+            product = base / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            original_safe_write = bootstrap_module._safe_write
+
+            def fail_after_root_readme(path: Path, content: str, force: bool = False) -> None:
+                original_safe_write(path, content, force)
+                if path == root / "README.md":
+                    raise OSError("simulated bootstrap write failure")
+
+            bootstrap_module._safe_write = fail_after_root_readme
+            try:
+                with self.assertRaises(OSError):
+                    bootstrap(root, product)
+            finally:
+                bootstrap_module._safe_write = original_safe_write
+
+            self.assertFalse(root.exists())
+
+    def test_bootstrap_force_restores_existing_files_when_write_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            root = base / "target"
+            root.mkdir()
+            product = base / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            readme = root / "README.md"
+            readme.write_text("# Existing\n", encoding="utf-8")
+            notes = root / "notes.md"
+            notes.write_text("# Keep\n", encoding="utf-8")
+            original_safe_write = bootstrap_module._safe_write
+
+            def fail_after_docs_readme(path: Path, content: str, force: bool = False) -> None:
+                original_safe_write(path, content, force)
+                if path == root / "docs/README.md":
+                    raise OSError("simulated bootstrap write failure")
+
+            bootstrap_module._safe_write = fail_after_docs_readme
+            try:
+                with self.assertRaises(OSError):
+                    bootstrap(root, product, force=True)
+            finally:
+                bootstrap_module._safe_write = original_safe_write
+
+            self.assertEqual("# Existing\n", readme.read_text(encoding="utf-8"))
+            self.assertEqual("# Keep\n", notes.read_text(encoding="utf-8"))
+            self.assertFalse((root / "docs").exists())
+            self.assertFalse((root / "bin/governance").exists())
+
     def test_runtime_refresh_rejects_missing_source_runtime_without_partial_refresh(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
