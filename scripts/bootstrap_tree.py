@@ -348,6 +348,7 @@ def preflight_init(root: Path, product_doc: Path | None = None, force: bool = Fa
 
     conflicts.extend(_target_preflight_conflicts(root))
     conflicts.extend(_product_preflight_conflicts(product_doc))
+    conflicts.extend(_product_archive_preflight_conflicts(product_doc))
     conflict_keys = {(conflict.path, conflict.reason) for conflict in conflicts}
 
     for rel in paths:
@@ -496,6 +497,15 @@ def _product_preflight_conflicts(product_doc: Path | None) -> list[InitConflict]
     except OSError as error:
         reason = error.strerror or str(error)
         return [InitConflict(str(product_doc), f"product document is unreadable: {reason}")]
+    return []
+
+
+def _product_archive_preflight_conflicts(product_doc: Path | None) -> list[InitConflict]:
+    if product_doc is None or not product_doc.exists() or not product_doc.is_file():
+        return []
+    archive_rel = Path("docs/product/core/source") / product_doc.name
+    if archive_rel.as_posix() in set(generated_file_paths(None)):
+        return [InitConflict(archive_rel.as_posix(), "product archive path overlaps generated output")]
     return []
 
 

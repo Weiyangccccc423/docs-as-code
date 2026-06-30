@@ -865,6 +865,42 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertFalse((target / "docs/README.md").exists())
             self.assertFalse((target / ".governance/state.json").exists())
 
+    def test_init_json_rejects_product_archive_generated_output_collision(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            target = base / "target"
+            product = base / "source-manifest.json"
+            product.write_text('{"product": true}\n', encoding="utf-8")
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "init",
+                    "--target",
+                    str(target),
+                    "--product",
+                    str(product),
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, result.returncode)
+            self.assertEqual("", result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertIn(
+                {
+                    "path": "docs/product/core/source/source-manifest.json",
+                    "reason": "product archive path overlaps generated output",
+                },
+                payload["conflicts"],
+            )
+            self.assertFalse(target.exists())
+
     def test_runtime_refresh_repairs_target_runtime_and_workflow_pack(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)

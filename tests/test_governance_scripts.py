@@ -2090,6 +2090,33 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertFalse((root / "README.md").exists())
             self.assertFalse((root / "docs/README.md").exists())
 
+    def test_preflight_rejects_product_archive_generated_output_collision(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "target"
+            product = Path(tmp) / "source-manifest.json"
+            product.write_text('{"product": true}\n', encoding="utf-8")
+
+            result = preflight_init(root, product, force=True)
+
+            self.assertFalse(result.ok)
+            self.assertIn(
+                {
+                    "path": "docs/product/core/source/source-manifest.json",
+                    "reason": "product archive path overlaps generated output",
+                },
+                [conflict.to_dict() for conflict in result.conflicts],
+            )
+            with self.assertRaises(InitPreflightError) as context:
+                bootstrap(root, product, force=True)
+            self.assertIn(
+                {
+                    "path": "docs/product/core/source/source-manifest.json",
+                    "reason": "product archive path overlaps generated output",
+                },
+                [conflict.to_dict() for conflict in context.exception.result.conflicts],
+            )
+            self.assertFalse(root.exists())
+
     def test_preflight_rejects_file_target(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "target"
