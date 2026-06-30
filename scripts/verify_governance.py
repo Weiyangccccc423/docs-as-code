@@ -3140,14 +3140,6 @@ def _local_markdown_references(
     return references
 
 
-def _markdown_file_references_path(root: Path, source_path: Path, target_path: Path) -> bool:
-    try:
-        text = source_path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        return False
-    return _markdown_text_references_path(root, source_path, text, target_path)
-
-
 def _markdown_text_references_path(root: Path, source_path: Path, text: str, target_path: Path) -> bool:
     try:
         expected = target_path.resolve().relative_to(root.resolve()).as_posix()
