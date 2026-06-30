@@ -9,10 +9,10 @@ from typing import Any
 
 try:
     from .bootstrap_tree import _product_meta
-    from .state import STATE_REL, StateFileError, merge_state, utc_now
+    from .state import STATE_REL, StateFileError, load_state, merge_state, utc_now
 except ImportError:  # pragma: no cover - direct script execution
     from bootstrap_tree import _product_meta
-    from state import STATE_REL, StateFileError, merge_state, utc_now
+    from state import STATE_REL, StateFileError, load_state, merge_state, utc_now
 
 
 MANIFEST_REL = Path("docs/product/core/source/source-manifest.json")
@@ -265,8 +265,19 @@ def _check_output_targets(root: Path, errors: list[str]) -> None:
     _check_atomic_output_target(root, MANIFEST_REL, "product source manifest", errors)
     _check_atomic_output_target(root, PRODUCT_META_REL, "product metadata", errors)
     _check_atomic_output_target(root, STATE_REL, "product import state", errors)
+    _check_state_readable(root, errors)
     if (root / UNRESOLVED_REL).exists():
         _check_atomic_output_target(root, UNRESOLVED_REL, "conversion blocker registry", errors)
+
+
+def _check_state_readable(root: Path, errors: list[str]) -> None:
+    path = root / STATE_REL
+    if not path.exists() or not path.is_file():
+        return
+    try:
+        load_state(root)
+    except StateFileError as error:
+        errors.append(f"product import state is invalid: {error}")
 
 
 def _check_atomic_output_target(root: Path, rel: Path, label: str, errors: list[str]) -> None:

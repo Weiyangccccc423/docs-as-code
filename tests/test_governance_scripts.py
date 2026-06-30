@@ -2387,6 +2387,39 @@ class GovernanceScriptsTest(unittest.TestCase):
             manifest = json.loads((root / "docs/product/core/source/source-manifest.json").read_text(encoding="utf-8"))
             self.assertEqual("conversion_required", manifest["import"]["status"])
 
+    def test_product_mark_ready_rejects_invalid_state_without_partial_ready_state(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.docx"
+            product.write_bytes(b"fake docx bytes")
+            bootstrap(root, product)
+            (root / "docs/product/core/PRD.md").write_text("# Converted Product\n", encoding="utf-8")
+            manifest_path = root / "docs/product/core/source/source-manifest.json"
+            product_meta_path = root / "docs/product/core/product-meta.md"
+            unresolved_path = root / "docs/unresolved.md"
+            state_path = root / ".governance/state.json"
+            original_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            original_product_meta = product_meta_path.read_text(encoding="utf-8")
+            original_unresolved = unresolved_path.read_text(encoding="utf-8")
+            state_path.write_text("{not json\n", encoding="utf-8")
+
+            result = product_import_module.mark_product_import_ready(root, reviewed=True)
+
+            self.assertFalse(result.ok)
+            self.assertEqual([], result.updated)
+            self.assertTrue(
+                any(
+                    error.startswith("product import state is invalid: invalid governance state file: ")
+                    for error in result.errors
+                ),
+                result.errors,
+            )
+            self.assertEqual(original_manifest, json.loads(manifest_path.read_text(encoding="utf-8")))
+            self.assertEqual("conversion_required", result.manifest["import"]["status"])
+            self.assertEqual(original_product_meta, product_meta_path.read_text(encoding="utf-8"))
+            self.assertEqual(original_unresolved, unresolved_path.read_text(encoding="utf-8"))
+            self.assertEqual("{not json\n", state_path.read_text(encoding="utf-8"))
+
     def test_product_import_atomic_write_cleans_temp_after_replace_failure(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
