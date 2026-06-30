@@ -10,6 +10,7 @@ Prefer deterministic checks before manual review.
 ## Commands
 
 ```bash
+bin/governance verify <target> --check
 bin/governance verify <target>
 bin/governance env --strict --repair --target <target>
 bin/governance gate product-structuring <target>
@@ -24,6 +25,7 @@ bin/governance runtime refresh <target>
 For agent automation, use JSON and branch on `ok`:
 
 ```bash
+bin/governance verify <target> --check --json
 bin/governance verify <target> --json
 bin/governance env --strict --repair --target <target> --json
 bin/governance product mark-ready <target> --reviewed --method manual-reviewed-markdown --check --json
@@ -35,7 +37,7 @@ bin/governance runtime refresh <target> --check --json
 bin/governance runtime refresh <target> --json
 ```
 
-Use `verify --json` `findings[].code` and `findings[].path` for deterministic repair routing. Use `errors` and `warnings` only for human-facing summaries.
+Use `verify --check --json` `findings[].code` and `findings[].path` for deterministic repair routing without updating state. Use `verify --json` when recording `last_verification` in `.governance/state.json`. Use `errors` and `warnings` only for human-facing summaries.
 Use `gate --json` `requirements[].code` for phase-transition repair routing; `verification.findings[]` contains the embedded structural verification result.
 Use `advance --check --json` to inspect `would_state`; use `advance --json` when the phase should be recorded in `.governance/state.json`.
 

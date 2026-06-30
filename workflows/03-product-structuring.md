@@ -83,6 +83,7 @@ Use only chapters that the source document supports. Do not create empty decorat
 Run:
 
 ```bash
+bin/governance verify <target> --check --json
 bin/governance verify <target> --json
 ```
 

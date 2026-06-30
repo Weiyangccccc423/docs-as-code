@@ -40,11 +40,12 @@ bin/governance status /path/to/new-project
 For agent automation, append `--json` to `init`, `verify`, `status`, or `env`:
 
 ```bash
+bin/governance verify /path/to/new-project --check --json
 bin/governance verify /path/to/new-project --json
 bin/governance env --repair --target /path/to/new-project --json
 ```
 
-`verify --json` includes human-compatible `errors` and `warnings` plus structured `findings` with `code`, `severity`, `path`, and `message`.
+`verify --check --json` includes human-compatible `errors` and `warnings` plus structured `findings` with `code`, `severity`, `path`, and `message` without updating state. Use `verify --json` when you want to record `last_verification` in `.governance/state.json`.
 
 Use `gate --json` before phase transitions. Supported gates are `product-structuring`, `design-derivation`, and `implementation`.
 Use `advance --check --json` to preview phase state changes, then `advance --json` when actually moving phases; it runs the matching gate and records `phase_history` in `.governance/state.json`.

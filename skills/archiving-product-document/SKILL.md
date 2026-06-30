@@ -16,7 +16,7 @@ Archive first, interpret second.
 5. Preserve tables, acceptance rules, diagrams, and field names.
 6. Register conversion losses in `docs/unresolved.md`.
 7. After manual review, run `bin/governance product mark-ready <target> --reviewed --method manual-reviewed-markdown --check --json`, then run the same command without `--check` when `ok` is true.
-8. Run `bin/governance verify <target> --json`, then `bin/governance gate product-structuring <target> --json`.
+8. Run `bin/governance verify <target> --check --json`, then record with `bin/governance verify <target> --json` and run `bin/governance gate product-structuring <target> --json`.
 
 ## Conversion Rules
 

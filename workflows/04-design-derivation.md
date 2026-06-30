@@ -116,6 +116,7 @@ Design documents sufficient for creating a task board without guessing product m
 Run:
 
 ```bash
+bin/governance verify <target> --check --json
 bin/governance verify <target> --json
 ```
 

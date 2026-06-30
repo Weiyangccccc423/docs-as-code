@@ -56,6 +56,7 @@ Load:
 ## Verification
 
 ```bash
+bin/governance verify <target> --check --json
 bin/governance verify <target> --json
 bin/governance gate product-structuring <target> --json
 ```

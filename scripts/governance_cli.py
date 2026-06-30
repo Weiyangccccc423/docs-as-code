@@ -123,12 +123,19 @@ def _init_error_message(error: OSError | StateFileError) -> str:
 def _cmd_verify(args: argparse.Namespace) -> int:
     target = Path(args.target)
     report = verify(target)
-    if target.exists() and not target.is_dir():
+    if target.exists() and not target.is_dir() and not args.check:
         raise StateFileError(target / STATE_REL, "unwritable: target path is not a directory")
     state = {}
     state_error = ""
     state_error_path = ""
-    if (target / STATE_REL).exists():
+    state_updated = False
+    if (target / STATE_REL).exists() and args.check:
+        try:
+            state = load_state(target)
+        except StateFileError as error:
+            state_error = str(error)
+            state_error_path = str(error.path)
+    elif (target / STATE_REL).exists():
         try:
             state = merge_state(
                 target,
@@ -139,6 +146,7 @@ def _cmd_verify(args: argparse.Namespace) -> int:
                     "findings": [finding.to_dict() for finding in report.findings],
                 },
             )
+            state_updated = True
         except StateFileError as error:
             state_error = str(error)
             state_error_path = str(error.path)
@@ -154,6 +162,8 @@ def _cmd_verify(args: argparse.Namespace) -> int:
         payload = {
             "ok": ok,
             "target": str(target),
+            "check": args.check,
+            "state_updated": state_updated,
             "errors": errors,
             "warnings": report.warnings,
             "findings": [finding.to_dict() for finding in report.findings],
@@ -546,6 +556,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     verify_parser = sub.add_parser("verify", help="Verify governance consistency.")
     verify_parser.add_argument("target", nargs="?", default=".")
+    verify_parser.add_argument("--check", action="store_true", help="Run verification without writing state.")
     verify_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     verify_parser.set_defaults(func=_cmd_verify)
 

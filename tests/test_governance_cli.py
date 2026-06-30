@@ -1542,6 +1542,48 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertTrue(status_payload["ok"])
             self.assertEqual("service", status_payload["state"]["profile"])
 
+    def test_verify_check_json_does_not_update_state(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+
+            init_result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "init",
+                    "--target",
+                    str(target),
+                    "--product",
+                    str(product),
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            state_path = target / ".governance/state.json"
+            state_before = state_path.read_text(encoding="utf-8")
+
+            verify_result = subprocess.run(
+                [sys.executable, str(CLI), "verify", str(target), "--check", "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, verify_result.returncode, verify_result.stderr)
+            payload = json.loads(verify_result.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertTrue(payload["check"])
+            self.assertFalse(payload["state_updated"])
+            self.assertEqual([], payload["errors"])
+            self.assertEqual("initialized", payload["state"]["phase"])
+            self.assertNotIn("last_verification", payload["state"])
+            self.assertEqual(state_before, state_path.read_text(encoding="utf-8"))
+
     def test_status_json_reports_missing_state_with_status_shape(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "target"

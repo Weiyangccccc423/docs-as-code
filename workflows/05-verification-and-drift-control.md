@@ -23,10 +23,11 @@ Load:
    For agent-controlled verification, prefer machine-readable output:
 
    ```bash
+   bin/governance verify <target> --check --json
    bin/governance verify <target> --json
    ```
 
-   Use `findings[].code` for automation. Keep `errors` and `warnings` for human-readable summaries.
+   Use `--check` when automation only needs findings and should not update `.governance/state.json`. Use the command without `--check` when recording `last_verification`. Use `findings[].code` for automation. Keep `errors` and `warnings` for human-readable summaries.
 
    When already inside an initialized target repository, prefer:
 

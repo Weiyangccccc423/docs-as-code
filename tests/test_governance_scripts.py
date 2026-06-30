@@ -2937,6 +2937,20 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertTrue(verify_payload["ok"])
             self.assertEqual(str(nested), verify_payload["target"])
 
+            state_before = (nested / ".governance/state.json").read_text(encoding="utf-8")
+            check_verify = subprocess.run(
+                [str(nested / "bin/governance"), "verify", str(nested), "--check", "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, check_verify.returncode, check_verify.stderr)
+            check_payload = json.loads(check_verify.stdout)
+            self.assertTrue(check_payload["ok"])
+            self.assertTrue(check_payload["check"])
+            self.assertFalse(check_payload["state_updated"])
+            self.assertEqual(state_before, (nested / ".governance/state.json").read_text(encoding="utf-8"))
+
     def test_bootstrap_installed_direct_runtime_scripts_emit_json(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "target"
