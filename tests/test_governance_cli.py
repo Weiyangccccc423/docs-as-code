@@ -1,10 +1,14 @@
 import json
+import contextlib
+import importlib
+import io
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -481,6 +485,38 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIsNone(payload["repair_plan"])
             self.assertEqual([], payload["repairs"])
             self.assertEqual("# Existing Plan\n", repair_plan.read_text(encoding="utf-8"))
+
+    def test_env_repair_json_reports_repair_plan_write_failure_without_traceback(self) -> None:
+        scripts_dir = str(ROOT / "scripts")
+        if scripts_dir not in sys.path:
+            sys.path.insert(0, scripts_dir)
+        governance_cli = importlib.import_module("governance_cli")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            target.mkdir()
+            original_write_repair_plan = governance_cli.write_repair_plan
+
+            def raise_os_error(*_args: object, **_kwargs: object) -> Path:
+                raise OSError(28, "No space left on device")
+
+            governance_cli.write_repair_plan = raise_os_error
+            stdout = io.StringIO()
+            try:
+                with contextlib.redirect_stdout(stdout):
+                    returncode = governance_cli._cmd_env(
+                        SimpleNamespace(target=str(target), repair=True, json=True, strict=False)
+                    )
+            finally:
+                governance_cli.write_repair_plan = original_write_repair_plan
+
+            self.assertEqual(1, returncode)
+            payload = json.loads(stdout.getvalue())
+            self.assertFalse(payload["ok"])
+            self.assertEqual(str(target), payload["target"])
+            self.assertEqual(["environment repair failed: No space left on device"], payload["errors"])
+            self.assertIsNone(payload["repair_plan"])
+            self.assertEqual([], payload["repairs"])
 
     def test_init_check_json_does_not_write_files(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

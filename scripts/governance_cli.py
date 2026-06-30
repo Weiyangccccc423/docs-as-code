@@ -248,14 +248,48 @@ def _cmd_env(args: argparse.Namespace) -> int:
         if install_results and all(result["returncode"] == 0 for result in install_results):
             statuses = collect_status()
             missing = [status.name for status in statuses if not status.present]
-        path = write_repair_plan(
-            target,
-            statuses,
-            system=system,
-            package_manager=package_manager,
-            install_plan=install_plan,
-            needs_escalation=needs_escalation,
-        )
+        try:
+            path = write_repair_plan(
+                target,
+                statuses,
+                system=system,
+                package_manager=package_manager,
+                install_plan=install_plan,
+                needs_escalation=needs_escalation,
+            )
+        except (OSError, ValueError) as error:
+            reason = error.strerror if isinstance(error, OSError) and error.strerror else str(error)
+            repair_error = f"environment repair failed: {reason}"
+            missing_required = missing_tools_by_level(statuses, "required")
+            missing_recommended = missing_tools_by_level(statuses, "recommended")
+            commands = install_commands(install_plan, package_manager)
+            if args.json:
+                _print_json(
+                    {
+                        "ok": False,
+                        "target": str(target),
+                        "strict": args.strict,
+                        "errors": [repair_error],
+                        "missing": missing,
+                        "missing_required": missing_required,
+                        "missing_recommended": missing_recommended,
+                        "tools": _tool_status_payload(statuses),
+                        "system": system.to_dict(),
+                        "package_manager": package_manager.to_dict(),
+                        "git": git.to_dict(),
+                        "install_plan": [item.to_dict() for item in install_plan],
+                        "install_commands": commands,
+                        "install_command": install_command_text(commands),
+                        "needs_escalation": needs_escalation,
+                        "install_results": install_results,
+                        "repairs": repairs,
+                        "repair_plan": repair_plan,
+                    }
+                )
+            else:
+                print("Environment repair failed:")
+                print(f"- ERROR: {repair_error}")
+            return 1
         repair_plan = str(path)
         repairs.append({"kind": "directory", "path": str(path.parent), "status": "ensured"})
         repairs.append({"kind": "repair_plan", "path": repair_plan, "status": "written"})
