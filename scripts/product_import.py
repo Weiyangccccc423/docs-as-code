@@ -72,6 +72,7 @@ def mark_product_import_ready(root: Path, method: str = "manual-reviewed-markdow
         errors.append("conversion method must describe the reviewed Markdown import")
     _check_prd_ready(root, errors)
     _check_archived_source(root, manifest, errors)
+    _check_conversion_blocker_registry(root, errors)
     if imported.get("status") == "no_source":
         errors.append("product source is missing; cannot mark import ready")
 
@@ -131,8 +132,17 @@ def _load_manifest(root: Path, errors: list[str]) -> dict[str, Any]:
     if not path.exists():
         errors.append(f"missing product source manifest: {MANIFEST_REL.as_posix()}")
         return {}
+    if not path.is_file():
+        errors.append(f"product source manifest is not a file: {MANIFEST_REL.as_posix()}")
+        return {}
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
+    except UnicodeDecodeError:
+        errors.append("invalid product source manifest encoding: expected UTF-8")
+        return {}
+    except OSError as error:
+        errors.append(f"product source manifest is unreadable: {_os_error_reason(error)}")
+        return {}
     except json.JSONDecodeError as error:
         errors.append(f"invalid product source manifest: {error.msg}")
         return {}
@@ -150,10 +160,16 @@ def _check_prd_ready(root: Path, errors: list[str]) -> None:
     if not path.exists():
         errors.append(f"missing reviewed PRD: {PRD_REL.as_posix()}")
         return
+    if not path.is_file():
+        errors.append(f"reviewed PRD is not a file: {PRD_REL.as_posix()}")
+        return
     try:
         text = path.read_text(encoding="utf-8")
     except UnicodeDecodeError:
         errors.append(f"{PRD_REL.as_posix()} must be UTF-8 Markdown")
+        return
+    except OSError as error:
+        errors.append(f"{PRD_REL.as_posix()} is unreadable: {_os_error_reason(error)}")
         return
     if not text.strip():
         errors.append(f"{PRD_REL.as_posix()} is empty")
@@ -194,6 +210,21 @@ def _check_archived_source(root: Path, manifest: dict[str, Any], errors: list[st
         errors.append(f"archived product source hash mismatch: {archived_rel}")
 
 
+def _check_conversion_blocker_registry(root: Path, errors: list[str]) -> None:
+    path = root / UNRESOLVED_REL
+    if not path.exists():
+        return
+    if not path.is_file():
+        errors.append(f"{UNRESOLVED_REL.as_posix()} is not a file; cannot resolve conversion blocker")
+        return
+    try:
+        path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        errors.append(f"{UNRESOLVED_REL.as_posix()} must be UTF-8 Markdown to resolve conversion blocker")
+    except OSError as error:
+        errors.append(f"{UNRESOLVED_REL.as_posix()} is unreadable; cannot resolve conversion blocker: {_os_error_reason(error)}")
+
+
 def _is_valid_product_source_archive_path(value: str) -> bool:
     path = Path(value)
     if path.is_absolute() or ".." in path.parts:
@@ -212,7 +243,12 @@ def _is_valid_manifest_size(value: object) -> bool:
 def _resolve_conversion_blocker(path: Path) -> bool:
     if not path.exists():
         return False
-    lines = path.read_text(encoding="utf-8").splitlines()
+    if not path.is_file():
+        return False
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError):
+        return False
     header_index = _find_unresolved_table_header(lines)
     if header_index is None:
         return False
@@ -295,3 +331,7 @@ def _sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _os_error_reason(error: OSError) -> str:
+    return error.strerror or error.__class__.__name__

@@ -1189,6 +1189,37 @@ class GovernanceCliTest(unittest.TestCase):
             manifest = json.loads((target / "docs/product/core/source/source-manifest.json").read_text(encoding="utf-8"))
             self.assertEqual("conversion_required", manifest["import"]["status"])
 
+    def test_product_mark_ready_reports_prd_directory_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.docx"
+            product.write_bytes(b"fake docx bytes")
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            prd = target / "docs/product/core/PRD.md"
+            prd.unlink()
+            prd.mkdir()
+
+            result = subprocess.run(
+                [sys.executable, str(CLI), "product", "mark-ready", str(target), "--reviewed", "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, result.returncode)
+            self.assertNotIn("Traceback", result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertIn("reviewed PRD is not a file: docs/product/core/PRD.md", payload["errors"])
+            manifest = json.loads((target / "docs/product/core/source/source-manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual("conversion_required", manifest["import"]["status"])
+
     def test_product_mark_ready_rejects_invalid_archive_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "target"
@@ -1302,6 +1333,108 @@ class GovernanceCliTest(unittest.TestCase):
             )
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             self.assertEqual("conversion_required", manifest["import"]["status"])
+
+    def test_product_mark_ready_reports_manifest_directory_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.docx"
+            product.write_bytes(b"fake docx bytes")
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            (target / "docs/product/core/PRD.md").write_text("# Converted Product\n", encoding="utf-8")
+            manifest_path = target / "docs/product/core/source/source-manifest.json"
+            manifest_path.unlink()
+            manifest_path.mkdir()
+
+            result = subprocess.run(
+                [sys.executable, str(CLI), "product", "mark-ready", str(target), "--reviewed", "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, result.returncode)
+            self.assertNotIn("Traceback", result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertIn(
+                "product source manifest is not a file: docs/product/core/source/source-manifest.json",
+                payload["errors"],
+            )
+
+    def test_product_mark_ready_reports_manifest_invalid_encoding_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.docx"
+            product.write_bytes(b"fake docx bytes")
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            (target / "docs/product/core/PRD.md").write_text("# Converted Product\n", encoding="utf-8")
+            manifest_path = target / "docs/product/core/source/source-manifest.json"
+            manifest_path.write_bytes(b"\xff")
+
+            result = subprocess.run(
+                [sys.executable, str(CLI), "product", "mark-ready", str(target), "--reviewed", "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, result.returncode)
+            self.assertNotIn("Traceback", result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertIn(
+                "invalid product source manifest encoding: expected UTF-8",
+                payload["errors"],
+            )
+
+    def test_product_mark_ready_rejects_unresolved_directory_without_partial_ready_state(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.docx"
+            product.write_bytes(b"fake docx bytes")
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            (target / "docs/product/core/PRD.md").write_text("# Converted Product\n", encoding="utf-8")
+            unresolved = target / "docs/unresolved.md"
+            unresolved.unlink()
+            unresolved.mkdir()
+
+            result = subprocess.run(
+                [sys.executable, str(CLI), "product", "mark-ready", str(target), "--reviewed", "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, result.returncode)
+            self.assertNotIn("Traceback", result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertIn(
+                "docs/unresolved.md is not a file; cannot resolve conversion blocker",
+                payload["errors"],
+            )
+            manifest = json.loads((target / "docs/product/core/source/source-manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual("conversion_required", manifest["import"]["status"])
+            state = json.loads((target / ".governance/state.json").read_text(encoding="utf-8"))
+            self.assertEqual("conversion_required", state["product_import_status"])
 
     def test_product_mark_ready_resolves_conversion_import(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
