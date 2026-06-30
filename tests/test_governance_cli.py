@@ -1194,6 +1194,26 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual(str(state_path), payload["path"])
             self.assertIn("root must be an object", payload["error"])
 
+    def test_verify_json_does_not_create_state_for_uninitialized_target(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            target.mkdir()
+
+            verify_result = subprocess.run(
+                [sys.executable, str(CLI), "verify", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, verify_result.returncode)
+            self.assertEqual("", verify_result.stderr)
+            payload = json.loads(verify_result.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertEqual(str(target), payload["target"])
+            self.assertEqual({}, payload["state"])
+            self.assertFalse((target / ".governance/state.json").exists())
+
     def test_verify_json_reports_unwritable_state_without_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "target"

@@ -24,7 +24,7 @@ from gates import GATE_NAMES, evaluate_gate
 from phases import PHASE_NAMES, advance_phase
 from product_import import mark_product_import_ready
 from scaffold import PRODUCT_CHAPTER_CHOICES, scaffold_design, scaffold_product
-from state import StateFileError, load_state, merge_state
+from state import STATE_REL, StateFileError, load_state, merge_state
 from verify_governance import verify
 
 
@@ -98,15 +98,19 @@ def _print_init_conflicts(conflicts: list) -> None:
 def _cmd_verify(args: argparse.Namespace) -> int:
     target = Path(args.target)
     report = verify(target)
-    state = merge_state(
-        target,
-        last_verification={
-            "ok": report.ok,
-            "errors": report.errors,
-            "warnings": report.warnings,
-            "findings": [finding.to_dict() for finding in report.findings],
-        },
-    )
+    if target.exists() and not target.is_dir():
+        raise StateFileError(target / STATE_REL, "unwritable: target path is not a directory")
+    state = {}
+    if (target / STATE_REL).exists():
+        state = merge_state(
+            target,
+            last_verification={
+                "ok": report.ok,
+                "errors": report.errors,
+                "warnings": report.warnings,
+                "findings": [finding.to_dict() for finding in report.findings],
+            },
+        )
     if args.json:
         _print_json(
             {
