@@ -247,10 +247,16 @@ def scaffold_design(root: Path) -> ScaffoldResult:
         )
 
     result = ScaffoldResult(scaffold="design", target=str(root), ok=True, gate=gate.to_dict())
+    specs: list[ScaffoldSpec] = []
     for spec in DESIGN_SCAFFOLD:
         if _should_skip_spec(root, spec):
             result.skipped.append(spec.path)
             continue
+        specs.append(spec)
+    if not _preflight_design_scaffold(root, specs, result):
+        return result
+
+    for spec in specs:
         path = root / spec.path
         if path.exists():
             result.skipped.append(spec.path)
@@ -261,6 +267,18 @@ def scaffold_design(root: Path) -> ScaffoldResult:
         if _ensure_index(root, spec, result):
             result.indexed.append(spec.path)
     return result
+
+
+def _preflight_design_scaffold(root: Path, specs: list[ScaffoldSpec], result: ScaffoldResult) -> bool:
+    support_paths: set[tuple[str, Path]] = set()
+    for spec in specs:
+        path = root / spec.path
+        _preflight_scaffold_output_file(result, path)
+        if path.name != "README.md":
+            support_paths.add(("scaffold index", path.parent / "README.md"))
+    for label, path in sorted(support_paths, key=lambda item: (item[0], item[1].as_posix())):
+        _preflight_scaffold_text_file(result, label, path)
+    return result.ok
 
 
 def scaffold_product(root: Path, chapters: list[str] | tuple[str, ...]) -> ScaffoldResult:
