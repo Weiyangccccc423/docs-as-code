@@ -887,6 +887,30 @@ class GovernanceScriptsTest(unittest.TestCase):
                     [finding.to_dict() for finding in report.findings],
                 )
 
+    def test_verify_reports_product_acceptance_directory_during_matrix_coverage(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            acceptance_chapter = root / "docs/product/08-acceptance-criteria.md"
+            acceptance_chapter.mkdir()
+            _write_indexed_doc(root, "docs/tests/02-acceptance-matrix.md", _acceptance_matrix_doc())
+
+            report = verify(root)
+
+            self.assertIn("Markdown path is not a file: docs/product/08-acceptance-criteria.md", report.errors)
+            self.assertIn(
+                {
+                    "code": "markdown_not_file",
+                    "severity": "error",
+                    "path": "docs/product/08-acceptance-criteria.md",
+                    "message": "Markdown path is not a file: docs/product/08-acceptance-criteria.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_governance_closure_doc_directories_without_traceback(self) -> None:
         for rel in [
             "docs/decisions/001-runtime-boundary.md",

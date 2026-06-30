@@ -1753,7 +1753,7 @@ def _check_acceptance_matrix_product_coverage(
     matrix_acceptance_ids: set[str],
     uncovered_criteria: str,
 ) -> None:
-    product_acceptance_ids = _product_acceptance_ids(root)
+    product_acceptance_ids = _product_acceptance_ids(root, report)
     if not product_acceptance_ids:
         return
     uncovered_acceptance_ids = set(ACCEPTANCE_ID_RE.findall(_strip_markdown_code(uncovered_criteria)))
@@ -1774,7 +1774,7 @@ def _check_acceptance_matrix_product_coverage(
         )
 
 
-def _product_acceptance_ids(root: Path) -> set[str]:
+def _product_acceptance_ids(root: Path, report: VerificationReport | None = None) -> set[str]:
     product_root = root / "docs/product"
     if not product_root.exists():
         return set()
@@ -1782,10 +1782,17 @@ def _product_acceptance_ids(root: Path) -> set[str]:
     for path in sorted(product_root.glob("*.md")):
         if PRODUCT_CHAPTER_RE.fullmatch(path.name) is None or "acceptance" not in path.stem.lower():
             continue
-        try:
-            text = path.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
-            continue
+        if report is None:
+            if not path.is_file():
+                continue
+            try:
+                text = path.read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                continue
+        else:
+            text = _read_markdown_text(root, path, report)
+            if text is None:
+                continue
         if SCAFFOLD_PLACEHOLDER in text:
             continue
         acceptance_ids.update(ACCEPTANCE_ID_RE.findall(_strip_markdown_code(text)))
