@@ -213,6 +213,12 @@ def apply_install_plan(
 def repair_target_error(target: Path) -> str | None:
     if target.exists():
         if target.is_dir():
+            governance_dir = target / ".governance"
+            if governance_dir.exists() and not governance_dir.is_dir():
+                return f"environment repair output parent is not a directory: {governance_dir}"
+            repair_plan = governance_dir / "env-repair.md"
+            if repair_plan.exists() and not repair_plan.is_file():
+                return f"environment repair plan path is not a file: {repair_plan}"
             return None
         return f"environment repair target is not a directory: {target}"
     for ancestor in target.parents:

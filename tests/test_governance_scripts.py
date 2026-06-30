@@ -7102,6 +7102,30 @@ class GovernanceScriptsTest(unittest.TestCase):
                 repair_target_error(target / "child"),
             )
 
+    def test_repair_target_error_rejects_blocked_repair_plan_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / "target"
+            target.mkdir()
+            governance = target / ".governance"
+            governance.write_text("not a directory\n", encoding="utf-8")
+
+            self.assertEqual(
+                f"environment repair output parent is not a directory: {governance}",
+                repair_target_error(target),
+            )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / "target"
+            repair_plan = target / ".governance/env-repair.md"
+            repair_plan.mkdir(parents=True)
+
+            self.assertEqual(
+                f"environment repair plan path is not a file: {repair_plan}",
+                repair_target_error(target),
+            )
+
     def test_merge_state_reports_unwritable_state_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "target"
