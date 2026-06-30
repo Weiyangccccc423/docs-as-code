@@ -2038,6 +2038,37 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [conflict.to_dict() for conflict in result.conflicts],
             )
 
+    def test_preflight_rejects_file_target(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "target"
+            root.write_text("not a directory\n", encoding="utf-8")
+            product = Path(tmp) / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+
+            result = preflight_init(root, product, force=True)
+
+            self.assertFalse(result.ok)
+            self.assertIn(
+                {"path": str(root), "reason": "target path is not a directory"},
+                [conflict.to_dict() for conflict in result.conflicts],
+            )
+
+    def test_preflight_rejects_file_target_parent(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            blocking_parent = Path(tmp) / "blocking-parent"
+            blocking_parent.write_text("not a directory\n", encoding="utf-8")
+            root = blocking_parent / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+
+            result = preflight_init(root, product, force=True)
+
+            self.assertFalse(result.ok)
+            self.assertIn(
+                {"path": str(blocking_parent), "reason": "target parent path is not a directory"},
+                [conflict.to_dict() for conflict in result.conflicts],
+            )
+
     def test_bootstrap_installs_target_runtime(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

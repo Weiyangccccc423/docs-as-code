@@ -541,6 +541,75 @@ class GovernanceCliTest(unittest.TestCase):
             )
             self.assertFalse(target.exists())
 
+    def test_init_json_rejects_file_target_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            target = base / "target"
+            target.write_text("not a directory\n", encoding="utf-8")
+            product = base / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "init",
+                    "--target",
+                    str(target),
+                    "--product",
+                    str(product),
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, result.returncode)
+            self.assertEqual("", result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertIn(
+                {"path": str(target), "reason": "target path is not a directory"},
+                payload["conflicts"],
+            )
+            self.assertEqual("not a directory\n", target.read_text(encoding="utf-8"))
+
+    def test_init_json_rejects_file_target_parent_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            blocking_parent = base / "blocking-parent"
+            blocking_parent.write_text("not a directory\n", encoding="utf-8")
+            target = blocking_parent / "target"
+            product = base / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "init",
+                    "--target",
+                    str(target),
+                    "--product",
+                    str(product),
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, result.returncode)
+            self.assertEqual("", result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertIn(
+                {"path": str(blocking_parent), "reason": "target parent path is not a directory"},
+                payload["conflicts"],
+            )
+            self.assertEqual("not a directory\n", blocking_parent.read_text(encoding="utf-8"))
+
     def test_init_force_json_allows_overwrite(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)

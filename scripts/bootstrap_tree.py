@@ -314,6 +314,7 @@ def preflight_init(root: Path, product_doc: Path | None = None, force: bool = Fa
     conflicts: list[InitConflict] = []
     product_resolved = product_doc.resolve() if product_doc is not None and product_doc.exists() else None
 
+    conflicts.extend(_target_preflight_conflicts(root))
     conflicts.extend(_product_preflight_conflicts(product_doc))
     conflict_keys = {(conflict.path, conflict.reason) for conflict in conflicts}
 
@@ -339,6 +340,20 @@ def preflight_init(root: Path, product_doc: Path | None = None, force: bool = Fa
         product=product,
         would_write=paths,
     )
+
+
+def _target_preflight_conflicts(root: Path) -> list[InitConflict]:
+    if root.exists():
+        if root.is_dir():
+            return []
+        return [InitConflict(str(root), "target path is not a directory")]
+
+    current = root.parent
+    while not current.exists() and current != current.parent:
+        current = current.parent
+    if current.exists() and not current.is_dir():
+        return [InitConflict(str(current), "target parent path is not a directory")]
+    return []
 
 
 def _append_init_conflict(conflicts: list[InitConflict], keys: set[tuple[str, str]], conflict: InitConflict) -> None:
