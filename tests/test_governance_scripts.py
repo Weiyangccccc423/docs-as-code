@@ -6194,6 +6194,38 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_does_not_report_blocked_task_missing_id_when_unresolved_registry_unreadable(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(root, "docs/product/01-goals.md", "# Goals\n\nSource: [PRD](core/PRD.md).\n")
+            _append_product_meta_chapter(root, "01-goals.md")
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
+            _write_indexed_doc(root, "docs/api/00-conventions.md", _api_conventions_doc())
+            _write_traceable_test_strategy(root)
+            (root / "docs/unresolved.md").write_bytes(b"\xff")
+
+            task_board = root / "docs/development/02-task-board.md"
+            task_board.write_text(
+                _task_board_doc(
+                    "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | make test |\n"
+                    "| TASK-002 | Blocked | Resolve goal edge case | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | Waiting for decision |\n"
+                ),
+                encoding="utf-8",
+            )
+            _append_index(root / "docs/development/README.md", "02-task-board.md")
+
+            report = verify(root)
+
+            self.assertIn("invalid Markdown encoding: docs/unresolved.md must be UTF-8", report.errors)
+            self.assertNotIn(
+                "task board row TASK-002 is Blocked but does not cite an existing unresolved item ID",
+                report.errors,
+            )
+
     def test_verify_reports_blocked_task_without_unresolved_link(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

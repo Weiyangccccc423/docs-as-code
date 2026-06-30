@@ -2497,7 +2497,7 @@ def _check_task_board(root: Path, report: VerificationReport) -> None:
             for code, message in reference_errors:
                 report.add_error(code, message, rel)
             continue
-        blocked_errors = _task_board_blocked_unresolved_errors(root, row, task_id)
+        blocked_errors = _task_board_blocked_unresolved_errors(root, row, task_id, report)
         if blocked_errors:
             for code, message in blocked_errors:
                 report.add_error(code, message, rel)
@@ -3040,10 +3040,18 @@ def _task_board_done_evidence_errors(root: Path, row: dict[str, str], task_id: s
     ]
 
 
-def _task_board_blocked_unresolved_errors(root: Path, row: dict[str, str], task_id: str) -> list[tuple[str, str]]:
+def _task_board_blocked_unresolved_errors(
+    root: Path,
+    row: dict[str, str],
+    task_id: str,
+    report: VerificationReport | None = None,
+) -> list[tuple[str, str]]:
     if _normalize_cell(row.get("status", "")) not in TASK_BOARD_BLOCKED_STATUSES:
         return []
-    cited_id = _task_board_cited_unresolved_id(root, row)
+    item_ids = _unresolved_item_ids(root, report)
+    if item_ids is None:
+        return []
+    cited_id = _task_board_cited_unresolved_id(row, item_ids)
     if cited_id is None:
         return [
             (
@@ -3061,9 +3069,9 @@ def _task_board_blocked_unresolved_errors(root: Path, row: dict[str, str], task_
     return []
 
 
-def _task_board_cited_unresolved_id(root: Path, row: dict[str, str]) -> str | None:
+def _task_board_cited_unresolved_id(row: dict[str, str], item_ids: list[str]) -> str | None:
     haystack = " ".join(row.get(column, "") for column in ("task", "verification"))
-    for item_id in _unresolved_item_ids(root):
+    for item_id in item_ids:
         if _text_contains_identifier(haystack, item_id):
             return item_id
     return None
@@ -3076,12 +3084,19 @@ def _task_board_links_unresolved_registry(root: Path, row: dict[str, str]) -> bo
     return any(reference.rel == "docs/unresolved.md" for reference in references)
 
 
-def _unresolved_item_ids(root: Path) -> list[str]:
+def _unresolved_item_ids(root: Path, report: VerificationReport | None = None) -> list[str] | None:
     path = root / "docs/unresolved.md"
-    try:
-        text = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        return []
+    if report is None:
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            return []
+    else:
+        if not path.exists():
+            return []
+        text = _read_markdown_text(root, path, report)
+        if text is None:
+            return None
     return [row["id"].strip() for row in _rows_with_columns(text, ("id",)) if row.get("id", "").strip()]
 
 
