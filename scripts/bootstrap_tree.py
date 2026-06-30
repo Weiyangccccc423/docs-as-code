@@ -1258,18 +1258,58 @@ def main() -> int:
     parser.add_argument("--profile", default="unknown", help="Target project profile, for example web-app.")
     parser.add_argument("--project-name", default="Project Workspace", help="Project name for generated root README.")
     parser.add_argument("--force", action="store_true", help="Overwrite existing generated files.")
+    parser.add_argument("--check", action="store_true", help="Run initialization preflight without writing files.")
+    parser.add_argument("--json", action="store_true", help="Print a machine-readable initialization result.")
     args = parser.parse_args()
+    target = Path(args.target)
     product = Path(args.product) if args.product else None
+    preflight = preflight_init(target, product, force=args.force)
+    if args.check:
+        if args.json:
+            print(json.dumps(preflight.to_dict(), ensure_ascii=False, indent=2, sort_keys=True))
+        elif preflight.ok:
+            print("Initialization preflight passed.")
+        else:
+            print("Initialization preflight failed:")
+            for conflict in preflight.conflicts:
+                print(f"- {conflict.path}: {conflict.reason}")
+        return 0 if preflight.ok else 1
+    if not preflight.ok:
+        if args.json:
+            print(json.dumps(preflight.to_dict(), ensure_ascii=False, indent=2, sort_keys=True))
+        else:
+            print("Initialization preflight failed:")
+            for conflict in preflight.conflicts:
+                print(f"- {conflict.path}: {conflict.reason}")
+        return 1
     try:
-        bootstrap(Path(args.target), product, force=args.force, profile=args.profile, project_name=args.project_name)
+        bootstrap(target, product, force=args.force, profile=args.profile, project_name=args.project_name)
     except InitPreflightError as error:
-        print("Initialization preflight failed:")
-        for conflict in error.result.conflicts:
-            print(f"- {conflict.path}: {conflict.reason}")
+        if args.json:
+            print(json.dumps(error.result.to_dict(), ensure_ascii=False, indent=2, sort_keys=True))
+        else:
+            print("Initialization preflight failed:")
+            for conflict in error.result.conflicts:
+                print(f"- {conflict.path}: {conflict.reason}")
         return 1
     except (OSError, StateFileError) as error:
-        print(f"Initialization failed: {_bootstrap_error_reason(error)}")
+        message = f"initialization failed: {_bootstrap_error_reason(error)}"
+        if args.json:
+            payload = preflight.to_dict()
+            payload["ok"] = False
+            payload["errors"] = [message]
+            print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
+        else:
+            print(f"Initialization failed: {_bootstrap_error_reason(error)}")
         return 1
+    if args.json:
+        payload = preflight_init(target, product, force=True).to_dict()
+        payload["ok"] = True
+        payload["conflicts"] = []
+        payload["state"] = load_state(target)
+        print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
+        return 0
+    print(f"Initialized governance repository at {target}")
     return 0
 
 

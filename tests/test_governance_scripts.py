@@ -828,6 +828,103 @@ class GovernanceScriptsTest(unittest.TestCase):
 
             self.assertFalse(root.exists())
 
+    def test_bootstrap_main_check_json_reports_preflight_without_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            root = base / "target"
+            product = base / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            original_argv = sys.argv
+            sys.argv = ["bootstrap_tree.py", "--target", str(root), "--product", str(product), "--check", "--json"]
+            stdout = io.StringIO()
+            try:
+                with contextlib.redirect_stdout(stdout):
+                    returncode = bootstrap_module.main()
+            finally:
+                sys.argv = original_argv
+
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(0, returncode)
+            self.assertTrue(payload["ok"])
+            self.assertEqual(str(root.resolve()), payload["target"])
+            self.assertEqual([], payload["conflicts"])
+            self.assertIn("README.md", payload["would_write"])
+            self.assertIn("scripts/bootstrap_tree.py", payload["would_write"])
+            self.assertFalse(root.exists())
+
+    def test_bootstrap_main_json_initializes_and_reports_state(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            root = base / "target"
+            product = base / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            original_argv = sys.argv
+            sys.argv = [
+                "bootstrap_tree.py",
+                "--target",
+                str(root),
+                "--product",
+                str(product),
+                "--profile",
+                "web-app",
+                "--project-name",
+                "Demo Project",
+                "--json",
+            ]
+            stdout = io.StringIO()
+            try:
+                with contextlib.redirect_stdout(stdout):
+                    returncode = bootstrap_module.main()
+            finally:
+                sys.argv = original_argv
+
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(0, returncode)
+            self.assertTrue(payload["ok"])
+            self.assertEqual(str(root.resolve()), payload["target"])
+            self.assertEqual([], payload["conflicts"])
+            self.assertEqual("initialized", payload["state"]["phase"])
+            self.assertEqual("web-app", payload["state"]["profile"])
+            self.assertTrue((root / "bin/governance").exists())
+
+    def test_bootstrap_main_json_reports_write_failure_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            root = base / "target"
+            product = base / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            original_argv = sys.argv
+            original_safe_write = bootstrap_module._safe_write
+
+            def fail_after_root_readme(path: Path, content: str, force: bool = False) -> None:
+                original_safe_write(path, content, force)
+                if path == root / "README.md":
+                    raise OSError(28, "No space left on device")
+
+            sys.argv = [
+                "bootstrap_tree.py",
+                "--target",
+                str(root),
+                "--product",
+                str(product),
+                "--json",
+            ]
+            bootstrap_module._safe_write = fail_after_root_readme
+            stdout = io.StringIO()
+            try:
+                with contextlib.redirect_stdout(stdout):
+                    returncode = bootstrap_module.main()
+            finally:
+                sys.argv = original_argv
+                bootstrap_module._safe_write = original_safe_write
+
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(1, returncode)
+            self.assertFalse(payload["ok"])
+            self.assertEqual(str(root.resolve()), payload["target"])
+            self.assertEqual(["initialization failed: No space left on device"], payload["errors"])
+            self.assertFalse(root.exists())
+
     def test_bootstrap_force_restores_existing_files_when_write_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
