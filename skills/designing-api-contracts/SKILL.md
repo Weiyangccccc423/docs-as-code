@@ -75,6 +75,7 @@ Link `Frontend Consumers` to existing local UI or frontend API-consumption Markd
 1. Run the design gate:
 
    ```bash
+   bin/governance advance design-derivation <target> --check --json
    bin/governance advance design-derivation <target> --json
    ```
 

@@ -21,7 +21,7 @@ from check_env import (
     write_repair_plan,
 )
 from gates import GATE_NAMES, evaluate_gate
-from phases import PHASE_NAMES, advance_phase
+from phases import PHASE_NAMES, advance_phase, check_advance_phase
 from product_import import check_product_import_ready, mark_product_import_ready
 from scaffold import (
     PRODUCT_CHAPTER_CHOICES,
@@ -474,10 +474,16 @@ def _cmd_scaffold(args: argparse.Namespace) -> int:
 
 def _cmd_advance(args: argparse.Namespace) -> int:
     target = Path(args.target)
-    result = advance_phase(target, args.phase)
+    if args.check:
+        result = check_advance_phase(target, args.phase)
+    else:
+        result = advance_phase(target, args.phase)
     if args.json:
         _print_json(result.to_dict())
         return 0 if result.ok else 1
+    if args.check and result.ok:
+        print(f"Advance preflight passed: {args.phase}")
+        return 0
     if result.ok:
         print(f"Advanced phase: {args.phase}")
         return 0
@@ -593,6 +599,7 @@ def build_parser() -> argparse.ArgumentParser:
     advance = sub.add_parser("advance", help="Advance workflow phase after the matching gate passes.")
     advance.add_argument("phase", choices=PHASE_NAMES)
     advance.add_argument("target", nargs="?", default=".")
+    advance.add_argument("--check", action="store_true", help="Run phase advance preflight without writing state.")
     advance.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     advance.set_defaults(func=_cmd_advance)
 

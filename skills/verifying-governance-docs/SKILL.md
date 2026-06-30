@@ -15,6 +15,7 @@ bin/governance env --strict --repair --target <target>
 bin/governance gate product-structuring <target>
 bin/governance gate design-derivation <target>
 bin/governance gate implementation <target>
+bin/governance advance implementation <target> --check
 bin/governance advance implementation <target>
 bin/governance runtime refresh <target> --check
 bin/governance runtime refresh <target>
@@ -28,6 +29,7 @@ bin/governance env --strict --repair --target <target> --json
 bin/governance product mark-ready <target> --reviewed --method manual-reviewed-markdown --check --json
 bin/governance product mark-ready <target> --reviewed --method manual-reviewed-markdown --json
 bin/governance gate implementation <target> --json
+bin/governance advance implementation <target> --check --json
 bin/governance advance implementation <target> --json
 bin/governance runtime refresh <target> --check --json
 bin/governance runtime refresh <target> --json
@@ -35,7 +37,7 @@ bin/governance runtime refresh <target> --json
 
 Use `verify --json` `findings[].code` and `findings[].path` for deterministic repair routing. Use `errors` and `warnings` only for human-facing summaries.
 Use `gate --json` `requirements[].code` for phase-transition repair routing; `verification.findings[]` contains the embedded structural verification result.
-Use `advance --json` when the phase should be recorded in `.governance/state.json`.
+Use `advance --check --json` to inspect `would_state`; use `advance --json` when the phase should be recorded in `.governance/state.json`.
 
 ## Repair Order
 

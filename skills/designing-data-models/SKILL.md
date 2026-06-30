@@ -24,6 +24,7 @@ Read `references/backend-design-checklist.md` before writing data-model docs. Ap
 1. Run the design gate:
 
    ```bash
+   bin/governance advance design-derivation <target> --check --json
    bin/governance advance design-derivation <target> --json
    ```
 

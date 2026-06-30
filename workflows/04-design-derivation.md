@@ -24,6 +24,7 @@ Load according to the design track:
 1. Confirm product structure is ready for design derivation:
 
    ```bash
+   bin/governance advance design-derivation <target> --check --json
    bin/governance advance design-derivation <target> --json
    ```
 

@@ -640,6 +640,33 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertEqual("product-structuring", payload["state"]["phase_history"][0]["gate"])
             self.assertEqual("product-structuring", state["phase"])
 
+    def test_phases_main_check_json_reports_plan_without_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            state_before = load_state(root)
+            original_argv = sys.argv
+            sys.argv = ["phases.py", "product-structuring", str(root), "--check", "--json"]
+            stdout = io.StringIO()
+            try:
+                with contextlib.redirect_stdout(stdout):
+                    returncode = phases_module.main()
+            finally:
+                sys.argv = original_argv
+
+            payload = json.loads(stdout.getvalue())
+            state = load_state(root)
+            self.assertEqual(0, returncode)
+            self.assertTrue(payload["ok"])
+            self.assertTrue(payload["check"])
+            self.assertFalse(payload["advanced"])
+            self.assertTrue(payload["would_advance"])
+            self.assertEqual("initialized", payload["state"]["phase"])
+            self.assertEqual("product-structuring", payload["would_state"]["phase"])
+            self.assertEqual(state_before, state)
+
     def test_phases_main_json_failed_gate_does_not_advance(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -3003,6 +3030,20 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertEqual(0, gate_result.returncode)
             self.assertTrue(gate_payload["ok"])
             self.assertEqual("product-structuring", gate_payload["gate"])
+
+            advance_check_result, advance_check_payload = run_direct(
+                "phases.py",
+                "product-structuring",
+                ".",
+                "--check",
+                "--json",
+            )
+            self.assertEqual(0, advance_check_result.returncode)
+            self.assertTrue(advance_check_payload["ok"])
+            self.assertTrue(advance_check_payload["check"])
+            self.assertFalse(advance_check_payload["advanced"])
+            self.assertTrue(advance_check_payload["would_advance"])
+            self.assertEqual("initialized", load_state(root)["phase"])
 
             advance_result, advance_payload = run_direct("phases.py", "product-structuring", ".", "--json")
             self.assertEqual(0, advance_result.returncode)

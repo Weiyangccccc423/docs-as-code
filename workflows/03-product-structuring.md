@@ -20,6 +20,7 @@ Load:
 1. Confirm the product is ready for structuring:
 
    ```bash
+   bin/governance advance product-structuring <target> --check --json
    bin/governance advance product-structuring <target> --json
    ```
 

@@ -1912,6 +1912,90 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual("initialized", payload["state"]["phase_history"][0]["from_phase"])
             self.assertEqual("product-structuring", payload["state"]["phase_history"][0]["gate"])
 
+    def test_advance_check_json_reports_planned_state_without_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            state_path = target / ".governance/state.json"
+            state_before = state_path.read_text(encoding="utf-8")
+
+            advance = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "advance",
+                    "product-structuring",
+                    str(target),
+                    "--check",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, advance.returncode, advance.stderr)
+            payload = json.loads(advance.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertTrue(payload["check"])
+            self.assertFalse(payload["advanced"])
+            self.assertTrue(payload["would_advance"])
+            self.assertEqual("initialized", payload["state"]["phase"])
+            self.assertEqual("product-structuring", payload["would_state"]["phase"])
+            self.assertEqual("initialized", payload["would_state"]["phase_history"][0]["from_phase"])
+            self.assertEqual("product-structuring", payload["would_state"]["phase_history"][0]["gate"])
+            self.assertEqual(state_before, state_path.read_text(encoding="utf-8"))
+
+    def test_advance_check_json_rejects_blocked_state_temp_without_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            state_temp = target / ".governance/.state.json.tmp"
+            state_temp.mkdir()
+
+            advance = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "advance",
+                    "product-structuring",
+                    str(target),
+                    "--check",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, advance.returncode)
+            self.assertEqual("", advance.stderr)
+            payload = json.loads(advance.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertTrue(payload["check"])
+            self.assertFalse(payload["advanced"])
+            self.assertFalse(payload["would_advance"])
+            self.assertIn(".governance/.state.json.tmp is not a file", payload["errors"][0])
+            state = json.loads((target / ".governance/state.json").read_text(encoding="utf-8"))
+            self.assertEqual("initialized", state["phase"])
+            self.assertNotIn("phase_history", state)
+
     def test_advance_failed_gate_does_not_update_phase(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "target"

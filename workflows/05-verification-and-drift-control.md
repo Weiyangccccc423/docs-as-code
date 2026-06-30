@@ -58,6 +58,7 @@ Load:
 5. Before implementation starts, run the implementation gate:
 
    ```bash
+   bin/governance advance implementation <target> --check --json
    bin/governance advance implementation <target> --json
    ```
 

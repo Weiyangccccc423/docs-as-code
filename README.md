@@ -47,7 +47,7 @@ bin/governance env --repair --target /path/to/new-project --json
 `verify --json` includes human-compatible `errors` and `warnings` plus structured `findings` with `code`, `severity`, `path`, and `message`.
 
 Use `gate --json` before phase transitions. Supported gates are `product-structuring`, `design-derivation`, and `implementation`.
-Use `advance --json` when actually moving phases; it runs the matching gate and records `phase_history` in `.governance/state.json`.
+Use `advance --check --json` to preview phase state changes, then `advance --json` when actually moving phases; it runs the matching gate and records `phase_history` in `.governance/state.json`.
 The `implementation` gate requires a traceable task board with at least one `Ready` task.
 
 When a non-Markdown product source has been converted and `docs/product/core/PRD.md` has been manually reviewed against the archived original, close out the import state deterministically:
@@ -68,6 +68,7 @@ bin/governance scaffold product /path/to/new-project --chapter goals-and-require
 Use `scaffold design --check --json` after the design-derivation gate to inspect the standard architecture, API, UI, backend, frontend, test, and development document shells before writing them. Scaffolded files contain `governance:scaffold-placeholder`; verification fails until the placeholders are replaced with product-derived content.
 
 ```bash
+bin/governance advance design-derivation /path/to/new-project --check --json
 bin/governance advance design-derivation /path/to/new-project --json
 bin/governance scaffold design /path/to/new-project --check --json
 bin/governance scaffold design /path/to/new-project --json

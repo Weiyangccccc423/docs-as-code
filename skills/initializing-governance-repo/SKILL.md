@@ -38,6 +38,7 @@ Create the minimum structure needed for reliable docs-as-code work.
 5. Check the first downstream phase gate:
 
    ```bash
+   bin/governance advance product-structuring <target> --check --json
    bin/governance advance product-structuring <target> --json
    ```
 
