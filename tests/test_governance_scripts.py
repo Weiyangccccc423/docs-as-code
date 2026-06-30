@@ -17,6 +17,7 @@ from scripts.check_env import (
 )
 from scripts.bootstrap_tree import InitPreflightError
 from scripts.bootstrap_tree import bootstrap
+from scripts.gates import evaluate_gate
 from scripts.state import StateFileError, merge_state
 from scripts.verify_governance import task_board_ready_tasks, verify
 
@@ -1047,6 +1048,24 @@ class GovernanceScriptsTest(unittest.TestCase):
                 },
                 [finding.to_dict() for finding in report.findings],
             )
+
+    def test_product_structuring_gate_handles_product_source_manifest_invalid_encoding(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            manifest_path = root / "docs/product/core/source/source-manifest.json"
+            manifest_path.write_bytes(b"\xff")
+
+            result = evaluate_gate(root, "product-structuring")
+
+            self.assertFalse(result.ok)
+            requirement_by_code = {requirement.code: requirement for requirement in result.requirements}
+            self.assertFalse(requirement_by_code["product_source_present"].ok)
+            self.assertFalse(requirement_by_code["product_import_ready"].ok)
+            self.assertIn("invalid product source manifest encoding: expected UTF-8", result.verification["errors"])
 
     def test_verify_reports_docs_root_file_without_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

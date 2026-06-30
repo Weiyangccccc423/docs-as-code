@@ -143,7 +143,7 @@ def _load_product_source_manifest(root: Path) -> dict[str, Any]:
     path = root / "docs/product/core/source/source-manifest.json"
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return {}
     return payload if isinstance(payload, dict) else {}
 
