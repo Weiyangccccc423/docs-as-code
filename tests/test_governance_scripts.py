@@ -666,6 +666,65 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertEqual("initialized", state["phase"])
             self.assertNotIn("phase_history", state)
 
+    def test_scaffold_main_json_writes_selected_product_chapters(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n\n## Goal\n\nShip governed projects.\n", encoding="utf-8")
+            bootstrap(root, product)
+            original_argv = sys.argv
+            sys.argv = [
+                "scaffold.py",
+                "product",
+                str(root),
+                "--chapter",
+                "goals-and-requirements",
+                "--chapter",
+                "acceptance-criteria",
+                "--json",
+            ]
+            stdout = io.StringIO()
+            try:
+                with contextlib.redirect_stdout(stdout):
+                    returncode = scaffold_module.main()
+            finally:
+                sys.argv = original_argv
+
+            payload = json.loads(stdout.getvalue())
+            product_readme = (root / "docs/product/README.md").read_text(encoding="utf-8")
+            product_meta = (root / "docs/product/core/product-meta.md").read_text(encoding="utf-8")
+            self.assertEqual(0, returncode)
+            self.assertTrue(payload["ok"])
+            self.assertEqual("product", payload["scaffold"])
+            self.assertEqual(str(root.resolve()), payload["target"])
+            self.assertIn("docs/product/03-goals-and-requirements.md", payload["created"])
+            self.assertIn("docs/product/08-acceptance-criteria.md", payload["created"])
+            self.assertIn("docs/product/core/product-meta.md", payload["indexed"])
+            self.assertIn("03-goals-and-requirements.md", product_readme)
+            self.assertIn("[Acceptance Criteria](../08-acceptance-criteria.md)", product_meta)
+
+    def test_scaffold_main_json_rejects_design_chapter_option(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            root.mkdir(exist_ok=True)
+            original_argv = sys.argv
+            sys.argv = ["scaffold.py", "design", str(root), "--chapter", "acceptance-criteria", "--json"]
+            stdout = io.StringIO()
+            try:
+                with contextlib.redirect_stdout(stdout):
+                    returncode = scaffold_module.main()
+            finally:
+                sys.argv = original_argv
+
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(1, returncode)
+            self.assertFalse(payload["ok"])
+            self.assertEqual("design", payload["scaffold"])
+            self.assertEqual(str(root), payload["target"])
+            self.assertIn("scaffold design does not accept --chapter", payload["errors"])
+            self.assertEqual([], payload["created"])
+            self.assertEqual({}, payload["gate"])
+
     def test_verify_governance_main_json_reports_ok_for_clean_target(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

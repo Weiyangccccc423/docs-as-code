@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import argparse
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -742,3 +744,61 @@ def _read_scaffold_text(result: ScaffoldResult, path: Path, label: str, default:
         reason = error.strerror or str(error)
         _record_scaffold_read_error(result, label, path, f"is unreadable: {reason}")
     return None
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Create standard docs-as-code governance scaffolds.")
+    parser.add_argument("scaffold", choices=("product", "design"), help="Scaffold kind to create.")
+    parser.add_argument("target", nargs="?", default=".", help="Repository root to update.")
+    parser.add_argument(
+        "--chapter",
+        action="append",
+        choices=PRODUCT_CHAPTER_CHOICES,
+        default=[],
+        help="Product chapter to scaffold. Repeat for multiple chapters.",
+    )
+    parser.add_argument("--json", action="store_true", help="Print a machine-readable scaffold result.")
+    args = parser.parse_args()
+    target = Path(args.target)
+    if args.scaffold != "product" and args.chapter:
+        payload = {
+            "scaffold": args.scaffold,
+            "target": str(target),
+            "ok": False,
+            "created": [],
+            "skipped": [],
+            "indexed": [],
+            "errors": [f"scaffold {args.scaffold} does not accept --chapter"],
+            "gate": {},
+        }
+        if args.json:
+            print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
+            return 1
+        print(f"Scaffold failed: {args.scaffold}")
+        for error in payload["errors"]:
+            print(f"- ERROR: {error}")
+        return 1
+    if args.scaffold == "design":
+        result = scaffold_design(target)
+    elif args.scaffold == "product":
+        result = scaffold_product(target, args.chapter)
+    else:  # pragma: no cover - argparse choices prevent this
+        raise ValueError(f"unknown scaffold: {args.scaffold}")
+    if args.json:
+        print(json.dumps(result.to_dict(), ensure_ascii=False, indent=2, sort_keys=True))
+        return 0 if result.ok else 1
+    if not result.ok:
+        print(f"Scaffold failed: {args.scaffold}")
+        for error in result.errors:
+            print(f"- ERROR: {error}")
+        return 1
+    print(f"Scaffold created: {args.scaffold}")
+    for path in result.created:
+        print(f"- CREATED: {path}")
+    for path in result.skipped:
+        print(f"- SKIPPED: {path}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
