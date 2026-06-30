@@ -8,10 +8,10 @@ from typing import Any
 
 try:
     from .bootstrap_tree import _product_meta
-    from .state import STATE_REL, merge_state, utc_now
+    from .state import STATE_REL, StateFileError, merge_state, utc_now
 except ImportError:  # pragma: no cover - direct script execution
     from bootstrap_tree import _product_meta
-    from state import STATE_REL, merge_state, utc_now
+    from state import STATE_REL, StateFileError, merge_state, utc_now
 
 
 MANIFEST_REL = Path("docs/product/core/source/source-manifest.json")
@@ -96,24 +96,45 @@ def mark_product_import_ready(root: Path, method: str = "manual-reviewed-markdow
     manifest["import"] = imported
 
     updated: list[str] = []
-    _write_json(root / MANIFEST_REL, manifest)
-    updated.append(MANIFEST_REL.as_posix())
-    _write_text(root / PRODUCT_META_REL, _product_meta(manifest))
-    updated.append(PRODUCT_META_REL.as_posix())
-    blocker_resolved = _resolve_conversion_blocker(root / UNRESOLVED_REL)
-    if blocker_resolved:
-        updated.append(UNRESOLVED_REL.as_posix())
-    else:
-        warnings.append(f"{CONVERSION_BLOCKER_ID} conversion blocker was not found or was already resolved")
+    blocker_resolved = False
+    state: dict[str, Any] = {}
+    try:
+        _write_json(root / MANIFEST_REL, manifest)
+        updated.append(MANIFEST_REL.as_posix())
+        _write_text(root / PRODUCT_META_REL, _product_meta(manifest))
+        updated.append(PRODUCT_META_REL.as_posix())
+        blocker_resolved = _resolve_conversion_blocker(root / UNRESOLVED_REL)
+        if blocker_resolved:
+            updated.append(UNRESOLVED_REL.as_posix())
+        else:
+            warnings.append(f"{CONVERSION_BLOCKER_ID} conversion blocker was not found or was already resolved")
 
-    state = merge_state(
-        root,
-        product_import_status="ready_for_structuring",
-        product_can_derive_design=True,
-        product_conversion_method=method,
-        product_conversion_reviewed_at=reviewed_at,
-    )
-    updated.append(".governance/state.json")
+        state = merge_state(
+            root,
+            product_import_status="ready_for_structuring",
+            product_can_derive_design=True,
+            product_conversion_method=method,
+            product_conversion_reviewed_at=reviewed_at,
+        )
+        updated.append(".governance/state.json")
+    except OSError as error:
+        errors.append(f"failed to update product import readiness: {_os_error_reason(error)}")
+    except StateFileError as error:
+        errors.append(f"failed to update product import readiness: {error}")
+
+    if errors:
+        return ProductImportReadyResult(
+            target=str(root),
+            ok=False,
+            reviewed=reviewed,
+            method=method,
+            errors=errors,
+            warnings=warnings,
+            updated=updated,
+            conversion_blocker_resolved=blocker_resolved,
+            manifest=manifest,
+            state=state,
+        )
 
     return ProductImportReadyResult(
         target=str(root),

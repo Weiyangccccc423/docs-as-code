@@ -2133,6 +2133,31 @@ class GovernanceScriptsTest(unittest.TestCase):
             manifest = json.loads((root / "docs/product/core/source/source-manifest.json").read_text(encoding="utf-8"))
             self.assertEqual("conversion_required", manifest["import"]["status"])
 
+    def test_product_mark_ready_reports_manifest_write_failure_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.docx"
+            product.write_bytes(b"fake docx bytes")
+            bootstrap(root, product)
+            (root / "docs/product/core/PRD.md").write_text("# Converted Product\n", encoding="utf-8")
+
+            original_write_json = product_import_module._write_json
+
+            def raise_os_error(_path: Path, _payload: dict[str, object]) -> None:
+                raise OSError(28, "No space left on device")
+
+            product_import_module._write_json = raise_os_error
+            try:
+                result = product_import_module.mark_product_import_ready(root, reviewed=True)
+            finally:
+                product_import_module._write_json = original_write_json
+
+            self.assertFalse(result.ok)
+            self.assertEqual([], result.updated)
+            self.assertIn("failed to update product import readiness: No space left on device", result.errors)
+            manifest = json.loads((root / "docs/product/core/source/source-manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual("conversion_required", manifest["import"]["status"])
+
     def test_target_runtime_marks_converted_product_ready(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
