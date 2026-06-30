@@ -413,6 +413,11 @@ def _write_scaffold_file(path: Path, content: str, result: ScaffoldResult) -> bo
         temp.write_text(content, encoding="utf-8")
         temp.replace(path)
     except OSError as error:
+        if temp.exists() and temp.is_file():
+            try:
+                temp.unlink()
+            except OSError:
+                pass
         _record_scaffold_write_error(result, path, error)
         return False
     return True

@@ -7606,6 +7606,46 @@ class GovernanceScriptsTest(unittest.TestCase):
                 result.errors,
             )
 
+    def test_scaffold_product_cleans_temp_after_replace_failure(self) -> None:
+        class PassingGate:
+            ok = True
+            requirements: list[object] = []
+            verification: dict[str, object] = {"findings": []}
+
+            def to_dict(self) -> dict[str, object]:
+                return {"ok": True, "requirements": [], "verification": self.verification}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            chapter = root / "docs/product/03-goals-and-requirements.md"
+            temp_path = chapter.with_name(".03-goals-and-requirements.md.tmp")
+            original_evaluate_gate = scaffold_module.evaluate_gate
+            original_replace = scaffold_module.Path.replace
+
+            def fail_replace(self: Path, target: Path) -> Path:
+                if self == temp_path and target == chapter:
+                    raise OSError("simulated replace failure")
+                return original_replace(self, target)
+
+            scaffold_module.evaluate_gate = lambda _root, _gate: PassingGate()
+            scaffold_module.Path.replace = fail_replace
+            try:
+                result = scaffold_module.scaffold_product(root, ["goals-and-requirements"])
+            finally:
+                scaffold_module.evaluate_gate = original_evaluate_gate
+                scaffold_module.Path.replace = original_replace
+
+            self.assertFalse(result.ok)
+            self.assertEqual([], result.created)
+            self.assertFalse(chapter.exists())
+            self.assertFalse(temp_path.exists())
+            self.assertTrue(
+                any(
+                    "failed to write scaffold file docs/product/03-goals-and-requirements.md" in error
+                    for error in result.errors
+                )
+            )
+
     def test_scaffold_product_reports_index_directory(self) -> None:
         class PassingGate:
             ok = True
