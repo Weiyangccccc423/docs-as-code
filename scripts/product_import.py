@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 from dataclasses import dataclass, field
@@ -88,6 +89,7 @@ def mark_product_import_ready(root: Path, method: str = "manual-reviewed-markdow
             manifest=manifest,
         )
 
+    original_manifest = copy.deepcopy(manifest)
     reviewed_at = utc_now()
     imported["status"] = "ready_for_structuring"
     imported["conversion_method"] = method
@@ -123,6 +125,7 @@ def mark_product_import_ready(root: Path, method: str = "manual-reviewed-markdow
         errors.append(f"failed to update product import readiness: {error}")
 
     if errors:
+        result_manifest = manifest if MANIFEST_REL.as_posix() in updated else original_manifest
         return ProductImportReadyResult(
             target=str(root),
             ok=False,
@@ -132,7 +135,7 @@ def mark_product_import_ready(root: Path, method: str = "manual-reviewed-markdow
             warnings=warnings,
             updated=updated,
             conversion_blocker_resolved=blocker_resolved,
-            manifest=manifest,
+            manifest=result_manifest,
             state=state,
         )
 

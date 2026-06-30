@@ -2155,6 +2155,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertFalse(result.ok)
             self.assertEqual([], result.updated)
             self.assertIn("failed to update product import readiness: No space left on device", result.errors)
+            self.assertEqual("conversion_required", result.manifest["import"]["status"])
             manifest = json.loads((root / "docs/product/core/source/source-manifest.json").read_text(encoding="utf-8"))
             self.assertEqual("conversion_required", manifest["import"]["status"])
 
