@@ -8,10 +8,10 @@ from typing import Any
 
 try:
     from .bootstrap_tree import _product_meta
-    from .state import merge_state, utc_now
+    from .state import STATE_REL, merge_state, utc_now
 except ImportError:  # pragma: no cover - direct script execution
     from bootstrap_tree import _product_meta
-    from state import merge_state, utc_now
+    from state import STATE_REL, merge_state, utc_now
 
 
 MANIFEST_REL = Path("docs/product/core/source/source-manifest.json")
@@ -73,6 +73,7 @@ def mark_product_import_ready(root: Path, method: str = "manual-reviewed-markdow
     _check_prd_ready(root, errors)
     _check_archived_source(root, manifest, errors)
     _check_conversion_blocker_registry(root, errors)
+    _check_output_targets(root, errors)
     if imported.get("status") == "no_source":
         errors.append("product source is missing; cannot mark import ready")
 
@@ -223,6 +224,20 @@ def _check_conversion_blocker_registry(root: Path, errors: list[str]) -> None:
         errors.append(f"{UNRESOLVED_REL.as_posix()} must be UTF-8 Markdown to resolve conversion blocker")
     except OSError as error:
         errors.append(f"{UNRESOLVED_REL.as_posix()} is unreadable; cannot resolve conversion blocker: {_os_error_reason(error)}")
+
+
+def _check_output_targets(root: Path, errors: list[str]) -> None:
+    _check_output_target(root, PRODUCT_META_REL, "product metadata", errors)
+    _check_output_target(root, STATE_REL, "product import state", errors)
+
+
+def _check_output_target(root: Path, rel: Path, label: str, errors: list[str]) -> None:
+    path = root / rel
+    if path.parent.exists() and not path.parent.is_dir():
+        errors.append(f"{path.parent.relative_to(root).as_posix()} is not a directory; cannot update {label}")
+        return
+    if path.exists() and not path.is_file():
+        errors.append(f"{rel.as_posix()} is not a file; cannot update {label}")
 
 
 def _is_valid_product_source_archive_path(value: str) -> bool:
