@@ -11,6 +11,7 @@ import scripts.bootstrap_tree as bootstrap_module
 import scripts.check_env as check_env_module
 import scripts.product_import as product_import_module
 import scripts.scaffold as scaffold_module
+import scripts.verify_governance as verify_governance_module
 from scripts.check_env import (
     PackageManager,
     ToolStatus,
@@ -560,6 +561,62 @@ class GovernanceScriptsTest(unittest.TestCase):
 
             report = verify(root)
             self.assertEqual([], report.errors)
+
+    def test_verify_governance_main_json_reports_ok_for_clean_target(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            original_argv = sys.argv
+            sys.argv = ["verify_governance.py", str(root), "--json"]
+            stdout = io.StringIO()
+            try:
+                with contextlib.redirect_stdout(stdout):
+                    returncode = verify_governance_module.main()
+            finally:
+                sys.argv = original_argv
+
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(0, returncode)
+            self.assertTrue(payload["ok"])
+            self.assertEqual(str(root), payload["target"])
+            self.assertEqual([], payload["errors"])
+            self.assertEqual([], payload["warnings"])
+            self.assertEqual([], payload["findings"])
+
+    def test_verify_governance_main_json_reports_structured_findings(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            chapter = root / "docs/product/01-goals.md"
+            chapter.write_text("# Goals\n", encoding="utf-8")
+            original_argv = sys.argv
+            sys.argv = ["verify_governance.py", str(root), "--json"]
+            stdout = io.StringIO()
+            try:
+                with contextlib.redirect_stdout(stdout):
+                    returncode = verify_governance_module.main()
+            finally:
+                sys.argv = original_argv
+
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(1, returncode)
+            self.assertFalse(payload["ok"])
+            self.assertEqual(str(root), payload["target"])
+            self.assertIn("docs/product/01-goals.md is not indexed in docs/product/README.md", payload["errors"])
+            self.assertEqual([], payload["warnings"])
+            self.assertIn(
+                {
+                    "code": "docs_readme_unindexed_file",
+                    "severity": "error",
+                    "path": "docs/product/01-goals.md",
+                    "message": "docs/product/01-goals.md is not indexed in docs/product/README.md",
+                },
+                payload["findings"],
+            )
 
     def test_copy_source_preserves_existing_archive_when_copy_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

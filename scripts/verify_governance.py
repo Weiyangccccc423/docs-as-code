@@ -3273,8 +3273,20 @@ def _sha256(path: Path) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Verify docs-as-code governance consistency.")
     parser.add_argument("target", nargs="?", default=".", help="Repository root to verify.")
+    parser.add_argument("--json", action="store_true", help="Print a machine-readable verification report.")
     args = parser.parse_args()
-    report = verify(Path(args.target))
+    target = Path(args.target)
+    report = verify(target)
+    if args.json:
+        payload = {
+            "ok": report.ok,
+            "target": str(target),
+            "errors": report.errors,
+            "warnings": report.warnings,
+            "findings": [finding.to_dict() for finding in report.findings],
+        }
+        print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
+        return 0 if report.ok else 1
     if report.errors:
         print("Governance verification failed:")
         for error in report.errors:
