@@ -2006,6 +2006,42 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual("initialized", payload["state"]["phase_history"][0]["from_phase"])
             self.assertEqual("product-structuring", payload["state"]["phase_history"][0]["gate"])
 
+    def test_advance_rejects_duplicate_current_phase_without_writing_history(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            first = subprocess.run(
+                [sys.executable, str(CLI), "advance", "product-structuring", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, first.returncode, first.stderr)
+
+            duplicate = subprocess.run(
+                [sys.executable, str(CLI), "advance", "product-structuring", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, duplicate.returncode)
+            payload = json.loads(duplicate.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertFalse(payload["advanced"])
+            self.assertIn("already in phase: product-structuring", payload["errors"])
+            state = json.loads((target / ".governance/state.json").read_text(encoding="utf-8"))
+            self.assertEqual("product-structuring", state["phase"])
+            self.assertEqual(1, len(state["phase_history"]))
+
     def test_advance_check_json_reports_planned_state_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "target"
@@ -3145,6 +3181,55 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual(2, len(history))
             self.assertEqual("product-structuring", history[1]["from_phase"])
             self.assertEqual("design-derivation", history[1]["phase"])
+
+    def test_advance_rejects_backward_phase_without_writing_history(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            first = subprocess.run(
+                [sys.executable, str(CLI), "advance", "product-structuring", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, first.returncode, first.stderr)
+            (target / "docs/product/01-goals.md").write_text("# Goals\n\nSource: [PRD](core/PRD.md).\n", encoding="utf-8")
+            _append_index(target / "docs/product/README.md", "01-goals.md")
+            _append_product_meta_chapter(target, "01-goals.md")
+            (target / "docs/product/08-acceptance-criteria.md").write_text(_acceptance_doc(), encoding="utf-8")
+            _append_index(target / "docs/product/README.md", "08-acceptance-criteria.md")
+            _append_product_meta_chapter(target, "08-acceptance-criteria.md")
+            second = subprocess.run(
+                [sys.executable, str(CLI), "advance", "design-derivation", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, second.returncode, second.stderr)
+
+            backward = subprocess.run(
+                [sys.executable, str(CLI), "advance", "product-structuring", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, backward.returncode)
+            payload = json.loads(backward.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertFalse(payload["advanced"])
+            self.assertIn("cannot advance from design-derivation back to product-structuring", payload["errors"])
+            state = json.loads((target / ".governance/state.json").read_text(encoding="utf-8"))
+            self.assertEqual("design-derivation", state["phase"])
+            self.assertEqual(2, len(state["phase_history"]))
 
     def test_gate_implementation_requires_design_and_delivery_docs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

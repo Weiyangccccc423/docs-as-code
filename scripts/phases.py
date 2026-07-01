@@ -16,6 +16,7 @@ except ImportError:  # pragma: no cover - direct script execution
 
 
 PHASE_NAMES = GATE_NAMES
+PHASE_ORDER = ("initialized", *PHASE_NAMES)
 
 
 @dataclass
@@ -106,6 +107,28 @@ def advance_phase(root: Path, phase: str) -> AdvanceResult:
 
 def _build_advance_plan(root: Path, phase: str) -> AdvanceResult | None:
     try:
+        state = load_state(root)
+    except StateFileError as error:
+        return AdvanceResult(
+            phase=phase,
+            target=str(root),
+            ok=False,
+            advanced=False,
+            errors=[f"failed to advance phase: {error}"],
+            gate={},
+        )
+    transition_error = _phase_transition_error(state.get("phase"), phase)
+    if transition_error:
+        return AdvanceResult(
+            phase=phase,
+            target=str(root),
+            ok=False,
+            advanced=False,
+            errors=[transition_error],
+            gate={},
+            state=state,
+        )
+    try:
         gate = evaluate_gate(root, phase)
     except StateFileError as error:
         return AdvanceResult(
@@ -127,18 +150,6 @@ def _build_advance_plan(root: Path, phase: str) -> AdvanceResult | None:
             state=gate.state,
         )
 
-    try:
-        state = load_state(root)
-    except StateFileError as error:
-        return AdvanceResult(
-            phase=phase,
-            target=str(root),
-            ok=False,
-            advanced=False,
-            errors=[f"failed to advance phase: {error}"],
-            gate=gate.to_dict(),
-            state=gate.state,
-        )
     state_output_error = _state_output_error(root)
     if state_output_error is not None:
         return AdvanceResult(
@@ -151,6 +162,16 @@ def _build_advance_plan(root: Path, phase: str) -> AdvanceResult | None:
             state=state,
         )
     return None
+
+
+def _phase_transition_error(current_phase: object, target_phase: str) -> str:
+    if not isinstance(current_phase, str) or current_phase not in PHASE_ORDER:
+        return ""
+    if current_phase == target_phase:
+        return f"already in phase: {target_phase}"
+    if PHASE_ORDER.index(current_phase) > PHASE_ORDER.index(target_phase):
+        return f"cannot advance from {current_phase} back to {target_phase}"
+    return ""
 
 
 def _state_output_error(root: Path) -> StateFileError | None:

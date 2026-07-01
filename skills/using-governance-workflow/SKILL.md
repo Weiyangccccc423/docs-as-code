@@ -38,7 +38,7 @@ bin/governance gate implementation <target> --json
 ```
 
 Stop on `ok: false`. Use `requirements[].code` to choose the repair skill, then rerun the gate.
-When actually changing phase, run `bin/governance advance <phase> <target> --check --json`, then run it without `--check` so `.governance/state.json` records `phase_history`.
+When actually changing phase, run `bin/governance advance <phase> <target> --check --json`, then run it without `--check` so `.governance/state.json` records `phase_history`. `advance` is forward-only; use `gate` for repeated checks or earlier-phase audits.
 
 After `design-derivation` passes, run `bin/governance scaffold design <target> --check --json` if standard design files are missing, then run it without `--check` when the plan is correct. Do not enter implementation while any `governance:scaffold-placeholder` marker remains.
 

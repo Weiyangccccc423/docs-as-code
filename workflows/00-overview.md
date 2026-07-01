@@ -56,7 +56,7 @@ bin/governance gate design-derivation <target> --json
 bin/governance gate implementation <target> --json
 ```
 
-When the phase is actually changing, prefer `advance`; it runs the matching gate and records the transition in `.governance/state.json`:
+When the phase is actually changing, prefer `advance`; it runs the matching gate and records the transition in `.governance/state.json`. `advance` only moves forward; use `gate` for repeated checks or earlier-phase audits:
 
 ```bash
 bin/governance advance product-structuring <target> --check --json

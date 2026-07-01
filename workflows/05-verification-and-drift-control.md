@@ -63,7 +63,7 @@ Load:
    bin/governance advance implementation <target> --json
    ```
 
-   The implementation gate requires the standard handoff files from Phase 04, including the API endpoint index, at least one endpoint contract, task board, and verification log; arbitrary Markdown in a docs domain is not enough.
+   `advance` only moves the recorded workflow phase forward; use `gate implementation <target> --json` for repeated checks. The implementation gate requires the standard handoff files from Phase 04, including the API endpoint index, at least one endpoint contract, task board, and verification log; arbitrary Markdown in a docs domain is not enough.
 
 6. Before implementation starts, confirm:
    - no unregistered docs directories
