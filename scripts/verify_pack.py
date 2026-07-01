@@ -88,6 +88,12 @@ AGENTS_EDITING_REQUIRED_PHRASES = (
     "phase procedures in workflows/",
     "tests before changing script behavior",
 )
+AGENTS_REQUIRED_READING_PHRASES = (
+    "workflows/00-overview.md",
+    "target phase file under workflows/",
+    "affected skill under skills/",
+    "relevant script tests under tests/",
+)
 SOURCE_PACK_REQUIRED_PATHS = tuple(
     dict.fromkeys(
         (
@@ -322,6 +328,17 @@ def _check_agents_guardrails(root: Path, findings: list[PackFinding]) -> None:
             PackFinding(
                 "pack_agents_editing_rule_missing",
                 f"AGENTS.md Editing Rules section must preserve guardrail: {phrase}",
+                "AGENTS.md",
+            )
+        )
+    required_reading = _normalized_prose(_markdown_section(text, "Required Reading") or "")
+    for phrase in AGENTS_REQUIRED_READING_PHRASES:
+        if phrase in required_reading:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_agents_required_reading_missing",
+                f"AGENTS.md Required Reading section must preserve guardrail: {phrase}",
                 "AGENTS.md",
             )
         )
