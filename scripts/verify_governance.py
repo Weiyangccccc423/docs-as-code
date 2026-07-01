@@ -670,7 +670,8 @@ def _check_governance_state(root: Path, report: VerificationReport) -> None:
             )
         return
 
-    previous_index = -1
+    expected_from_phase = "initialized"
+    previous_index = WORKFLOW_PHASE_ORDER.index(expected_from_phase)
     latest_phase = ""
     for item in history:
         if not isinstance(item, dict):
@@ -696,8 +697,35 @@ def _check_governance_state(root: Path, report: VerificationReport) -> None:
                 rel,
             )
             return
+        from_phase = item.get("from_phase")
+        if from_phase != expected_from_phase:
+            report.add_error(
+                "state_phase_history_from_mismatch",
+                f"governance state phase_history from_phase {from_phase} must match previous phase {expected_from_phase}",
+                rel,
+            )
+            return
+        expected_next_index = previous_index + 1
+        if item_index != expected_next_index:
+            skipped_phase = WORKFLOW_PHASE_ORDER[expected_next_index]
+            report.add_error(
+                "state_phase_history_non_sequential",
+                "governance state phase_history must advance one phase at a time: "
+                f"{expected_from_phase} -> {item_phase} skips {skipped_phase}",
+                rel,
+            )
+            return
+        gate = item.get("gate")
+        if gate != item_phase:
+            report.add_error(
+                "state_phase_history_gate_mismatch",
+                f"governance state phase_history gate {gate} must match phase {item_phase}",
+                rel,
+            )
+            return
         previous_index = item_index
         latest_phase = item_phase
+        expected_from_phase = item_phase
 
     if phase_is_valid and latest_phase and latest_phase != phase:
         report.add_error(

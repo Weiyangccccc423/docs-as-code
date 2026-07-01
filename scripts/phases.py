@@ -167,10 +167,15 @@ def _build_advance_plan(root: Path, phase: str) -> AdvanceResult | None:
 def _phase_transition_error(current_phase: object, target_phase: str) -> str:
     if not isinstance(current_phase, str) or current_phase not in PHASE_ORDER:
         return ""
+    current_index = PHASE_ORDER.index(current_phase)
+    target_index = PHASE_ORDER.index(target_phase)
     if current_phase == target_phase:
         return f"already in phase: {target_phase}"
-    if PHASE_ORDER.index(current_phase) > PHASE_ORDER.index(target_phase):
+    if current_index > target_index:
         return f"cannot advance from {current_phase} back to {target_phase}"
+    if target_index > current_index + 1:
+        required_phase = PHASE_ORDER[current_index + 1]
+        return f"cannot advance from {current_phase} to {target_phase} before {required_phase}"
     return ""
 
 

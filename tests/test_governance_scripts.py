@@ -687,6 +687,8 @@ class GovernanceScriptsTest(unittest.TestCase):
             product = root / "product.md"
             product.write_text("# Demo\n", encoding="utf-8")
             bootstrap(root, product)
+            first = phases_module.advance_phase(root, "product-structuring")
+            self.assertTrue(first.ok)
             original_argv = sys.argv
             sys.argv = ["phases.py", "design-derivation", str(root), "--json"]
             stdout = io.StringIO()
@@ -704,6 +706,35 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertEqual("design-derivation", payload["phase"])
             self.assertEqual(str(root.resolve()), payload["target"])
             self.assertEqual(["design-derivation gate failed"], payload["errors"])
+            self.assertEqual("product-structuring", state["phase"])
+            self.assertEqual(1, len(state["phase_history"]))
+
+    def test_phases_main_json_rejects_skipped_phase_even_when_gate_inputs_exist(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_acceptance_chapter(root)
+            original_argv = sys.argv
+            sys.argv = ["phases.py", "design-derivation", str(root), "--json"]
+            stdout = io.StringIO()
+            try:
+                with contextlib.redirect_stdout(stdout):
+                    returncode = phases_module.main()
+            finally:
+                sys.argv = original_argv
+
+            payload = json.loads(stdout.getvalue())
+            state = load_state(root)
+            self.assertEqual(1, returncode)
+            self.assertFalse(payload["ok"])
+            self.assertFalse(payload["advanced"])
+            self.assertEqual("design-derivation", payload["phase"])
+            self.assertEqual(
+                ["cannot advance from initialized to design-derivation before product-structuring"],
+                payload["errors"],
+            )
             self.assertEqual("initialized", state["phase"])
             self.assertNotIn("phase_history", state)
 
@@ -1233,6 +1264,76 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "severity": "error",
                     "path": ".governance/state.json",
                     "message": "governance state phase_history must move forward without repeats or rollback",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_skipped_governance_phase_history(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            state_path = root / ".governance/state.json"
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            state["phase"] = "design-derivation"
+            state["phase_history"] = [
+                {"phase": "design-derivation", "from_phase": "initialized", "gate": "design-derivation"}
+            ]
+            state_path.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
+
+            report = verify(root)
+
+            self.assertIn(
+                "governance state phase_history must advance one phase at a time: "
+                "initialized -> design-derivation skips product-structuring",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "state_phase_history_non_sequential",
+                    "severity": "error",
+                    "path": ".governance/state.json",
+                    "message": (
+                        "governance state phase_history must advance one phase at a time: "
+                        "initialized -> design-derivation skips product-structuring"
+                    ),
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_governance_phase_history_from_phase_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            state_path = root / ".governance/state.json"
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            state["phase"] = "design-derivation"
+            state["phase_history"] = [
+                {"phase": "product-structuring", "from_phase": "initialized", "gate": "product-structuring"},
+                {"phase": "design-derivation", "from_phase": "initialized", "gate": "design-derivation"},
+            ]
+            state_path.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
+
+            report = verify(root)
+
+            self.assertIn(
+                "governance state phase_history from_phase initialized must match previous phase product-structuring",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "state_phase_history_from_mismatch",
+                    "severity": "error",
+                    "path": ".governance/state.json",
+                    "message": (
+                        "governance state phase_history from_phase initialized must match previous phase "
+                        "product-structuring"
+                    ),
                 },
                 [finding.to_dict() for finding in report.findings],
             )
