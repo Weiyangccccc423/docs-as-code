@@ -316,6 +316,18 @@ DOMAIN_AGENTS_RULE_GUARDRAILS = (
     "update readme.md when adding or renaming documents",
     "link back to upstream source documents instead of copying large sections",
 )
+TARGET_MAKEFILE_REQUIRED_TARGETS = (
+    "verify-governance",
+    "check-env",
+)
+TARGET_MAKEFILE_REQUIRED_TARGET_RECIPES = {
+    "verify-governance": (
+        "bin/governance verify .",
+    ),
+    "check-env": (
+        "bin/governance env --target .",
+    ),
+}
 MARKDOWN_LINK_RE = re.compile(r"(?<!!)\[[^\]]*]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 MARKDOWN_REFERENCE_DEFINITION_RE = re.compile(r"^\s{0,3}\[[^\]]+]:\s*(\S+)", re.MULTILINE)
 MARKDOWN_HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$", re.MULTILINE)
@@ -429,6 +441,7 @@ def verify(root: Path) -> VerificationReport:
         if path.is_file():
             _check_reserved_markers(root, path, report)
 
+    _check_target_makefile(root, report)
     _check_root_agents_guardrails(root, report)
     _check_docs_agents_guardrails(root, report)
     _check_domain_agents_guardrails(root, report)
@@ -505,6 +518,47 @@ def _check_reserved_markers(root: Path, path: Path, report: VerificationReport) 
             target = root / "docs" / name
             if target.exists() and target.is_dir() and not _is_effectively_empty(target):
                 report.add_error("reserved_marker_stale", f"reserved marker references non-empty docs/{name}", f"docs/{name}")
+
+
+def _check_target_makefile(root: Path, report: VerificationReport) -> None:
+    path = root / "Makefile"
+    if not path.exists():
+        report.add_error("target_makefile_missing", "missing required target Makefile: Makefile", "Makefile")
+        return
+    if not path.is_file():
+        report.add_error("target_makefile_not_file", "target Makefile is not a file: Makefile", "Makefile")
+        return
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        report.add_error("target_makefile_invalid_encoding", "target Makefile must be UTF-8: Makefile", "Makefile")
+        return
+    except OSError as error:
+        reason = error.strerror or str(error)
+        report.add_error("target_makefile_unreadable", f"target Makefile is unreadable: Makefile: {reason}", "Makefile")
+        return
+    target_recipes = _makefile_target_recipes(text)
+    targets = set(target_recipes)
+    for target in TARGET_MAKEFILE_REQUIRED_TARGETS:
+        if target in targets:
+            continue
+        report.add_error(
+            "target_makefile_target_missing",
+            f"Makefile must define target: {target}",
+            "Makefile",
+        )
+    for target, required_recipes in TARGET_MAKEFILE_REQUIRED_TARGET_RECIPES.items():
+        if target not in targets:
+            continue
+        recipes = set(target_recipes[target])
+        for recipe in required_recipes:
+            if recipe in recipes:
+                continue
+            report.add_error(
+                "target_makefile_target_recipe_missing",
+                f"Makefile target {target} must run command: {recipe}",
+                "Makefile",
+            )
 
 
 def _check_root_agents_guardrails(root: Path, report: VerificationReport) -> None:
@@ -3366,6 +3420,31 @@ def _markdown_sections(text: str, min_level: int = 1) -> dict[str, str]:
         end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
         sections[heading] = text[start:end]
     return sections
+
+
+def _makefile_target_recipes(text: str) -> dict[str, list[str]]:
+    target_recipes: dict[str, list[str]] = {}
+    current_targets: list[str] = []
+    for line in text.splitlines():
+        if line and line[0].isspace():
+            recipe = line.strip()
+            if current_targets and recipe and not recipe.startswith("#"):
+                for target in current_targets:
+                    target_recipes[target].append(recipe)
+            continue
+        current_targets = []
+        if not line or line.lstrip().startswith("#") or ":" not in line:
+            continue
+        name_text = line.split(":", 1)[0].strip()
+        if not name_text or name_text.startswith(".") or "=" in name_text:
+            continue
+        parsed_targets: list[str] = []
+        for target in name_text.split():
+            if re.fullmatch(r"[A-Za-z0-9_.-]+", target):
+                target_recipes.setdefault(target, [])
+                parsed_targets.append(target)
+        current_targets = parsed_targets
+    return target_recipes
 
 
 def _section_has_authored_content(text: str) -> bool:

@@ -1165,6 +1165,61 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_missing_target_makefile(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            (root / "Makefile").unlink()
+
+            report = verify(root)
+
+            self.assertIn("missing required target Makefile: Makefile", report.errors)
+            self.assertIn(
+                {
+                    "code": "target_makefile_missing",
+                    "severity": "error",
+                    "path": "Makefile",
+                    "message": "missing required target Makefile: Makefile",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_target_makefile_recipe_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            makefile = root / "Makefile"
+            makefile.write_text(
+                makefile.read_text(encoding="utf-8").replace(
+                    "\tbin/governance verify .\n",
+                    "\tbin/governance status .\n",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "Makefile target verify-governance must run command: bin/governance verify .",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "target_makefile_target_recipe_missing",
+                    "severity": "error",
+                    "path": "Makefile",
+                    "message": "Makefile target verify-governance must run command: bin/governance verify .",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_docs_agents_directory_without_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
