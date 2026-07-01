@@ -52,6 +52,14 @@ README_PACKAGE_LAYOUT_DIRECTORIES = (
     "tests",
     "workflows",
 )
+README_QUICK_START_REQUIRED_COMMANDS = (
+    "bin/governance env --repair --check --target",
+    "bin/governance init --check --target",
+    "bin/governance init --target",
+    "bin/governance verify",
+    "bin/governance gate product-structuring",
+    "bin/governance status",
+)
 MAKEFILE_REQUIRED_TARGETS = (
     "test",
     "verify-pack",
@@ -211,6 +219,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_workflow_pack_file_encoding(root, findings)
     _check_runtime_executable_bits(root, findings)
     _check_readme_package_layout(root, findings)
+    _check_readme_quick_start(root, findings)
     _check_phase_order_docs(root, findings)
     _check_phase_primary_skill_alignment(root, findings)
     _check_phase_workflow_sections(root, findings)
@@ -436,6 +445,27 @@ def _check_readme_package_layout(root: Path, findings: list[PackFinding]) -> Non
             PackFinding(
                 "pack_package_layout_stale_directory",
                 f"README.md Package Layout lists unexpected directory: {directory}/",
+                "README.md",
+            )
+        )
+
+
+def _check_readme_quick_start(root: Path, findings: list[PackFinding]) -> None:
+    readme = root / "README.md"
+    if not readme.is_file():
+        return
+    try:
+        text = readme.read_text(encoding="utf-8")
+    except (UnicodeDecodeError, OSError):
+        return
+    quick_start = _markdown_section(text, "Quick Start") or ""
+    for command in README_QUICK_START_REQUIRED_COMMANDS:
+        if command in quick_start:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_readme_quick_start_command_missing",
+                f"README.md Quick Start must document command: {command}",
                 "README.md",
             )
         )
