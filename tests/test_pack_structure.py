@@ -1433,6 +1433,36 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_test_strategy_template_guardrail_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            template = target / "templates/docs/tests/01-strategy.md"
+            template.write_text(
+                template.read_text(encoding="utf-8").replace(
+                    "- Integration tests cover API contract and persistence behavior.\n",
+                    "",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_template_guardrail_missing"
+                    and finding.path == "templates/docs/tests/01-strategy.md"
+                    and "Integration tests cover API contract" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_skill_heading_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
@@ -1487,6 +1517,7 @@ class PackStructureTest(unittest.TestCase):
             "templates/docs/development/01-roadmap.md",
             "templates/docs/development/02-task-board.md",
             "templates/docs/development/03-verification-log.md",
+            "templates/docs/tests/01-strategy.md",
             "templates/docs/tests/02-acceptance-matrix.md",
         ]
         missing = [path for path in required if not (ROOT / path).exists()]

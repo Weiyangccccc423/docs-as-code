@@ -102,6 +102,14 @@ TEMPLATE_REQUIRED_GUARDRAILS = {
         "- Link local evidence artifacts or summarize relevant command output here.",
         "- none",
     ),
+    "templates/docs/tests/01-strategy.md": (
+        "# Test Strategy",
+        "- Unit tests cover isolated validation rules and state transitions.",
+        "- Integration tests cover API contract and persistence behavior.",
+        "- End-to-end checks cover critical product acceptance flows.",
+        "Map high-risk product, architecture, backend, and frontend areas to verification coverage.",
+        "Record performance, security, accessibility, observability, and recovery checks before implementation handoff.",
+    ),
     "templates/docs/tests/02-acceptance-matrix.md": (
         "# Acceptance Matrix",
         "| Acceptance | Design | API | Test |",
@@ -145,6 +153,13 @@ TEMPLATE_REQUIRED_SECTIONS = {
         "Verification Runs",
         "Artifacts",
         "Open Follow-ups",
+    ),
+    "templates/docs/tests/01-strategy.md": (
+        "Product Links",
+        "Acceptance Links",
+        "Test Layers",
+        "Risk Coverage",
+        "Non-Functional Checks",
     ),
     "templates/docs/tests/02-acceptance-matrix.md": (
         "Matrix",

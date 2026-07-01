@@ -77,6 +77,7 @@ WORKFLOW_PACK_REQUIRED_PATHS = (
     "templates/docs/development/02-task-board.md",
     "templates/docs/development/03-verification-log.md",
     "templates/docs/product/core/PRD.md",
+    "templates/docs/tests/01-strategy.md",
     "templates/docs/tests/02-acceptance-matrix.md",
     "templates/root/README.md",
     "workflows/00-overview.md",

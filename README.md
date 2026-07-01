@@ -36,6 +36,7 @@ Create reliable project governance before implementation starts:
 - `templates/docs/development/01-roadmap.md`: implementation roadmap shape.
 - `templates/docs/development/02-task-board.md`: implementation task board shape.
 - `templates/docs/development/03-verification-log.md`: completion evidence log shape for Done tasks.
+- `templates/docs/tests/01-strategy.md`: test strategy and quality baseline shape.
 - `templates/docs/tests/02-acceptance-matrix.md`: acceptance traceability matrix shape.
 
 ## Reference Files
