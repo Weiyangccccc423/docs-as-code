@@ -1493,6 +1493,36 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_containers_template_guardrail_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            template = target / "templates/docs/architecture/02-containers.md"
+            template.write_text(
+                template.read_text(encoding="utf-8").replace(
+                    "Map each container to owned data, shared data, and integration boundaries.",
+                    "List data notes.",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_template_guardrail_missing"
+                    and finding.path == "templates/docs/architecture/02-containers.md"
+                    and "Map each container" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_skill_heading_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
@@ -1544,6 +1574,7 @@ class PackStructureTest(unittest.TestCase):
             "templates/docs/product/core/PRD.md",
             "templates/docs/agent-workflow/task-handoff.md",
             "templates/docs/architecture/01-system-context.md",
+            "templates/docs/architecture/02-containers.md",
             "templates/docs/decisions/ADR-template.md",
             "templates/docs/development/01-roadmap.md",
             "templates/docs/development/02-task-board.md",

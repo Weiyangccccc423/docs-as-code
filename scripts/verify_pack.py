@@ -81,6 +81,15 @@ TEMPLATE_REQUIRED_GUARDRAILS = {
         "- Boundary between actors, clients, services, data stores, or external systems",
         "- Link ADR candidates or unresolved architecture questions.",
     ),
+    "templates/docs/architecture/02-containers.md": (
+        "# Containers",
+        "- System context source",
+        "- Acceptance criteria source",
+        "- Runtime container name: responsibility and owner",
+        "Describe runtime behavior, request flow, background work, and operational ownership.",
+        "Map each container to owned data, shared data, and integration boundaries.",
+        "- Link ADR candidates or unresolved container-boundary questions.",
+    ),
     "templates/docs/decisions/ADR-template.md": (
         "# ADR-NNN: Title",
         "- Status: proposed",
@@ -145,6 +154,13 @@ TEMPLATE_REQUIRED_SECTIONS = {
         "Actors",
         "External Systems",
         "Trust Boundaries",
+        "Open Decisions",
+    ),
+    "templates/docs/architecture/02-containers.md": (
+        "Product Links",
+        "Containers",
+        "Runtime Responsibilities",
+        "Data Ownership",
         "Open Decisions",
     ),
     "templates/docs/decisions/ADR-template.md": (
