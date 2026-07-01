@@ -311,6 +311,14 @@ def _check_phase_workflow_sections(root: Path, findings: list[PackFinding]) -> N
                         rel,
                     )
             )
+            elif not (_markdown_section(text, section) or "").strip():
+                findings.append(
+                    PackFinding(
+                        "pack_workflow_section_empty",
+                        f"workflow phase section is empty: {rel}#{section}",
+                        rel,
+                    )
+                )
         if all(_normalize_heading(section) in sections for section in PHASE_WORKFLOW_REQUIRED_SECTIONS):
             required_positions = [
                 ordered_sections.index(_normalize_heading(section))

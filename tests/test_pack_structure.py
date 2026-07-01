@@ -129,6 +129,59 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_empty_phase_workflow_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            workflow = target / "workflows/03-product-structuring.md"
+            workflow.write_text(
+                "\n".join(
+                    [
+                        "# Phase 03: Product Structuring",
+                        "",
+                        "## Input",
+                        "",
+                        "- `docs/product/core/PRD.md`",
+                        "",
+                        "## Skills",
+                        "",
+                        "- `structuring-product-requirements`",
+                        "",
+                        "## Procedure",
+                        "",
+                        "1. Structure product requirements.",
+                        "",
+                        "## Output",
+                        "",
+                        "## Verification",
+                        "",
+                        "- Run governance verification.",
+                        "",
+                        "## Stop Conditions",
+                        "",
+                        "- Stop on product ambiguity.",
+                        "",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_workflow_section_empty"
+                    and finding.path == "workflows/03-product-structuring.md"
+                    and "Output" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_missing_local_markdown_links(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"

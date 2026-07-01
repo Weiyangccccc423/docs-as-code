@@ -96,7 +96,7 @@ make verify-pack
 
 `bin/governance env --repair --check --json` previews environment repairs without writing `.governance/env-repair.md` or installing packages. It reports `would_repair`, system/package-manager/Git status, and any supported `install_commands`. Run `bin/governance env --repair --json` only when the repair plan should be written or approved root package installation should proceed. Missing required tools make `ok: false`; missing recommended tools make `ok: false` only with `--strict`. The repair command never calls `sudo`; supported apt installs run only when the process already has root privileges. Project-specific dependency installation should be handled after the target stack is known.
 
-`python3 scripts/verify_pack.py --json` checks this source workflow pack for required files, UTF-8 workflow-pack sources, runtime wrapper executability, ordered phase workflow sections, primary-skill alignment, skill frontmatter and routing, local Markdown links, and workflow-pack snapshot coverage. `make verify-pack` runs the full test suite, pack verifier, and environment inventory.
+`python3 scripts/verify_pack.py --json` checks this source workflow pack for required files, UTF-8 workflow-pack sources, runtime wrapper executability, ordered non-empty phase workflow sections, primary-skill alignment, skill frontmatter and routing, local Markdown links, and workflow-pack snapshot coverage. `make verify-pack` runs the full test suite, pack verifier, and environment inventory.
 
 `bin/governance init` runs a preflight check before writing files. Existing generated governance files cause initialization to fail unless `--force` is supplied. Use `init --check --json` to inspect conflicts without writing to the target.
 
