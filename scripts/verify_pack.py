@@ -151,6 +151,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_skill_references(root, findings)
     _check_local_markdown_links(root, findings)
     _check_reference_entry_points(root, findings)
+    _check_reference_index_docs(root, findings)
     _check_template_entry_points(root, findings)
     _check_template_index_docs(root, findings)
     _check_workflow_pack_file_list(root, findings)
@@ -490,6 +491,35 @@ def _check_template_entry_points(root: Path, findings: list[PackFinding]) -> Non
                 "pack_template_unrouted",
                 f"template document is not mentioned by README, AGENTS, workflows, skills, or references: {rel}",
                 rel,
+            )
+        )
+
+
+def _check_reference_index_docs(root: Path, findings: list[PackFinding]) -> None:
+    readme = root / "README.md"
+    if not readme.is_file():
+        return
+    try:
+        text = readme.read_text(encoding="utf-8")
+    except (UnicodeDecodeError, OSError):
+        return
+    reference_index = set(_backticked_values(_markdown_section(text, "Reference Files") or ""))
+    reference_index = {path for path in reference_index if path.startswith("references/") and path.endswith(".md")}
+    references = {path.relative_to(root).as_posix() for path in _iter_reference_files(root)}
+    for rel in sorted(references - reference_index):
+        findings.append(
+            PackFinding(
+                "pack_reference_index_missing",
+                f"README.md Reference Files must list reference file: {rel}",
+                "README.md",
+            )
+        )
+    for rel in sorted(reference_index - references):
+        findings.append(
+            PackFinding(
+                "pack_reference_index_stale",
+                f"README.md Reference Files lists missing reference file: {rel}",
+                "README.md",
             )
         )
 

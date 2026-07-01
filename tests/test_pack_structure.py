@@ -478,6 +478,15 @@ class PackStructureTest(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
+            readme = target / "README.md"
+            readme.write_text(
+                readme.read_text(encoding="utf-8").replace(
+                    "- `references/community-practices.md`: external practice calibration.\n",
+                    "",
+                    1,
+                ),
+                encoding="utf-8",
+            )
 
             report = verify_pack(target)
 
@@ -486,6 +495,36 @@ class PackStructureTest(unittest.TestCase):
                 any(
                     finding.code == "pack_reference_unrouted"
                     and finding.path == "references/community-practices.md"
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_reference_index_missing_reference(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            readme = target / "README.md"
+            readme.write_text(
+                readme.read_text(encoding="utf-8").replace(
+                    "- `references/backend-design-checklist.md`: backend and data-design completion checklist.\n",
+                    "",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_reference_index_missing"
+                    and finding.path == "README.md"
+                    and "references/backend-design-checklist.md" in finding.message
                     for finding in report.findings
                 )
             )
