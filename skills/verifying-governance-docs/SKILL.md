@@ -39,7 +39,7 @@ bin/governance runtime refresh <target> --json
 
 Use `verify --check --json` `findings[].code` and `findings[].path` for deterministic repair routing without updating state. Use `verify --json` when recording `last_verification` in `.governance/state.json`. Use `errors` and `warnings` only for human-facing summaries.
 Use `gate --json` `requirements[].code` for phase-transition repair routing; `verification.findings[]` contains the embedded structural verification result.
-Use `advance --check --json` to inspect `would_state`; use `advance --json` when the phase should be recorded in `.governance/state.json`.
+Use `advance --check --json` to inspect `would_state`; use `advance --json` when the next phase should be recorded in `.governance/state.json`. `advance` records adjacent transitions one phase at a time and cannot skip phases.
 
 ## Repair Order
 
@@ -58,7 +58,7 @@ Treat `product_source_conversion_required` as a product-archiving blocker: repla
 Treat `governance_scaffold_placeholder` as an authoring blocker, not a formatting issue. If `path` starts with `docs/product/`, replace it with PRD-derived product content before design derivation; otherwise replace it with product-derived design, test, or planning content before implementation handoff.
 Treat `runtime_manifest_*`, `runtime_file_missing`, `runtime_file_not_file`, `runtime_file_hash_mismatch`, `runtime_file_size_mismatch`, and `runtime_file_not_executable` as target-local governance runtime integrity blockers: run `bin/governance runtime refresh <target> --check --json` from a trusted source workflow-pack checkout, then run `bin/governance runtime refresh <target> --json` before trusting target-local commands.
 Treat `workflow_pack_manifest_*`, `workflow_pack_file_hash_mismatch`, `workflow_pack_file_size_mismatch`, `workflow_pack_file_missing`, `workflow_pack_file_not_file`, and `workflow_pack_file_unmanifested` as workflow-pack integrity blockers: run `bin/governance runtime refresh <target> --check --json` from a trusted source workflow-pack checkout, then run `bin/governance runtime refresh <target> --json`.
-Treat `state_file_*`, `state_phase_*`, and `state_phase_history_*` findings as workflow-state integrity blockers: inspect `.governance/state.json`, restore a valid monotonic phase history from recorded `advance` output, or rerun the correct forward `advance` from a trusted state.
+Treat `state_file_*`, `state_phase_*`, and `state_phase_history_*` findings as workflow-state integrity blockers: inspect `.governance/state.json`, restore a valid sequential phase history from recorded `advance` output, or rerun the correct next-phase `advance` from a trusted state.
 Treat `required_file_not_file` as a document-integrity blocker: replace the reported directory or special path with the exact required file before continuing.
 Treat `required_directory_not_directory` as a document-integrity blocker: replace the reported file or special path with the exact required directory before continuing.
 Treat `markdown_not_file` as a document-integrity blocker: replace the reported directory or special path with the exact Markdown file before continuing.

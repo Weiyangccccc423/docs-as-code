@@ -897,6 +897,66 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_missing_sequential_advance_doc(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            readme = target / "README.md"
+            readme.write_text(
+                readme.read_text(encoding="utf-8").replace(
+                    "`advance` records adjacent transitions one phase at a time and cannot skip phases; "
+                    "use `gate --json` for repeated checks or earlier-phase audits instead of moving the "
+                    "recorded phase backward.\n",
+                    "",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_phase_advance_doc_missing"
+                    and finding.path == "README.md"
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_forward_only_phase_advance_doc(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            overview = target / "workflows/00-overview.md"
+            overview.write_text(
+                overview.read_text(encoding="utf-8").replace(
+                    "one phase at a time",
+                    "forward-only",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_phase_advance_doc_ambiguous"
+                    and finding.path == "workflows/00-overview.md"
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_overview_phase_map_drift(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"

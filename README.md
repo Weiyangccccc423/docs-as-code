@@ -101,7 +101,7 @@ bin/governance env --repair --target /path/to/new-project --json
 
 Use `gate --json` before phase transitions. Supported gates are `product-structuring`, `design-derivation`, and `implementation`.
 Use `advance --check --json` to preview phase state changes, then `advance --json` when actually moving phases; it runs the matching gate and records `phase_history` in `.governance/state.json`.
-`advance` is monotonic: use `gate --json` for repeated checks or earlier-phase audits instead of moving the recorded phase backward.
+`advance` records adjacent transitions one phase at a time and cannot skip phases; use `gate --json` for repeated checks or earlier-phase audits instead of moving the recorded phase backward.
 The `implementation` gate requires the standard design handoff files, a traceable task board with at least one `Ready` task, and `docs/development/03-verification-log.md` as the stable evidence target for completed work.
 
 When a non-Markdown product source has been converted and `docs/product/core/PRD.md` has been manually reviewed against the archived original, close out the import state deterministically:

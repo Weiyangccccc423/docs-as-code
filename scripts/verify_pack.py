@@ -456,6 +456,23 @@ README_AGENT_AUTOMATION_REQUIRED_COMMANDS = (
     "bin/governance env --repair --check --target /path/to/new-project --json",
     "bin/governance env --repair --target /path/to/new-project --json",
 )
+PHASE_ADVANCE_DOC_PATHS = (
+    "README.md",
+    "workflows/00-overview.md",
+    "workflows/05-verification-and-drift-control.md",
+    "skills/using-governance-workflow/SKILL.md",
+    "skills/verifying-governance-docs/SKILL.md",
+)
+PHASE_ADVANCE_REQUIRED_PHRASES = (
+    "one phase at a time",
+    "cannot skip phases",
+)
+PHASE_ADVANCE_AMBIGUOUS_PHRASES = (
+    "forward-only",
+    "only moves forward",
+    "only moves the recorded workflow phase forward",
+    "advance` is monotonic",
+)
 MAKEFILE_REQUIRED_TARGETS = (
     "test",
     "verify-pack",
@@ -651,6 +668,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_readme_package_layout(root, findings)
     _check_readme_quick_start(root, findings)
     _check_phase_order_docs(root, findings)
+    _check_phase_advance_docs(root, findings)
     _check_phase_primary_skill_alignment(root, findings)
     _check_phase_workflow_sections(root, findings)
     _check_skill_frontmatter(root, findings)
@@ -1087,6 +1105,32 @@ def _check_phase_order_docs(root: Path, findings: list[PackFinding]) -> None:
                 )
             )
         _check_phase_map_titles(root, phase_map_section, findings)
+
+
+def _check_phase_advance_docs(root: Path, findings: list[PackFinding]) -> None:
+    for rel in PHASE_ADVANCE_DOC_PATHS:
+        text = _read_utf8_text_or_none(root / rel)
+        if text is None:
+            continue
+        normalized = text.lower()
+        missing = [phrase for phrase in PHASE_ADVANCE_REQUIRED_PHRASES if phrase not in normalized]
+        if missing:
+            findings.append(
+                PackFinding(
+                    "pack_phase_advance_doc_missing",
+                    f"{rel} must document sequential advance semantics: {', '.join(missing)}",
+                    rel,
+                )
+            )
+        ambiguous = [phrase for phrase in PHASE_ADVANCE_AMBIGUOUS_PHRASES if phrase in normalized]
+        if ambiguous:
+            findings.append(
+                PackFinding(
+                    "pack_phase_advance_doc_ambiguous",
+                    f"{rel} must not describe advance with ambiguous phase movement wording: {', '.join(ambiguous)}",
+                    rel,
+                )
+            )
 
 
 def _check_phase_map_titles(root: Path, phase_map_section: str, findings: list[PackFinding]) -> None:
