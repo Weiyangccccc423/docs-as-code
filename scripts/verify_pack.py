@@ -65,6 +65,14 @@ MAKEFILE_REQUIRED_TARGET_RECIPES = {
         "python3 scripts/check_env.py",
     ),
 }
+VERIFICATION_COMMAND_DOC_PATHS = (
+    "README.md",
+    "AGENTS.md",
+)
+PACK_REQUIRED_VERIFICATION_COMMANDS = (
+    "make test",
+    "make verify-pack",
+)
 SOURCE_PACK_REQUIRED_PATHS = tuple(
     dict.fromkeys(
         (
@@ -173,6 +181,7 @@ def verify_pack(root: Path) -> PackReport:
 
     _check_required_files(root, findings)
     _check_makefile_targets(root, findings)
+    _check_verification_command_docs(root, findings)
     _check_workflow_pack_file_encoding(root, findings)
     _check_runtime_executable_bits(root, findings)
     _check_readme_package_layout(root, findings)
@@ -244,6 +253,28 @@ def _check_makefile_targets(root: Path, findings: list[PackFinding]) -> None:
                     "pack_makefile_target_recipe_missing",
                     f"Makefile target {target} must run command: {recipe}",
                     "Makefile",
+                )
+            )
+
+
+def _check_verification_command_docs(root: Path, findings: list[PackFinding]) -> None:
+    for rel in VERIFICATION_COMMAND_DOC_PATHS:
+        path = root / rel
+        if not path.is_file():
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        section = _markdown_section(text, "Verification") or ""
+        for command in PACK_REQUIRED_VERIFICATION_COMMANDS:
+            if command in section:
+                continue
+            findings.append(
+                PackFinding(
+                    "pack_verification_command_missing",
+                    f"{rel} Verification section must document command: {command}",
+                    rel,
                 )
             )
 
