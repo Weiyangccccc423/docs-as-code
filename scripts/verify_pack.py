@@ -7,9 +7,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 try:
-    from .verify_governance import RUNTIME_REQUIRED_PATHS, WORKFLOW_PACK_REQUIRED_PATHS
+    from .verify_governance import (
+        RUNTIME_EXECUTABLE_PATHS,
+        RUNTIME_REQUIRED_PATHS,
+        WORKFLOW_PACK_REQUIRED_PATHS,
+    )
 except ImportError:  # pragma: no cover - direct script execution
-    from verify_governance import RUNTIME_REQUIRED_PATHS, WORKFLOW_PACK_REQUIRED_PATHS
+    from verify_governance import RUNTIME_EXECUTABLE_PATHS, RUNTIME_REQUIRED_PATHS, WORKFLOW_PACK_REQUIRED_PATHS
 
 
 WORKFLOW_PACK_RESOURCE_PATHS = (
@@ -125,6 +129,7 @@ def verify_pack(root: Path) -> PackReport:
         return PackReport(str(root), findings)
 
     _check_required_files(root, findings)
+    _check_runtime_executable_bits(root, findings)
     _check_phase_workflow_sections(root, findings)
     _check_skill_frontmatter(root, findings)
     _check_skill_references(root, findings)
@@ -152,6 +157,23 @@ def _check_required_files(root: Path, findings: list[PackFinding]) -> None:
                     rel,
                 )
             )
+
+
+def _check_runtime_executable_bits(root: Path, findings: list[PackFinding]) -> None:
+    for rel_path in RUNTIME_EXECUTABLE_PATHS:
+        rel = rel_path.as_posix()
+        path = root / rel_path
+        if not path.exists() or not path.is_file():
+            continue
+        if path.stat().st_mode & 0o111:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_runtime_file_not_executable",
+                f"runtime wrapper is not executable: {rel}",
+                rel,
+            )
+        )
 
 
 def _check_phase_workflow_sections(root: Path, findings: list[PackFinding]) -> None:
