@@ -114,7 +114,7 @@ bin/governance scaffold product /path/to/new-project --chapter goals-and-require
 bin/governance scaffold product /path/to/new-project --chapter goals-and-requirements --chapter acceptance-criteria --json
 ```
 
-Use `scaffold design --check --json` after the design-derivation gate to inspect the standard architecture, API, UI, backend, frontend, test, and development document shells before writing them. Scaffolded files contain `governance:scaffold-placeholder`; verification fails until the placeholders are replaced with product-derived content.
+Use `scaffold design --check --json` after the design-derivation gate to inspect the standard architecture, API, UI, backend, frontend, test, and development document shells before writing them, including the task board and verification log. Scaffolded files contain `governance:scaffold-placeholder`; verification fails until the placeholders are replaced with product-derived content.
 
 ```bash
 bin/governance advance design-derivation /path/to/new-project --check --json

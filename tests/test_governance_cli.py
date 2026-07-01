@@ -3436,14 +3436,17 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn("docs/architecture/01-system-context.md", payload["created"])
             self.assertIn("docs/api/endpoints/README.md", payload["created"])
             self.assertIn("docs/api/endpoints/01-endpoint-contract.md", payload["created"])
+            self.assertIn("docs/development/03-verification-log.md", payload["created"])
             self.assertTrue((target / "docs/backend/02-data-model.md").exists())
             self.assertIn("01-system-context.md", (target / "docs/architecture/README.md").read_text(encoding="utf-8"))
             self.assertIn("00-conventions.md", (target / "docs/api/README.md").read_text(encoding="utf-8"))
+            self.assertIn("03-verification-log.md", (target / "docs/development/README.md").read_text(encoding="utf-8"))
             endpoints_index = (target / "docs/api/endpoints/README.md").read_text(encoding="utf-8")
             endpoint_contract = (target / "docs/api/endpoints/01-endpoint-contract.md").read_text(encoding="utf-8")
             acceptance_matrix = (target / "docs/tests/02-acceptance-matrix.md").read_text(encoding="utf-8")
             roadmap = (target / "docs/development/01-roadmap.md").read_text(encoding="utf-8")
             task_board = (target / "docs/development/02-task-board.md").read_text(encoding="utf-8")
+            verification_log = (target / "docs/development/03-verification-log.md").read_text(encoding="utf-8")
             self.assertNotIn("README.md", endpoints_index)
             self.assertIn("01-endpoint-contract.md", endpoints_index)
             self.assertIn("## Method and Path", endpoint_contract)
@@ -3452,6 +3455,8 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn("| ID | Status | Milestone |", roadmap)
             self.assertIn("| ID | Status | Task | Product | Design | API | Acceptance | Verification |", task_board)
             self.assertIn("Allowed statuses: Backlog, Ready, In Progress, Blocked, Done, Deferred.", task_board)
+            self.assertIn("| Task | Command | Result | Date | Notes |", verification_log)
+            self.assertIn("governance:scaffold-placeholder", verification_log)
 
             verify_result = subprocess.run(
                 [sys.executable, str(CLI), "verify", str(target), "--json"],
@@ -3516,10 +3521,13 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn("docs/architecture/01-system-context.md", payload["would_create"])
             self.assertIn("docs/api/endpoints/README.md", payload["would_create"])
             self.assertIn("docs/api/endpoints/01-endpoint-contract.md", payload["would_create"])
+            self.assertIn("docs/development/03-verification-log.md", payload["would_create"])
             self.assertIn("docs/architecture/01-system-context.md", payload["would_index"])
             self.assertIn("docs/api/endpoints/01-endpoint-contract.md", payload["would_index"])
+            self.assertIn("docs/development/03-verification-log.md", payload["would_index"])
             self.assertFalse((target / "docs/architecture/01-system-context.md").exists())
             self.assertFalse((target / "docs/api/endpoints/01-endpoint-contract.md").exists())
+            self.assertFalse((target / "docs/development/03-verification-log.md").exists())
             self.assertEqual(architecture_readme_before, architecture_readme.read_text(encoding="utf-8"))
 
     def test_scaffold_design_skips_starter_endpoint_when_contract_exists(self) -> None:

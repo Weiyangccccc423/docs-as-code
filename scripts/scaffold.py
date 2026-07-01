@@ -202,6 +202,13 @@ DESIGN_SCAFFOLD: tuple[ScaffoldSpec, ...] = (
         ("Task Table", "Status Policy", "Traceability Rules"),
         "traceable implementation task board",
     ),
+    ScaffoldSpec(
+        "docs/development/03-verification-log.md",
+        "Verification Log",
+        "Record verification commands, results, dates, notes, and evidence artifacts for completed tasks.",
+        ("Verification Runs", "Artifacts", "Open Follow-ups"),
+        "verification evidence log",
+    ),
 )
 
 PRODUCT_SCAFFOLD_BY_KEY: dict[str, ScaffoldSpec] = {
@@ -806,6 +813,16 @@ def _section_lines(path: str, section: str) -> list[str]:
             "- Product, Design, API, and Acceptance cells must reference existing local Markdown sources.",
             "- Done tasks must link Verification to local Markdown evidence.",
         ]
+    if key == ("docs/development/03-verification-log.md", "Verification Runs"):
+        return [
+            "| Task | Command | Result | Date | Notes |",
+            "| --- | --- | --- | --- | --- |",
+            "| TASK-NNN | verification command | pending | YYYY-MM-DD | evidence notes |",
+        ]
+    if key == ("docs/development/03-verification-log.md", "Artifacts"):
+        return ["- Link local evidence artifacts or summarize relevant command output here."]
+    if key == ("docs/development/03-verification-log.md", "Open Follow-ups"):
+        return ["- none"]
     return ["- TBD"]
 
 

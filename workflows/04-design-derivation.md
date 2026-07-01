@@ -37,7 +37,7 @@ Load according to the design track:
    bin/governance scaffold design <target> --json
    ```
 
-   `--check` reports `would_create`, `would_skip`, and `would_index` without writing placeholders. The scaffold includes a starter endpoint contract at `docs/api/endpoints/01-endpoint-contract.md` only when no endpoint contract already exists, and standard table skeletons for the acceptance matrix, roadmap, and task board; replace or rename scaffolds with product-derived content before implementation handoff. Replace all `governance:scaffold-placeholder` markers before implementation handoff.
+   `--check` reports `would_create`, `would_skip`, and `would_index` without writing placeholders. The scaffold includes a starter endpoint contract at `docs/api/endpoints/01-endpoint-contract.md` only when no endpoint contract already exists, and standard table skeletons for the acceptance matrix, roadmap, task board, and verification log; replace or rename scaffolds with product-derived content before implementation handoff. Replace all `governance:scaffold-placeholder` markers before implementation handoff.
 
 3. Create or complete `docs/architecture/` views:
    - system context
@@ -72,9 +72,10 @@ Load according to the design track:
 10. Create or complete `docs/tests/02-acceptance-matrix.md` with Matrix and Uncovered Criteria sections, and `Acceptance`, `Design`, `API`, and `Test` columns; every `Acceptance` row must include a unique product-defined `A-NNN` ID, the `API` column must link a concrete `docs/api/endpoints/NN-<slug>.md` endpoint contract, link fragments must match row IDs when present, and every product-defined `A-NNN` must be mapped or listed under Uncovered Criteria using product-defined IDs only.
 11. Create or complete `docs/development/01-roadmap.md` with product links, a Milestones table using `TASK-NNN` `ID`, `Status`, and `Milestone`, sequencing, risks, and deferred scope.
 12. Create or complete `docs/development/02-task-board.md` with Task Table, Status Policy, and Traceability Rules sections; task IDs must use `TASK-NNN`, match roadmap milestone IDs, `Product`, `Design`, and `API` fields must link to matching source domains, and `Acceptance` fields must include `A-NNN` IDs defined in referenced product acceptance chapters, mapped in `docs/tests/02-acceptance-matrix.md`, with matching link fragments when present.
-13. Create ADRs in `docs/decisions/` for cross-module or high-cost decisions, named as unique `NNN-<slug>.md` files.
-14. Keep all design and planning documents linked to product and acceptance sources.
-15. Update the same-directory `README.md` for every new Markdown document, except underscore-prefixed templates such as `_template.md`.
+13. Create or initialize `docs/development/03-verification-log.md` so Done task evidence has a stable local Markdown target.
+14. Create ADRs in `docs/decisions/` for cross-module or high-cost decisions, named as unique `NNN-<slug>.md` files.
+15. Keep all design and planning documents linked to product and acceptance sources.
+16. Update the same-directory `README.md` for every new Markdown document, except underscore-prefixed templates such as `_template.md`.
 
 ## Output
 
