@@ -34,6 +34,7 @@ Create reliable project governance before implementation starts:
 - `templates/docs/agent-workflow/task-handoff.md`: agent task handoff and completion criteria shape.
 - `templates/docs/api/00-conventions.md`: shared API conventions shape.
 - `templates/docs/api/changelog.md`: API contract changelog shape.
+- `templates/docs/api/endpoints/README.md`: endpoint contract index shape.
 - `templates/docs/api/endpoints/01-endpoint-contract.md`: endpoint contract shape.
 - `templates/docs/api/error-codes.md`: API error code registry shape.
 - `templates/docs/architecture/01-system-context.md`: system context architecture shape.

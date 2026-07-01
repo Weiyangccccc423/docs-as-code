@@ -1673,6 +1673,36 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_endpoint_index_template_guardrail_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            template = target / "templates/docs/api/endpoints/README.md"
+            template.write_text(
+                template.read_text(encoding="utf-8").replace(
+                    "- Endpoint files must use `NN-<slug>.md` with unique `NN` prefixes.\n",
+                    "",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_template_guardrail_missing"
+                    and finding.path == "templates/docs/api/endpoints/README.md"
+                    and "NN-<slug>.md" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_skill_heading_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
@@ -1725,6 +1755,7 @@ class PackStructureTest(unittest.TestCase):
             "templates/docs/agent-workflow/task-handoff.md",
             "templates/docs/api/00-conventions.md",
             "templates/docs/api/changelog.md",
+            "templates/docs/api/endpoints/README.md",
             "templates/docs/api/endpoints/01-endpoint-contract.md",
             "templates/docs/api/error-codes.md",
             "templates/docs/architecture/01-system-context.md",

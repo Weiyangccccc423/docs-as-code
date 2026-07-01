@@ -102,6 +102,17 @@ TEMPLATE_REQUIRED_GUARDRAILS = {
         "- Link local product, architecture, backend, decision, or unresolved Markdown sources.",
         "- Link local UI or frontend API-consumption Markdown sources.",
     ),
+    "templates/docs/api/endpoints/README.md": (
+        "# API Endpoints",
+        "| Endpoint | Method and Path | Product Source | Frontend Consumer |",
+        "[01-endpoint-contract.md](01-endpoint-contract.md)",
+        "- Endpoint files must use `NN-<slug>.md` with unique `NN` prefixes.",
+        "- Keep `01-endpoint-contract.md` only as the starter endpoint contract until replaced or renamed from product-derived API design.",
+        "- Every listed endpoint must link to a local endpoint contract file.",
+        "- Endpoint contracts must reference `docs/api/error-codes.md`.",
+        "- Endpoint contracts must link upstream product, architecture, backend, decision, or unresolved Markdown sources.",
+        "- Endpoint contracts must link local UI or frontend API-consumption Markdown consumers.",
+    ),
     "templates/docs/api/error-codes.md": (
         "# API Error Codes",
         "- Product scope source",
@@ -221,6 +232,11 @@ TEMPLATE_REQUIRED_SECTIONS = {
         "Error Codes",
         "Upstream Links",
         "Frontend Consumers",
+    ),
+    "templates/docs/api/endpoints/README.md": (
+        "Index",
+        "Naming Rules",
+        "Traceability Rules",
     ),
     "templates/docs/api/error-codes.md": (
         "Product Links",

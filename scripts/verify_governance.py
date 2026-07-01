@@ -75,6 +75,7 @@ WORKFLOW_PACK_REQUIRED_PATHS = (
     "templates/docs/api/00-conventions.md",
     "templates/docs/api/changelog.md",
     "templates/docs/api/endpoints/01-endpoint-contract.md",
+    "templates/docs/api/endpoints/README.md",
     "templates/docs/api/error-codes.md",
     "templates/docs/architecture/01-system-context.md",
     "templates/docs/architecture/02-containers.md",
