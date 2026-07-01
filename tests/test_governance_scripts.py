@@ -2106,6 +2106,71 @@ class GovernanceScriptsTest(unittest.TestCase):
 
             self.assertEqual([], task_board_ready_tasks(root))
 
+    def test_task_board_ready_tasks_requires_complete_acceptance_matrix_mapping(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(root, "docs/product/01-goals.md", "# Goals\n\nSource: [PRD](core/PRD.md).\n")
+            _append_product_meta_chapter(root, "01-goals.md")
+            _write_acceptance_matrix_trace_docs(root)
+            _write_indexed_doc(
+                root,
+                "docs/development/02-task-board.md",
+                _task_board_doc(
+                    "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-system-context.md | docs/api/00-conventions.md | [A-001](../product/08-acceptance-criteria.md#a-001) | make test |\n"
+                ),
+            )
+            _write_indexed_doc(
+                root,
+                "docs/tests/02-acceptance-matrix.md",
+                _acceptance_matrix_doc(api="API conventions"),
+            )
+
+            self.assertEqual([], task_board_ready_tasks(root))
+
+    def test_implementation_gate_requires_complete_acceptance_matrix_mapping_for_ready_task(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(root, "docs/product/01-goals.md", "# Goals\n\nSource: [PRD](core/PRD.md).\n")
+            _append_product_meta_chapter(root, "01-goals.md")
+            _write_acceptance_matrix_trace_docs(root)
+            _write_indexed_doc(
+                root,
+                "docs/development/01-roadmap.md",
+                _roadmap_doc(),
+            )
+            _write_indexed_doc(
+                root,
+                "docs/development/02-task-board.md",
+                _task_board_doc(
+                    "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-system-context.md | docs/api/00-conventions.md | [A-001](../product/08-acceptance-criteria.md#a-001) | make test |\n"
+                ),
+            )
+            _write_indexed_doc(
+                root,
+                "docs/development/03-verification-log.md",
+                _verification_log_doc(),
+            )
+            _write_indexed_doc(
+                root,
+                "docs/tests/02-acceptance-matrix.md",
+                _acceptance_matrix_doc(api="API conventions"),
+            )
+
+            result = evaluate_gate(root, "implementation")
+
+            requirement_by_code = {requirement.code: requirement for requirement in result.requirements}
+            self.assertFalse(requirement_by_code["task_board_ready_task_present"].ok)
+            self.assertIn(
+                "acceptance matrix row docs/product/08-acceptance-criteria.md API field has no local Markdown reference",
+                result.verification["errors"],
+            )
+
     def test_verify_reports_product_source_manifest_directory_without_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

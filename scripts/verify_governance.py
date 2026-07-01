@@ -3462,8 +3462,63 @@ def _acceptance_matrix_mapped_acceptance_ids(root: Path) -> set[str] | None:
         acceptance_id = _acceptance_matrix_acceptance_id(row.get("acceptance", ""))
         if acceptance_id is None:
             return None
-        mapped_ids.add(acceptance_id)
+        if _acceptance_matrix_row_is_complete_mapping(root, path, row, acceptance_id):
+            mapped_ids.add(acceptance_id)
     return mapped_ids
+
+
+def _acceptance_matrix_row_is_complete_mapping(
+    root: Path,
+    matrix_path: Path,
+    row: dict[str, str],
+    acceptance_id: str,
+) -> bool:
+    for column in ACCEPTANCE_MATRIX_REQUIRED_COLUMNS:
+        if _normalize_cell(row.get(column, "")) in SECTION_PLACEHOLDER_VALUES:
+            return False
+    if not _acceptance_matrix_acceptance_reference_complete(root, matrix_path, row.get("acceptance", ""), acceptance_id):
+        return False
+    return (
+        _acceptance_matrix_field_reference_complete(root, matrix_path, row.get("design", ""), _is_design_reference)
+        and _acceptance_matrix_field_reference_complete(
+            root,
+            matrix_path,
+            row.get("api", ""),
+            _is_api_endpoint_contract_reference,
+        )
+        and _acceptance_matrix_field_reference_complete(root, matrix_path, row.get("test", ""), _is_test_reference)
+    )
+
+
+def _acceptance_matrix_acceptance_reference_complete(
+    root: Path,
+    matrix_path: Path,
+    value: str,
+    acceptance_id: str,
+) -> bool:
+    references = _local_markdown_references(root, matrix_path, value, include_bare=True, strip_code=False)
+    if not references or any(not reference.exists for reference in references):
+        return False
+    product_acceptance_refs = [reference for reference in references if _is_product_acceptance_reference_path(reference)]
+    if not product_acceptance_refs:
+        return False
+    for reference in product_acceptance_refs:
+        fragment_id = _reference_fragment_acceptance_id(reference)
+        if fragment_id is not None and fragment_id != acceptance_id:
+            return False
+    return _product_acceptance_references_have_id(root, product_acceptance_refs, acceptance_id) is True
+
+
+def _acceptance_matrix_field_reference_complete(
+    root: Path,
+    matrix_path: Path,
+    value: str,
+    predicate: Callable[[LocalMarkdownReference], bool],
+) -> bool:
+    references = _local_markdown_references(root, matrix_path, value, include_bare=True, strip_code=False)
+    if not references or any(not reference.exists for reference in references):
+        return False
+    return any(predicate(reference) for reference in references)
 
 
 def _task_board_rows(text: str) -> tuple[list[dict[str, str]], list[str]]:
