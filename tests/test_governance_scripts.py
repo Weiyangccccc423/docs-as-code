@@ -1179,6 +1179,98 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_invalid_governance_state_phase(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            state_path = root / ".governance/state.json"
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            state["phase"] = "unknown-phase"
+            state_path.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
+
+            report = verify(root)
+
+            self.assertIn("governance state phase is invalid: unknown-phase", report.errors)
+            self.assertIn(
+                {
+                    "code": "state_phase_invalid",
+                    "severity": "error",
+                    "path": ".governance/state.json",
+                    "message": "governance state phase is invalid: unknown-phase",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_non_monotonic_governance_phase_history(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            state_path = root / ".governance/state.json"
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            state["phase"] = "product-structuring"
+            state["phase_history"] = [
+                {"phase": "product-structuring", "from_phase": "initialized", "gate": "product-structuring"},
+                {"phase": "design-derivation", "from_phase": "product-structuring", "gate": "design-derivation"},
+                {"phase": "product-structuring", "from_phase": "design-derivation", "gate": "product-structuring"},
+            ]
+            state_path.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
+
+            report = verify(root)
+
+            self.assertIn(
+                "governance state phase_history must move forward without repeats or rollback",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "state_phase_history_non_monotonic",
+                    "severity": "error",
+                    "path": ".governance/state.json",
+                    "message": "governance state phase_history must move forward without repeats or rollback",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_governance_state_phase_history_current_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            state_path = root / ".governance/state.json"
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            state["phase"] = "design-derivation"
+            state["phase_history"] = [
+                {"phase": "product-structuring", "from_phase": "initialized", "gate": "product-structuring"}
+            ]
+            state_path.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
+
+            report = verify(root)
+
+            self.assertIn(
+                "governance state current phase design-derivation must match latest phase_history phase product-structuring",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "state_phase_history_current_mismatch",
+                    "severity": "error",
+                    "path": ".governance/state.json",
+                    "message": (
+                        "governance state current phase design-derivation must match latest "
+                        "phase_history phase product-structuring"
+                    ),
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_missing_target_makefile(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

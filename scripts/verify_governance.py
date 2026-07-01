@@ -58,6 +58,8 @@ WORKFLOW_PACK_IGNORED_FILE_NAMES = {".DS_Store", "manifest.json"}
 MANIFEST_SCHEMA_VERSION = 1
 RUNTIME_MANIFEST_SOURCE = "target-local governance runtime"
 WORKFLOW_PACK_MANIFEST_SOURCE = "docs-as-code workflow pack"
+GOVERNANCE_STATE_REL = Path(".governance/state.json")
+WORKFLOW_PHASE_ORDER = ("initialized", "product-structuring", "design-derivation", "implementation")
 WORKFLOW_PACK_REQUIRED_PATHS = (
     "README.md",
     "references/architecture-methods.md",
@@ -550,6 +552,7 @@ def verify(root: Path) -> VerificationReport:
         if path.is_file():
             _check_reserved_markers(root, path, report)
 
+    _check_governance_state(root, report)
     _check_target_entry_docs(root, report)
     _check_target_support_files(root, report)
     _check_target_gitignore(root, report)
@@ -618,6 +621,90 @@ def _read_markdown_text(root: Path, path: Path, report: VerificationReport) -> s
                 rel,
             )
         return None
+
+
+def _check_governance_state(root: Path, report: VerificationReport) -> None:
+    rel = GOVERNANCE_STATE_REL.as_posix()
+    path = root / GOVERNANCE_STATE_REL
+    if not path.exists():
+        report.add_error("state_file_missing", f"missing governance state file: {rel}", rel)
+        return
+    if not path.is_file():
+        report.add_error("state_file_not_file", f"governance state path is not a file: {rel}", rel)
+        return
+    try:
+        state = json.loads(path.read_text(encoding="utf-8"))
+    except UnicodeDecodeError:
+        report.add_error("state_file_invalid_encoding", "invalid governance state encoding: expected UTF-8", rel)
+        return
+    except json.JSONDecodeError as error:
+        report.add_error("state_file_invalid_json", f"invalid governance state: {error.msg}", rel)
+        return
+    if not isinstance(state, dict):
+        report.add_error("state_file_invalid_schema", "invalid governance state: root must be an object", rel)
+        return
+
+    phase = state.get("phase")
+    phase_is_valid = isinstance(phase, str) and phase in WORKFLOW_PHASE_ORDER
+    if not phase_is_valid:
+        report.add_error("state_phase_invalid", f"governance state phase is invalid: {phase}", rel)
+
+    history = state.get("phase_history")
+    if history is None:
+        if phase_is_valid and phase != "initialized":
+            report.add_error(
+                "state_phase_history_missing",
+                f"governance state phase_history is required after phase {phase}",
+                rel,
+            )
+        return
+    if not isinstance(history, list):
+        report.add_error("state_phase_history_invalid", "governance state phase_history must be a list", rel)
+        return
+    if not history:
+        if phase_is_valid and phase != "initialized":
+            report.add_error(
+                "state_phase_history_missing",
+                f"governance state phase_history is required after phase {phase}",
+                rel,
+            )
+        return
+
+    previous_index = -1
+    latest_phase = ""
+    for item in history:
+        if not isinstance(item, dict):
+            report.add_error(
+                "state_phase_history_invalid",
+                "governance state phase_history entries must be objects",
+                rel,
+            )
+            return
+        item_phase = item.get("phase")
+        if not isinstance(item_phase, str) or item_phase not in WORKFLOW_PHASE_ORDER:
+            report.add_error(
+                "state_phase_history_phase_invalid",
+                f"governance state phase_history phase is invalid: {item_phase}",
+                rel,
+            )
+            return
+        item_index = WORKFLOW_PHASE_ORDER.index(item_phase)
+        if item_index <= previous_index:
+            report.add_error(
+                "state_phase_history_non_monotonic",
+                "governance state phase_history must move forward without repeats or rollback",
+                rel,
+            )
+            return
+        previous_index = item_index
+        latest_phase = item_phase
+
+    if phase_is_valid and latest_phase and latest_phase != phase:
+        report.add_error(
+            "state_phase_history_current_mismatch",
+            f"governance state current phase {phase} must match latest phase_history phase {latest_phase}",
+            rel,
+        )
 
 
 def _check_reserved_markers(root: Path, path: Path, report: VerificationReport) -> None:
