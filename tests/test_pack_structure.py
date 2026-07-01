@@ -115,6 +115,36 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_phase_workflow_title_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            workflow = target / "workflows/04-design-derivation.md"
+            workflow.write_text(
+                workflow.read_text(encoding="utf-8").replace(
+                    "# Phase 04: Design Derivation",
+                    "# Phase 04: Backend Design",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_workflow_phase_title_mismatch"
+                    and finding.path == "workflows/04-design-derivation.md"
+                    and "Design Derivation" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_phase_workflow_section_order_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"

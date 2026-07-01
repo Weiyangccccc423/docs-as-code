@@ -76,6 +76,13 @@ PHASE_WORKFLOW_PATHS = (
     "workflows/04-design-derivation.md",
     "workflows/05-verification-and-drift-control.md",
 )
+PHASE_WORKFLOW_TITLES = {
+    "workflows/01-empty-repo-initialization.md": "Empty Repository Initialization",
+    "workflows/02-product-document-archiving.md": "Product Document Archiving",
+    "workflows/03-product-structuring.md": "Product Structuring",
+    "workflows/04-design-derivation.md": "Design Derivation",
+    "workflows/05-verification-and-drift-control.md": "Verification and Drift Control",
+}
 PHASE_WORKFLOW_REQUIRED_SECTIONS = (
     "Input",
     "Skills",
@@ -415,7 +422,8 @@ def _check_phase_workflow_sections(root: Path, findings: list[PackFinding]) -> N
             continue
         expected_heading_prefix = f"Phase {Path(rel).name.split('-', 1)[0]}:"
         heading_match = re.search(r"(?m)^#\s+(.+?)\s*$", text)
-        if heading_match is None or not heading_match.group(1).strip().startswith(expected_heading_prefix):
+        heading = heading_match.group(1).strip() if heading_match else ""
+        if not heading.startswith(expected_heading_prefix):
             findings.append(
                 PackFinding(
                     "pack_workflow_phase_heading_mismatch",
@@ -423,6 +431,17 @@ def _check_phase_workflow_sections(root: Path, findings: list[PackFinding]) -> N
                     rel,
                 )
             )
+        else:
+            expected_title = PHASE_WORKFLOW_TITLES.get(rel, "")
+            title = heading.split(":", 1)[1].strip()
+            if _normalize_heading(title) != _normalize_heading(expected_title):
+                findings.append(
+                    PackFinding(
+                        "pack_workflow_phase_title_mismatch",
+                        f"workflow phase H1 title must match canonical title '{expected_title}': {rel}",
+                        rel,
+                    )
+                )
         ordered_sections = [_normalize_heading(match) for match in re.findall(r"(?m)^##\s+(.+?)\s*$", text)]
         sections = set(ordered_sections)
         for section in PHASE_WORKFLOW_REQUIRED_SECTIONS:
