@@ -1220,6 +1220,58 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_missing_target_support_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            (root / "GOVERNANCE.md").unlink()
+
+            report = verify(root)
+
+            self.assertIn("missing required target support file: GOVERNANCE.md", report.errors)
+            self.assertIn(
+                {
+                    "code": "target_support_file_missing",
+                    "severity": "error",
+                    "path": "GOVERNANCE.md",
+                    "message": "missing required target support file: GOVERNANCE.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_target_support_file_guardrail_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            security = root / "SECURITY.md"
+            security.write_text(
+                security.read_text(encoding="utf-8").replace(
+                    "Do not commit secrets. ",
+                    "",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn("SECURITY.md must preserve guardrail: do not commit secrets", report.errors)
+            self.assertIn(
+                {
+                    "code": "target_support_file_guardrail_missing",
+                    "severity": "error",
+                    "path": "SECURITY.md",
+                    "message": "SECURITY.md must preserve guardrail: do not commit secrets",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_docs_agents_directory_without_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

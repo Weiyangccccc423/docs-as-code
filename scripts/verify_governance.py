@@ -328,6 +328,19 @@ TARGET_MAKEFILE_REQUIRED_TARGET_RECIPES = {
         "bin/governance env --target .",
     ),
 }
+TARGET_SUPPORT_FILE_GUARDRAILS = {
+    "CONTRIBUTING.md": (
+        "docs/agent-workflow/task-handoff.md",
+        "task handoff and completion criteria",
+    ),
+    "GOVERNANCE.md": (
+        "repository governance is defined by agents.md, docs/agents.md, and domain-level agents.md files",
+    ),
+    "SECURITY.md": (
+        "do not commit secrets",
+        "authentication, authorization, and data boundary decisions must be documented before implementation",
+    ),
+}
 MARKDOWN_LINK_RE = re.compile(r"(?<!!)\[[^\]]*]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 MARKDOWN_REFERENCE_DEFINITION_RE = re.compile(r"^\s{0,3}\[[^\]]+]:\s*(\S+)", re.MULTILINE)
 MARKDOWN_HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$", re.MULTILINE)
@@ -441,6 +454,7 @@ def verify(root: Path) -> VerificationReport:
         if path.is_file():
             _check_reserved_markers(root, path, report)
 
+    _check_target_support_files(root, report)
     _check_target_makefile(root, report)
     _check_root_agents_guardrails(root, report)
     _check_docs_agents_guardrails(root, report)
@@ -520,6 +534,40 @@ def _check_reserved_markers(root: Path, path: Path, report: VerificationReport) 
                 report.add_error("reserved_marker_stale", f"reserved marker references non-empty docs/{name}", f"docs/{name}")
 
 
+def _check_target_support_files(root: Path, report: VerificationReport) -> None:
+    for rel, guardrails in TARGET_SUPPORT_FILE_GUARDRAILS.items():
+        path = root / rel
+        if not path.exists():
+            report.add_error("target_support_file_missing", f"missing required target support file: {rel}", rel)
+            continue
+        if not path.is_file():
+            report.add_error("target_support_file_not_file", f"target support file is not a file: {rel}", rel)
+            continue
+        text = _read_target_text_file(path, rel, "target_support_file", report)
+        if text is None:
+            continue
+        normalized = _normalize_guardrail_text(text)
+        for guardrail in guardrails:
+            if guardrail in normalized:
+                continue
+            report.add_error(
+                "target_support_file_guardrail_missing",
+                f"{rel} must preserve guardrail: {guardrail}",
+                rel,
+            )
+
+
+def _read_target_text_file(path: Path, rel: str, code_prefix: str, report: VerificationReport) -> str | None:
+    try:
+        return path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        report.add_error(f"{code_prefix}_invalid_encoding", f"{rel} must be UTF-8", rel)
+    except OSError as error:
+        reason = error.strerror or str(error)
+        report.add_error(f"{code_prefix}_unreadable", f"{rel} is unreadable: {reason}", rel)
+    return None
+
+
 def _check_target_makefile(root: Path, report: VerificationReport) -> None:
     path = root / "Makefile"
     if not path.exists():
@@ -528,14 +576,8 @@ def _check_target_makefile(root: Path, report: VerificationReport) -> None:
     if not path.is_file():
         report.add_error("target_makefile_not_file", "target Makefile is not a file: Makefile", "Makefile")
         return
-    try:
-        text = path.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
-        report.add_error("target_makefile_invalid_encoding", "target Makefile must be UTF-8: Makefile", "Makefile")
-        return
-    except OSError as error:
-        reason = error.strerror or str(error)
-        report.add_error("target_makefile_unreadable", f"target Makefile is unreadable: Makefile: {reason}", "Makefile")
+    text = _read_target_text_file(path, "Makefile", "target_makefile", report)
+    if text is None:
         return
     target_recipes = _makefile_target_recipes(text)
     targets = set(target_recipes)
