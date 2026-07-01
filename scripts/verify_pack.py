@@ -130,6 +130,7 @@ def verify_pack(root: Path) -> PackReport:
 
     _check_required_files(root, findings)
     _check_runtime_executable_bits(root, findings)
+    _check_phase_order_docs(root, findings)
     _check_phase_workflow_sections(root, findings)
     _check_skill_frontmatter(root, findings)
     _check_skill_references(root, findings)
@@ -173,7 +174,43 @@ def _check_runtime_executable_bits(root: Path, findings: list[PackFinding]) -> N
                 f"runtime wrapper is not executable: {rel}",
                 rel,
             )
-        )
+            )
+
+
+def _check_phase_order_docs(root: Path, findings: list[PackFinding]) -> None:
+    readme = root / "README.md"
+    if readme.is_file():
+        try:
+            text = readme.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            text = ""
+        workflow_order = _ordered_numbered_backticked_values(_markdown_section(text, "Workflow Order") or "")
+        expected = list(PHASE_WORKFLOW_PATHS)
+        if workflow_order != expected:
+            findings.append(
+                PackFinding(
+                    "pack_workflow_order_mismatch",
+                    "README.md Workflow Order must match phase workflow files",
+                    "README.md",
+                )
+            )
+
+    overview = root / "workflows/00-overview.md"
+    if overview.is_file():
+        try:
+            text = overview.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            text = ""
+        phase_map = _phase_map_numbers(_markdown_section(text, "Phase Map") or "")
+        expected_numbers = [Path(path).name.split("-", 1)[0] for path in PHASE_WORKFLOW_PATHS]
+        if phase_map != expected_numbers:
+            findings.append(
+                PackFinding(
+                    "pack_phase_map_mismatch",
+                    "workflows/00-overview.md Phase Map must match phase workflow files",
+                    "workflows/00-overview.md",
+                )
+            )
 
 
 def _check_phase_workflow_sections(root: Path, findings: list[PackFinding]) -> None:
@@ -412,6 +449,27 @@ def _markdown_section(text: str, heading: str) -> str | None:
         end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
         return text[start:end]
     return None
+
+
+def _ordered_numbered_backticked_values(text: str) -> list[str]:
+    values: list[str] = []
+    for line in text.splitlines():
+        if not re.match(r"^\s*[0-9]+\.\s+", line):
+            continue
+        match = re.search(r"`([^`\n]+)`", line)
+        if match:
+            values.append(match.group(1).strip())
+    return values
+
+
+def _phase_map_numbers(text: str) -> list[str]:
+    numbers: list[str] = []
+    for line in text.splitlines():
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if len(cells) < 3 or not re.fullmatch(r"[0-9]{2}", cells[0]):
+            continue
+        numbers.append(cells[0])
+    return numbers
 
 
 def _extract_skill_tokens(text: str) -> list[str]:
