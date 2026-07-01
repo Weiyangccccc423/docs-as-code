@@ -152,6 +152,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_local_markdown_links(root, findings)
     _check_reference_entry_points(root, findings)
     _check_template_entry_points(root, findings)
+    _check_template_index_docs(root, findings)
     _check_workflow_pack_file_list(root, findings)
     return PackReport(str(root), findings)
 
@@ -493,6 +494,35 @@ def _check_template_entry_points(root: Path, findings: list[PackFinding]) -> Non
         )
 
 
+def _check_template_index_docs(root: Path, findings: list[PackFinding]) -> None:
+    readme = root / "README.md"
+    if not readme.is_file():
+        return
+    try:
+        text = readme.read_text(encoding="utf-8")
+    except (UnicodeDecodeError, OSError):
+        return
+    template_index = set(_backticked_values(_markdown_section(text, "Template Files") or ""))
+    template_index = {path for path in template_index if path.startswith("templates/") and path.endswith(".md")}
+    templates = {path.relative_to(root).as_posix() for path in _iter_template_files(root)}
+    for rel in sorted(templates - template_index):
+        findings.append(
+            PackFinding(
+                "pack_template_index_missing",
+                f"README.md Template Files must list template file: {rel}",
+                "README.md",
+            )
+        )
+    for rel in sorted(template_index - templates):
+        findings.append(
+            PackFinding(
+                "pack_template_index_stale",
+                f"README.md Template Files lists missing template file: {rel}",
+                "README.md",
+            )
+        )
+
+
 def _check_skill_frontmatter(root: Path, findings: list[PackFinding]) -> None:
     skills_root = root / "skills"
     if not skills_root.exists() or not skills_root.is_dir():
@@ -643,6 +673,10 @@ def _ordered_numbered_backticked_values(text: str) -> list[str]:
         if match:
             values.append(match.group(1).strip())
     return values
+
+
+def _backticked_values(text: str) -> list[str]:
+    return [token.strip() for token in re.findall(r"`([^`\n]+)`", _strip_fenced_markdown_code(text))]
 
 
 def _phase_map_numbers(text: str) -> list[str]:
