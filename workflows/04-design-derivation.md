@@ -19,6 +19,7 @@ Load according to the design track:
 - Architecture decisions: `capturing-architecture-decisions`
 - Frontend modules: `designing-frontend-modules`
 - Test strategy: `designing-test-strategy`
+- Implementation planning: `planning-implementation-work`
 - Governance check: `verifying-governance-docs`
 
 ## Procedure

@@ -74,6 +74,7 @@ Create reliable project governance before implementation starts:
 - `skills/designing-frontend-modules/SKILL.md`: frontend module, state, route, and API-consumption design.
 - `skills/designing-test-strategy/SKILL.md`: test strategy and acceptance traceability design.
 - `skills/capturing-architecture-decisions/SKILL.md`: ADR capture.
+- `skills/planning-implementation-work/SKILL.md`: roadmap, task board, Ready task, and verification evidence planning.
 - `skills/verifying-governance-docs/SKILL.md`: governance verification and repair routing.
 
 ## Quick Start

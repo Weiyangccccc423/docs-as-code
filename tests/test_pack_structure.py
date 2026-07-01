@@ -1972,6 +1972,7 @@ class PackStructureTest(unittest.TestCase):
             "designing-frontend-modules",
             "designing-test-strategy",
             "capturing-architecture-decisions",
+            "planning-implementation-work",
             "verifying-governance-docs",
         ]
         for skill in skill_dirs:

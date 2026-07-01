@@ -71,6 +71,7 @@ WORKFLOW_PACK_REQUIRED_PATHS = (
     "skills/designing-test-strategy/SKILL.md",
     "skills/designing-ui-interactions/SKILL.md",
     "skills/initializing-governance-repo/SKILL.md",
+    "skills/planning-implementation-work/SKILL.md",
     "skills/structuring-product-requirements/SKILL.md",
     "skills/using-governance-workflow/SKILL.md",
     "skills/verifying-governance-docs/SKILL.md",
