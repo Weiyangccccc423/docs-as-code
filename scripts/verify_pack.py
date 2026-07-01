@@ -233,6 +233,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_verification_command_docs(root, findings)
     _check_agents_guardrails(root, findings)
     _check_workflow_pack_file_encoding(root, findings)
+    _check_runtime_python_syntax(root, findings)
     _check_runtime_executable_bits(root, findings)
     _check_runtime_wrapper_commands(root, findings)
     _check_readme_package_layout(root, findings)
@@ -415,6 +416,31 @@ def _check_workflow_pack_file_encoding(root: Path, findings: list[PackFinding]) 
                 PackFinding(
                     "pack_file_unreadable",
                     f"workflow-pack source file is unreadable: {rel}: {_os_error_reason(error)}",
+                    rel,
+                )
+            )
+
+
+def _check_runtime_python_syntax(root: Path, findings: list[PackFinding]) -> None:
+    for rel_path in RUNTIME_REQUIRED_PATHS:
+        if rel_path.suffix != ".py":
+            continue
+        rel = rel_path.as_posix()
+        path = root / rel_path
+        if not path.is_file():
+            continue
+        try:
+            source = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        try:
+            compile(source, rel, "exec")
+        except SyntaxError as error:
+            detail = f"{error.msg} at line {error.lineno}" if error.lineno else error.msg
+            findings.append(
+                PackFinding(
+                    "pack_runtime_python_syntax_invalid",
+                    f"runtime Python file has invalid Python syntax: {rel}: {detail}",
                     rel,
                 )
             )

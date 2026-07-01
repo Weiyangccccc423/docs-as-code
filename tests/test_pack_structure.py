@@ -730,6 +730,29 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_runtime_python_syntax_error(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/governance_cli.py"
+            script.write_text("def broken(:\n    pass\n", encoding="utf-8")
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_runtime_python_syntax_invalid"
+                    and finding.path == "scripts/governance_cli.py"
+                    and "invalid Python syntax" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_readme_workflow_order_drift(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
