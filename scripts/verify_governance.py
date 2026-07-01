@@ -310,6 +310,19 @@ TASK_BOARD_READY_STATUSES = {"ready"}
 TASK_BOARD_DONE_STATUSES = {"done"}
 TASK_BOARD_BLOCKED_STATUSES = {"blocked"}
 TASK_BOARD_EMPTY_VALUES = {"", "-", "tbd", "todo", "n/a", "na", "none"}
+VERIFICATION_LOG_REL = Path("docs/development/03-verification-log.md")
+VERIFICATION_LOG_REQUIRED_SECTIONS = {
+    "verification runs": "Verification Runs",
+    "artifacts": "Artifacts",
+    "open follow-ups": "Open Follow-ups",
+}
+VERIFICATION_LOG_REQUIRED_COLUMNS = {
+    "task": "Task",
+    "command": "Command",
+    "result": "Result",
+    "date": "Date",
+    "notes": "Notes",
+}
 SECTION_PLACEHOLDER_VALUES = {"", "-", "tbd", "todo", "n/a", "na"}
 ROOT_AGENTS_SOURCE_OF_TRUTH_GUARDRAILS = (
     "docs/product/core/prd.md",
@@ -566,6 +579,7 @@ def verify(root: Path) -> VerificationReport:
     _check_runtime_manifest(root, report)
     _check_workflow_pack_manifest(root, report)
     _check_task_board(root, report)
+    _check_verification_log(root, report)
     _check_roadmap(root, report)
     _check_roadmap_task_board_alignment(root, report)
     _check_task_board_acceptance_matrix_alignment(root, report)
@@ -3016,6 +3030,131 @@ def _check_task_board(root: Path, report: VerificationReport) -> None:
         report.add_error("task_board_ready_task_missing", f"{rel} must contain at least one Ready task", rel)
 
 
+def _check_verification_log(root: Path, report: VerificationReport) -> None:
+    path = root / VERIFICATION_LOG_REL
+    rel = VERIFICATION_LOG_REL.as_posix()
+    if not path.exists():
+        return
+    text = _read_markdown_text(root, path, report)
+    if text is None:
+        return
+    if SCAFFOLD_PLACEHOLDER in text:
+        return
+
+    sections = _markdown_sections(text, min_level=2)
+    missing_sections = [
+        label
+        for key, label in VERIFICATION_LOG_REQUIRED_SECTIONS.items()
+        if key not in sections
+    ]
+    if missing_sections:
+        report.add_error(
+            "verification_log_missing_sections",
+            f"{rel} is missing verification log sections: {', '.join(missing_sections)}",
+            rel,
+        )
+    empty_sections = [
+        label
+        for key, label in VERIFICATION_LOG_REQUIRED_SECTIONS.items()
+        if key in sections and not _section_has_authored_content(sections[key])
+    ]
+    if empty_sections:
+        report.add_error(
+            "verification_log_empty_sections",
+            f"{rel} has empty verification log sections: {', '.join(empty_sections)}",
+            rel,
+        )
+    if "verification runs" not in sections:
+        return
+    _check_verification_log_runs_table(sections["verification runs"], report)
+
+
+def _check_verification_log_runs_table(text: str, report: VerificationReport) -> None:
+    rel = VERIFICATION_LOG_REL.as_posix()
+    rows, missing = _verification_log_rows(text)
+    if missing:
+        report.add_error(
+            "verification_log_missing_columns",
+            f"{rel} Verification Runs table is missing required columns: "
+            f"{', '.join(VERIFICATION_LOG_REQUIRED_COLUMNS[column] for column in missing)}",
+            rel,
+        )
+        return
+    seen_tasks: set[str] = set()
+    for row in rows:
+        task_id = row.get("task", "").strip()
+        if TASK_ID_RE.fullmatch(task_id) is None:
+            report.add_error(
+                "verification_log_invalid_task_id",
+                f"verification log row {task_id or '(missing task)'} must use TASK-NNN task ID format",
+                rel,
+            )
+            continue
+        task_key = _normalize_cell(task_id)
+        if task_key in seen_tasks:
+            report.add_error("verification_log_duplicate_task_id", f"duplicate verification log Task ID: {task_id}", rel)
+            continue
+        seen_tasks.add(task_key)
+
+
+def _verification_log_rows(text: str) -> tuple[list[dict[str, str]], list[str]]:
+    table = _markdown_table(text)
+    if not table:
+        return [], list(VERIFICATION_LOG_REQUIRED_COLUMNS)
+    for index, row in enumerate(table):
+        header = [_normalize_cell(cell) for cell in row]
+        if "task" not in header:
+            continue
+        missing = [column for column in VERIFICATION_LOG_REQUIRED_COLUMNS if column not in header]
+        if missing:
+            return [], missing
+        rows: list[dict[str, str]] = []
+        for data in table[index + 1 :]:
+            if _is_separator_row(data):
+                continue
+            if not any(cell.strip() for cell in data):
+                continue
+            rows.append(
+                {
+                    column: _table_cell(data, header.index(column))
+                    for column in VERIFICATION_LOG_REQUIRED_COLUMNS
+                }
+            )
+        return rows, []
+    return [], list(VERIFICATION_LOG_REQUIRED_COLUMNS)
+
+
+def _verification_log_task_ids(root: Path, report: VerificationReport | None = None) -> set[str] | None:
+    path = root / VERIFICATION_LOG_REL
+    if not path.exists():
+        return None
+    if report is None:
+        if not path.is_file():
+            return None
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            return None
+    else:
+        text = _read_markdown_text(root, path, report)
+        if text is None:
+            return None
+    if SCAFFOLD_PLACEHOLDER in text:
+        return None
+    sections = _markdown_sections(text, min_level=2)
+    runs = sections.get("verification runs")
+    if runs is None:
+        return None
+    rows, missing = _verification_log_rows(runs)
+    if missing:
+        return None
+    return {
+        row["task"].strip()
+        for row in rows
+        if TASK_ID_RE.fullmatch(row.get("task", "").strip()) is not None
+    }
+
+
 def _check_roadmap(root: Path, report: VerificationReport) -> None:
     path = root / ROADMAP_REL
     rel = ROADMAP_REL.as_posix()
@@ -3547,6 +3686,12 @@ def _task_board_done_evidence_errors(
         if reference.exists:
             if report is not None:
                 _read_markdown_text(root, path, report)
+            if reference.rel == VERIFICATION_LOG_REL.as_posix():
+                task_ids = _verification_log_task_ids(root, report)
+                if task_ids is not None and task_id not in task_ids:
+                    errors.append(
+                        f"task board row {task_id} references verification log without matching run: {reference.rel}"
+                    )
             continue
         if report is not None and path.exists():
             _read_markdown_text(root, path, report)

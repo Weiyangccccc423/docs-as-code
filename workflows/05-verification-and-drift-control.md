@@ -63,7 +63,7 @@ Load:
    bin/governance advance implementation <target> --json
    ```
 
-   The implementation gate requires the standard handoff files from Phase 04, including the API endpoint index and at least one endpoint contract; arbitrary Markdown in a docs domain is not enough.
+   The implementation gate requires the standard handoff files from Phase 04, including the API endpoint index, at least one endpoint contract, task board, and verification log; arbitrary Markdown in a docs domain is not enough.
 
 6. Before implementation starts, confirm:
    - no unregistered docs directories
@@ -104,10 +104,11 @@ Load:
    - roadmap Milestones table uses `ID`, `Status`, and `Milestone`, has at least one row, has unique `TASK-NNN` IDs, and uses standard task status values
    - roadmap tables with `ID` and `Status` columns have matching task board rows, no extra task board IDs, and agree with same-ID task board statuses
    - `docs/development/02-task-board.md` has non-placeholder Task Table, Status Policy, and Traceability Rules sections
+   - `docs/development/03-verification-log.md` has non-placeholder Verification Runs, Artifacts, and Open Follow-ups sections, and its Verification Runs table uses `Task`, `Command`, `Result`, `Date`, and `Notes` columns
    - task board items have `ID`, `Status`, `Task`, `Product`, `Design`, `API`, `Acceptance`, and `Verification`
    - task board `Status` values are one of `Backlog`, `Ready`, `In Progress`, `Blocked`, `Done`, or `Deferred`
    - task board items marked `Blocked` cite an existing unresolved item ID and link to `docs/unresolved.md`
-   - task board items marked `Done` link to existing local Markdown verification evidence
+   - task board items marked `Done` link to existing local Markdown verification evidence, and when they link `docs/development/03-verification-log.md`, the log has a matching `TASK-NNN` run row
    - task board item IDs are unique, use `TASK-NNN`, and match roadmap milestones
    - task board `Product`, `Design`, `API`, and `Acceptance` fields point to existing local Markdown files in the matching source domains
    - task board `Acceptance` fields include an `A-NNN` ID defined in the referenced product acceptance chapter, mapped in `docs/tests/02-acceptance-matrix.md`, a matching link fragment when present, and a product acceptance chapter reference matching `docs/product/NN-*acceptance*.md`

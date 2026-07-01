@@ -460,6 +460,20 @@ def _task_board_doc(rows: str) -> str:
     )
 
 
+def _verification_log_doc(rows: str = "") -> str:
+    return (
+        "# Verification Log\n\n"
+        "## Verification Runs\n\n"
+        "| Task | Command | Result | Date | Notes |\n"
+        "| --- | --- | --- | --- | --- |\n"
+        f"{rows}"
+        "\n## Artifacts\n\n"
+        "- none\n\n"
+        "## Open Follow-ups\n\n"
+        "- none\n"
+    )
+
+
 def _test_strategy_doc(
     acceptance: str = "[Acceptance](../product/08-acceptance-criteria.md)",
     api: str = "[API conventions](../api/00-conventions.md)",
@@ -8064,6 +8078,69 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_verification_log_missing_required_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(root, "docs/development/03-verification-log.md", "# Verification Log\n")
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/development/03-verification-log.md is missing verification log sections: "
+                "Verification Runs, Artifacts, Open Follow-ups",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "verification_log_missing_sections",
+                    "severity": "error",
+                    "path": "docs/development/03-verification-log.md",
+                    "message": "docs/development/03-verification-log.md is missing verification log sections: "
+                    "Verification Runs, Artifacts, Open Follow-ups",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_verification_log_missing_required_columns(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(
+                root,
+                "docs/development/03-verification-log.md",
+                "# Verification Log\n\n"
+                "## Verification Runs\n\n"
+                "| Task | Command | Result |\n"
+                "| --- | --- | --- |\n"
+                "| TASK-001 | make test | pass |\n\n"
+                "## Artifacts\n\n"
+                "- none\n\n"
+                "## Open Follow-ups\n\n"
+                "- none\n",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/development/03-verification-log.md Verification Runs table is missing required columns: Date, Notes",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "verification_log_missing_columns",
+                    "severity": "error",
+                    "path": "docs/development/03-verification-log.md",
+                    "message": "docs/development/03-verification-log.md Verification Runs table is missing required columns: "
+                    "Date, Notes",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_allows_standard_task_board_statuses(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -8076,7 +8153,11 @@ class GovernanceScriptsTest(unittest.TestCase):
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
             _write_indexed_doc(root, "docs/api/00-conventions.md", _api_conventions_doc())
             _write_traceable_test_strategy(root)
-            _write_indexed_doc(root, "docs/development/03-verification-log.md", "# Verification Log\n")
+            _write_indexed_doc(
+                root,
+                "docs/development/03-verification-log.md",
+                _verification_log_doc("| TASK-005 | make test | pass | 2026-06-26 | goal flow verified |\n"),
+            )
             (root / "docs/unresolved.md").write_text(
                 "# Unresolved Items\n\n"
                 "| ID | Domain | Description | Blocking Scope | Owner | Date |\n"
@@ -8294,6 +8375,52 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_done_task_missing_matching_verification_log_run(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(root, "docs/product/01-goals.md", "# Goals\n\nSource: [PRD](core/PRD.md).\n")
+            _append_product_meta_chapter(root, "01-goals.md")
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
+            _write_indexed_doc(root, "docs/api/00-conventions.md", _api_conventions_doc())
+            _write_traceable_test_strategy(root)
+            _write_indexed_doc(
+                root,
+                "docs/development/03-verification-log.md",
+                _verification_log_doc("| TASK-999 | make test | pass | 2026-06-26 | unrelated evidence |\n"),
+            )
+
+            task_board = root / "docs/development/02-task-board.md"
+            task_board.write_text(
+                _task_board_doc(
+                    "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | make test |\n"
+                    "| TASK-002 | Done | Verify goal flow | docs/product/01-goals.md | docs/architecture/01-context.md | docs/api/00-conventions.md | docs/product/08-acceptance-criteria.md | [verification log](03-verification-log.md) |\n"
+                ),
+                encoding="utf-8",
+            )
+            _append_index(root / "docs/development/README.md", "02-task-board.md")
+
+            report = verify(root)
+
+            self.assertIn(
+                "task board row TASK-002 references verification log without matching run: "
+                "docs/development/03-verification-log.md",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "task_board_done_evidence_missing",
+                    "severity": "error",
+                    "path": "docs/development/02-task-board.md",
+                    "message": "task board row TASK-002 references verification log without matching run: "
+                    "docs/development/03-verification-log.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_allows_done_task_with_verification_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -8306,7 +8433,11 @@ class GovernanceScriptsTest(unittest.TestCase):
             _write_indexed_doc(root, "docs/architecture/01-context.md", "# Context\n")
             _write_indexed_doc(root, "docs/api/00-conventions.md", _api_conventions_doc())
             _write_traceable_test_strategy(root)
-            _write_indexed_doc(root, "docs/development/03-verification-log.md", "# Verification Log\n")
+            _write_indexed_doc(
+                root,
+                "docs/development/03-verification-log.md",
+                _verification_log_doc("| TASK-002 | make test | pass | 2026-06-26 | goal flow verified |\n"),
+            )
 
             task_board = root / "docs/development/02-task-board.md"
             task_board.write_text(

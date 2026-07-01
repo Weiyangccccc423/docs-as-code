@@ -37,6 +37,7 @@ IMPLEMENTATION_REQUIRED_FILES = (
     ("acceptance_matrix_present", "docs/tests/02-acceptance-matrix.md", "acceptance matrix exists"),
     ("roadmap_present", "docs/development/01-roadmap.md", "roadmap exists"),
     ("task_board_present", "docs/development/02-task-board.md", "task board exists"),
+    ("verification_log_present", "docs/development/03-verification-log.md", "verification log exists"),
 )
 
 

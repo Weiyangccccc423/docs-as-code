@@ -139,6 +139,20 @@ def _task_board_doc(rows: str) -> str:
     )
 
 
+def _verification_log_doc(rows: str = "") -> str:
+    return (
+        "# Verification Log\n\n"
+        "## Verification Runs\n\n"
+        "| Task | Command | Result | Date | Notes |\n"
+        "| --- | --- | --- | --- | --- |\n"
+        f"{rows}"
+        "\n## Artifacts\n\n"
+        "- none\n\n"
+        "## Open Follow-ups\n\n"
+        "- none\n"
+    )
+
+
 def _backend_external_services_doc() -> str:
     return (
         "# External Services\n\n"
@@ -3193,6 +3207,7 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertFalse(missing_standard_requirements["api_changelog_present"]["ok"])
             self.assertFalse(missing_standard_requirements["api_endpoints_index_present"]["ok"])
             self.assertFalse(missing_standard_requirements["api_endpoint_contract_present"]["ok"])
+            self.assertFalse(missing_standard_requirements["verification_log_present"]["ok"])
 
             for filename, body in [
                 ("01-system-context.md", _architecture_system_context_doc()),
@@ -3316,6 +3331,11 @@ class GovernanceCliTest(unittest.TestCase):
                 encoding="utf-8",
             )
             _append_index(target / "docs/tests/README.md", "02-acceptance-matrix.md")
+            (target / "docs/development/03-verification-log.md").write_text(
+                _verification_log_doc(),
+                encoding="utf-8",
+            )
+            _append_index(target / "docs/development/README.md", "03-verification-log.md")
 
             missing_task = subprocess.run(
                 [sys.executable, str(CLI), "gate", "implementation", str(target), "--json"],
