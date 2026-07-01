@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import re
 from dataclasses import dataclass
@@ -83,6 +84,27 @@ RUNTIME_WRAPPER_REQUIRED_COMMANDS = {
     "bin/governance": 'python3 "$ROOT_DIR/scripts/governance_cli.py" "$@"',
     "bin/governance-init": 'python3 "$ROOT_DIR/scripts/governance_cli.py" init "$@"',
     "bin/governance-verify": 'python3 "$ROOT_DIR/scripts/governance_cli.py" verify "$@"',
+}
+GOVERNANCE_CLI_PATH = Path("scripts/governance_cli.py")
+GOVERNANCE_CLI_REQUIRED_COMMANDS = (
+    "init",
+    "verify",
+    "status",
+    "env",
+    "runtime",
+    "gate",
+    "scaffold",
+    "advance",
+    "product",
+)
+GOVERNANCE_CLI_REQUIRED_SUBCOMMANDS = {
+    "runtime": ("refresh",),
+    "product": ("mark-ready",),
+}
+GOVERNANCE_CLI_PARSER_VARIABLES = {
+    "top-level": "sub",
+    "runtime": "runtime_sub",
+    "product": "product_sub",
 }
 RUNTIME_WRAPPER_REQUIRED_GUARDS = (
     "#!/usr/bin/env bash",
@@ -234,6 +256,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_agents_guardrails(root, findings)
     _check_workflow_pack_file_encoding(root, findings)
     _check_runtime_python_syntax(root, findings)
+    _check_governance_cli_commands(root, findings)
     _check_runtime_executable_bits(root, findings)
     _check_runtime_wrapper_commands(root, findings)
     _check_readme_package_layout(root, findings)
@@ -444,6 +467,82 @@ def _check_runtime_python_syntax(root: Path, findings: list[PackFinding]) -> Non
                     rel,
                 )
             )
+
+
+def _check_governance_cli_commands(root: Path, findings: list[PackFinding]) -> None:
+    rel = GOVERNANCE_CLI_PATH.as_posix()
+    path = root / GOVERNANCE_CLI_PATH
+    if not path.is_file():
+        return
+    try:
+        source = path.read_text(encoding="utf-8")
+        tree = ast.parse(source, filename=rel)
+    except (SyntaxError, UnicodeDecodeError, OSError):
+        return
+    build_parser = _find_function_def(tree, "build_parser")
+    if build_parser is None:
+        findings.append(
+            PackFinding(
+                "pack_governance_cli_build_parser_missing",
+                "scripts/governance_cli.py must define build_parser()",
+                rel,
+            )
+        )
+        return
+    parser_calls = _governance_cli_parser_calls(build_parser)
+    for command in GOVERNANCE_CLI_REQUIRED_COMMANDS:
+        if command in parser_calls["top-level"]:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_governance_cli_command_missing",
+                f"scripts/governance_cli.py build_parser() must expose top-level command: {command}",
+                rel,
+            )
+        )
+    for group, commands in GOVERNANCE_CLI_REQUIRED_SUBCOMMANDS.items():
+        for command in commands:
+            if command in parser_calls[group]:
+                continue
+            findings.append(
+                PackFinding(
+                    "pack_governance_cli_subcommand_missing",
+                    f"scripts/governance_cli.py build_parser() must expose {group} subcommand: {command}",
+                    rel,
+                )
+            )
+
+
+def _find_function_def(tree: ast.AST, name: str) -> ast.FunctionDef | None:
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == name:
+            return node
+    return None
+
+
+def _governance_cli_parser_calls(function: ast.FunctionDef) -> dict[str, set[str]]:
+    calls = {group: set() for group in GOVERNANCE_CLI_PARSER_VARIABLES}
+    variables = {variable: group for group, variable in GOVERNANCE_CLI_PARSER_VARIABLES.items()}
+    for node in ast.walk(function):
+        if not isinstance(node, ast.Call):
+            continue
+        if not isinstance(node.func, ast.Attribute) or node.func.attr != "add_parser":
+            continue
+        if not isinstance(node.func.value, ast.Name):
+            continue
+        group = variables.get(node.func.value.id)
+        if group is None or not node.args:
+            continue
+        command = _ast_string_literal(node.args[0])
+        if command is not None:
+            calls[group].add(command)
+    return calls
+
+
+def _ast_string_literal(node: ast.AST) -> str | None:
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    return None
 
 
 def _check_runtime_executable_bits(root: Path, findings: list[PackFinding]) -> None:
