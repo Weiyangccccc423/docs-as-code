@@ -6,6 +6,7 @@ import json
 import re
 import stat
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
@@ -732,6 +733,14 @@ def _check_governance_state(root: Path, report: VerificationReport) -> None:
                 rel,
             )
             return
+        if not _is_iso_timestamp_with_timezone(advanced_at):
+            report.add_error(
+                "state_phase_history_advanced_at_invalid",
+                f"governance state phase_history advanced_at for phase {item_phase} "
+                "must be an ISO timestamp with timezone",
+                rel,
+            )
+            return
         previous_index = item_index
         latest_phase = item_phase
         latest_history_item = item
@@ -780,6 +789,13 @@ def _check_governance_state(root: Path, report: VerificationReport) -> None:
                 rel,
             )
             return
+        if not _is_iso_timestamp_with_timezone(checked_at):
+            report.add_error(
+                "state_phase_last_gate_checked_at_invalid",
+                f"governance state last_gate checked_at for phase {phase} must be an ISO timestamp with timezone",
+                rel,
+            )
+            return
         latest_advanced_at = latest_history_item.get("advanced_at") if latest_history_item else None
         if isinstance(latest_advanced_at, str) and latest_advanced_at and checked_at != latest_advanced_at:
             report.add_error(
@@ -787,6 +803,16 @@ def _check_governance_state(root: Path, report: VerificationReport) -> None:
                 "governance state last_gate checked_at must match latest phase_history advanced_at",
                 rel,
             )
+
+
+def _is_iso_timestamp_with_timezone(value: str) -> bool:
+    if "T" not in value:
+        return False
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return False
+    return parsed.tzinfo is not None and parsed.utcoffset() is not None
 
 
 def _check_reserved_markers(root: Path, path: Path, report: VerificationReport) -> None:

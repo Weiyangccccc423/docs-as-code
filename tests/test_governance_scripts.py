@@ -1398,6 +1398,40 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_governance_phase_history_invalid_advanced_at(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            advance = phases_module.advance_phase(root, "product-structuring")
+            self.assertTrue(advance.ok)
+
+            state_path = root / ".governance/state.json"
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            state["phase_history"][0]["advanced_at"] = "not-a-timestamp"
+            state_path.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
+
+            report = verify(root)
+
+            self.assertIn(
+                "governance state phase_history advanced_at for phase product-structuring "
+                "must be an ISO timestamp with timezone",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "state_phase_history_advanced_at_invalid",
+                    "severity": "error",
+                    "path": ".governance/state.json",
+                    "message": (
+                        "governance state phase_history advanced_at for phase product-structuring "
+                        "must be an ISO timestamp with timezone"
+                    ),
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_governance_state_phase_history_current_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -1525,6 +1559,40 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "severity": "error",
                     "path": ".governance/state.json",
                     "message": "governance state last_gate checked_at must match latest phase_history advanced_at",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_governance_state_last_gate_checked_at_invalid(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            advance = phases_module.advance_phase(root, "product-structuring")
+            self.assertTrue(advance.ok)
+
+            state_path = root / ".governance/state.json"
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            state["last_gate"]["checked_at"] = "not-a-timestamp"
+            state_path.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
+
+            report = verify(root)
+
+            self.assertIn(
+                "governance state last_gate checked_at for phase product-structuring "
+                "must be an ISO timestamp with timezone",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "state_phase_last_gate_checked_at_invalid",
+                    "severity": "error",
+                    "path": ".governance/state.json",
+                    "message": (
+                        "governance state last_gate checked_at for phase product-structuring "
+                        "must be an ISO timestamp with timezone"
+                    ),
                 },
                 [finding.to_dict() for finding in report.findings],
             )
