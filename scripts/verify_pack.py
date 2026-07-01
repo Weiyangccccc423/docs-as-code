@@ -240,6 +240,19 @@ TEMPLATE_REQUIRED_GUARDRAILS = {
         "| Route | Screen or Flow | Access Rule | Product Source |",
         "- Link unresolved frontend module, state, route, API, or accessibility questions.",
     ),
+    "templates/docs/frontend/02-api-consumption.md": (
+        "# API Consumption",
+        "- Product scope source",
+        "- Acceptance criteria source",
+        "- Frontend modules source: `docs/frontend/01-modules.md`",
+        "- API conventions source: `docs/api/00-conventions.md`",
+        "- API error registry source: `docs/api/error-codes.md`",
+        "- Endpoint index source: `docs/api/endpoints/README.md`",
+        "| Flow or Screen | Frontend Module | Endpoint Contract | Request Trigger | Response Owner |",
+        "State owner from frontend modules",
+        "- Map pending, optimistic, empty, stale, retrying, and disabled states to flows and endpoint calls.",
+        "- Map API error codes to user-visible copy, recovery action, retry behavior, telemetry, and acceptance criteria.",
+    ),
     "templates/docs/tests/01-strategy.md": (
         "# Test Strategy",
         "- Unit tests cover isolated validation rules and state transitions.",
@@ -392,6 +405,13 @@ TEMPLATE_REQUIRED_SECTIONS = {
         "State Ownership",
         "Routes",
         "Open Decisions",
+    ),
+    "templates/docs/frontend/02-api-consumption.md": (
+        "Product Links",
+        "API Links",
+        "Consumption Map",
+        "Loading States",
+        "Error Actions",
     ),
     "templates/docs/tests/01-strategy.md": (
         "Product Links",
