@@ -341,6 +341,23 @@ TARGET_SUPPORT_FILE_GUARDRAILS = {
         "authentication, authorization, and data boundary decisions must be documented before implementation",
     ),
 }
+TARGET_ENTRY_DOC_GUARDRAILS = {
+    "README.md": (
+        "initialized with the docs-as-code governance workflow pack",
+        "docs/product/core/prd.md",
+        "docs/readme.md",
+        "agents.md and docs/agents.md",
+        "docs/agent-workflow/workflow-pack/",
+        "docs/unresolved.md",
+        "docs/development/readme.md",
+    ),
+    "SPEC.md": (
+        "summary view",
+        "must not become an independent source of truth",
+        "docs/product/core/prd.md",
+        "docs/product/core/product-meta.md",
+    ),
+}
 MARKDOWN_LINK_RE = re.compile(r"(?<!!)\[[^\]]*]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 MARKDOWN_REFERENCE_DEFINITION_RE = re.compile(r"^\s{0,3}\[[^\]]+]:\s*(\S+)", re.MULTILINE)
 MARKDOWN_HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$", re.MULTILINE)
@@ -454,6 +471,7 @@ def verify(root: Path) -> VerificationReport:
         if path.is_file():
             _check_reserved_markers(root, path, report)
 
+    _check_target_entry_docs(root, report)
     _check_target_support_files(root, report)
     _check_target_makefile(root, report)
     _check_root_agents_guardrails(root, report)
@@ -534,6 +552,23 @@ def _check_reserved_markers(root: Path, path: Path, report: VerificationReport) 
                 report.add_error("reserved_marker_stale", f"reserved marker references non-empty docs/{name}", f"docs/{name}")
 
 
+def _check_target_entry_docs(root: Path, report: VerificationReport) -> None:
+    for rel, guardrails in TARGET_ENTRY_DOC_GUARDRAILS.items():
+        path = root / rel
+        if not path.is_file():
+            continue
+        text = _read_markdown_text(root, path, report)
+        if text is None:
+            continue
+        _check_target_text_guardrails(
+            rel,
+            text,
+            guardrails,
+            report,
+            code="target_entry_doc_guardrail_missing",
+        )
+
+
 def _check_target_support_files(root: Path, report: VerificationReport) -> None:
     for rel, guardrails in TARGET_SUPPORT_FILE_GUARDRAILS.items():
         path = root / rel
@@ -546,15 +581,32 @@ def _check_target_support_files(root: Path, report: VerificationReport) -> None:
         text = _read_target_text_file(path, rel, "target_support_file", report)
         if text is None:
             continue
-        normalized = _normalize_guardrail_text(text)
-        for guardrail in guardrails:
-            if guardrail in normalized:
-                continue
-            report.add_error(
-                "target_support_file_guardrail_missing",
-                f"{rel} must preserve guardrail: {guardrail}",
-                rel,
-            )
+        _check_target_text_guardrails(
+            rel,
+            text,
+            guardrails,
+            report,
+            code="target_support_file_guardrail_missing",
+        )
+
+
+def _check_target_text_guardrails(
+    rel: str,
+    text: str,
+    guardrails: tuple[str, ...],
+    report: VerificationReport,
+    *,
+    code: str,
+) -> None:
+    normalized = _normalize_guardrail_text(text)
+    for guardrail in guardrails:
+        if guardrail in normalized:
+            continue
+        report.add_error(
+            code,
+            f"{rel} must preserve guardrail: {guardrail}",
+            rel,
+        )
 
 
 def _read_target_text_file(path: Path, rel: str, code_prefix: str, report: VerificationReport) -> str | None:

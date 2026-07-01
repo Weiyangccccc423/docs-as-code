@@ -1272,6 +1272,69 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_target_readme_guardrail_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            readme = root / "README.md"
+            readme.write_text(
+                readme.read_text(encoding="utf-8").replace(
+                    "- Workflow pack snapshot: `docs/agent-workflow/workflow-pack/`\n",
+                    "",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn("README.md must preserve guardrail: docs/agent-workflow/workflow-pack/", report.errors)
+            self.assertIn(
+                {
+                    "code": "target_entry_doc_guardrail_missing",
+                    "severity": "error",
+                    "path": "README.md",
+                    "message": "README.md must preserve guardrail: docs/agent-workflow/workflow-pack/",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_target_spec_guardrail_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            spec = root / "SPEC.md"
+            spec.write_text(
+                spec.read_text(encoding="utf-8").replace(
+                    "This file is a summary view. It must not become an independent source of truth.\n\n",
+                    "",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "SPEC.md must preserve guardrail: must not become an independent source of truth",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "target_entry_doc_guardrail_missing",
+                    "severity": "error",
+                    "path": "SPEC.md",
+                    "message": "SPEC.md must preserve guardrail: must not become an independent source of truth",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_docs_agents_directory_without_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
