@@ -239,6 +239,7 @@ def _check_readme_package_layout(root: Path, findings: list[PackFinding]) -> Non
     except (UnicodeDecodeError, OSError):
         return
     layout = _package_layout_directories(_markdown_section(text, "Package Layout") or "")
+    expected = set(README_PACKAGE_LAYOUT_DIRECTORIES)
     for directory in README_PACKAGE_LAYOUT_DIRECTORIES:
         if directory in layout:
             continue
@@ -246,6 +247,14 @@ def _check_readme_package_layout(root: Path, findings: list[PackFinding]) -> Non
             PackFinding(
                 "pack_package_layout_missing_directory",
                 f"README.md Package Layout must list directory: {directory}/",
+                "README.md",
+            )
+        )
+    for directory in sorted(layout - expected):
+        findings.append(
+            PackFinding(
+                "pack_package_layout_stale_directory",
+                f"README.md Package Layout lists unexpected directory: {directory}/",
                 "README.md",
             )
         )
