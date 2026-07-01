@@ -16,7 +16,7 @@ Load according to the design track:
 - Backend modules: `designing-backend-modules`
 - Data model: `designing-data-models`
 - Architecture decisions: `capturing-architecture-decisions`
-- Frontend modules: use UI/API docs first, then frontend-specific local skill if available
+- Frontend modules: `designing-frontend-modules`
 - Governance check: `verifying-governance-docs`
 
 ## Procedure

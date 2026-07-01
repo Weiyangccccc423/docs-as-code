@@ -1967,6 +1967,7 @@ class PackStructureTest(unittest.TestCase):
             "designing-api-contracts",
             "designing-backend-modules",
             "designing-data-models",
+            "designing-frontend-modules",
             "capturing-architecture-decisions",
             "verifying-governance-docs",
         ]

@@ -70,6 +70,7 @@ Create reliable project governance before implementation starts:
 - `skills/designing-api-contracts/SKILL.md`: API contract derivation.
 - `skills/designing-backend-modules/SKILL.md`: backend module design.
 - `skills/designing-data-models/SKILL.md`: persistence and lifecycle design.
+- `skills/designing-frontend-modules/SKILL.md`: frontend module, state, route, and API-consumption design.
 - `skills/capturing-architecture-decisions/SKILL.md`: ADR capture.
 - `skills/verifying-governance-docs/SKILL.md`: governance verification and repair routing.
 

@@ -66,6 +66,7 @@ WORKFLOW_PACK_REQUIRED_PATHS = (
     "skills/designing-api-contracts/SKILL.md",
     "skills/designing-backend-modules/SKILL.md",
     "skills/designing-data-models/SKILL.md",
+    "skills/designing-frontend-modules/SKILL.md",
     "skills/designing-system-architecture/SKILL.md",
     "skills/initializing-governance-repo/SKILL.md",
     "skills/structuring-product-requirements/SKILL.md",
