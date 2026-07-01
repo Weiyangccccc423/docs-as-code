@@ -36,6 +36,13 @@ REFERENCE_ENTRY_RESOURCE_PATHS = (
     "workflows",
     "skills",
 )
+TEMPLATE_ENTRY_RESOURCE_PATHS = (
+    "README.md",
+    "AGENTS.md",
+    "workflows",
+    "skills",
+    "references",
+)
 SOURCE_PACK_REQUIRED_PATHS = tuple(
     dict.fromkeys(
         (
@@ -144,6 +151,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_skill_references(root, findings)
     _check_local_markdown_links(root, findings)
     _check_reference_entry_points(root, findings)
+    _check_template_entry_points(root, findings)
     _check_workflow_pack_file_list(root, findings)
     return PackReport(str(root), findings)
 
@@ -470,6 +478,21 @@ def _check_reference_entry_points(root: Path, findings: list[PackFinding]) -> No
         )
 
 
+def _check_template_entry_points(root: Path, findings: list[PackFinding]) -> None:
+    entry_text = "\n".join(_read_template_entry_texts(root))
+    for template in _iter_template_files(root):
+        rel = template.relative_to(root).as_posix()
+        if rel in entry_text:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_template_unrouted",
+                f"template document is not mentioned by README, AGENTS, workflows, skills, or references: {rel}",
+                rel,
+            )
+        )
+
+
 def _check_skill_frontmatter(root: Path, findings: list[PackFinding]) -> None:
     skills_root = root / "skills"
     if not skills_root.exists() or not skills_root.is_dir():
@@ -682,9 +705,31 @@ def _iter_reference_files(root: Path) -> list[Path]:
     )
 
 
+def _iter_template_files(root: Path) -> list[Path]:
+    templates_root = root / "templates"
+    if not templates_root.exists() or not templates_root.is_dir():
+        return []
+    return sorted(
+        (
+            path
+            for path in templates_root.rglob("*.md")
+            if path.is_file() and not _is_ignored_pack_file(path)
+        ),
+        key=lambda path: path.relative_to(root).as_posix(),
+    )
+
+
 def _read_reference_entry_texts(root: Path) -> list[str]:
+    return _read_entry_texts(root, REFERENCE_ENTRY_RESOURCE_PATHS)
+
+
+def _read_template_entry_texts(root: Path) -> list[str]:
+    return _read_entry_texts(root, TEMPLATE_ENTRY_RESOURCE_PATHS)
+
+
+def _read_entry_texts(root: Path, resource_paths: tuple[str, ...]) -> list[str]:
     texts: list[str] = []
-    for rel in REFERENCE_ENTRY_RESOURCE_PATHS:
+    for rel in resource_paths:
         source = root / rel
         if not source.exists():
             continue
