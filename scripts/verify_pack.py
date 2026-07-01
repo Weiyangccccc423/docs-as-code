@@ -94,6 +94,10 @@ AGENTS_REQUIRED_READING_PHRASES = (
     "affected skill under skills/",
     "relevant script tests under tests/",
 )
+AGENTS_VERIFICATION_REQUIRED_PHRASES = (
+    "before claiming completion",
+    "verification commands and results",
+)
 SOURCE_PACK_REQUIRED_PATHS = tuple(
     dict.fromkeys(
         (
@@ -339,6 +343,17 @@ def _check_agents_guardrails(root: Path, findings: list[PackFinding]) -> None:
             PackFinding(
                 "pack_agents_required_reading_missing",
                 f"AGENTS.md Required Reading section must preserve guardrail: {phrase}",
+                "AGENTS.md",
+            )
+        )
+    verification = _normalized_prose(_markdown_section(text, "Verification") or "")
+    for phrase in AGENTS_VERIFICATION_REQUIRED_PHRASES:
+        if phrase in verification:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_agents_verification_guardrail_missing",
+                f"AGENTS.md Verification section must preserve guardrail: {phrase}",
                 "AGENTS.md",
             )
         )
