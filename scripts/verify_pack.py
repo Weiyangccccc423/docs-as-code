@@ -286,7 +286,8 @@ def _check_phase_order_docs(root: Path, findings: list[PackFinding]) -> None:
             text = overview.read_text(encoding="utf-8")
         except (UnicodeDecodeError, OSError):
             text = ""
-        phase_map = _phase_map_numbers(_markdown_section(text, "Phase Map") or "")
+        phase_map_section = _markdown_section(text, "Phase Map") or ""
+        phase_map = _phase_map_numbers(phase_map_section)
         expected_numbers = [Path(path).name.split("-", 1)[0] for path in PHASE_WORKFLOW_PATHS]
         if phase_map != expected_numbers:
             findings.append(
@@ -296,6 +297,30 @@ def _check_phase_order_docs(root: Path, findings: list[PackFinding]) -> None:
                     "workflows/00-overview.md",
                 )
             )
+        _check_phase_map_titles(root, phase_map_section, findings)
+
+
+def _check_phase_map_titles(root: Path, phase_map_section: str, findings: list[PackFinding]) -> None:
+    phase_titles = _phase_map_titles(phase_map_section)
+    if not phase_titles:
+        return
+    for rel in PHASE_WORKFLOW_PATHS:
+        phase = Path(rel).name.split("-", 1)[0]
+        listed_title = phase_titles.get(phase)
+        if listed_title is None:
+            continue
+        workflow_title = _phase_workflow_title(root / rel)
+        if workflow_title is None:
+            continue
+        if _normalize_heading(listed_title) == _normalize_heading(workflow_title):
+            continue
+        findings.append(
+            PackFinding(
+                "pack_phase_map_title_mismatch",
+                f"workflows/00-overview.md Phase Map row {phase} purpose must match workflow title: {workflow_title}",
+                "workflows/00-overview.md",
+            )
+        )
 
 
 def _check_phase_primary_skill_alignment(root: Path, findings: list[PackFinding]) -> None:
@@ -822,6 +847,29 @@ def _phase_map_numbers(text: str) -> list[str]:
             continue
         numbers.append(cells[0])
     return numbers
+
+
+def _phase_map_titles(text: str) -> dict[str, str]:
+    titles_by_phase: dict[str, str] = {}
+    for line in text.splitlines():
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if len(cells) < 3 or not re.fullmatch(r"[0-9]{2}", cells[0]):
+            continue
+        titles_by_phase[cells[0]] = cells[1]
+    return titles_by_phase
+
+
+def _phase_workflow_title(path: Path) -> str | None:
+    if not path.is_file():
+        return None
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (UnicodeDecodeError, OSError):
+        return None
+    match = re.search(r"(?m)^#\s+Phase\s+[0-9]{2}:\s+(.+?)\s*$", text)
+    if match is None:
+        return None
+    return match.group(1).strip()
 
 
 def _phase_map_primary_skills(text: str) -> dict[str, list[str]]:

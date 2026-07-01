@@ -431,6 +431,37 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_overview_phase_map_title_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            overview = target / "workflows/00-overview.md"
+            overview.write_text(
+                overview.read_text(encoding="utf-8").replace(
+                    "| 04 | Design derivation | `designing-system-architecture`, `designing-api-contracts` |\n",
+                    "| 04 | Backend design | `designing-system-architecture`, `designing-api-contracts` |\n",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_phase_map_title_mismatch"
+                    and finding.path == "workflows/00-overview.md"
+                    and "04" in finding.message
+                    and "Design Derivation" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_phase_primary_skill_missing_from_workflow(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
