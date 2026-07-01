@@ -1335,6 +1335,54 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_missing_target_gitignore(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            (root / ".gitignore").unlink()
+
+            report = verify(root)
+
+            self.assertIn("missing required target ignore file: .gitignore", report.errors)
+            self.assertIn(
+                {
+                    "code": "target_gitignore_missing",
+                    "severity": "error",
+                    "path": ".gitignore",
+                    "message": "missing required target ignore file: .gitignore",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_missing_target_gitignore_pattern(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            gitignore = root / ".gitignore"
+            gitignore.write_text(
+                gitignore.read_text(encoding="utf-8").replace(".governance/\n", "", 1),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(".gitignore must ignore generated/local path: .governance/", report.errors)
+            self.assertIn(
+                {
+                    "code": "target_gitignore_pattern_missing",
+                    "severity": "error",
+                    "path": ".gitignore",
+                    "message": ".gitignore must ignore generated/local path: .governance/",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_docs_agents_directory_without_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

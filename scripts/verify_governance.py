@@ -358,6 +358,14 @@ TARGET_ENTRY_DOC_GUARDRAILS = {
         "docs/product/core/product-meta.md",
     ),
 }
+TARGET_GITIGNORE_REQUIRED_PATTERNS = (
+    ".governance/",
+    ".lycheecache",
+    "__pycache__/",
+    "*.pyc",
+    "node_modules/",
+    ".venv/",
+)
 MARKDOWN_LINK_RE = re.compile(r"(?<!!)\[[^\]]*]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 MARKDOWN_REFERENCE_DEFINITION_RE = re.compile(r"^\s{0,3}\[[^\]]+]:\s*(\S+)", re.MULTILINE)
 MARKDOWN_HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$", re.MULTILINE)
@@ -473,6 +481,7 @@ def verify(root: Path) -> VerificationReport:
 
     _check_target_entry_docs(root, report)
     _check_target_support_files(root, report)
+    _check_target_gitignore(root, report)
     _check_target_makefile(root, report)
     _check_root_agents_guardrails(root, report)
     _check_docs_agents_guardrails(root, report)
@@ -550,6 +559,39 @@ def _check_reserved_markers(root: Path, path: Path, report: VerificationReport) 
             target = root / "docs" / name
             if target.exists() and target.is_dir() and not _is_effectively_empty(target):
                 report.add_error("reserved_marker_stale", f"reserved marker references non-empty docs/{name}", f"docs/{name}")
+
+
+def _check_target_gitignore(root: Path, report: VerificationReport) -> None:
+    rel = ".gitignore"
+    path = root / rel
+    if not path.exists():
+        report.add_error("target_gitignore_missing", "missing required target ignore file: .gitignore", rel)
+        return
+    if not path.is_file():
+        report.add_error("target_gitignore_not_file", "target ignore path is not a file: .gitignore", rel)
+        return
+    text = _read_target_text_file(path, rel, "target_gitignore", report)
+    if text is None:
+        return
+    patterns = _gitignore_patterns(text)
+    for pattern in TARGET_GITIGNORE_REQUIRED_PATTERNS:
+        if pattern in patterns:
+            continue
+        report.add_error(
+            "target_gitignore_pattern_missing",
+            f".gitignore must ignore generated/local path: {pattern}",
+            rel,
+        )
+
+
+def _gitignore_patterns(text: str) -> set[str]:
+    patterns: set[str] = set()
+    for line in text.splitlines():
+        pattern = line.strip()
+        if not pattern or pattern.startswith("#"):
+            continue
+        patterns.add(pattern)
+    return patterns
 
 
 def _check_target_entry_docs(root: Path, report: VerificationReport) -> None:
