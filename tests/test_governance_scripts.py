@@ -7268,6 +7268,77 @@ class GovernanceScriptsTest(unittest.TestCase):
 
             self.assertEqual([], report.errors)
 
+    def test_verify_reports_missing_adr_template(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            (root / "docs/decisions/_template.md").unlink()
+
+            report = verify(root)
+
+            self.assertIn("missing required ADR template: docs/decisions/_template.md", report.errors)
+            self.assertIn(
+                {
+                    "code": "adr_template_missing",
+                    "severity": "error",
+                    "path": "docs/decisions/_template.md",
+                    "message": "missing required ADR template: docs/decisions/_template.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_adr_template_missing_required_section(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            path = root / "docs/decisions/_template.md"
+            path.write_text(path.read_text(encoding="utf-8").replace("## Consequences\n\n", ""), encoding="utf-8")
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/decisions/_template.md is missing ADR template sections: Consequences",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "adr_template_missing_sections",
+                    "severity": "error",
+                    "path": "docs/decisions/_template.md",
+                    "message": "docs/decisions/_template.md is missing ADR template sections: Consequences",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_adr_template_guardrail_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            path = root / "docs/decisions/_template.md"
+            path.write_text(path.read_text(encoding="utf-8").replace("- Status: proposed\n", ""), encoding="utf-8")
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/decisions/_template.md must preserve ADR template guardrail: - Status: proposed",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "adr_template_guardrail_missing",
+                    "severity": "error",
+                    "path": "docs/decisions/_template.md",
+                    "message": "docs/decisions/_template.md must preserve ADR template guardrail: - Status: proposed",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_invalid_adr_filename(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

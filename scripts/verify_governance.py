@@ -45,6 +45,12 @@ ADR_REQUIRED_SECTIONS = {
     "consequences": "Consequences",
     "references": "References",
 }
+ADR_TEMPLATE_REL = Path("docs/decisions/_template.md")
+ADR_TEMPLATE_GUARDRAILS = (
+    "- Status: proposed",
+    "- Date: YYYY-MM-DD",
+    "- Related modules: TBD",
+)
 ADR_DECISION_RE = re.compile(r"^(?P<prefix>[0-9]{3})-[a-z0-9][a-z0-9-]*\.md$")
 SCAFFOLD_PLACEHOLDER = "governance:scaffold-placeholder"
 WORKFLOW_PACK_SNAPSHOT_ROOT = "docs/agent-workflow/workflow-pack"
@@ -530,6 +536,7 @@ def verify(root: Path) -> VerificationReport:
     _check_frontend_api_consumption(root, report)
     _check_test_strategy_traceability(root, report)
     _check_acceptance_matrix_traceability(root, report)
+    _check_adr_template(root, report)
     _check_architecture_decisions(root, report)
     _check_unresolved_items(root, report)
     _check_glossary_items(root, report)
@@ -2371,6 +2378,41 @@ def _check_architecture_decisions(root: Path, report: VerificationReport) -> Non
             "adr_duplicate_prefix",
             f"duplicate ADR prefix {prefix}: {', '.join(rels)}",
             rels[-1],
+        )
+
+
+def _check_adr_template(root: Path, report: VerificationReport) -> None:
+    rel = ADR_TEMPLATE_REL.as_posix()
+    path = root / ADR_TEMPLATE_REL
+    if not path.exists():
+        report.add_error("adr_template_missing", f"missing required ADR template: {rel}", rel)
+        return
+    if not path.is_file():
+        report.add_error("adr_template_not_file", f"ADR template path is not a file: {rel}", rel)
+        return
+    text = _read_markdown_text(root, path, report)
+    if text is None:
+        return
+    sections = _markdown_sections(text, min_level=2)
+    missing_sections = [
+        label
+        for key, label in ADR_REQUIRED_SECTIONS.items()
+        if key not in sections
+    ]
+    if missing_sections:
+        report.add_error(
+            "adr_template_missing_sections",
+            f"{rel} is missing ADR template sections: {', '.join(missing_sections)}",
+            rel,
+        )
+    normalized = _normalize_guardrail_text(text)
+    for guardrail in ADR_TEMPLATE_GUARDRAILS:
+        if guardrail.lower() in normalized:
+            continue
+        report.add_error(
+            "adr_template_guardrail_missing",
+            f"{rel} must preserve ADR template guardrail: {guardrail}",
+            rel,
         )
 
 
