@@ -88,6 +88,7 @@ RUNTIME_WRAPPER_REQUIRED_GUARDS = (
     "#!/usr/bin/env bash",
     "set -euo pipefail",
 )
+RUNTIME_WRAPPER_ROOT_DIR_LINE = 'ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"'
 VERIFICATION_COMMAND_DOC_PATHS = (
     "README.md",
     "AGENTS.md",
@@ -452,6 +453,14 @@ def _check_runtime_wrapper_commands(root: Path, findings: list[PackFinding]) -> 
                 PackFinding(
                     "pack_runtime_wrapper_guard_missing",
                     f"runtime wrapper must include shell guard: {guard}",
+                    rel,
+                )
+            )
+        if RUNTIME_WRAPPER_ROOT_DIR_LINE not in text:
+            findings.append(
+                PackFinding(
+                    "pack_runtime_wrapper_root_missing",
+                    f"runtime wrapper must resolve repository root with ROOT_DIR: {RUNTIME_WRAPPER_ROOT_DIR_LINE}",
                     rel,
                 )
             )

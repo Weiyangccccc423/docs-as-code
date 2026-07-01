@@ -678,6 +678,36 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_runtime_wrapper_missing_root_dir(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            wrapper = target / "bin/governance"
+            wrapper.write_text(
+                wrapper.read_text(encoding="utf-8").replace(
+                    'ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"\n',
+                    "",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_runtime_wrapper_root_missing"
+                    and finding.path == "bin/governance"
+                    and "ROOT_DIR" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_invalid_workflow_pack_file_encoding(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
