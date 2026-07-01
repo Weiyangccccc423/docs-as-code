@@ -40,6 +40,19 @@ Create reliable project governance before implementation starts:
 - `references/backend-design-checklist.md`: backend and data-design completion checklist.
 - `references/runtime-strategy.md`: core runtime, optional tooling, and repair policy.
 
+## Skill Files
+
+- `skills/using-governance-workflow/SKILL.md`: workflow router.
+- `skills/initializing-governance-repo/SKILL.md`: empty repository bootstrap.
+- `skills/archiving-product-document/SKILL.md`: product source preservation and import.
+- `skills/structuring-product-requirements/SKILL.md`: product chapter and acceptance structuring.
+- `skills/designing-system-architecture/SKILL.md`: system architecture derivation.
+- `skills/designing-api-contracts/SKILL.md`: API contract derivation.
+- `skills/designing-backend-modules/SKILL.md`: backend module design.
+- `skills/designing-data-models/SKILL.md`: persistence and lifecycle design.
+- `skills/capturing-architecture-decisions/SKILL.md`: ADR capture.
+- `skills/verifying-governance-docs/SKILL.md`: governance verification and repair routing.
+
 ## Quick Start
 
 ```bash
@@ -110,7 +123,7 @@ make verify-pack
 
 `bin/governance env --repair --check --json` previews environment repairs without writing `.governance/env-repair.md` or installing packages. It reports `would_repair`, system/package-manager/Git status, and any supported `install_commands`. Run `bin/governance env --repair --json` only when the repair plan should be written or approved root package installation should proceed. Missing required tools make `ok: false`; missing recommended tools make `ok: false` only with `--strict`. The repair command never calls `sudo`; supported apt installs run only when the process already has root privileges. Project-specific dependency installation should be handled after the target stack is known.
 
-`python3 scripts/verify_pack.py --json` checks this source workflow pack for required files, UTF-8 workflow-pack sources, runtime wrapper executability, README package layout, phase identity, ordered non-empty phase workflow sections, phase-map primary skills, router coverage, skill identity, frontmatter and routing, local Markdown links, reference and template entry points, reference and template index coverage, and workflow-pack snapshot coverage. `make verify-pack` runs the full test suite, pack verifier, and environment inventory.
+`python3 scripts/verify_pack.py --json` checks this source workflow pack for required files, UTF-8 workflow-pack sources, runtime wrapper executability, README package layout, phase identity, ordered non-empty phase workflow sections, phase-map primary skills, router coverage, skill identity, frontmatter and routing, skill/reference/template index coverage, local Markdown links, reference and template entry points, and workflow-pack snapshot coverage. `make verify-pack` runs the full test suite, pack verifier, and environment inventory.
 
 `bin/governance init` runs a preflight check before writing files. Existing generated governance files cause initialization to fail unless `--force` is supplied. Use `init --check --json` to inspect conflicts without writing to the target.
 

@@ -159,6 +159,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_phase_workflow_sections(root, findings)
     _check_skill_frontmatter(root, findings)
     _check_skill_references(root, findings)
+    _check_skill_index_docs(root, findings)
     _check_local_markdown_links(root, findings)
     _check_reference_entry_points(root, findings)
     _check_reference_index_docs(root, findings)
@@ -641,6 +642,35 @@ def _check_skill_frontmatter(root: Path, findings: list[PackFinding]) -> None:
         _check_single_skill_frontmatter(skill_dir.name, rel.as_posix(), text, findings)
 
 
+def _check_skill_index_docs(root: Path, findings: list[PackFinding]) -> None:
+    readme = root / "README.md"
+    if not readme.is_file():
+        return
+    try:
+        text = readme.read_text(encoding="utf-8")
+    except (UnicodeDecodeError, OSError):
+        return
+    skill_index = set(_backticked_values(_markdown_section(text, "Skill Files") or ""))
+    skill_index = {path for path in skill_index if path.startswith("skills/") and path.endswith("/SKILL.md")}
+    skills = {path.relative_to(root).as_posix() for path in _iter_skill_files(root)}
+    for rel in sorted(skills - skill_index):
+        findings.append(
+            PackFinding(
+                "pack_skill_index_missing",
+                f"README.md Skill Files must list skill file: {rel}",
+                "README.md",
+            )
+        )
+    for rel in sorted(skill_index - skills):
+        findings.append(
+            PackFinding(
+                "pack_skill_index_stale",
+                f"README.md Skill Files lists missing skill file: {rel}",
+                "README.md",
+            )
+        )
+
+
 def _check_single_skill_frontmatter(
     skill_name: str,
     rel: str,
@@ -807,6 +837,20 @@ def _iter_reference_files(root: Path) -> list[Path]:
         (
             path
             for path in references_root.rglob("*.md")
+            if path.is_file() and not _is_ignored_pack_file(path)
+        ),
+        key=lambda path: path.relative_to(root).as_posix(),
+    )
+
+
+def _iter_skill_files(root: Path) -> list[Path]:
+    skills_root = root / "skills"
+    if not skills_root.exists() or not skills_root.is_dir():
+        return []
+    return sorted(
+        (
+            path
+            for path in skills_root.glob("*/SKILL.md")
             if path.is_file() and not _is_ignored_pack_file(path)
         ),
         key=lambda path: path.relative_to(root).as_posix(),

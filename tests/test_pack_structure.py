@@ -589,6 +589,36 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_skill_index_missing_skill(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            readme = target / "README.md"
+            readme.write_text(
+                readme.read_text(encoding="utf-8").replace(
+                    "- `skills/designing-data-models/SKILL.md`: persistence and lifecycle design.\n",
+                    "",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_skill_index_missing"
+                    and finding.path == "README.md"
+                    and "skills/designing-data-models/SKILL.md" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_unrouted_template_documents(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
