@@ -1733,6 +1733,36 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_backend_data_model_template_guardrail_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            template = target / "templates/docs/backend/02-data-model.md"
+            template.write_text(
+                template.read_text(encoding="utf-8").replace(
+                    "- Document uniqueness, idempotency keys, cross-user isolation, retention, soft-delete, and audit constraints.\n",
+                    "",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_template_guardrail_missing"
+                    and finding.path == "templates/docs/backend/02-data-model.md"
+                    and "idempotency keys" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_skill_heading_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
@@ -1792,6 +1822,7 @@ class PackStructureTest(unittest.TestCase):
             "templates/docs/architecture/02-containers.md",
             "templates/docs/architecture/03-quality-attributes.md",
             "templates/docs/backend/01-modules.md",
+            "templates/docs/backend/02-data-model.md",
             "templates/docs/decisions/ADR-template.md",
             "templates/docs/development/01-roadmap.md",
             "templates/docs/development/02-task-board.md",
