@@ -1763,6 +1763,36 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_backend_external_services_template_guardrail_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            template = target / "templates/docs/backend/03-external-services.md"
+            template.write_text(
+                template.read_text(encoding="utf-8").replace(
+                    "- Document retryable failures, backoff policy, idempotency behavior, compensation, and duplicate-submission handling.\n",
+                    "",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_template_guardrail_missing"
+                    and finding.path == "templates/docs/backend/03-external-services.md"
+                    and "retryable failures" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_skill_heading_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
@@ -1823,6 +1853,7 @@ class PackStructureTest(unittest.TestCase):
             "templates/docs/architecture/03-quality-attributes.md",
             "templates/docs/backend/01-modules.md",
             "templates/docs/backend/02-data-model.md",
+            "templates/docs/backend/03-external-services.md",
             "templates/docs/decisions/ADR-template.md",
             "templates/docs/development/01-roadmap.md",
             "templates/docs/development/02-task-board.md",

@@ -42,6 +42,7 @@ Create reliable project governance before implementation starts:
 - `templates/docs/architecture/03-quality-attributes.md`: measurable architecture quality attributes shape.
 - `templates/docs/backend/01-modules.md`: backend module boundary and API ownership shape.
 - `templates/docs/backend/02-data-model.md`: backend data ownership and lifecycle shape.
+- `templates/docs/backend/03-external-services.md`: backend external dependency and failure-mode shape.
 - `templates/docs/decisions/ADR-template.md`: ADR shape for architecture decisions.
 - `templates/docs/development/01-roadmap.md`: implementation roadmap shape.
 - `templates/docs/development/02-task-board.md`: implementation task board shape.

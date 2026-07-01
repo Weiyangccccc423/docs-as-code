@@ -82,6 +82,7 @@ WORKFLOW_PACK_REQUIRED_PATHS = (
     "templates/docs/architecture/03-quality-attributes.md",
     "templates/docs/backend/01-modules.md",
     "templates/docs/backend/02-data-model.md",
+    "templates/docs/backend/03-external-services.md",
     "templates/docs/decisions/ADR-template.md",
     "templates/docs/development/01-roadmap.md",
     "templates/docs/development/02-task-board.md",
