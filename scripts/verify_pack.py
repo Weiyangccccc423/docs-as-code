@@ -52,6 +52,10 @@ README_PACKAGE_LAYOUT_DIRECTORIES = (
     "tests",
     "workflows",
 )
+MAKEFILE_REQUIRED_TARGETS = (
+    "test",
+    "verify-pack",
+)
 SOURCE_PACK_REQUIRED_PATHS = tuple(
     dict.fromkeys(
         (
@@ -159,6 +163,7 @@ def verify_pack(root: Path) -> PackReport:
         return PackReport(str(root), findings)
 
     _check_required_files(root, findings)
+    _check_makefile_targets(root, findings)
     _check_workflow_pack_file_encoding(root, findings)
     _check_runtime_executable_bits(root, findings)
     _check_readme_package_layout(root, findings)
@@ -196,6 +201,27 @@ def _check_required_files(root: Path, findings: list[PackFinding]) -> None:
                     rel,
                 )
             )
+
+
+def _check_makefile_targets(root: Path, findings: list[PackFinding]) -> None:
+    makefile = root / "Makefile"
+    if not makefile.is_file():
+        return
+    try:
+        text = makefile.read_text(encoding="utf-8")
+    except (UnicodeDecodeError, OSError):
+        return
+    targets = _makefile_targets(text)
+    for target in MAKEFILE_REQUIRED_TARGETS:
+        if target in targets:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_makefile_target_missing",
+                f"Makefile must define verification target: {target}",
+                "Makefile",
+            )
+        )
 
 
 def _check_workflow_pack_file_encoding(root: Path, findings: list[PackFinding]) -> None:
@@ -856,6 +882,20 @@ def _check_readme_index_entry_descriptions(
 
 def _package_layout_directories(text: str) -> set[str]:
     return set(re.findall(r"\b([A-Za-z0-9_.-]+)/", text))
+
+
+def _makefile_targets(text: str) -> set[str]:
+    targets: set[str] = set()
+    for line in text.splitlines():
+        if not line or line[0].isspace() or line.lstrip().startswith("#") or ":" not in line:
+            continue
+        name_text = line.split(":", 1)[0].strip()
+        if not name_text or name_text.startswith(".") or "=" in name_text:
+            continue
+        for target in name_text.split():
+            if re.fullmatch(r"[A-Za-z0-9_.-]+", target):
+                targets.add(target)
+    return targets
 
 
 def _phase_map_numbers(text: str) -> list[str]:
