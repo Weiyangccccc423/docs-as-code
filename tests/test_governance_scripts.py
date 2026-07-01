@@ -1354,6 +1354,41 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_missing_domain_agents_rule_guardrail(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            domain_agents = root / "docs/backend/AGENTS.md"
+            domain_agents.write_text(
+                domain_agents.read_text(encoding="utf-8").replace(
+                    "- Link back to upstream source documents instead of copying large sections.\n",
+                    "",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/backend/AGENTS.md Rules section must preserve guardrail: "
+                "link back to upstream source documents instead of copying large sections",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "domain_agents_guardrail_missing",
+                    "severity": "error",
+                    "path": "docs/backend/AGENTS.md",
+                    "message": "docs/backend/AGENTS.md Rules section must preserve guardrail: "
+                    "link back to upstream source documents instead of copying large sections",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_unresolved_invalid_encoding_without_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

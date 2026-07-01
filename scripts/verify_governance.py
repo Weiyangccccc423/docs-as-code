@@ -311,6 +311,11 @@ DOCS_AGENTS_RULE_GUARDRAILS = (
     "keep links relative and stable",
     "follow repository source-of-truth priority in root agents.md",
 )
+DOMAIN_AGENTS_RULE_GUARDRAILS = (
+    "keep this directory focused on its declared domain",
+    "update readme.md when adding or renaming documents",
+    "link back to upstream source documents instead of copying large sections",
+)
 MARKDOWN_LINK_RE = re.compile(r"(?<!!)\[[^\]]*]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 MARKDOWN_REFERENCE_DEFINITION_RE = re.compile(r"^\s{0,3}\[[^\]]+]:\s*(\S+)", re.MULTILINE)
 MARKDOWN_HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$", re.MULTILINE)
@@ -426,6 +431,7 @@ def verify(root: Path) -> VerificationReport:
 
     _check_root_agents_guardrails(root, report)
     _check_docs_agents_guardrails(root, report)
+    _check_domain_agents_guardrails(root, report)
     _check_product_source_manifest(root, report)
     _check_product_chapter_links(root, report)
     _check_api_conventions(root, report)
@@ -553,6 +559,31 @@ def _check_docs_agents_guardrails(root: Path, report: VerificationReport) -> Non
         section_missing_code="docs_agents_section_missing",
         guardrail_missing_code="docs_agents_guardrail_missing",
     )
+
+
+def _check_domain_agents_guardrails(root: Path, report: VerificationReport) -> None:
+    docs_root = root / "docs"
+    if not docs_root.is_dir():
+        return
+    for name in sorted(DOC_DIRS):
+        path = docs_root / name / "AGENTS.md"
+        if not path.is_file():
+            continue
+        text = _read_markdown_text(root, path, report)
+        if text is None:
+            continue
+        rel = path.relative_to(root).as_posix()
+        sections = _markdown_sections(text, min_level=2)
+        _check_agents_section_guardrails(
+            report,
+            sections,
+            "rules",
+            "Rules",
+            DOMAIN_AGENTS_RULE_GUARDRAILS,
+            document=rel,
+            section_missing_code="domain_agents_section_missing",
+            guardrail_missing_code="domain_agents_guardrail_missing",
+        )
 
 
 def _check_agents_section_guardrails(
