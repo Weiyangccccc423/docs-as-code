@@ -33,6 +33,7 @@ Create reliable project governance before implementation starts:
 - `templates/docs/product/core/PRD.md`: PRD placeholder shape before product source conversion is reviewed.
 - `templates/docs/agent-workflow/task-handoff.md`: agent task handoff and completion criteria shape.
 - `templates/docs/api/00-conventions.md`: shared API conventions shape.
+- `templates/docs/api/error-codes.md`: API error code registry shape.
 - `templates/docs/architecture/01-system-context.md`: system context architecture shape.
 - `templates/docs/architecture/02-containers.md`: runtime container architecture shape.
 - `templates/docs/architecture/03-quality-attributes.md`: measurable architecture quality attributes shape.

@@ -83,6 +83,17 @@ TEMPLATE_REQUIRED_GUARDRAILS = {
         "- Backward compatibility expectations, versioning policy, and downstream consumer impact.",
         "- Link unresolved API contract decisions or ADR candidates.",
     ),
+    "templates/docs/api/error-codes.md": (
+        "# API Error Codes",
+        "- Product scope source",
+        "- Acceptance criteria source",
+        "- Validation, authentication, authorization, not-found, conflict, rate-limit, dependency, and internal errors.",
+        "| Code | HTTP Status | Product Meaning | Retryable | User Action |",
+        "ERR_EXAMPLE",
+        "Replace with a product-derived error condition.",
+        "- Mark every retryable error explicitly and define backoff, idempotency, and duplicate-submission expectations.",
+        "- Map each user-visible error to copy, UI state, recovery action, and telemetry expectations.",
+    ),
     "templates/docs/architecture/01-system-context.md": (
         "# System Context",
         "- Product scope source",
@@ -177,6 +188,13 @@ TEMPLATE_REQUIRED_SECTIONS = {
         "Idempotency",
         "Compatibility",
         "Open Decisions",
+    ),
+    "templates/docs/api/error-codes.md": (
+        "Product Links",
+        "Error Taxonomy",
+        "Error Codes",
+        "Retry Semantics",
+        "Frontend Handling",
     ),
     "templates/docs/architecture/01-system-context.md": (
         "Product Links",
