@@ -262,6 +262,14 @@ def _check_phase_primary_skill_alignment(root: Path, findings: list[PackFinding]
         phase = Path(rel).name.split("-", 1)[0]
         expected_skills = phase_map.get(phase, [])
         if not expected_skills:
+            if phase in phase_map:
+                findings.append(
+                    PackFinding(
+                        "pack_phase_map_primary_skill_missing",
+                        f"workflows/00-overview.md Phase Map row {phase} must name at least one primary skill",
+                        "workflows/00-overview.md",
+                    )
+                )
             continue
         path = root / rel
         if not path.is_file():

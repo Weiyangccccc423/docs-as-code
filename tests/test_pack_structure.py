@@ -401,6 +401,36 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_phase_map_missing_primary_skill(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            overview = target / "workflows/00-overview.md"
+            overview.write_text(
+                overview.read_text(encoding="utf-8").replace(
+                    "| 03 | Product structuring | `structuring-product-requirements` |\n",
+                    "| 03 | Product structuring | |\n",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_phase_map_primary_skill_missing"
+                    and finding.path == "workflows/00-overview.md"
+                    and "03" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_unrouted_reference_documents(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
