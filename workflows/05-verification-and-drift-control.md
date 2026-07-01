@@ -113,6 +113,10 @@ Load:
    - task board `Acceptance` fields include an `A-NNN` ID defined in the referenced product acceptance chapter, mapped in `docs/tests/02-acceptance-matrix.md`, a matching link fragment when present, and a product acceptance chapter reference matching `docs/product/NN-*acceptance*.md`
    - at least one task board item is `Ready` before implementation starts
 
+## Output
+
+A verification report and a list of fixes, or a clean governance baseline.
+
 ## Verification
 
 Verification is complete when the relevant checks in the procedure pass and any state-changing command was preceded by its `--check --json` preflight. Source workflow-pack maintainers must also run:
@@ -120,10 +124,6 @@ Verification is complete when the relevant checks in the procedure pass and any 
 ```bash
 make verify-pack
 ```
-
-## Output
-
-A verification report and a list of fixes, or a clean governance baseline.
 
 ## Stop Conditions
 

@@ -69,7 +69,7 @@ class PackStructureTest(unittest.TestCase):
             text = workflow.read_text(encoding="utf-8")
             self.assertIn("## Verification", text)
             workflow.write_text(
-                re.sub(r"\n## Verification\n.*?(?=\n## Output\n)", "\n", text, flags=re.S),
+                re.sub(r"\n## Verification\n.*?(?=\n## Stop Conditions\n)", "\n", text, flags=re.S),
                 encoding="utf-8",
             )
 
@@ -81,6 +81,50 @@ class PackStructureTest(unittest.TestCase):
                     finding.code == "pack_workflow_section_missing"
                     and finding.path == "workflows/01-empty-repo-initialization.md"
                     and "Verification" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_phase_workflow_section_order_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            workflow = target / "workflows/03-product-structuring.md"
+            workflow.write_text(
+                "\n".join(
+                    [
+                        "# Phase 03: Product Structuring",
+                        "",
+                        "## Input",
+                        "",
+                        "## Skills",
+                        "",
+                        "- `structuring-product-requirements`",
+                        "",
+                        "## Procedure",
+                        "",
+                        "## Verification",
+                        "",
+                        "## Output",
+                        "",
+                        "## Stop Conditions",
+                        "",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_workflow_section_order_mismatch"
+                    and finding.path == "workflows/03-product-structuring.md"
                     for finding in report.findings
                 )
             )

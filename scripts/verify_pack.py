@@ -300,7 +300,8 @@ def _check_phase_workflow_sections(root: Path, findings: list[PackFinding]) -> N
                 )
             )
             continue
-        sections = {_normalize_heading(match) for match in re.findall(r"(?m)^##\s+(.+?)\s*$", text)}
+        ordered_sections = [_normalize_heading(match) for match in re.findall(r"(?m)^##\s+(.+?)\s*$", text)]
+        sections = set(ordered_sections)
         for section in PHASE_WORKFLOW_REQUIRED_SECTIONS:
             if _normalize_heading(section) not in sections:
                 findings.append(
@@ -310,6 +311,20 @@ def _check_phase_workflow_sections(root: Path, findings: list[PackFinding]) -> N
                         rel,
                     )
             )
+        if all(_normalize_heading(section) in sections for section in PHASE_WORKFLOW_REQUIRED_SECTIONS):
+            required_positions = [
+                ordered_sections.index(_normalize_heading(section))
+                for section in PHASE_WORKFLOW_REQUIRED_SECTIONS
+            ]
+            if required_positions != sorted(required_positions):
+                findings.append(
+                    PackFinding(
+                        "pack_workflow_section_order_mismatch",
+                        "workflow phase sections must appear in operating-model order: "
+                        + ", ".join(PHASE_WORKFLOW_REQUIRED_SECTIONS),
+                        rel,
+                    )
+                )
 
 
 def _check_skill_references(root: Path, findings: list[PackFinding]) -> None:
