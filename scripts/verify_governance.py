@@ -303,6 +303,14 @@ ROOT_AGENTS_AGENT_RULE_GUARDRAILS = (
     "do not silently modify upstream product meaning",
     "traceable to specs",
 )
+DOCS_AGENTS_REGISTERED_DIRECTORY_GUARDRAILS = tuple(f"docs/{name}/" for name in sorted(DOC_DIRS))
+DOCS_AGENTS_RULE_GUARDRAILS = (
+    "every non-empty top-level docs directory must have readme.md and agents.md",
+    "do not create unregistered docs directories",
+    "remove any reserved marker once a directory contains real content",
+    "keep links relative and stable",
+    "follow repository source-of-truth priority in root agents.md",
+)
 MARKDOWN_LINK_RE = re.compile(r"(?<!!)\[[^\]]*]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 MARKDOWN_REFERENCE_DEFINITION_RE = re.compile(r"^\s{0,3}\[[^\]]+]:\s*(\S+)", re.MULTILINE)
 MARKDOWN_HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$", re.MULTILINE)
@@ -417,6 +425,7 @@ def verify(root: Path) -> VerificationReport:
             _check_reserved_markers(root, path, report)
 
     _check_root_agents_guardrails(root, report)
+    _check_docs_agents_guardrails(root, report)
     _check_product_source_manifest(root, report)
     _check_product_chapter_links(root, report)
     _check_api_conventions(root, report)
@@ -516,19 +525,53 @@ def _check_root_agents_guardrails(root: Path, report: VerificationReport) -> Non
     )
 
 
+def _check_docs_agents_guardrails(root: Path, report: VerificationReport) -> None:
+    path = root / "docs/AGENTS.md"
+    if not path.is_file():
+        return
+    text = _read_markdown_text(root, path, report)
+    if text is None:
+        return
+    sections = _markdown_sections(text, min_level=2)
+    _check_agents_section_guardrails(
+        report,
+        sections,
+        "registered directories",
+        "Registered Directories",
+        DOCS_AGENTS_REGISTERED_DIRECTORY_GUARDRAILS,
+        document="docs/AGENTS.md",
+        section_missing_code="docs_agents_section_missing",
+        guardrail_missing_code="docs_agents_guardrail_missing",
+    )
+    _check_agents_section_guardrails(
+        report,
+        sections,
+        "rules",
+        "Rules",
+        DOCS_AGENTS_RULE_GUARDRAILS,
+        document="docs/AGENTS.md",
+        section_missing_code="docs_agents_section_missing",
+        guardrail_missing_code="docs_agents_guardrail_missing",
+    )
+
+
 def _check_agents_section_guardrails(
     report: VerificationReport,
     sections: dict[str, str],
     section_key: str,
     section_title: str,
     guardrails: tuple[str, ...],
+    *,
+    document: str = "AGENTS.md",
+    section_missing_code: str = "root_agents_section_missing",
+    guardrail_missing_code: str = "root_agents_guardrail_missing",
 ) -> None:
     section = sections.get(section_key)
     if section is None:
         report.add_error(
-            "root_agents_section_missing",
-            f"AGENTS.md is missing required section: {section_title}",
-            "AGENTS.md",
+            section_missing_code,
+            f"{document} is missing required section: {section_title}",
+            document,
         )
         return
     normalized = _normalize_guardrail_text(section)
@@ -536,9 +579,9 @@ def _check_agents_section_guardrails(
         if guardrail in normalized:
             continue
         report.add_error(
-            "root_agents_guardrail_missing",
-            f"AGENTS.md {section_title} section must preserve guardrail: {guardrail}",
-            "AGENTS.md",
+            guardrail_missing_code,
+            f"{document} {section_title} section must preserve guardrail: {guardrail}",
+            document,
         )
 
 

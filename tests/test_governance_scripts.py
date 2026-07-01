@@ -1288,6 +1288,72 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_missing_docs_agents_registered_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            docs_agents = root / "docs/AGENTS.md"
+            docs_agents.write_text(
+                docs_agents.read_text(encoding="utf-8").replace(
+                    "- `docs/api/` - API 契约、错误码与 OpenAPI 对齐\n",
+                    "",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/AGENTS.md Registered Directories section must preserve guardrail: docs/api/",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "docs_agents_guardrail_missing",
+                    "severity": "error",
+                    "path": "docs/AGENTS.md",
+                    "message": "docs/AGENTS.md Registered Directories section must preserve guardrail: docs/api/",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_missing_docs_agents_rule_guardrail(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            docs_agents = root / "docs/AGENTS.md"
+            docs_agents.write_text(
+                docs_agents.read_text(encoding="utf-8").replace(
+                    "- Keep links relative and stable.\n",
+                    "",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/AGENTS.md Rules section must preserve guardrail: keep links relative and stable",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "docs_agents_guardrail_missing",
+                    "severity": "error",
+                    "path": "docs/AGENTS.md",
+                    "message": "docs/AGENTS.md Rules section must preserve guardrail: keep links relative and stable",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_unresolved_invalid_encoding_without_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
