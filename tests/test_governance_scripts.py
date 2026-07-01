@@ -1508,6 +1508,66 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_missing_docs_readme_domain_guardrail(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            docs_readme = root / "docs/README.md"
+            docs_readme.write_text(
+                docs_readme.read_text(encoding="utf-8").replace(
+                    "- `api/` - API 契约、错误码与 OpenAPI 对齐\n",
+                    "",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn("docs/README.md must preserve guardrail: api/", report.errors)
+            self.assertIn(
+                {
+                    "code": "docs_readme_guardrail_missing",
+                    "severity": "error",
+                    "path": "docs/README.md",
+                    "message": "docs/README.md must preserve guardrail: api/",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_missing_docs_readme_core_file_guardrail(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            docs_readme = root / "docs/README.md"
+            docs_readme.write_text(
+                docs_readme.read_text(encoding="utf-8").replace(
+                    "- `unresolved.md` - open questions and stop-the-line items\n",
+                    "",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn("docs/README.md must preserve guardrail: unresolved.md", report.errors)
+            self.assertIn(
+                {
+                    "code": "docs_readme_guardrail_missing",
+                    "severity": "error",
+                    "path": "docs/README.md",
+                    "message": "docs/README.md must preserve guardrail: unresolved.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_docs_agents_invalid_encoding_without_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

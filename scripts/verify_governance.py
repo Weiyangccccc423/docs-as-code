@@ -311,6 +311,14 @@ DOCS_AGENTS_RULE_GUARDRAILS = (
     "keep links relative and stable",
     "follow repository source-of-truth priority in root agents.md",
 )
+DOCS_README_GUARDRAILS = (
+    "documentation is managed as code",
+    "domain directories are listed below",
+    *(f"{name}/" for name in sorted(DOC_DIRS)),
+    "core cross-domain files",
+    "unresolved.md",
+    "glossary.md",
+)
 DOMAIN_AGENTS_RULE_GUARDRAILS = (
     "keep this directory focused on its declared domain",
     "update readme.md when adding or renaming documents",
@@ -502,6 +510,7 @@ def verify(root: Path) -> VerificationReport:
     _check_target_makefile(root, report)
     _check_task_handoff(root, report)
     _check_root_agents_guardrails(root, report)
+    _check_docs_readme_guardrails(root, report)
     _check_docs_agents_guardrails(root, report)
     _check_domain_agents_guardrails(root, report)
     _check_product_source_manifest(root, report)
@@ -822,6 +831,22 @@ def _check_docs_agents_guardrails(root: Path, report: VerificationReport) -> Non
         document="docs/AGENTS.md",
         section_missing_code="docs_agents_section_missing",
         guardrail_missing_code="docs_agents_guardrail_missing",
+    )
+
+
+def _check_docs_readme_guardrails(root: Path, report: VerificationReport) -> None:
+    path = root / "docs/README.md"
+    if not path.is_file():
+        return
+    text = _read_markdown_text(root, path, report)
+    if text is None:
+        return
+    _check_target_text_guardrails(
+        "docs/README.md",
+        text,
+        DOCS_README_GUARDRAILS,
+        report,
+        code="docs_readme_guardrail_missing",
     )
 
 
