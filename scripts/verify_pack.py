@@ -132,6 +132,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_workflow_pack_file_encoding(root, findings)
     _check_runtime_executable_bits(root, findings)
     _check_phase_order_docs(root, findings)
+    _check_phase_primary_skill_alignment(root, findings)
     _check_phase_workflow_sections(root, findings)
     _check_skill_frontmatter(root, findings)
     _check_skill_references(root, findings)
@@ -234,6 +235,42 @@ def _check_phase_order_docs(root: Path, findings: list[PackFinding]) -> None:
                     "pack_phase_map_mismatch",
                     "workflows/00-overview.md Phase Map must match phase workflow files",
                     "workflows/00-overview.md",
+                )
+            )
+
+
+def _check_phase_primary_skill_alignment(root: Path, findings: list[PackFinding]) -> None:
+    overview = root / "workflows/00-overview.md"
+    if not overview.is_file():
+        return
+    try:
+        overview_text = overview.read_text(encoding="utf-8")
+    except (UnicodeDecodeError, OSError):
+        return
+    phase_map = _phase_map_primary_skills(_markdown_section(overview_text, "Phase Map") or "")
+    if not phase_map:
+        return
+
+    for rel in PHASE_WORKFLOW_PATHS:
+        phase = Path(rel).name.split("-", 1)[0]
+        expected_skills = phase_map.get(phase, [])
+        if not expected_skills:
+            continue
+        path = root / rel
+        if not path.is_file():
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        workflow_skills = set(_extract_skill_tokens(_markdown_section(text, "Skills") or ""))
+        missing = [skill for skill in expected_skills if skill not in workflow_skills]
+        if missing:
+            findings.append(
+                PackFinding(
+                    "pack_phase_primary_skill_missing",
+                    f"{rel} Skills section is missing overview primary skill(s): {', '.join(missing)}",
+                    rel,
                 )
             )
 
@@ -495,6 +532,16 @@ def _phase_map_numbers(text: str) -> list[str]:
             continue
         numbers.append(cells[0])
     return numbers
+
+
+def _phase_map_primary_skills(text: str) -> dict[str, list[str]]:
+    skills_by_phase: dict[str, list[str]] = {}
+    for line in text.splitlines():
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if len(cells) < 3 or not re.fullmatch(r"[0-9]{2}", cells[0]):
+            continue
+        skills_by_phase[cells[0]] = _extract_skill_tokens(cells[2])
+    return skills_by_phase
 
 
 def _extract_skill_tokens(text: str) -> list[str]:
