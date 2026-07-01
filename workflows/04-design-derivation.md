@@ -12,6 +12,7 @@
 Load according to the design track:
 
 - System architecture: `designing-system-architecture`
+- UI interaction model: `designing-ui-interactions`
 - API contract: `designing-api-contracts`
 - Backend modules: `designing-backend-modules`
 - Data model: `designing-data-models`

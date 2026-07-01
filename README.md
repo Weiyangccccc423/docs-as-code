@@ -67,6 +67,7 @@ Create reliable project governance before implementation starts:
 - `skills/archiving-product-document/SKILL.md`: product source preservation and import.
 - `skills/structuring-product-requirements/SKILL.md`: product chapter and acceptance structuring.
 - `skills/designing-system-architecture/SKILL.md`: system architecture derivation.
+- `skills/designing-ui-interactions/SKILL.md`: UI interaction model, flow, state, error, and accessibility design.
 - `skills/designing-api-contracts/SKILL.md`: API contract derivation.
 - `skills/designing-backend-modules/SKILL.md`: backend module design.
 - `skills/designing-data-models/SKILL.md`: persistence and lifecycle design.

@@ -1028,8 +1028,9 @@ class PackStructureTest(unittest.TestCase):
             router = target / "skills/using-governance-workflow/SKILL.md"
             router.write_text(
                 router.read_text(encoding="utf-8").replace(
-                    "`designing-system-architecture`, then `designing-api-contracts`",
-                    "`designing-system-architecture`",
+                    "`designing-system-architecture`, then `designing-ui-interactions`, "
+                    "then `designing-api-contracts`, then `designing-frontend-modules` when frontend docs are in scope",
+                    "`designing-system-architecture`, then `designing-ui-interactions`",
                     1,
                 ),
                 encoding="utf-8",
@@ -1964,6 +1965,7 @@ class PackStructureTest(unittest.TestCase):
             "archiving-product-document",
             "structuring-product-requirements",
             "designing-system-architecture",
+            "designing-ui-interactions",
             "designing-api-contracts",
             "designing-backend-modules",
             "designing-data-models",
