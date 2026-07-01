@@ -83,6 +83,14 @@ TEMPLATE_REQUIRED_GUARDRAILS = {
         "- Backward compatibility expectations, versioning policy, and downstream consumer impact.",
         "- Link unresolved API contract decisions or ADR candidates.",
     ),
+    "templates/docs/api/changelog.md": (
+        "# API Changelog",
+        "| Date | Change | Source | Compatibility Impact |",
+        "Initial API contract baseline.",
+        "Record downstream frontend, backend, test, and client impact.",
+        "- Record backward-compatible additions, breaking changes, migrations, deprecations, and consumer coordination requirements.",
+        "- Link each contract-changing entry to local product, API, architecture, implementation, or ADR sources.",
+    ),
     "templates/docs/api/error-codes.md": (
         "# API Error Codes",
         "- Product scope source",
@@ -188,6 +196,10 @@ TEMPLATE_REQUIRED_SECTIONS = {
         "Idempotency",
         "Compatibility",
         "Open Decisions",
+    ),
+    "templates/docs/api/changelog.md": (
+        "Change Log",
+        "Compatibility Notes",
     ),
     "templates/docs/api/error-codes.md": (
         "Product Links",
