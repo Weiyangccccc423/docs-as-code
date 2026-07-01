@@ -14,7 +14,7 @@ Use this as the router skill for the workflow pack.
 | Empty folder or missing root governance | `initializing-governance-repo` |
 | Source product document needs import | `archiving-product-document` |
 | PRD exists but product chapters are missing | `structuring-product-requirements` |
-| Product is structured and design is needed | `designing-system-architecture`, then `designing-ui-interactions`, then `designing-api-contracts`, then `designing-frontend-modules` when frontend docs are in scope |
+| Product is structured and design is needed | `designing-system-architecture`, then `designing-ui-interactions`, then `designing-api-contracts`, then `designing-frontend-modules` when frontend docs are in scope, then `designing-test-strategy` |
 | Any phase claims completion | `verifying-governance-docs` |
 
 ## Environment Preflight

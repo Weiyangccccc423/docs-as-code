@@ -68,6 +68,7 @@ WORKFLOW_PACK_REQUIRED_PATHS = (
     "skills/designing-data-models/SKILL.md",
     "skills/designing-frontend-modules/SKILL.md",
     "skills/designing-system-architecture/SKILL.md",
+    "skills/designing-test-strategy/SKILL.md",
     "skills/designing-ui-interactions/SKILL.md",
     "skills/initializing-governance-repo/SKILL.md",
     "skills/structuring-product-requirements/SKILL.md",

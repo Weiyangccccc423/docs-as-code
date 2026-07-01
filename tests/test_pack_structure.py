@@ -1970,6 +1970,7 @@ class PackStructureTest(unittest.TestCase):
             "designing-backend-modules",
             "designing-data-models",
             "designing-frontend-modules",
+            "designing-test-strategy",
             "capturing-architecture-decisions",
             "verifying-governance-docs",
         ]
