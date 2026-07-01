@@ -1372,6 +1372,68 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_missing_governance_state_last_gate_after_advance(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            advance = phases_module.advance_phase(root, "product-structuring")
+            self.assertTrue(advance.ok)
+
+            state_path = root / ".governance/state.json"
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            state.pop("last_gate")
+            state_path.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
+
+            report = verify(root)
+
+            self.assertIn(
+                "governance state last_gate is required after phase product-structuring",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "state_phase_last_gate_missing",
+                    "severity": "error",
+                    "path": ".governance/state.json",
+                    "message": "governance state last_gate is required after phase product-structuring",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_governance_state_last_gate_name_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            advance = phases_module.advance_phase(root, "product-structuring")
+            self.assertTrue(advance.ok)
+
+            state_path = root / ".governance/state.json"
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            state["last_gate"]["name"] = "initialized"
+            state_path.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
+
+            report = verify(root)
+
+            self.assertIn(
+                "governance state last_gate name initialized must match current phase product-structuring",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "state_phase_last_gate_name_mismatch",
+                    "severity": "error",
+                    "path": ".governance/state.json",
+                    "message": (
+                        "governance state last_gate name initialized must match current phase product-structuring"
+                    ),
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_missing_target_makefile(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

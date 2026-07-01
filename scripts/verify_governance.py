@@ -673,6 +673,7 @@ def _check_governance_state(root: Path, report: VerificationReport) -> None:
     expected_from_phase = "initialized"
     previous_index = WORKFLOW_PHASE_ORDER.index(expected_from_phase)
     latest_phase = ""
+    latest_history_item: dict[str, object] | None = None
     for item in history:
         if not isinstance(item, dict):
             report.add_error(
@@ -725,6 +726,7 @@ def _check_governance_state(root: Path, report: VerificationReport) -> None:
             return
         previous_index = item_index
         latest_phase = item_phase
+        latest_history_item = item
         expected_from_phase = item_phase
 
     if phase_is_valid and latest_phase and latest_phase != phase:
@@ -733,6 +735,50 @@ def _check_governance_state(root: Path, report: VerificationReport) -> None:
             f"governance state current phase {phase} must match latest phase_history phase {latest_phase}",
             rel,
         )
+        return
+
+    if phase_is_valid and phase != "initialized":
+        last_gate = state.get("last_gate")
+        if last_gate is None:
+            report.add_error(
+                "state_phase_last_gate_missing",
+                f"governance state last_gate is required after phase {phase}",
+                rel,
+            )
+            return
+        if not isinstance(last_gate, dict):
+            report.add_error("state_phase_last_gate_invalid", "governance state last_gate must be an object", rel)
+            return
+        gate_name = last_gate.get("name")
+        if gate_name != phase:
+            report.add_error(
+                "state_phase_last_gate_name_mismatch",
+                f"governance state last_gate name {gate_name} must match current phase {phase}",
+                rel,
+            )
+            return
+        if last_gate.get("ok") is not True:
+            report.add_error(
+                "state_phase_last_gate_not_ok",
+                f"governance state last_gate for phase {phase} must have ok: true",
+                rel,
+            )
+            return
+        checked_at = last_gate.get("checked_at")
+        if not isinstance(checked_at, str) or not checked_at:
+            report.add_error(
+                "state_phase_last_gate_checked_at_missing",
+                f"governance state last_gate for phase {phase} must include checked_at",
+                rel,
+            )
+            return
+        latest_advanced_at = latest_history_item.get("advanced_at") if latest_history_item else None
+        if isinstance(latest_advanced_at, str) and latest_advanced_at and checked_at != latest_advanced_at:
+            report.add_error(
+                "state_phase_last_gate_checked_at_mismatch",
+                "governance state last_gate checked_at must match latest phase_history advanced_at",
+                rel,
+            )
 
 
 def _check_reserved_markers(root: Path, path: Path, report: VerificationReport) -> None:
