@@ -85,6 +85,36 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_phase_workflow_heading_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            workflow = target / "workflows/03-product-structuring.md"
+            workflow.write_text(
+                workflow.read_text(encoding="utf-8").replace(
+                    "# Phase 03: Product Structuring",
+                    "# Phase 04: Product Structuring",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_workflow_phase_heading_mismatch"
+                    and finding.path == "workflows/03-product-structuring.md"
+                    and "Phase 03" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_phase_workflow_section_order_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"

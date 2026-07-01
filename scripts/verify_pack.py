@@ -300,6 +300,16 @@ def _check_phase_workflow_sections(root: Path, findings: list[PackFinding]) -> N
                 )
             )
             continue
+        expected_heading_prefix = f"Phase {Path(rel).name.split('-', 1)[0]}:"
+        heading_match = re.search(r"(?m)^#\s+(.+?)\s*$", text)
+        if heading_match is None or not heading_match.group(1).strip().startswith(expected_heading_prefix):
+            findings.append(
+                PackFinding(
+                    "pack_workflow_phase_heading_mismatch",
+                    f"workflow phase H1 must start with '{expected_heading_prefix}': {rel}",
+                    rel,
+                )
+            )
         ordered_sections = [_normalize_heading(match) for match in re.findall(r"(?m)^##\s+(.+?)\s*$", text)]
         sections = set(ordered_sections)
         for section in PHASE_WORKFLOW_REQUIRED_SECTIONS:
