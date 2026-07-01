@@ -81,6 +81,13 @@ AGENTS_BASELINE_REQUIRED_PHRASES = (
     "commit after each coherent change",
     "future workflow behavior is traceable",
 )
+AGENTS_EDITING_REQUIRED_PHRASES = (
+    "skills/ concise and trigger-focused",
+    "deterministic behavior in scripts/",
+    "generated repository examples in templates/",
+    "phase procedures in workflows/",
+    "tests before changing script behavior",
+)
 SOURCE_PACK_REQUIRED_PATHS = tuple(
     dict.fromkeys(
         (
@@ -304,6 +311,17 @@ def _check_agents_guardrails(root: Path, findings: list[PackFinding]) -> None:
             PackFinding(
                 "pack_agents_purpose_guardrail_missing",
                 f"AGENTS.md Purpose section must preserve guardrail: {phrase}",
+                "AGENTS.md",
+            )
+        )
+    editing_rules = _normalized_prose(_markdown_section(text, "Editing Rules") or "")
+    for phrase in AGENTS_EDITING_REQUIRED_PHRASES:
+        if phrase in editing_rules:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_agents_editing_rule_missing",
+                f"AGENTS.md Editing Rules section must preserve guardrail: {phrase}",
                 "AGENTS.md",
             )
         )
@@ -900,7 +918,7 @@ def _normalize_heading(value: str) -> str:
 
 
 def _normalized_prose(value: str) -> str:
-    return re.sub(r"\s+", " ", value.strip().lower())
+    return re.sub(r"\s+", " ", value.replace("`", "").strip().lower())
 
 
 def _slug_from_heading(value: str) -> str:
