@@ -35,6 +35,7 @@ Create reliable project governance before implementation starts:
 - `templates/docs/decisions/ADR-template.md`: ADR shape for architecture decisions.
 - `templates/docs/development/02-task-board.md`: implementation task board shape.
 - `templates/docs/development/03-verification-log.md`: completion evidence log shape for Done tasks.
+- `templates/docs/tests/02-acceptance-matrix.md`: acceptance traceability matrix shape.
 
 ## Reference Files
 

@@ -93,6 +93,13 @@ TEMPLATE_REQUIRED_GUARDRAILS = {
         "- Link local evidence artifacts or summarize relevant command output here.",
         "- none",
     ),
+    "templates/docs/tests/02-acceptance-matrix.md": (
+        "# Acceptance Matrix",
+        "| Acceptance | Design | API | Test |",
+        "A-NNN acceptance source",
+        "endpoint contract source",
+        "- A-NNN deferred or uncovered reason",
+    ),
 }
 TEMPLATE_REQUIRED_SECTIONS = {
     "templates/root/README.md": (
@@ -122,6 +129,10 @@ TEMPLATE_REQUIRED_SECTIONS = {
         "Verification Runs",
         "Artifacts",
         "Open Follow-ups",
+    ),
+    "templates/docs/tests/02-acceptance-matrix.md": (
+        "Matrix",
+        "Uncovered Criteria",
     ),
 }
 README_PACKAGE_LAYOUT_DIRECTORIES = (
