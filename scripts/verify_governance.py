@@ -90,6 +90,7 @@ WORKFLOW_PACK_REQUIRED_PATHS = (
     "templates/docs/product/core/PRD.md",
     "templates/docs/tests/01-strategy.md",
     "templates/docs/tests/02-acceptance-matrix.md",
+    "templates/docs/ui/01-interaction-model.md",
     "templates/root/README.md",
     "workflows/00-overview.md",
     "workflows/01-empty-repo-initialization.md",

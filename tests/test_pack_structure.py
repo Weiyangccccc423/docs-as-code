@@ -1793,6 +1793,36 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_ui_interaction_model_template_guardrail_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            template = target / "templates/docs/ui/01-interaction-model.md"
+            template.write_text(
+                template.read_text(encoding="utf-8").replace(
+                    "- Map user-visible errors to API error codes, recovery actions, and acceptance criteria.\n",
+                    "",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_template_guardrail_missing"
+                    and finding.path == "templates/docs/ui/01-interaction-model.md"
+                    and "API error codes" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_skill_heading_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
@@ -1860,6 +1890,7 @@ class PackStructureTest(unittest.TestCase):
             "templates/docs/development/03-verification-log.md",
             "templates/docs/tests/01-strategy.md",
             "templates/docs/tests/02-acceptance-matrix.md",
+            "templates/docs/ui/01-interaction-model.md",
         ]
         missing = [path for path in required if not (ROOT / path).exists()]
         self.assertEqual([], missing)

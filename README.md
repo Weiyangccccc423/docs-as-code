@@ -49,6 +49,7 @@ Create reliable project governance before implementation starts:
 - `templates/docs/development/03-verification-log.md`: completion evidence log shape for Done tasks.
 - `templates/docs/tests/01-strategy.md`: test strategy and quality baseline shape.
 - `templates/docs/tests/02-acceptance-matrix.md`: acceptance traceability matrix shape.
+- `templates/docs/ui/01-interaction-model.md`: UI flows, states, errors, and accessibility shape.
 
 ## Reference Files
 

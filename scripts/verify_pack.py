@@ -242,6 +242,17 @@ TEMPLATE_REQUIRED_GUARDRAILS = {
         "endpoint contract source",
         "- A-NNN deferred or uncovered reason",
     ),
+    "templates/docs/ui/01-interaction-model.md": (
+        "# Interaction Model",
+        "- Product scope source",
+        "- Acceptance criteria source",
+        "- API endpoint source",
+        "| Flow | Actor | Trigger | Success Path | Source |",
+        "| Screen | Purpose | Entry Flow | Exit or Next Step | Source |",
+        "- Loading, empty, success, disabled, permission, and error states for each primary flow.",
+        "- Map user-visible errors to API error codes, recovery actions, and acceptance criteria.",
+        "- Keyboard navigation, focus order, labels, contrast, and screen reader expectations tied to product flows.",
+    ),
 }
 TEMPLATE_REQUIRED_SECTIONS = {
     "templates/root/README.md": (
@@ -371,6 +382,14 @@ TEMPLATE_REQUIRED_SECTIONS = {
     "templates/docs/tests/02-acceptance-matrix.md": (
         "Matrix",
         "Uncovered Criteria",
+    ),
+    "templates/docs/ui/01-interaction-model.md": (
+        "Product Links",
+        "Primary Flows",
+        "Screens",
+        "States",
+        "Errors",
+        "Accessibility",
     ),
 }
 README_PACKAGE_LAYOUT_DIRECTORIES = (
