@@ -44,6 +44,46 @@ TEMPLATE_ENTRY_RESOURCE_PATHS = (
     "skills",
     "references",
 )
+TEMPLATE_REQUIRED_GUARDRAILS = {
+    "templates/root/README.md": (
+        "# Project Name",
+        "One-sentence project summary.",
+        "- Product source: `docs/product/core/PRD.md`",
+        "- Documentation index: `docs/README.md`",
+        "- Governance rules: `AGENTS.md`",
+        "- Open questions: `docs/unresolved.md`",
+        "make verify-governance",
+    ),
+    "templates/docs/product/core/PRD.md": (
+        "# Product Requirements Document",
+        "Replace this file with the archived and converted product source.",
+        "- Original file:",
+        "- Import date:",
+        "- Conversion method:",
+        "- Review status:",
+    ),
+    "templates/docs/decisions/ADR-template.md": (
+        "# ADR-NNN: Title",
+        "- Status: proposed",
+        "- Date: YYYY-MM-DD",
+        "- Related modules: TBD",
+    ),
+}
+TEMPLATE_REQUIRED_SECTIONS = {
+    "templates/root/README.md": (
+        "Start Here",
+        "Development",
+    ),
+    "templates/docs/product/core/PRD.md": (
+        "Source",
+    ),
+    "templates/docs/decisions/ADR-template.md": (
+        "Context",
+        "Decision",
+        "Consequences",
+        "References",
+    ),
+}
 README_PACKAGE_LAYOUT_DIRECTORIES = (
     "bin",
     "scripts",
@@ -272,6 +312,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_reference_index_docs(root, findings)
     _check_template_entry_points(root, findings)
     _check_template_index_docs(root, findings)
+    _check_template_guardrails(root, findings)
     _check_workflow_pack_file_list(root, findings)
     return PackReport(str(root), findings)
 
@@ -1031,6 +1072,37 @@ def _check_template_index_docs(root: Path, findings: list[PackFinding]) -> None:
                 "README.md",
             )
         )
+
+
+def _check_template_guardrails(root: Path, findings: list[PackFinding]) -> None:
+    for rel in sorted(set(TEMPLATE_REQUIRED_GUARDRAILS) | set(TEMPLATE_REQUIRED_SECTIONS)):
+        path = root / rel
+        if not path.is_file():
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        for guardrail in TEMPLATE_REQUIRED_GUARDRAILS.get(rel, ()):
+            if guardrail in text:
+                continue
+            findings.append(
+                PackFinding(
+                    "pack_template_guardrail_missing",
+                    f"{rel} template must preserve guardrail: {guardrail}",
+                    rel,
+                )
+            )
+        for section in TEMPLATE_REQUIRED_SECTIONS.get(rel, ()):
+            if _markdown_section(text, section) is not None:
+                continue
+            findings.append(
+                PackFinding(
+                    "pack_template_section_missing",
+                    f"{rel} template must include section: {section}",
+                    rel,
+                )
+            )
 
 
 def _check_skill_frontmatter(root: Path, findings: list[PackFinding]) -> None:
