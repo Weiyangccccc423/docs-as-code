@@ -531,10 +531,24 @@ def _check_single_skill_frontmatter(
                 rel,
             )
         )
+    heading_match = re.search(r"(?m)^#\s+(.+?)\s*$", text)
+    heading_slug = _slug_from_heading(heading_match.group(1)) if heading_match else ""
+    if heading_slug != skill_name:
+        findings.append(
+            PackFinding(
+                "pack_skill_heading_mismatch",
+                f"skill H1 must match skill name: {rel}",
+                rel,
+            )
+        )
 
 
 def _normalize_heading(value: str) -> str:
     return re.sub(r"\s+", " ", value.strip().lower())
+
+
+def _slug_from_heading(value: str) -> str:
+    return "-".join(re.findall(r"[a-z0-9]+", value.lower()))
 
 
 def _available_skill_names(root: Path) -> set[str]:

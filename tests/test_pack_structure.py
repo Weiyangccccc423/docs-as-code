@@ -430,6 +430,35 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_skill_heading_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            skill = target / "skills/designing-api-contracts/SKILL.md"
+            skill.write_text(
+                skill.read_text(encoding="utf-8").replace(
+                    "# Designing API Contracts",
+                    "# Designing Backend Modules",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_skill_heading_mismatch"
+                    and finding.path == "skills/designing-api-contracts/SKILL.md"
+                    for finding in report.findings
+                )
+            )
+
     def test_makefile_verify_pack_runs_pack_verifier(self) -> None:
         text = (ROOT / "Makefile").read_text(encoding="utf-8")
         self.assertRegex(text, r"(?m)^\tpython3 scripts/verify_pack\.py$")
