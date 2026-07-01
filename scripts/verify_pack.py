@@ -79,6 +79,11 @@ MAKEFILE_REQUIRED_TARGET_RECIPES = {
         "python3 scripts/check_env.py",
     ),
 }
+RUNTIME_WRAPPER_REQUIRED_COMMANDS = {
+    "bin/governance": 'python3 "$ROOT_DIR/scripts/governance_cli.py" "$@"',
+    "bin/governance-init": 'python3 "$ROOT_DIR/scripts/governance_cli.py" init "$@"',
+    "bin/governance-verify": 'python3 "$ROOT_DIR/scripts/governance_cli.py" verify "$@"',
+}
 VERIFICATION_COMMAND_DOC_PATHS = (
     "README.md",
     "AGENTS.md",
@@ -224,6 +229,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_agents_guardrails(root, findings)
     _check_workflow_pack_file_encoding(root, findings)
     _check_runtime_executable_bits(root, findings)
+    _check_runtime_wrapper_commands(root, findings)
     _check_readme_package_layout(root, findings)
     _check_readme_quick_start(root, findings)
     _check_phase_order_docs(root, findings)
@@ -423,7 +429,27 @@ def _check_runtime_executable_bits(root: Path, findings: list[PackFinding]) -> N
                 f"runtime wrapper is not executable: {rel}",
                 rel,
             )
+        )
+
+
+def _check_runtime_wrapper_commands(root: Path, findings: list[PackFinding]) -> None:
+    for rel, command in RUNTIME_WRAPPER_REQUIRED_COMMANDS.items():
+        path = root / rel
+        if not path.is_file():
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        if command in text:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_runtime_wrapper_command_mismatch",
+                f"runtime wrapper must invoke expected command: {command}",
+                rel,
             )
+        )
 
 
 def _check_readme_package_layout(root: Path, findings: list[PackFinding]) -> None:

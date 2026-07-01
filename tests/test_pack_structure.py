@@ -622,6 +622,36 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_runtime_wrapper_command_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            wrapper = target / "bin/governance-verify"
+            wrapper.write_text(
+                wrapper.read_text(encoding="utf-8").replace(
+                    'python3 "$ROOT_DIR/scripts/governance_cli.py" verify "$@"',
+                    'python3 "$ROOT_DIR/scripts/governance_cli.py" status "$@"',
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_runtime_wrapper_command_mismatch"
+                    and finding.path == "bin/governance-verify"
+                    and "governance_cli.py\" verify" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_invalid_workflow_pack_file_encoding(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
