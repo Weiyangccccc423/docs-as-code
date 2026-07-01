@@ -78,6 +78,15 @@ TEMPLATE_REQUIRED_GUARDRAILS = {
         "- Date: YYYY-MM-DD",
         "- Related modules: TBD",
     ),
+    "templates/docs/development/02-task-board.md": (
+        "# Task Board",
+        "| ID | Status | Task | Product | Design | API | Acceptance | Verification |",
+        "TASK-NNN",
+        "Allowed statuses: Backlog, Ready, In Progress, Blocked, Done, Deferred.",
+        "Product, Design, API, and Acceptance cells must reference existing local Markdown sources.",
+        "Ready tasks must have Product, Design, API, Acceptance, and Verification fields filled.",
+        "Done tasks must link Verification to local Markdown evidence.",
+    ),
     "templates/docs/development/03-verification-log.md": (
         "# Verification Log",
         "| Task | Command | Result | Date | Notes |",
@@ -103,6 +112,11 @@ TEMPLATE_REQUIRED_SECTIONS = {
         "Decision",
         "Consequences",
         "References",
+    ),
+    "templates/docs/development/02-task-board.md": (
+        "Task Table",
+        "Status Policy",
+        "Traceability Rules",
     ),
     "templates/docs/development/03-verification-log.md": (
         "Verification Runs",

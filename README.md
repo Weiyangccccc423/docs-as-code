@@ -33,6 +33,7 @@ Create reliable project governance before implementation starts:
 - `templates/docs/product/core/PRD.md`: PRD placeholder shape before product source conversion is reviewed.
 - `templates/docs/agent-workflow/task-handoff.md`: agent task handoff and completion criteria shape.
 - `templates/docs/decisions/ADR-template.md`: ADR shape for architecture decisions.
+- `templates/docs/development/02-task-board.md`: implementation task board shape.
 - `templates/docs/development/03-verification-log.md`: completion evidence log shape for Done tasks.
 
 ## Reference Files
