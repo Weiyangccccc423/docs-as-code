@@ -90,6 +90,16 @@ TEMPLATE_REQUIRED_GUARDRAILS = {
         "Map each container to owned data, shared data, and integration boundaries.",
         "- Link ADR candidates or unresolved container-boundary questions.",
     ),
+    "templates/docs/architecture/03-quality-attributes.md": (
+        "# Quality Attributes",
+        "- Containers source",
+        "- Acceptance criteria source",
+        "- Availability target, failure budget, and recovery expectation",
+        "- Latency, throughput, concurrency, or resource constraints tied to product expectations",
+        "- Authentication, authorization, data protection, and abuse-case expectations",
+        "- Logs, metrics, traces, audit events, and alerting expectations",
+        "- Explicit quality tradeoffs, deferred constraints, and ADR candidates",
+    ),
     "templates/docs/decisions/ADR-template.md": (
         "# ADR-NNN: Title",
         "- Status: proposed",
@@ -162,6 +172,14 @@ TEMPLATE_REQUIRED_SECTIONS = {
         "Runtime Responsibilities",
         "Data Ownership",
         "Open Decisions",
+    ),
+    "templates/docs/architecture/03-quality-attributes.md": (
+        "Product Links",
+        "Availability",
+        "Performance",
+        "Security",
+        "Observability",
+        "Tradeoffs",
     ),
     "templates/docs/decisions/ADR-template.md": (
         "Context",
