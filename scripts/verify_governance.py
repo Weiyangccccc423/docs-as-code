@@ -285,6 +285,24 @@ TASK_BOARD_DONE_STATUSES = {"done"}
 TASK_BOARD_BLOCKED_STATUSES = {"blocked"}
 TASK_BOARD_EMPTY_VALUES = {"", "-", "tbd", "todo", "n/a", "na", "none"}
 SECTION_PLACEHOLDER_VALUES = {"", "-", "tbd", "todo", "n/a", "na"}
+ROOT_AGENTS_SOURCE_OF_TRUTH_GUARDRAILS = (
+    "docs/product/core/prd.md",
+    "docs/product/core/product-meta.md",
+    "docs/product/nn-*.md",
+    "docs/api/",
+    "docs/architecture/",
+    "docs/ui/",
+    "docs/backend/",
+    "docs/frontend/",
+    "docs/tests/",
+    "docs/development/",
+)
+ROOT_AGENTS_AGENT_RULE_GUARDRAILS = (
+    "read docs/development/readme.md before implementation planning",
+    "register unresolved product, api, db, or cross-module questions in docs/unresolved.md and ask",
+    "do not silently modify upstream product meaning",
+    "traceable to specs",
+)
 MARKDOWN_LINK_RE = re.compile(r"(?<!!)\[[^\]]*]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 MARKDOWN_REFERENCE_DEFINITION_RE = re.compile(r"^\s{0,3}\[[^\]]+]:\s*(\S+)", re.MULTILINE)
 MARKDOWN_HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$", re.MULTILINE)
@@ -398,6 +416,7 @@ def verify(root: Path) -> VerificationReport:
         if path.is_file():
             _check_reserved_markers(root, path, report)
 
+    _check_root_agents_guardrails(root, report)
     _check_product_source_manifest(root, report)
     _check_product_chapter_links(root, report)
     _check_api_conventions(root, report)
@@ -471,6 +490,63 @@ def _check_reserved_markers(root: Path, path: Path, report: VerificationReport) 
             target = root / "docs" / name
             if target.exists() and target.is_dir() and not _is_effectively_empty(target):
                 report.add_error("reserved_marker_stale", f"reserved marker references non-empty docs/{name}", f"docs/{name}")
+
+
+def _check_root_agents_guardrails(root: Path, report: VerificationReport) -> None:
+    path = root / "AGENTS.md"
+    if not path.is_file():
+        return
+    text = _read_markdown_text(root, path, report)
+    if text is None:
+        return
+    sections = _markdown_sections(text, min_level=2)
+    _check_agents_section_guardrails(
+        report,
+        sections,
+        "source-of-truth priority",
+        "Source-of-Truth Priority",
+        ROOT_AGENTS_SOURCE_OF_TRUTH_GUARDRAILS,
+    )
+    _check_agents_section_guardrails(
+        report,
+        sections,
+        "agent rules",
+        "Agent Rules",
+        ROOT_AGENTS_AGENT_RULE_GUARDRAILS,
+    )
+
+
+def _check_agents_section_guardrails(
+    report: VerificationReport,
+    sections: dict[str, str],
+    section_key: str,
+    section_title: str,
+    guardrails: tuple[str, ...],
+) -> None:
+    section = sections.get(section_key)
+    if section is None:
+        report.add_error(
+            "root_agents_section_missing",
+            f"AGENTS.md is missing required section: {section_title}",
+            "AGENTS.md",
+        )
+        return
+    normalized = _normalize_guardrail_text(section)
+    for guardrail in guardrails:
+        if guardrail in normalized:
+            continue
+        report.add_error(
+            "root_agents_guardrail_missing",
+            f"AGENTS.md {section_title} section must preserve guardrail: {guardrail}",
+            "AGENTS.md",
+        )
+
+
+def _normalize_guardrail_text(text: str) -> str:
+    text = _strip_fenced_markdown_code(text)
+    text = re.sub(r"\[([^\]]*)]\(([^)]*)\)", r"\1 \2", text)
+    text = text.replace("`", "")
+    return re.sub(r"\s+", " ", text.strip().lower())
 
 
 def _check_product_source_manifest(root: Path, report: VerificationReport) -> None:
@@ -3188,9 +3264,13 @@ def _resolve_local_markdown_reference(root: Path, source_path: Path, target: str
 
 
 def _strip_markdown_code(text: str) -> str:
-    text = re.sub(r"(?s)```.*?```", "", text)
-    text = re.sub(r"(?s)~~~.*?~~~", "", text)
+    text = _strip_fenced_markdown_code(text)
     return re.sub(r"`[^`\n]*`", "", text)
+
+
+def _strip_fenced_markdown_code(text: str) -> str:
+    text = re.sub(r"(?s)```.*?```", "", text)
+    return re.sub(r"(?s)~~~.*?~~~", "", text)
 
 
 def _plain_cell_label(value: str) -> str:

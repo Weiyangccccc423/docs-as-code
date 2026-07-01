@@ -1255,6 +1255,39 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_missing_root_agents_guardrail(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            agents = root / "AGENTS.md"
+            agents.write_text(
+                agents.read_text(encoding="utf-8").replace(
+                    "- Do not silently modify upstream product meaning in derived documents.\n",
+                    "",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "AGENTS.md Agent Rules section must preserve guardrail: do not silently modify upstream product meaning",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "root_agents_guardrail_missing",
+                    "severity": "error",
+                    "path": "AGENTS.md",
+                    "message": "AGENTS.md Agent Rules section must preserve guardrail: do not silently modify upstream product meaning",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_unresolved_invalid_encoding_without_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
