@@ -67,6 +67,7 @@ SOURCE_PACK_REQUIRED_PATHS = tuple(
 IGNORED_PACK_FILE_NAMES = {".DS_Store", "manifest.json"}
 MARKDOWN_LINK_RE = re.compile(r"(?<!!)\[[^\]]*]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 MARKDOWN_REFERENCE_DEFINITION_RE = re.compile(r"^\s{0,3}\[[^\]]+]:\s*(\S+)", re.MULTILINE)
+README_INDEX_ENTRY_RE = re.compile(r"^\s*-\s+`([^`\n]+)`(?P<trailing>[^\n]*)$")
 SKILL_NAME_RE = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)+$")
 PHASE_WORKFLOW_PATHS = (
     "workflows/01-empty-repo-initialization.md",
@@ -544,9 +545,10 @@ def _check_reference_index_docs(root: Path, findings: list[PackFinding]) -> None
         text = readme.read_text(encoding="utf-8")
     except (UnicodeDecodeError, OSError):
         return
-    reference_index = set(_backticked_values(_markdown_section(text, "Reference Files") or ""))
-    reference_index = {path for path in reference_index if path.startswith("references/") and path.endswith(".md")}
+    section = _markdown_section(text, "Reference Files") or ""
+    reference_index, missing_descriptions = _readme_index_entries(section, "references/", ".md")
     references = {path.relative_to(root).as_posix() for path in _iter_reference_files(root)}
+    _check_readme_index_entry_descriptions("Reference Files", missing_descriptions, findings)
     for rel in sorted(references - reference_index):
         findings.append(
             PackFinding(
@@ -573,9 +575,10 @@ def _check_template_index_docs(root: Path, findings: list[PackFinding]) -> None:
         text = readme.read_text(encoding="utf-8")
     except (UnicodeDecodeError, OSError):
         return
-    template_index = set(_backticked_values(_markdown_section(text, "Template Files") or ""))
-    template_index = {path for path in template_index if path.startswith("templates/") and path.endswith(".md")}
+    section = _markdown_section(text, "Template Files") or ""
+    template_index, missing_descriptions = _readme_index_entries(section, "templates/", ".md")
     templates = {path.relative_to(root).as_posix() for path in _iter_template_files(root)}
+    _check_readme_index_entry_descriptions("Template Files", missing_descriptions, findings)
     for rel in sorted(templates - template_index):
         findings.append(
             PackFinding(
@@ -650,9 +653,10 @@ def _check_skill_index_docs(root: Path, findings: list[PackFinding]) -> None:
         text = readme.read_text(encoding="utf-8")
     except (UnicodeDecodeError, OSError):
         return
-    skill_index = set(_backticked_values(_markdown_section(text, "Skill Files") or ""))
-    skill_index = {path for path in skill_index if path.startswith("skills/") and path.endswith("/SKILL.md")}
+    section = _markdown_section(text, "Skill Files") or ""
+    skill_index, missing_descriptions = _readme_index_entries(section, "skills/", "/SKILL.md")
     skills = {path.relative_to(root).as_posix() for path in _iter_skill_files(root)}
+    _check_readme_index_entry_descriptions("Skill Files", missing_descriptions, findings)
     for rel in sorted(skills - skill_index):
         findings.append(
             PackFinding(
@@ -775,8 +779,35 @@ def _ordered_numbered_backticked_values(text: str) -> list[str]:
     return values
 
 
-def _backticked_values(text: str) -> list[str]:
-    return [token.strip() for token in re.findall(r"`([^`\n]+)`", _strip_fenced_markdown_code(text))]
+def _readme_index_entries(text: str, prefix: str, suffix: str) -> tuple[set[str], set[str]]:
+    entries: set[str] = set()
+    missing_descriptions: set[str] = set()
+    for line in _strip_fenced_markdown_code(text).splitlines():
+        match = README_INDEX_ENTRY_RE.match(line)
+        if match is None:
+            continue
+        rel = match.group(1).strip()
+        if not rel.startswith(prefix) or not rel.endswith(suffix):
+            continue
+        entries.add(rel)
+        if not re.match(r"\s*:\s*\S", match.group("trailing")):
+            missing_descriptions.add(rel)
+    return entries, missing_descriptions
+
+
+def _check_readme_index_entry_descriptions(
+    section: str,
+    missing_descriptions: set[str],
+    findings: list[PackFinding],
+) -> None:
+    for rel in sorted(missing_descriptions):
+        findings.append(
+            PackFinding(
+                "pack_index_entry_description_missing",
+                f"README.md {section} entry must include a purpose after ':': {rel}",
+                "README.md",
+            )
+        )
 
 
 def _package_layout_directories(text: str) -> set[str]:
