@@ -987,6 +987,36 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_phase_primary_skill_order_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            overview = target / "workflows/00-overview.md"
+            overview.write_text(
+                overview.read_text(encoding="utf-8").replace(
+                    "`designing-api-contracts`, `designing-backend-modules`",
+                    "`designing-backend-modules`, `designing-api-contracts`",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_phase_primary_skill_order_mismatch"
+                    and finding.path == "workflows/00-overview.md"
+                    and "04" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_phase_map_missing_primary_skill(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
@@ -1043,6 +1073,36 @@ class PackStructureTest(unittest.TestCase):
                     finding.code == "pack_router_primary_skill_missing"
                     and finding.path == "skills/using-governance-workflow/SKILL.md"
                     and "designing-api-contracts" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_router_primary_skill_order_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            router = target / "skills/using-governance-workflow/SKILL.md"
+            router.write_text(
+                router.read_text(encoding="utf-8").replace(
+                    "`designing-api-contracts`, then `designing-backend-modules`",
+                    "`designing-backend-modules`, then `designing-api-contracts`",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_router_primary_skill_order_mismatch"
+                    and finding.path == "skills/using-governance-workflow/SKILL.md"
+                    and "04" in finding.message
                     for finding in report.findings
                 )
             )

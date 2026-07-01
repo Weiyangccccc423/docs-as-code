@@ -1144,14 +1144,23 @@ def _check_phase_primary_skill_alignment(root: Path, findings: list[PackFinding]
             text = path.read_text(encoding="utf-8")
         except (UnicodeDecodeError, OSError):
             continue
-        workflow_skills = set(_extract_skill_tokens(_markdown_section(text, "Skills") or ""))
-        missing = [skill for skill in expected_skills if skill not in workflow_skills]
+        workflow_skills = _extract_skill_tokens(_markdown_section(text, "Skills") or "")
+        workflow_skill_set = set(workflow_skills)
+        missing = [skill for skill in expected_skills if skill not in workflow_skill_set]
         if missing:
             findings.append(
                 PackFinding(
                     "pack_phase_primary_skill_missing",
                     f"{rel} Skills section is missing overview primary skill(s): {', '.join(missing)}",
                     rel,
+                )
+            )
+        elif _ordered_intersection(workflow_skills, expected_skills) != expected_skills:
+            findings.append(
+                PackFinding(
+                    "pack_phase_primary_skill_order_mismatch",
+                    f"workflows/00-overview.md Phase Map row {phase} primary skills must match {rel} Skills order",
+                    "workflows/00-overview.md",
                 )
             )
 
@@ -1163,9 +1172,10 @@ def _check_phase_primary_skill_alignment(root: Path, findings: list[PackFinding]
         router_text = router.read_text(encoding="utf-8")
     except (UnicodeDecodeError, OSError):
         return
-    router_skills = set(_extract_skill_tokens(_markdown_section(router_text, "Route") or ""))
+    router_skills = _extract_skill_tokens(_markdown_section(router_text, "Route") or "")
+    router_skill_set = set(router_skills)
     phase_primary_skills = sorted({skill for skills in phase_map.values() for skill in skills})
-    missing_router_skills = [skill for skill in phase_primary_skills if skill not in router_skills]
+    missing_router_skills = [skill for skill in phase_primary_skills if skill not in router_skill_set]
     if missing_router_skills:
         findings.append(
             PackFinding(
@@ -1175,6 +1185,20 @@ def _check_phase_primary_skill_alignment(root: Path, findings: list[PackFinding]
                 router_rel,
             )
         )
+    for phase, expected_skills in phase_map.items():
+        if not expected_skills:
+            continue
+        phase_missing_router_skills = [skill for skill in expected_skills if skill not in router_skill_set]
+        if phase_missing_router_skills:
+            continue
+        if _ordered_intersection(router_skills, expected_skills) != expected_skills:
+            findings.append(
+                PackFinding(
+                    "pack_router_primary_skill_order_mismatch",
+                    f"router skill Route section must preserve Phase Map row {phase} primary skill order",
+                    router_rel,
+                )
+            )
 
 
 def _check_phase_workflow_sections(root: Path, findings: list[PackFinding]) -> None:
@@ -1751,6 +1775,11 @@ def _extract_skill_tokens(text: str) -> list[str]:
         if SKILL_NAME_RE.fullmatch(token):
             tokens.append(token)
     return tokens
+
+
+def _ordered_intersection(values: list[str], expected: list[str]) -> list[str]:
+    expected_set = set(expected)
+    return [value for value in values if value in expected_set]
 
 
 def _iter_pack_link_check_files(root: Path) -> list[Path]:
