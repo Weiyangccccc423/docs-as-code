@@ -73,6 +73,10 @@ PACK_REQUIRED_VERIFICATION_COMMANDS = (
     "make test",
     "make verify-pack",
 )
+AGENTS_PURPOSE_REQUIRED_PHRASES = (
+    "reusable package for creating governed docs-as-code project workspaces",
+    "do not treat it as a generated target project",
+)
 SOURCE_PACK_REQUIRED_PATHS = tuple(
     dict.fromkeys(
         (
@@ -182,6 +186,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_required_files(root, findings)
     _check_makefile_targets(root, findings)
     _check_verification_command_docs(root, findings)
+    _check_agents_guardrails(root, findings)
     _check_workflow_pack_file_encoding(root, findings)
     _check_runtime_executable_bits(root, findings)
     _check_readme_package_layout(root, findings)
@@ -277,6 +282,27 @@ def _check_verification_command_docs(root: Path, findings: list[PackFinding]) ->
                     rel,
                 )
             )
+
+
+def _check_agents_guardrails(root: Path, findings: list[PackFinding]) -> None:
+    agents = root / "AGENTS.md"
+    if not agents.is_file():
+        return
+    try:
+        text = agents.read_text(encoding="utf-8")
+    except (UnicodeDecodeError, OSError):
+        return
+    purpose = _normalized_prose(_markdown_section(text, "Purpose") or "")
+    for phrase in AGENTS_PURPOSE_REQUIRED_PHRASES:
+        if phrase in purpose:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_agents_purpose_guardrail_missing",
+                f"AGENTS.md Purpose section must preserve guardrail: {phrase}",
+                "AGENTS.md",
+            )
+        )
 
 
 def _check_workflow_pack_file_encoding(root: Path, findings: list[PackFinding]) -> None:
@@ -855,6 +881,10 @@ def _check_single_skill_frontmatter(
 
 
 def _normalize_heading(value: str) -> str:
+    return re.sub(r"\s+", " ", value.strip().lower())
+
+
+def _normalized_prose(value: str) -> str:
     return re.sub(r"\s+", " ", value.strip().lower())
 
 
