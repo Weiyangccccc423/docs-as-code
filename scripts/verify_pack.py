@@ -77,6 +77,10 @@ AGENTS_PURPOSE_REQUIRED_PHRASES = (
     "reusable package for creating governed docs-as-code project workspaces",
     "do not treat it as a generated target project",
 )
+AGENTS_BASELINE_REQUIRED_PHRASES = (
+    "commit after each coherent change",
+    "future workflow behavior is traceable",
+)
 SOURCE_PACK_REQUIRED_PATHS = tuple(
     dict.fromkeys(
         (
@@ -300,6 +304,17 @@ def _check_agents_guardrails(root: Path, findings: list[PackFinding]) -> None:
             PackFinding(
                 "pack_agents_purpose_guardrail_missing",
                 f"AGENTS.md Purpose section must preserve guardrail: {phrase}",
+                "AGENTS.md",
+            )
+        )
+    baseline = _normalized_prose(_markdown_section(text, "Baseline Rule") or "")
+    for phrase in AGENTS_BASELINE_REQUIRED_PHRASES:
+        if phrase in baseline:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_agents_baseline_guardrail_missing",
+                f"AGENTS.md Baseline Rule section must preserve guardrail: {phrase}",
                 "AGENTS.md",
             )
         )
