@@ -72,6 +72,15 @@ TEMPLATE_REQUIRED_GUARDRAILS = {
         "- Documentation is synchronized.",
         "- Verification commands pass and output is recorded.",
     ),
+    "templates/docs/architecture/01-system-context.md": (
+        "# System Context",
+        "- Product scope source",
+        "- Acceptance criteria source",
+        "- Primary user or external actor",
+        "- External system, service, or explicit `none`",
+        "- Boundary between actors, clients, services, data stores, or external systems",
+        "- Link ADR candidates or unresolved architecture questions.",
+    ),
     "templates/docs/decisions/ADR-template.md": (
         "# ADR-NNN: Title",
         "- Status: proposed",
@@ -130,6 +139,13 @@ TEMPLATE_REQUIRED_SECTIONS = {
         "Task Goal",
         "Related Specs",
         "Definition of Done",
+    ),
+    "templates/docs/architecture/01-system-context.md": (
+        "Product Links",
+        "Actors",
+        "External Systems",
+        "Trust Boundaries",
+        "Open Decisions",
     ),
     "templates/docs/decisions/ADR-template.md": (
         "Context",
