@@ -78,6 +78,15 @@ TEMPLATE_REQUIRED_GUARDRAILS = {
         "- Date: YYYY-MM-DD",
         "- Related modules: TBD",
     ),
+    "templates/docs/development/01-roadmap.md": (
+        "# Roadmap",
+        "| ID | Status | Milestone |",
+        "TASK-NNN",
+        "Product-derived milestone",
+        "List milestone ordering and dependency rationale.",
+        "List delivery risks and mitigation owners.",
+        "List explicitly deferred product or implementation scope.",
+    ),
     "templates/docs/development/02-task-board.md": (
         "# Task Board",
         "| ID | Status | Task | Product | Design | API | Acceptance | Verification |",
@@ -119,6 +128,13 @@ TEMPLATE_REQUIRED_SECTIONS = {
         "Decision",
         "Consequences",
         "References",
+    ),
+    "templates/docs/development/01-roadmap.md": (
+        "Product Links",
+        "Milestones",
+        "Sequencing",
+        "Risks",
+        "Deferred Scope",
     ),
     "templates/docs/development/02-task-board.md": (
         "Task Table",
