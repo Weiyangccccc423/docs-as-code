@@ -129,6 +129,7 @@ def verify_pack(root: Path) -> PackReport:
         return PackReport(str(root), findings)
 
     _check_required_files(root, findings)
+    _check_workflow_pack_file_encoding(root, findings)
     _check_runtime_executable_bits(root, findings)
     _check_phase_order_docs(root, findings)
     _check_phase_workflow_sections(root, findings)
@@ -155,6 +156,30 @@ def _check_required_files(root: Path, findings: list[PackFinding]) -> None:
                 PackFinding(
                     "pack_required_file_not_file",
                     f"required pack path is not a file: {rel}",
+                    rel,
+                )
+            )
+
+
+def _check_workflow_pack_file_encoding(root: Path, findings: list[PackFinding]) -> None:
+    for rel_path in _iter_workflow_pack_files(root):
+        rel = rel_path.as_posix()
+        path = root / rel_path
+        try:
+            path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            findings.append(
+                PackFinding(
+                    "pack_file_invalid_encoding",
+                    f"workflow-pack source file must be UTF-8: {rel}",
+                    rel,
+                )
+            )
+        except OSError as error:
+            findings.append(
+                PackFinding(
+                    "pack_file_unreadable",
+                    f"workflow-pack source file is unreadable: {rel}: {_os_error_reason(error)}",
                     rel,
                 )
             )

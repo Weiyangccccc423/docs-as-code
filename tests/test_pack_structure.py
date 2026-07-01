@@ -164,6 +164,28 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_invalid_workflow_pack_file_encoding(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            template = target / "templates/docs/product/core/PRD.md"
+            template.write_bytes(b"\xff")
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_file_invalid_encoding"
+                    and finding.path == "templates/docs/product/core/PRD.md"
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_readme_workflow_order_drift(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
