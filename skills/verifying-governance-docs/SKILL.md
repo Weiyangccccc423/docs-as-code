@@ -129,7 +129,7 @@ make ci
 - no unregistered `docs/` directories
 - no stale reserved markers
 - no `governance:scaffold-placeholder` markers
-- workflow-pack snapshot manifest hashes still match
+- runtime and workflow-pack manifests keep the expected schema, source, size, and hash identity
 - non-empty docs directories have `README.md` and `AGENTS.md`
 - non-template Markdown files are indexed in the README in the same directory
 - explicit local Markdown links resolve to existing files

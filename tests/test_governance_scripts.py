@@ -2660,6 +2660,79 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_workflow_pack_manifest_object_schema_error_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            manifest_path = root / "docs/agent-workflow/workflow-pack/manifest.json"
+            manifest_path.write_text("[]\n", encoding="utf-8")
+
+            report = verify(root)
+
+            self.assertIn("invalid workflow pack manifest: manifest must be an object", report.errors)
+            self.assertIn(
+                {
+                    "code": "workflow_pack_manifest_invalid_schema",
+                    "severity": "error",
+                    "path": "docs/agent-workflow/workflow-pack/manifest.json",
+                    "message": "invalid workflow pack manifest: manifest must be an object",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_rejects_workflow_pack_manifest_schema_version_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            manifest_path = root / "docs/agent-workflow/workflow-pack/manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["schema_version"] = 2
+            manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+
+            report = verify(root)
+
+            self.assertIn("workflow pack manifest schema_version must be 1", report.errors)
+            self.assertIn(
+                {
+                    "code": "workflow_pack_manifest_schema_version_invalid",
+                    "severity": "error",
+                    "path": "docs/agent-workflow/workflow-pack/manifest.json",
+                    "message": "workflow pack manifest schema_version must be 1",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_rejects_workflow_pack_manifest_source_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            manifest_path = root / "docs/agent-workflow/workflow-pack/manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["source"] = "unknown source"
+            manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+
+            report = verify(root)
+
+            self.assertIn("workflow pack manifest source must be docs-as-code workflow pack", report.errors)
+            self.assertIn(
+                {
+                    "code": "workflow_pack_manifest_source_invalid",
+                    "severity": "error",
+                    "path": "docs/agent-workflow/workflow-pack/manifest.json",
+                    "message": "workflow pack manifest source must be docs-as-code workflow pack",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_rejects_missing_required_workflow_pack_manifest_entry(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -2940,6 +3013,79 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "severity": "error",
                     "path": "docs/agent-workflow/runtime-manifest.json",
                     "message": "invalid runtime manifest encoding: expected UTF-8",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_runtime_manifest_object_schema_error_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            manifest_path = root / "docs/agent-workflow/runtime-manifest.json"
+            manifest_path.write_text("[]\n", encoding="utf-8")
+
+            report = verify(root)
+
+            self.assertIn("invalid runtime manifest: manifest must be an object", report.errors)
+            self.assertIn(
+                {
+                    "code": "runtime_manifest_invalid_schema",
+                    "severity": "error",
+                    "path": "docs/agent-workflow/runtime-manifest.json",
+                    "message": "invalid runtime manifest: manifest must be an object",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_rejects_runtime_manifest_schema_version_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            manifest_path = root / "docs/agent-workflow/runtime-manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["schema_version"] = 2
+            manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+
+            report = verify(root)
+
+            self.assertIn("runtime manifest schema_version must be 1", report.errors)
+            self.assertIn(
+                {
+                    "code": "runtime_manifest_schema_version_invalid",
+                    "severity": "error",
+                    "path": "docs/agent-workflow/runtime-manifest.json",
+                    "message": "runtime manifest schema_version must be 1",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_rejects_runtime_manifest_source_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            manifest_path = root / "docs/agent-workflow/runtime-manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["source"] = "unknown source"
+            manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+
+            report = verify(root)
+
+            self.assertIn("runtime manifest source must be target-local governance runtime", report.errors)
+            self.assertIn(
+                {
+                    "code": "runtime_manifest_source_invalid",
+                    "severity": "error",
+                    "path": "docs/agent-workflow/runtime-manifest.json",
+                    "message": "runtime manifest source must be target-local governance runtime",
                 },
                 [finding.to_dict() for finding in report.findings],
             )

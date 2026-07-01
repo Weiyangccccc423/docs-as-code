@@ -55,6 +55,9 @@ ADR_DECISION_RE = re.compile(r"^(?P<prefix>[0-9]{3})-[a-z0-9][a-z0-9-]*\.md$")
 SCAFFOLD_PLACEHOLDER = "governance:scaffold-placeholder"
 WORKFLOW_PACK_SNAPSHOT_ROOT = "docs/agent-workflow/workflow-pack"
 WORKFLOW_PACK_IGNORED_FILE_NAMES = {".DS_Store", "manifest.json"}
+MANIFEST_SCHEMA_VERSION = 1
+RUNTIME_MANIFEST_SOURCE = "target-local governance runtime"
+WORKFLOW_PACK_MANIFEST_SOURCE = "docs-as-code workflow pack"
 WORKFLOW_PACK_REQUIRED_PATHS = (
     "README.md",
     "references/architecture-methods.md",
@@ -2737,6 +2740,17 @@ def _check_runtime_manifest(root: Path, report: VerificationReport) -> None:
     except json.JSONDecodeError as error:
         report.add_error("runtime_manifest_invalid_json", f"invalid runtime manifest: {error.msg}", manifest_rel)
         return
+    if not isinstance(manifest, dict):
+        report.add_error("runtime_manifest_invalid_schema", "invalid runtime manifest: manifest must be an object", manifest_rel)
+        return
+    _check_manifest_identity(
+        manifest,
+        manifest_rel,
+        "runtime_manifest",
+        "runtime manifest",
+        RUNTIME_MANIFEST_SOURCE,
+        report,
+    )
     files = manifest.get("files")
     if not isinstance(files, list):
         report.add_error("runtime_manifest_invalid_schema", "invalid runtime manifest: files must be a list", manifest_rel)
@@ -2808,6 +2822,21 @@ def _check_workflow_pack_manifest(root: Path, report: VerificationReport) -> Non
     except json.JSONDecodeError as error:
         report.add_error("workflow_pack_manifest_invalid_json", f"invalid workflow pack manifest: {error.msg}", manifest_rel)
         return
+    if not isinstance(manifest, dict):
+        report.add_error(
+            "workflow_pack_manifest_invalid_schema",
+            "invalid workflow pack manifest: manifest must be an object",
+            manifest_rel,
+        )
+        return
+    _check_manifest_identity(
+        manifest,
+        manifest_rel,
+        "workflow_pack_manifest",
+        "workflow pack manifest",
+        WORKFLOW_PACK_MANIFEST_SOURCE,
+        report,
+    )
     files = manifest.get("files")
     if not isinstance(files, list):
         report.add_error("workflow_pack_manifest_invalid_schema", "invalid workflow pack manifest: files must be a list", manifest_rel)
@@ -2866,6 +2895,28 @@ def _check_workflow_pack_manifest(root: Path, report: VerificationReport) -> Non
                 f"workflow pack file is not listed in manifest: {file_rel}",
                 file_rel,
             )
+
+
+def _check_manifest_identity(
+    manifest: dict[str, object],
+    manifest_rel: str,
+    code_prefix: str,
+    label: str,
+    expected_source: str,
+    report: VerificationReport,
+) -> None:
+    if manifest.get("schema_version") != MANIFEST_SCHEMA_VERSION:
+        report.add_error(
+            f"{code_prefix}_schema_version_invalid",
+            f"{label} schema_version must be {MANIFEST_SCHEMA_VERSION}",
+            manifest_rel,
+        )
+    if manifest.get("source") != expected_source:
+        report.add_error(
+            f"{code_prefix}_source_invalid",
+            f"{label} source must be {expected_source}",
+            manifest_rel,
+        )
 
 
 def _workflow_pack_snapshot_files(snapshot_root: Path) -> list[Path]:
