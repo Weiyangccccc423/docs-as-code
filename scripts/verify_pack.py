@@ -84,6 +84,10 @@ RUNTIME_WRAPPER_REQUIRED_COMMANDS = {
     "bin/governance-init": 'python3 "$ROOT_DIR/scripts/governance_cli.py" init "$@"',
     "bin/governance-verify": 'python3 "$ROOT_DIR/scripts/governance_cli.py" verify "$@"',
 }
+RUNTIME_WRAPPER_REQUIRED_GUARDS = (
+    "#!/usr/bin/env bash",
+    "set -euo pipefail",
+)
 VERIFICATION_COMMAND_DOC_PATHS = (
     "README.md",
     "AGENTS.md",
@@ -441,6 +445,16 @@ def _check_runtime_wrapper_commands(root: Path, findings: list[PackFinding]) -> 
             text = path.read_text(encoding="utf-8")
         except (UnicodeDecodeError, OSError):
             continue
+        for guard in RUNTIME_WRAPPER_REQUIRED_GUARDS:
+            if guard in text:
+                continue
+            findings.append(
+                PackFinding(
+                    "pack_runtime_wrapper_guard_missing",
+                    f"runtime wrapper must include shell guard: {guard}",
+                    rel,
+                )
+            )
         if command in text:
             continue
         findings.append(
