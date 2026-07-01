@@ -1246,9 +1246,24 @@ class GovernanceScriptsTest(unittest.TestCase):
             state = json.loads(state_path.read_text(encoding="utf-8"))
             state["phase"] = "product-structuring"
             state["phase_history"] = [
-                {"phase": "product-structuring", "from_phase": "initialized", "gate": "product-structuring"},
-                {"phase": "design-derivation", "from_phase": "product-structuring", "gate": "design-derivation"},
-                {"phase": "product-structuring", "from_phase": "design-derivation", "gate": "product-structuring"},
+                {
+                    "phase": "product-structuring",
+                    "from_phase": "initialized",
+                    "gate": "product-structuring",
+                    "advanced_at": "2026-01-01T00:00:00+00:00",
+                },
+                {
+                    "phase": "design-derivation",
+                    "from_phase": "product-structuring",
+                    "gate": "design-derivation",
+                    "advanced_at": "2026-01-01T00:01:00+00:00",
+                },
+                {
+                    "phase": "product-structuring",
+                    "from_phase": "design-derivation",
+                    "gate": "product-structuring",
+                    "advanced_at": "2026-01-01T00:02:00+00:00",
+                },
             ]
             state_path.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
 
@@ -1279,7 +1294,12 @@ class GovernanceScriptsTest(unittest.TestCase):
             state = json.loads(state_path.read_text(encoding="utf-8"))
             state["phase"] = "design-derivation"
             state["phase_history"] = [
-                {"phase": "design-derivation", "from_phase": "initialized", "gate": "design-derivation"}
+                {
+                    "phase": "design-derivation",
+                    "from_phase": "initialized",
+                    "gate": "design-derivation",
+                    "advanced_at": "2026-01-01T00:00:00+00:00",
+                }
             ]
             state_path.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
 
@@ -1314,8 +1334,18 @@ class GovernanceScriptsTest(unittest.TestCase):
             state = json.loads(state_path.read_text(encoding="utf-8"))
             state["phase"] = "design-derivation"
             state["phase_history"] = [
-                {"phase": "product-structuring", "from_phase": "initialized", "gate": "product-structuring"},
-                {"phase": "design-derivation", "from_phase": "initialized", "gate": "design-derivation"},
+                {
+                    "phase": "product-structuring",
+                    "from_phase": "initialized",
+                    "gate": "product-structuring",
+                    "advanced_at": "2026-01-01T00:00:00+00:00",
+                },
+                {
+                    "phase": "design-derivation",
+                    "from_phase": "initialized",
+                    "gate": "design-derivation",
+                    "advanced_at": "2026-01-01T00:01:00+00:00",
+                },
             ]
             state_path.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
 
@@ -1338,6 +1368,36 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_governance_phase_history_missing_advanced_at(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            advance = phases_module.advance_phase(root, "product-structuring")
+            self.assertTrue(advance.ok)
+
+            state_path = root / ".governance/state.json"
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            state["phase_history"][0].pop("advanced_at")
+            state_path.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
+
+            report = verify(root)
+
+            self.assertIn(
+                "governance state phase_history for phase product-structuring must include advanced_at",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "state_phase_history_advanced_at_missing",
+                    "severity": "error",
+                    "path": ".governance/state.json",
+                    "message": "governance state phase_history for phase product-structuring must include advanced_at",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_governance_state_phase_history_current_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -1349,7 +1409,12 @@ class GovernanceScriptsTest(unittest.TestCase):
             state = json.loads(state_path.read_text(encoding="utf-8"))
             state["phase"] = "design-derivation"
             state["phase_history"] = [
-                {"phase": "product-structuring", "from_phase": "initialized", "gate": "product-structuring"}
+                {
+                    "phase": "product-structuring",
+                    "from_phase": "initialized",
+                    "gate": "product-structuring",
+                    "advanced_at": "2026-01-01T00:00:00+00:00",
+                }
             ]
             state_path.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
 
@@ -1430,6 +1495,36 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "message": (
                         "governance state last_gate name initialized must match current phase product-structuring"
                     ),
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_governance_state_last_gate_checked_at_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            advance = phases_module.advance_phase(root, "product-structuring")
+            self.assertTrue(advance.ok)
+
+            state_path = root / ".governance/state.json"
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            state["last_gate"]["checked_at"] = "2000-01-01T00:00:00+00:00"
+            state_path.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
+
+            report = verify(root)
+
+            self.assertIn(
+                "governance state last_gate checked_at must match latest phase_history advanced_at",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "state_phase_last_gate_checked_at_mismatch",
+                    "severity": "error",
+                    "path": ".governance/state.json",
+                    "message": "governance state last_gate checked_at must match latest phase_history advanced_at",
                 },
                 [finding.to_dict() for finding in report.findings],
             )

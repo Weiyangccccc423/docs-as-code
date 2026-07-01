@@ -724,6 +724,14 @@ def _check_governance_state(root: Path, report: VerificationReport) -> None:
                 rel,
             )
             return
+        advanced_at = item.get("advanced_at")
+        if not isinstance(advanced_at, str) or not advanced_at:
+            report.add_error(
+                "state_phase_history_advanced_at_missing",
+                f"governance state phase_history for phase {item_phase} must include advanced_at",
+                rel,
+            )
+            return
         previous_index = item_index
         latest_phase = item_phase
         latest_history_item = item
