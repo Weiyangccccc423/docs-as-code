@@ -1527,6 +1527,8 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual(0, verify_result.returncode, verify_result.stderr)
             state = json.loads(state_path.read_text(encoding="utf-8"))
             self.assertTrue(state["last_verification"]["ok"])
+            self.assertIsInstance(state["last_verification"]["checked_at"], str)
+            self.assertIn("T", state["last_verification"]["checked_at"])
 
             status_result = subprocess.run(
                 [sys.executable, str(CLI), "status", str(target)],

@@ -650,6 +650,8 @@ def _check_governance_state(root: Path, report: VerificationReport) -> None:
     if not phase_is_valid:
         report.add_error("state_phase_invalid", f"governance state phase is invalid: {phase}", rel)
 
+    _check_governance_last_verification(state, rel, report)
+
     history = state.get("phase_history")
     if history is None:
         if phase_is_valid and phase != "initialized":
@@ -803,6 +805,48 @@ def _check_governance_state(root: Path, report: VerificationReport) -> None:
                 "governance state last_gate checked_at must match latest phase_history advanced_at",
                 rel,
             )
+
+
+def _check_governance_last_verification(state: dict[str, object], rel: str, report: VerificationReport) -> None:
+    last_verification = state.get("last_verification")
+    if last_verification is None:
+        return
+    if not isinstance(last_verification, dict):
+        report.add_error(
+            "state_last_verification_invalid",
+            "governance state last_verification must be an object",
+            rel,
+        )
+        return
+    if not isinstance(last_verification.get("ok"), bool):
+        report.add_error(
+            "state_last_verification_ok_invalid",
+            "governance state last_verification ok must be a boolean",
+            rel,
+        )
+        return
+    for key in ("errors", "warnings", "findings"):
+        if not isinstance(last_verification.get(key), list):
+            report.add_error(
+                "state_last_verification_field_invalid",
+                f"governance state last_verification {key} must be a list",
+                rel,
+            )
+            return
+    checked_at = last_verification.get("checked_at")
+    if not isinstance(checked_at, str) or not checked_at:
+        report.add_error(
+            "state_last_verification_checked_at_missing",
+            "governance state last_verification must include checked_at",
+            rel,
+        )
+        return
+    if not _is_iso_timestamp_with_timezone(checked_at):
+        report.add_error(
+            "state_last_verification_checked_at_invalid",
+            "governance state last_verification checked_at must be an ISO timestamp with timezone",
+            rel,
+        )
 
 
 def _is_iso_timestamp_with_timezone(value: str) -> bool:

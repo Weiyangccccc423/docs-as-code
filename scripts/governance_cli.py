@@ -31,7 +31,7 @@ from scaffold import (
     scaffold_design,
     scaffold_product,
 )
-from state import STATE_REL, StateFileError, load_state, merge_state
+from state import STATE_REL, StateFileError, load_state, merge_state, utc_now
 from verify_governance import verify
 
 
@@ -138,10 +138,12 @@ def _cmd_verify(args: argparse.Namespace) -> int:
             state_error_path = str(error.path)
     elif (target / STATE_REL).exists():
         try:
+            checked_at = utc_now()
             state = merge_state(
                 target,
                 last_verification={
                     "ok": report.ok,
+                    "checked_at": checked_at,
                     "errors": report.errors,
                     "warnings": report.warnings,
                     "findings": [finding.to_dict() for finding in report.findings],

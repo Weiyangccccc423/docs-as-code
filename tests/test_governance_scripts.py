@@ -1235,6 +1235,67 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_invalid_governance_state_last_verification(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            state_path = root / ".governance/state.json"
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            state["last_verification"] = "ok"
+            state_path.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
+
+            report = verify(root)
+
+            self.assertIn("governance state last_verification must be an object", report.errors)
+            self.assertIn(
+                {
+                    "code": "state_last_verification_invalid",
+                    "severity": "error",
+                    "path": ".governance/state.json",
+                    "message": "governance state last_verification must be an object",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_governance_state_last_verification_checked_at_invalid(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            state_path = root / ".governance/state.json"
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            state["last_verification"] = {
+                "ok": True,
+                "errors": [],
+                "warnings": [],
+                "findings": [],
+                "checked_at": "not-a-timestamp",
+            }
+            state_path.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
+
+            report = verify(root)
+
+            self.assertIn(
+                "governance state last_verification checked_at must be an ISO timestamp with timezone",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "state_last_verification_checked_at_invalid",
+                    "severity": "error",
+                    "path": ".governance/state.json",
+                    "message": (
+                        "governance state last_verification checked_at must be an ISO timestamp with timezone"
+                    ),
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_non_monotonic_governance_phase_history(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
