@@ -91,6 +91,17 @@ TEMPLATE_REQUIRED_GUARDRAILS = {
         "- Record backward-compatible additions, breaking changes, migrations, deprecations, and consumer coordination requirements.",
         "- Link each contract-changing entry to local product, API, architecture, implementation, or ADR sources.",
     ),
+    "templates/docs/api/endpoints/01-endpoint-contract.md": (
+        "# Endpoint Contract",
+        "POST /example",
+        "- Authentication and authorization requirement derived from API conventions and product scope.",
+        "- Idempotency key, retry, and duplicate-submission behavior for this endpoint.",
+        "| Field | Type | Required | Source | Notes |",
+        "| Field | Type | Source | Notes |",
+        "- Reference `docs/api/error-codes.md` and list only registered endpoint errors.",
+        "- Link local product, architecture, backend, decision, or unresolved Markdown sources.",
+        "- Link local UI or frontend API-consumption Markdown sources.",
+    ),
     "templates/docs/api/error-codes.md": (
         "# API Error Codes",
         "- Product scope source",
@@ -200,6 +211,16 @@ TEMPLATE_REQUIRED_SECTIONS = {
     "templates/docs/api/changelog.md": (
         "Change Log",
         "Compatibility Notes",
+    ),
+    "templates/docs/api/endpoints/01-endpoint-contract.md": (
+        "Method and Path",
+        "Auth",
+        "Idempotency",
+        "Request Fields",
+        "Response Fields",
+        "Error Codes",
+        "Upstream Links",
+        "Frontend Consumers",
     ),
     "templates/docs/api/error-codes.md": (
         "Product Links",
