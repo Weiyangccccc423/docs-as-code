@@ -1317,6 +1317,32 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_verification_log_template_section_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            template = target / "templates/docs/development/03-verification-log.md"
+            template.write_text(
+                template.read_text(encoding="utf-8").replace("## Verification Runs\n", "", 1),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_template_section_missing"
+                    and finding.path == "templates/docs/development/03-verification-log.md"
+                    and "Verification Runs" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_skill_heading_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
@@ -1368,6 +1394,7 @@ class PackStructureTest(unittest.TestCase):
             "templates/docs/product/core/PRD.md",
             "templates/docs/agent-workflow/task-handoff.md",
             "templates/docs/decisions/ADR-template.md",
+            "templates/docs/development/03-verification-log.md",
         ]
         missing = [path for path in required if not (ROOT / path).exists()]
         self.assertEqual([], missing)

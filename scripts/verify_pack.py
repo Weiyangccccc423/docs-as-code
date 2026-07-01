@@ -78,6 +78,12 @@ TEMPLATE_REQUIRED_GUARDRAILS = {
         "- Date: YYYY-MM-DD",
         "- Related modules: TBD",
     ),
+    "templates/docs/development/03-verification-log.md": (
+        "# Verification Log",
+        "| Task | Command | Result | Date | Notes |",
+        "- Link local evidence artifacts or summarize relevant command output here.",
+        "- none",
+    ),
 }
 TEMPLATE_REQUIRED_SECTIONS = {
     "templates/root/README.md": (
@@ -97,6 +103,11 @@ TEMPLATE_REQUIRED_SECTIONS = {
         "Decision",
         "Consequences",
         "References",
+    ),
+    "templates/docs/development/03-verification-log.md": (
+        "Verification Runs",
+        "Artifacts",
+        "Open Follow-ups",
     ),
 }
 README_PACKAGE_LAYOUT_DIRECTORIES = (
