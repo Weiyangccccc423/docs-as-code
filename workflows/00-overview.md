@@ -13,6 +13,8 @@ Each phase has:
 - **Verification:** deterministic checks or review gates
 - **Stop conditions:** cases where the agent must ask instead of guessing
 
+Use `references/community-practices.md` to calibrate this workflow against recognized docs-as-code, architecture, API, ADR, quality, and security practices without treating any single framework as a rigid template.
+
 ## Runtime Model
 
 Core governance commands are implemented as POSIX shell wrappers plus Python standard-library scripts. Normal operation must run without package installation or network access; `env --repair` may install supported system packages only under the repair policy in `references/runtime-strategy.md`.

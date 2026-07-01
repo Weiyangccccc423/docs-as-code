@@ -30,6 +30,12 @@ PACK_LINK_CHECK_RESOURCE_PATHS = (
     "skills",
     "references",
 )
+REFERENCE_ENTRY_RESOURCE_PATHS = (
+    "README.md",
+    "AGENTS.md",
+    "workflows",
+    "skills",
+)
 SOURCE_PACK_REQUIRED_PATHS = tuple(
     dict.fromkeys(
         (
@@ -137,6 +143,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_skill_frontmatter(root, findings)
     _check_skill_references(root, findings)
     _check_local_markdown_links(root, findings)
+    _check_reference_entry_points(root, findings)
     _check_workflow_pack_file_list(root, findings)
     return PackReport(str(root), findings)
 
@@ -419,6 +426,21 @@ def _check_local_markdown_links(root: Path, findings: list[PackFinding]) -> None
             )
 
 
+def _check_reference_entry_points(root: Path, findings: list[PackFinding]) -> None:
+    entry_text = "\n".join(_read_reference_entry_texts(root))
+    for reference in _iter_reference_files(root):
+        rel = reference.relative_to(root).as_posix()
+        if rel in entry_text:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_reference_unrouted",
+                f"reference document is not mentioned by README, AGENTS, workflows, or skills: {rel}",
+                rel,
+            )
+        )
+
+
 def _check_skill_frontmatter(root: Path, findings: list[PackFinding]) -> None:
     skills_root = root / "skills"
     if not skills_root.exists() or not skills_root.is_dir():
@@ -603,6 +625,41 @@ def _iter_pack_link_check_files(root: Path) -> list[Path]:
     return sorted(files, key=lambda path: path.relative_to(root).as_posix())
 
 
+def _iter_reference_files(root: Path) -> list[Path]:
+    references_root = root / "references"
+    if not references_root.exists() or not references_root.is_dir():
+        return []
+    return sorted(
+        (
+            path
+            for path in references_root.rglob("*.md")
+            if path.is_file() and not _is_ignored_pack_file(path)
+        ),
+        key=lambda path: path.relative_to(root).as_posix(),
+    )
+
+
+def _read_reference_entry_texts(root: Path) -> list[str]:
+    texts: list[str] = []
+    for rel in REFERENCE_ENTRY_RESOURCE_PATHS:
+        source = root / rel
+        if not source.exists():
+            continue
+        if source.is_file():
+            if source.suffix == ".md" and not _is_ignored_pack_file(source):
+                text = _read_utf8_text_or_none(source)
+                if text is not None:
+                    texts.append(text)
+            continue
+        for path in sorted(source.rglob("*.md")):
+            if not path.is_file() or _is_ignored_pack_file(path):
+                continue
+            text = _read_utf8_text_or_none(path)
+            if text is not None:
+                texts.append(text)
+    return texts
+
+
 def _extract_local_markdown_link_targets(text: str) -> list[str]:
     text = _strip_markdown_code(text)
     targets = [match.group(1) for match in MARKDOWN_LINK_RE.finditer(text)]
@@ -706,6 +763,13 @@ def _is_ignored_pack_file(path: Path) -> bool:
         or path.suffix == ".pyc"
         or path.name in IGNORED_PACK_FILE_NAMES
     )
+
+
+def _read_utf8_text_or_none(path: Path) -> str | None:
+    try:
+        return path.read_text(encoding="utf-8")
+    except (UnicodeDecodeError, OSError):
+        return None
 
 
 def _os_error_reason(error: OSError) -> str:

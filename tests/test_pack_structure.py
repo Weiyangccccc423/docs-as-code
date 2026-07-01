@@ -401,6 +401,35 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_unrouted_reference_documents(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            overview = target / "workflows/00-overview.md"
+            overview.write_text(
+                overview.read_text(encoding="utf-8").replace(
+                    "Use `references/community-practices.md` to calibrate this workflow against recognized docs-as-code, architecture, API, ADR, quality, and security practices without treating any single framework as a rigid template.\n\n",
+                    "",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_reference_unrouted"
+                    and finding.path == "references/community-practices.md"
+                    for finding in report.findings
+                )
+            )
+
     def test_makefile_verify_pack_runs_pack_verifier(self) -> None:
         text = (ROOT / "Makefile").read_text(encoding="utf-8")
         self.assertRegex(text, r"(?m)^\tpython3 scripts/verify_pack\.py$")
