@@ -71,6 +71,7 @@ WORKFLOW_PACK_REQUIRED_PATHS = (
     "skills/structuring-product-requirements/SKILL.md",
     "skills/using-governance-workflow/SKILL.md",
     "skills/verifying-governance-docs/SKILL.md",
+    "templates/docs/agent-workflow/task-handoff.md",
     "templates/docs/decisions/ADR-template.md",
     "templates/docs/product/core/PRD.md",
     "templates/root/README.md",

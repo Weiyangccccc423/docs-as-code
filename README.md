@@ -31,6 +31,7 @@ Create reliable project governance before implementation starts:
 
 - `templates/root/README.md`: generated target root README shape.
 - `templates/docs/product/core/PRD.md`: PRD placeholder shape before product source conversion is reviewed.
+- `templates/docs/agent-workflow/task-handoff.md`: agent task handoff and completion criteria shape.
 - `templates/docs/decisions/ADR-template.md`: ADR shape for architecture decisions.
 
 ## Reference Files

@@ -62,6 +62,16 @@ TEMPLATE_REQUIRED_GUARDRAILS = {
         "- Conversion method:",
         "- Review status:",
     ),
+    "templates/docs/agent-workflow/task-handoff.md": (
+        "# Agent Task Handoff",
+        "- Product:",
+        "- API:",
+        "- Architecture:",
+        "- Acceptance:",
+        "- Code and tests are complete.",
+        "- Documentation is synchronized.",
+        "- Verification commands pass and output is recorded.",
+    ),
     "templates/docs/decisions/ADR-template.md": (
         "# ADR-NNN: Title",
         "- Status: proposed",
@@ -76,6 +86,11 @@ TEMPLATE_REQUIRED_SECTIONS = {
     ),
     "templates/docs/product/core/PRD.md": (
         "Source",
+    ),
+    "templates/docs/agent-workflow/task-handoff.md": (
+        "Task Goal",
+        "Related Specs",
+        "Definition of Done",
     ),
     "templates/docs/decisions/ADR-template.md": (
         "Context",
