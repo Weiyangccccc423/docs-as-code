@@ -43,6 +43,15 @@ TEMPLATE_ENTRY_RESOURCE_PATHS = (
     "skills",
     "references",
 )
+README_PACKAGE_LAYOUT_DIRECTORIES = (
+    "bin",
+    "scripts",
+    "skills",
+    "references",
+    "templates",
+    "tests",
+    "workflows",
+)
 SOURCE_PACK_REQUIRED_PATHS = tuple(
     dict.fromkeys(
         (
@@ -144,6 +153,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_required_files(root, findings)
     _check_workflow_pack_file_encoding(root, findings)
     _check_runtime_executable_bits(root, findings)
+    _check_readme_package_layout(root, findings)
     _check_phase_order_docs(root, findings)
     _check_phase_primary_skill_alignment(root, findings)
     _check_phase_workflow_sections(root, findings)
@@ -218,6 +228,27 @@ def _check_runtime_executable_bits(root: Path, findings: list[PackFinding]) -> N
                 rel,
             )
             )
+
+
+def _check_readme_package_layout(root: Path, findings: list[PackFinding]) -> None:
+    readme = root / "README.md"
+    if not readme.is_file():
+        return
+    try:
+        text = readme.read_text(encoding="utf-8")
+    except (UnicodeDecodeError, OSError):
+        return
+    layout = _package_layout_directories(_markdown_section(text, "Package Layout") or "")
+    for directory in README_PACKAGE_LAYOUT_DIRECTORIES:
+        if directory in layout:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_package_layout_missing_directory",
+                f"README.md Package Layout must list directory: {directory}/",
+                "README.md",
+            )
+        )
 
 
 def _check_phase_order_docs(root: Path, findings: list[PackFinding]) -> None:
@@ -707,6 +738,10 @@ def _ordered_numbered_backticked_values(text: str) -> list[str]:
 
 def _backticked_values(text: str) -> list[str]:
     return [token.strip() for token in re.findall(r"`([^`\n]+)`", _strip_fenced_markdown_code(text))]
+
+
+def _package_layout_directories(text: str) -> set[str]:
+    return set(re.findall(r"\b([A-Za-z0-9_.-]+)/", text))
 
 
 def _phase_map_numbers(text: str) -> list[str]:
