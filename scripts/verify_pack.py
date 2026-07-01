@@ -72,6 +72,17 @@ TEMPLATE_REQUIRED_GUARDRAILS = {
         "- Documentation is synchronized.",
         "- Verification commands pass and output is recorded.",
     ),
+    "templates/docs/api/00-conventions.md": (
+        "# API Conventions",
+        "- Product scope source",
+        "- Acceptance criteria source",
+        "- JSON request and response bodies for product workflow APIs.",
+        "- Stable endpoint paths and explicit compatibility notes for breaking changes.",
+        "- Authentication boundary, authorization expectations, and public/private endpoint policy.",
+        "- Idempotency key policy for retryable writes and duplicate submission handling.",
+        "- Backward compatibility expectations, versioning policy, and downstream consumer impact.",
+        "- Link unresolved API contract decisions or ADR candidates.",
+    ),
     "templates/docs/architecture/01-system-context.md": (
         "# System Context",
         "- Product scope source",
@@ -158,6 +169,14 @@ TEMPLATE_REQUIRED_SECTIONS = {
         "Task Goal",
         "Related Specs",
         "Definition of Done",
+    ),
+    "templates/docs/api/00-conventions.md": (
+        "Product Links",
+        "HTTP Conventions",
+        "Authentication",
+        "Idempotency",
+        "Compatibility",
+        "Open Decisions",
     ),
     "templates/docs/architecture/01-system-context.md": (
         "Product Links",

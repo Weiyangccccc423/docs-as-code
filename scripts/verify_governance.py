@@ -72,6 +72,7 @@ WORKFLOW_PACK_REQUIRED_PATHS = (
     "skills/using-governance-workflow/SKILL.md",
     "skills/verifying-governance-docs/SKILL.md",
     "templates/docs/agent-workflow/task-handoff.md",
+    "templates/docs/api/00-conventions.md",
     "templates/docs/architecture/01-system-context.md",
     "templates/docs/architecture/02-containers.md",
     "templates/docs/architecture/03-quality-attributes.md",
