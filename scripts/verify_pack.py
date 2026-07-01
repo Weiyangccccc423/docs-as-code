@@ -60,6 +60,12 @@ README_QUICK_START_REQUIRED_COMMANDS = (
     "bin/governance gate product-structuring",
     "bin/governance status",
 )
+README_AGENT_AUTOMATION_REQUIRED_COMMANDS = (
+    "bin/governance verify /path/to/new-project --check --json",
+    "bin/governance verify /path/to/new-project --json",
+    "bin/governance env --repair --check --target /path/to/new-project --json",
+    "bin/governance env --repair --target /path/to/new-project --json",
+)
 MAKEFILE_REQUIRED_TARGETS = (
     "test",
     "verify-pack",
@@ -466,6 +472,16 @@ def _check_readme_quick_start(root: Path, findings: list[PackFinding]) -> None:
             PackFinding(
                 "pack_readme_quick_start_command_missing",
                 f"README.md Quick Start must document command: {command}",
+                "README.md",
+            )
+        )
+    for command in README_AGENT_AUTOMATION_REQUIRED_COMMANDS:
+        if command in quick_start:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_readme_agent_automation_command_missing",
+                f"README.md Quick Start must document agent automation command: {command}",
                 "README.md",
             )
         )
