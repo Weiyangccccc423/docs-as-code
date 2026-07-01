@@ -366,6 +366,23 @@ TARGET_GITIGNORE_REQUIRED_PATTERNS = (
     "node_modules/",
     ".venv/",
 )
+TASK_HANDOFF_REL = Path("docs/agent-workflow/task-handoff.md")
+TASK_HANDOFF_REQUIRED_SECTIONS = {
+    "task goal": "Task Goal",
+    "related specs": "Related Specs",
+    "definition of done": "Definition of Done",
+}
+TASK_HANDOFF_RELATED_SPEC_GUARDRAILS = (
+    "product:",
+    "api:",
+    "architecture:",
+    "acceptance:",
+)
+TASK_HANDOFF_DOD_GUARDRAILS = (
+    "code and tests are complete",
+    "documentation is synchronized",
+    "verification commands pass and output is recorded",
+)
 MARKDOWN_LINK_RE = re.compile(r"(?<!!)\[[^\]]*]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 MARKDOWN_REFERENCE_DEFINITION_RE = re.compile(r"^\s{0,3}\[[^\]]+]:\s*(\S+)", re.MULTILINE)
 MARKDOWN_HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$", re.MULTILINE)
@@ -483,6 +500,7 @@ def verify(root: Path) -> VerificationReport:
     _check_target_support_files(root, report)
     _check_target_gitignore(root, report)
     _check_target_makefile(root, report)
+    _check_task_handoff(root, report)
     _check_root_agents_guardrails(root, report)
     _check_docs_agents_guardrails(root, report)
     _check_domain_agents_guardrails(root, report)
@@ -559,6 +577,62 @@ def _check_reserved_markers(root: Path, path: Path, report: VerificationReport) 
             target = root / "docs" / name
             if target.exists() and target.is_dir() and not _is_effectively_empty(target):
                 report.add_error("reserved_marker_stale", f"reserved marker references non-empty docs/{name}", f"docs/{name}")
+
+
+def _check_task_handoff(root: Path, report: VerificationReport) -> None:
+    rel = TASK_HANDOFF_REL.as_posix()
+    path = root / TASK_HANDOFF_REL
+    if not path.exists():
+        report.add_error("target_task_handoff_missing", f"missing required agent handoff file: {rel}", rel)
+        return
+    text = _read_markdown_text(root, path, report)
+    if text is None:
+        return
+    sections = _markdown_sections(text, min_level=2)
+    missing_sections = [
+        title
+        for key, title in TASK_HANDOFF_REQUIRED_SECTIONS.items()
+        if key not in sections
+    ]
+    if missing_sections:
+        report.add_error(
+            "target_task_handoff_section_missing",
+            f"{rel} is missing required sections: {', '.join(missing_sections)}",
+            rel,
+        )
+        return
+    _check_task_handoff_section_guardrails(
+        rel,
+        "Related Specs",
+        sections["related specs"],
+        TASK_HANDOFF_RELATED_SPEC_GUARDRAILS,
+        report,
+    )
+    _check_task_handoff_section_guardrails(
+        rel,
+        "Definition of Done",
+        sections["definition of done"],
+        TASK_HANDOFF_DOD_GUARDRAILS,
+        report,
+    )
+
+
+def _check_task_handoff_section_guardrails(
+    rel: str,
+    section_title: str,
+    section_text: str,
+    guardrails: tuple[str, ...],
+    report: VerificationReport,
+) -> None:
+    normalized = _normalize_guardrail_text(section_text)
+    for guardrail in guardrails:
+        if guardrail in normalized:
+            continue
+        report.add_error(
+            "target_task_handoff_guardrail_missing",
+            f"{rel} {section_title} section must preserve guardrail: {guardrail}",
+            rel,
+        )
 
 
 def _check_target_gitignore(root: Path, report: VerificationReport) -> None:

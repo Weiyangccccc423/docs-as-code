@@ -1383,6 +1383,63 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_missing_task_handoff(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            (root / "docs/agent-workflow/task-handoff.md").unlink()
+
+            report = verify(root)
+
+            self.assertIn("missing required agent handoff file: docs/agent-workflow/task-handoff.md", report.errors)
+            self.assertIn(
+                {
+                    "code": "target_task_handoff_missing",
+                    "severity": "error",
+                    "path": "docs/agent-workflow/task-handoff.md",
+                    "message": "missing required agent handoff file: docs/agent-workflow/task-handoff.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_task_handoff_guardrail_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            handoff = root / "docs/agent-workflow/task-handoff.md"
+            handoff.write_text(
+                handoff.read_text(encoding="utf-8").replace(
+                    "- Verification commands pass and output is recorded.\n",
+                    "",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/agent-workflow/task-handoff.md Definition of Done section must preserve guardrail: "
+                "verification commands pass and output is recorded",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "target_task_handoff_guardrail_missing",
+                    "severity": "error",
+                    "path": "docs/agent-workflow/task-handoff.md",
+                    "message": "docs/agent-workflow/task-handoff.md Definition of Done section must preserve guardrail: "
+                    "verification commands pass and output is recorded",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_docs_agents_directory_without_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
