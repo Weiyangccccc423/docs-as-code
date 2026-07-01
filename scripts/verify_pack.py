@@ -56,6 +56,15 @@ MAKEFILE_REQUIRED_TARGETS = (
     "test",
     "verify-pack",
 )
+MAKEFILE_REQUIRED_TARGET_RECIPES = {
+    "test": (
+        "python3 -m unittest discover -s tests",
+    ),
+    "verify-pack": (
+        "python3 scripts/verify_pack.py",
+        "python3 scripts/check_env.py",
+    ),
+}
 SOURCE_PACK_REQUIRED_PATHS = tuple(
     dict.fromkeys(
         (
@@ -211,7 +220,8 @@ def _check_makefile_targets(root: Path, findings: list[PackFinding]) -> None:
         text = makefile.read_text(encoding="utf-8")
     except (UnicodeDecodeError, OSError):
         return
-    targets = _makefile_targets(text)
+    target_recipes = _makefile_target_recipes(text)
+    targets = set(target_recipes)
     for target in MAKEFILE_REQUIRED_TARGETS:
         if target in targets:
             continue
@@ -222,6 +232,20 @@ def _check_makefile_targets(root: Path, findings: list[PackFinding]) -> None:
                 "Makefile",
             )
         )
+    for target, required_recipes in MAKEFILE_REQUIRED_TARGET_RECIPES.items():
+        if target not in targets:
+            continue
+        recipes = set(target_recipes[target])
+        for recipe in required_recipes:
+            if recipe in recipes:
+                continue
+            findings.append(
+                PackFinding(
+                    "pack_makefile_target_recipe_missing",
+                    f"Makefile target {target} must run command: {recipe}",
+                    "Makefile",
+                )
+            )
 
 
 def _check_workflow_pack_file_encoding(root: Path, findings: list[PackFinding]) -> None:
@@ -884,18 +908,29 @@ def _package_layout_directories(text: str) -> set[str]:
     return set(re.findall(r"\b([A-Za-z0-9_.-]+)/", text))
 
 
-def _makefile_targets(text: str) -> set[str]:
-    targets: set[str] = set()
+def _makefile_target_recipes(text: str) -> dict[str, list[str]]:
+    target_recipes: dict[str, list[str]] = {}
+    current_targets: list[str] = []
     for line in text.splitlines():
-        if not line or line[0].isspace() or line.lstrip().startswith("#") or ":" not in line:
+        if line and line[0].isspace():
+            recipe = line.strip()
+            if current_targets and recipe and not recipe.startswith("#"):
+                for target in current_targets:
+                    target_recipes[target].append(recipe)
+            continue
+        current_targets = []
+        if not line or line.lstrip().startswith("#") or ":" not in line:
             continue
         name_text = line.split(":", 1)[0].strip()
         if not name_text or name_text.startswith(".") or "=" in name_text:
             continue
+        parsed_targets: list[str] = []
         for target in name_text.split():
             if re.fullmatch(r"[A-Za-z0-9_.-]+", target):
-                targets.add(target)
-    return targets
+                target_recipes.setdefault(target, [])
+                parsed_targets.append(target)
+        current_targets = parsed_targets
+    return target_recipes
 
 
 def _phase_map_numbers(text: str) -> list[str]:
