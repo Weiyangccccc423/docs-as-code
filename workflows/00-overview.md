@@ -45,7 +45,7 @@ Node.js tooling is an optional project-specific enhancement layer. Rust is reser
 | 01 | Empty repository initialization | `initializing-governance-repo` |
 | 02 | Product document archiving | `archiving-product-document` |
 | 03 | Product structuring | `structuring-product-requirements` |
-| 04 | Design derivation | `designing-system-architecture`, `designing-api-contracts` |
+| 04 | Design derivation | `designing-system-architecture`, `designing-ui-interactions`, `designing-api-contracts`, `designing-backend-modules`, `designing-data-models`, `capturing-architecture-decisions`, `designing-frontend-modules`, `designing-test-strategy`, `planning-implementation-work` |
 | 05 | Verification and drift control | `verifying-governance-docs` |
 
 Before moving between phases, run the matching gate:
