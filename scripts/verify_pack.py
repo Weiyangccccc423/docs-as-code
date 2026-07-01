@@ -289,6 +289,27 @@ def _check_phase_primary_skill_alignment(root: Path, findings: list[PackFinding]
                 )
             )
 
+    router_rel = "skills/using-governance-workflow/SKILL.md"
+    router = root / router_rel
+    if not router.is_file():
+        return
+    try:
+        router_text = router.read_text(encoding="utf-8")
+    except (UnicodeDecodeError, OSError):
+        return
+    router_skills = set(_extract_skill_tokens(_markdown_section(router_text, "Route") or ""))
+    phase_primary_skills = sorted({skill for skills in phase_map.values() for skill in skills})
+    missing_router_skills = [skill for skill in phase_primary_skills if skill not in router_skills]
+    if missing_router_skills:
+        findings.append(
+            PackFinding(
+                "pack_router_primary_skill_missing",
+                "router skill Route section must mention overview primary skill(s): "
+                + ", ".join(missing_router_skills),
+                router_rel,
+            )
+        )
+
 
 def _check_phase_workflow_sections(root: Path, findings: list[PackFinding]) -> None:
     for rel in PHASE_WORKFLOW_PATHS:

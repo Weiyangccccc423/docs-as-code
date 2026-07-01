@@ -431,6 +431,36 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_router_missing_phase_primary_skill(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            router = target / "skills/using-governance-workflow/SKILL.md"
+            router.write_text(
+                router.read_text(encoding="utf-8").replace(
+                    "`designing-system-architecture`, then `designing-api-contracts`",
+                    "`designing-system-architecture`",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_router_primary_skill_missing"
+                    and finding.path == "skills/using-governance-workflow/SKILL.md"
+                    and "designing-api-contracts" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_unrouted_reference_documents(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
