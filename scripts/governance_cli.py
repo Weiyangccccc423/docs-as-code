@@ -25,6 +25,7 @@ from phases import PHASE_NAMES, advance_phase, check_advance_phase
 from product_import import check_product_import_ready, mark_product_import_ready
 from scaffold import (
     PRODUCT_CHAPTER_CHOICES,
+    ScaffoldResult,
     check_scaffold_design,
     check_scaffold_product,
     scaffold_design,
@@ -423,25 +424,19 @@ def _cmd_gate(args: argparse.Namespace) -> int:
 def _cmd_scaffold(args: argparse.Namespace) -> int:
     target = Path(args.target)
     if args.scaffold != "product" and args.chapter:
-        payload = {
-            "scaffold": args.scaffold,
-            "target": str(target),
-            "ok": False,
-            "check": args.check,
-            "created": [],
-            "skipped": [],
-            "indexed": [],
-            "would_create": [],
-            "would_skip": [],
-            "would_index": [],
-            "errors": [f"scaffold {args.scaffold} does not accept --chapter"],
-            "gate": {},
-        }
+        result = ScaffoldResult(
+            scaffold=args.scaffold,
+            target=str(target),
+            ok=False,
+            check=args.check,
+            errors=[f"scaffold {args.scaffold} does not accept --chapter"],
+            gate={},
+        )
         if args.json:
-            _print_json(payload)
+            _print_json(result.to_dict())
             return 1
         print(f"Scaffold failed: {args.scaffold}")
-        for error in payload["errors"]:
+        for error in result.errors:
             print(f"- ERROR: {error}")
         return 1
     if args.scaffold == "design":

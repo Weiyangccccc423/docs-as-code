@@ -3264,7 +3264,17 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual(1, result.returncode)
             payload = json.loads(result.stdout)
             self.assertFalse(payload["ok"])
+            self.assertEqual("design", payload["scaffold"])
+            self.assertEqual(str(target), payload["target"])
+            self.assertFalse(payload["check"])
             self.assertIn("scaffold design does not accept --chapter", payload["errors"])
+            self.assertEqual([], payload["created"])
+            self.assertEqual([], payload["skipped"])
+            self.assertEqual([], payload["indexed"])
+            self.assertEqual([], payload["would_create"])
+            self.assertEqual([], payload["would_skip"])
+            self.assertEqual([], payload["would_index"])
+            self.assertEqual({}, payload["gate"])
 
     def test_advance_design_derivation_records_previous_phase(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
