@@ -1710,6 +1710,49 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertNotIn("last_verification", payload["state"])
             self.assertEqual(state_before, state_path.read_text(encoding="utf-8"))
 
+    def test_verify_check_json_reports_state_read_failure_without_update_wording(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+
+            init_result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "init",
+                    "--target",
+                    str(target),
+                    "--product",
+                    str(product),
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            state_path = target / ".governance/state.json"
+            state_path.write_text("{not json\n", encoding="utf-8")
+
+            verify_result = subprocess.run(
+                [sys.executable, str(CLI), "verify", str(target), "--check", "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, verify_result.returncode)
+            self.assertEqual("", verify_result.stderr)
+            payload = json.loads(verify_result.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertTrue(payload["check"])
+            self.assertFalse(payload["state_updated"])
+            self.assertIn("failed to read verification state", payload["errors"][-1])
+            self.assertNotIn("failed to update verification state", payload["errors"][-1])
+            self.assertEqual(str(state_path), payload["path"])
+            self.assertEqual("{not json\n", state_path.read_text(encoding="utf-8"))
+
     def test_status_json_reports_missing_state_with_status_shape(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "target"

@@ -113,6 +113,7 @@ def _cmd_verify(args: argparse.Namespace) -> int:
         raise StateFileError(target / STATE_REL, "unwritable: target path is not a directory")
     state = {}
     state_error = ""
+    state_error_action = ""
     state_error_path = ""
     state_updated = False
     if (target / STATE_REL).exists() and args.check:
@@ -120,6 +121,7 @@ def _cmd_verify(args: argparse.Namespace) -> int:
             state = load_state(target)
         except StateFileError as error:
             state_error = str(error)
+            state_error_action = "read"
             state_error_path = str(error.path)
     elif (target / STATE_REL).exists():
         try:
@@ -137,6 +139,7 @@ def _cmd_verify(args: argparse.Namespace) -> int:
             state_updated = True
         except StateFileError as error:
             state_error = str(error)
+            state_error_action = "update"
             state_error_path = str(error.path)
             try:
                 state = load_state(target)
@@ -144,7 +147,7 @@ def _cmd_verify(args: argparse.Namespace) -> int:
                 state = {}
     errors = list(report.errors)
     if state_error:
-        errors.append(f"failed to update verification state: {state_error}")
+        errors.append(f"failed to {state_error_action} verification state: {state_error}")
     ok = report.ok and not state_error
     if args.json:
         payload = {
