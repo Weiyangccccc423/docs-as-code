@@ -4526,6 +4526,36 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_target_readme_command_guardrail_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            readme = root / "README.md"
+            readme.write_text(
+                readme.read_text(encoding="utf-8").replace(
+                    "- `make governance-status` - print workflow state as JSON.\n",
+                    "",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn("README.md must preserve guardrail: make governance-status", report.errors)
+            self.assertIn(
+                {
+                    "code": "target_entry_doc_guardrail_missing",
+                    "severity": "error",
+                    "path": "README.md",
+                    "message": "README.md must preserve guardrail: make governance-status",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_target_spec_guardrail_drift(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -6833,6 +6863,14 @@ class GovernanceScriptsTest(unittest.TestCase):
             )
             self.assertEqual(0, cli_result.returncode, cli_result.stderr)
             self.assertIn("phase: initialized", cli_result.stdout)
+
+            readme_text = (root / "README.md").read_text(encoding="utf-8")
+            self.assertIn("## Local Commands", readme_text)
+            self.assertIn("make verify-governance", readme_text)
+            self.assertIn("make verify-check", readme_text)
+            self.assertIn("make governance-status", readme_text)
+            self.assertIn("make check-env", readme_text)
+            self.assertIn("make repair-env-check", readme_text)
 
     def test_bootstrap_installed_init_and_verify_wrappers_are_self_hosting(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -12,10 +12,8 @@ One-sentence project summary.
 
 ## Development
 
-```bash
-make verify-governance
-make verify-check
-make governance-status
-make check-env
-make repair-env-check
-```
+- `make verify-governance` - run governance verification and update verification state.
+- `make verify-check` - run read-only JSON verification without updating state.
+- `make governance-status` - print workflow state as JSON.
+- `make check-env` - inventory local governance tools.
+- `make repair-env-check` - preview environment repair without writing files.

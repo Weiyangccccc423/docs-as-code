@@ -1114,7 +1114,13 @@ def _write_bootstrap_outputs(
         "- Governance rules: `AGENTS.md` and `docs/AGENTS.md`\n"
         "- Workflow pack snapshot: `docs/agent-workflow/workflow-pack/`\n"
         "- Open questions: `docs/unresolved.md`\n"
-        "- Delivery plan: `docs/development/README.md`\n",
+        "- Delivery plan: `docs/development/README.md`\n\n"
+        "## Local Commands\n\n"
+        "- `make verify-governance` - run governance verification and update verification state.\n"
+        "- `make verify-check` - run read-only JSON verification without updating state.\n"
+        "- `make governance-status` - print workflow state as JSON.\n"
+        "- `make check-env` - inventory local governance tools.\n"
+        "- `make repair-env-check` - preview environment repair without writing files.\n",
         force,
     )
     _safe_write(

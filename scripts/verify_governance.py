@@ -420,6 +420,11 @@ TARGET_ENTRY_DOC_GUARDRAILS = {
         "docs/agent-workflow/workflow-pack/",
         "docs/unresolved.md",
         "docs/development/readme.md",
+        "make verify-governance",
+        "make verify-check",
+        "make governance-status",
+        "make check-env",
+        "make repair-env-check",
     ),
     "SPEC.md": (
         "summary view",

@@ -277,7 +277,7 @@ class PackStructureTest(unittest.TestCase):
             readme = target / "templates/root/README.md"
             readme.write_text(
                 readme.read_text(encoding="utf-8").replace(
-                    "make governance-status\n",
+                    "- `make governance-status` - print workflow state as JSON.\n",
                     "",
                     1,
                 ),
