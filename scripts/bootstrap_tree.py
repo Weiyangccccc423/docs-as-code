@@ -399,18 +399,24 @@ class RuntimeRefreshResult:
             raise ValueError("runtime refresh result ok cannot include errors")
         if not self.ok and not self.errors:
             raise ValueError("runtime refresh result failure requires errors")
+        self.refreshed = list(self.refreshed)
+        self.removed = list(self.removed)
+        self.would_refresh = list(self.would_refresh)
+        self.would_remove = list(self.would_remove)
+        self.errors = list(self.errors)
+        self.state = copy.deepcopy(self.state)
 
     def to_dict(self) -> dict[str, object]:
         return {
             "target": self.target,
             "ok": self.ok,
-            "refreshed": self.refreshed,
-            "removed": self.removed,
+            "refreshed": list(self.refreshed),
+            "removed": list(self.removed),
             "check": self.check,
-            "would_refresh": self.would_refresh,
-            "would_remove": self.would_remove,
-            "errors": self.errors,
-            "state": self.state,
+            "would_refresh": list(self.would_refresh),
+            "would_remove": list(self.would_remove),
+            "errors": list(self.errors),
+            "state": copy.deepcopy(self.state),
         }
 
 

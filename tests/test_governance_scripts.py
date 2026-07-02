@@ -2094,13 +2094,19 @@ class GovernanceScriptsTest(unittest.TestCase):
                     bootstrap_module.InitPreflightResult(**values)
 
     def test_runtime_refresh_result_rejects_unstable_output_shape(self) -> None:
+        source_refreshed = ["bin/governance", "scripts/governance_cli.py"]
+        source_removed = ["docs/agent-workflow/workflow-pack/workflows/99-stale.md"]
+        source_state = {"runtime_manifest": "docs/agent-workflow/runtime-manifest.json"}
         valid = bootstrap_module.RuntimeRefreshResult(
             target="/tmp/project",
             ok=True,
-            refreshed=["bin/governance", "scripts/governance_cli.py"],
-            removed=["docs/agent-workflow/workflow-pack/workflows/99-stale.md"],
-            state={"runtime_manifest": "docs/agent-workflow/runtime-manifest.json"},
+            refreshed=source_refreshed,
+            removed=source_removed,
+            state=source_state,
         )
+        source_refreshed.clear()
+        source_removed.clear()
+        source_state["runtime_manifest"] = "mutated"
         self.assertEqual(
             {
                 "target": "/tmp/project",
@@ -2115,6 +2121,23 @@ class GovernanceScriptsTest(unittest.TestCase):
             },
             valid.to_dict(),
         )
+        payload = valid.to_dict()
+        payload_refreshed = payload["refreshed"]
+        payload_removed = payload["removed"]
+        payload_errors = payload["errors"]
+        payload_state = payload["state"]
+        self.assertIsInstance(payload_refreshed, list)
+        self.assertIsInstance(payload_removed, list)
+        self.assertIsInstance(payload_errors, list)
+        self.assertIsInstance(payload_state, dict)
+        payload_refreshed.clear()
+        payload_removed.clear()
+        payload_errors.append("mutated error")
+        payload_state["runtime_manifest"] = "mutated"
+        self.assertEqual(["bin/governance", "scripts/governance_cli.py"], valid.refreshed)
+        self.assertEqual(["docs/agent-workflow/workflow-pack/workflows/99-stale.md"], valid.removed)
+        self.assertEqual([], valid.errors)
+        self.assertEqual({"runtime_manifest": "docs/agent-workflow/runtime-manifest.json"}, valid.state)
 
         check_valid = bootstrap_module.RuntimeRefreshResult(
             target="/tmp/project",
