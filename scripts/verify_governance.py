@@ -29,6 +29,7 @@ PRODUCT_IMPORT_STATUSES = ("conversion_required", "no_source", "ready_for_struct
 UNRESOLVED_ID_RE = re.compile(r"^U-[0-9]{3}$")
 TASK_ID_RE = re.compile(r"^TASK-[0-9]{3}$")
 ACCEPTANCE_ID_RE = re.compile(r"(?<![A-Za-z0-9_-])A-[0-9]{3}(?![A-Za-z0-9_-])")
+FINDING_CODE_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 UNRESOLVED_REQUIRED_COLUMNS = {
     "id": "ID",
     "domain": "Domain",
@@ -1023,6 +1024,14 @@ def _check_governance_last_verification(state: dict[str, object], rel: str, repo
                     rel,
                 )
                 return
+        finding_code = finding.get("code")
+        if isinstance(finding_code, str) and not FINDING_CODE_RE.match(finding_code):
+            report.add_error(
+                "state_last_verification_finding_invalid",
+                "governance state last_verification findings code must use lowercase snake_case",
+                rel,
+            )
+            return
         if finding.get("severity") not in {"error", "warning"}:
             report.add_error(
                 "state_last_verification_finding_invalid",

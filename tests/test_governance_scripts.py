@@ -1658,6 +1658,24 @@ class GovernanceScriptsTest(unittest.TestCase):
                 "governance state last_verification findings entries must include non-empty string code",
             ),
             (
+                {
+                    "code": "example-code",
+                    "severity": "error",
+                    "path": ".governance/state.json",
+                    "message": "example error",
+                },
+                "governance state last_verification findings code must use lowercase snake_case",
+            ),
+            (
+                {
+                    "code": "Example Code",
+                    "severity": "error",
+                    "path": ".governance/state.json",
+                    "message": "example error",
+                },
+                "governance state last_verification findings code must use lowercase snake_case",
+            ),
+            (
                 {"code": "example", "severity": "error", "path": " ", "message": "example"},
                 "governance state last_verification findings entries must include non-empty string path",
             ),
