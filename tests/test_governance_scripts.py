@@ -1699,6 +1699,193 @@ class GovernanceScriptsTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, message):
                     bootstrap_module.InitPreflightResult(**values)
 
+    def test_runtime_refresh_result_rejects_unstable_output_shape(self) -> None:
+        valid = bootstrap_module.RuntimeRefreshResult(
+            target="/tmp/project",
+            ok=True,
+            refreshed=["bin/governance", "scripts/governance_cli.py"],
+            removed=["docs/agent-workflow/workflow-pack/workflows/99-stale.md"],
+            state={"runtime_manifest": "docs/agent-workflow/runtime-manifest.json"},
+        )
+        self.assertEqual(
+            {
+                "target": "/tmp/project",
+                "ok": True,
+                "refreshed": ["bin/governance", "scripts/governance_cli.py"],
+                "removed": ["docs/agent-workflow/workflow-pack/workflows/99-stale.md"],
+                "check": False,
+                "would_refresh": [],
+                "would_remove": [],
+                "errors": [],
+                "state": {"runtime_manifest": "docs/agent-workflow/runtime-manifest.json"},
+            },
+            valid.to_dict(),
+        )
+
+        check_valid = bootstrap_module.RuntimeRefreshResult(
+            target="/tmp/project",
+            ok=True,
+            check=True,
+            would_refresh=["bin/governance"],
+            would_remove=["docs/agent-workflow/workflow-pack/workflows/99-stale.md"],
+            state={"runtime_manifest": "docs/agent-workflow/runtime-manifest.json"},
+        )
+        self.assertEqual(["bin/governance"], check_valid.to_dict()["would_refresh"])
+
+        cases = [
+            (
+                {
+                    "target": "",
+                    "ok": True,
+                },
+                "runtime refresh result target must be a non-empty string",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": "true",
+                },
+                "runtime refresh result ok must be a boolean",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "check": "false",
+                },
+                "runtime refresh result check must be a boolean",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "refreshed": "bin/governance",
+                },
+                "runtime refresh result refreshed must be a list",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "refreshed": ["bin/governance", 123],
+                },
+                "runtime refresh result refreshed paths must be strings",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "refreshed": ["/tmp/project/bin/governance"],
+                },
+                "runtime refresh result refreshed paths must be repository-relative",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "refreshed": ["../bin/governance"],
+                },
+                "runtime refresh result refreshed paths must be repository-relative",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "refreshed": ["bin\\governance"],
+                },
+                "runtime refresh result refreshed paths must use normalized POSIX form",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "would_refresh": ["./bin/governance"],
+                    "check": True,
+                },
+                "runtime refresh result would_refresh paths must use normalized POSIX form",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "removed": [
+                        "docs/agent-workflow/workflow-pack/workflows/99-stale.md",
+                        "docs/agent-workflow/workflow-pack/workflows/99-stale.md",
+                    ],
+                },
+                "runtime refresh result removed paths must be unique",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "errors": ["ok", 123],
+                },
+                "runtime refresh result errors must be strings",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "state": [],
+                },
+                "runtime refresh result state must be an object",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "check": True,
+                    "refreshed": ["bin/governance"],
+                },
+                "runtime refresh result check mode cannot contain write outputs",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "check": True,
+                    "removed": ["docs/agent-workflow/workflow-pack/workflows/99-stale.md"],
+                },
+                "runtime refresh result check mode cannot contain write outputs",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "would_refresh": ["bin/governance"],
+                },
+                "runtime refresh result write mode cannot contain would outputs",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "would_remove": ["docs/agent-workflow/workflow-pack/workflows/99-stale.md"],
+                },
+                "runtime refresh result write mode cannot contain would outputs",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "errors": ["unexpected error"],
+                },
+                "runtime refresh result ok cannot include errors",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": False,
+                },
+                "runtime refresh result failure requires errors",
+            ),
+        ]
+        for values, message in cases:
+            with self.subTest(message=message, values=values):
+                with self.assertRaisesRegex(ValueError, message):
+                    bootstrap_module.RuntimeRefreshResult(**values)
+
     def test_phases_main_json_advances_product_structuring(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

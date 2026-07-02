@@ -373,6 +373,28 @@ class RuntimeRefreshResult:
     errors: list[str] = field(default_factory=list)
     state: dict[str, object] = field(default_factory=dict)
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.target, str) or not self.target:
+            raise ValueError("runtime refresh result target must be a non-empty string")
+        if not isinstance(self.ok, bool):
+            raise ValueError("runtime refresh result ok must be a boolean")
+        if not isinstance(self.check, bool):
+            raise ValueError("runtime refresh result check must be a boolean")
+        for field_name in ("refreshed", "removed", "would_refresh", "would_remove"):
+            _validate_runtime_refresh_path_list(field_name, getattr(self, field_name))
+        if not isinstance(self.errors, list) or not all(isinstance(error, str) for error in self.errors):
+            raise ValueError("runtime refresh result errors must be strings")
+        if not isinstance(self.state, dict):
+            raise ValueError("runtime refresh result state must be an object")
+        if self.check and (self.refreshed or self.removed):
+            raise ValueError("runtime refresh result check mode cannot contain write outputs")
+        if not self.check and (self.would_refresh or self.would_remove):
+            raise ValueError("runtime refresh result write mode cannot contain would outputs")
+        if self.ok and self.errors:
+            raise ValueError("runtime refresh result ok cannot include errors")
+        if not self.ok and not self.errors:
+            raise ValueError("runtime refresh result failure requires errors")
+
     def to_dict(self) -> dict[str, object]:
         return {
             "target": self.target,
@@ -385,6 +407,30 @@ class RuntimeRefreshResult:
             "errors": self.errors,
             "state": self.state,
         }
+
+
+def _validate_runtime_refresh_path_list(field_name: str, paths: object) -> None:
+    if not isinstance(paths, list):
+        raise ValueError(f"runtime refresh result {field_name} must be a list")
+    if not all(isinstance(path, str) for path in paths):
+        raise ValueError(f"runtime refresh result {field_name} paths must be strings")
+    if len(paths) != len(set(paths)):
+        raise ValueError(f"runtime refresh result {field_name} paths must be unique")
+    for path in paths:
+        posix_path = PurePosixPath(path)
+        windows_path = PureWindowsPath(path)
+        normalized_path = posix_path.as_posix()
+        if (
+            not path
+            or path == "."
+            or posix_path.is_absolute()
+            or windows_path.is_absolute()
+            or ".." in posix_path.parts
+            or ".." in windows_path.parts
+        ):
+            raise ValueError(f"runtime refresh result {field_name} paths must be repository-relative")
+        if "\\" in path or path != normalized_path:
+            raise ValueError(f"runtime refresh result {field_name} paths must use normalized POSIX form")
 
 
 @dataclass(frozen=True)
