@@ -1669,6 +1669,70 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertTrue(status_payload["ok"])
             self.assertEqual("service", status_payload["state"]["profile"])
 
+    def test_initialized_target_local_governance_wrapper_verifies_and_reports_status(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+
+            init_result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "init",
+                    "--target",
+                    str(target),
+                    "--product",
+                    str(product),
+                    "--profile",
+                    "service",
+                    "--project-name",
+                    "Target Local Demo",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            state_path = target / ".governance/state.json"
+            state_before = state_path.read_text(encoding="utf-8")
+
+            verify_result = subprocess.run(
+                ["bin/governance", "verify", ".", "--check", "--json"],
+                cwd=target,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, verify_result.returncode, verify_result.stderr)
+            verify_payload = json.loads(verify_result.stdout)
+            self.assertTrue(verify_payload["ok"])
+            self.assertTrue(verify_payload["check"])
+            self.assertFalse(verify_payload["state_updated"])
+            self.assertEqual([], verify_payload["errors"])
+            self.assertEqual(".", verify_payload["target"])
+            self.assertEqual("initialized", verify_payload["state"]["phase"])
+            self.assertEqual(state_before, state_path.read_text(encoding="utf-8"))
+
+            status_result = subprocess.run(
+                ["bin/governance", "status", ".", "--json"],
+                cwd=target,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, status_result.returncode, status_result.stderr)
+            status_payload = json.loads(status_result.stdout)
+            self.assertTrue(status_payload["ok"])
+            self.assertEqual(".", status_payload["target"])
+            self.assertEqual("service", status_payload["state"]["profile"])
+            self.assertEqual("Target Local Demo", status_payload["state"]["project_name"])
+            self.assertEqual(
+                "docs/agent-workflow/workflow-pack/manifest.json",
+                status_payload["state"]["workflow_pack_manifest"],
+            )
+
     def test_verify_check_json_does_not_update_state(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "target"
