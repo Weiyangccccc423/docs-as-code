@@ -12557,6 +12557,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertEqual([], payload["install_commands"])
             self.assertEqual("", payload["install_command"])
             self.assertFalse(payload["needs_escalation"])
+            self.assertEqual([], payload["errors"])
             self.assertEqual(str(target / ".governance/env-repair.md"), payload["repair_plan"])
             self.assertTrue(any(item["kind"] == "repair_plan" for item in payload["repairs"]))
 
