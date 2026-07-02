@@ -728,6 +728,124 @@ class GovernanceScriptsTest(unittest.TestCase):
                         message=values["message"],
                     )
 
+    def test_gate_result_rejects_unstable_output_shape(self) -> None:
+        requirement = gates_module.GateRequirement(
+            code="product_import_ready",
+            ok=True,
+            path="docs/product/core/source/source-manifest.json",
+            message="product import is ready",
+        )
+        valid = gates_module.GateResult(
+            gate="product-structuring",
+            target="/tmp/project",
+            ok=True,
+            requirements=[requirement],
+            verification={},
+            state={},
+        )
+        self.assertEqual(
+            {
+                "gate": "product-structuring",
+                "target": "/tmp/project",
+                "ok": True,
+                "requirements": [requirement.to_dict()],
+                "verification": {},
+                "state": {},
+            },
+            valid.to_dict(),
+        )
+
+        cases = [
+            (
+                {
+                    "gate": "unknown",
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "requirements": [requirement],
+                    "verification": {},
+                    "state": {},
+                },
+                "gate result gate must be a known gate",
+            ),
+            (
+                {
+                    "gate": "product-structuring",
+                    "target": "",
+                    "ok": True,
+                    "requirements": [requirement],
+                    "verification": {},
+                    "state": {},
+                },
+                "gate result target must be a non-empty string",
+            ),
+            (
+                {
+                    "gate": "product-structuring",
+                    "target": "/tmp/project",
+                    "ok": "true",
+                    "requirements": [requirement],
+                    "verification": {},
+                    "state": {},
+                },
+                "gate result ok must be a boolean",
+            ),
+            (
+                {
+                    "gate": "product-structuring",
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "requirements": "not-a-list",
+                    "verification": {},
+                    "state": {},
+                },
+                "gate result requirements must be a list",
+            ),
+            (
+                {
+                    "gate": "product-structuring",
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "requirements": [object()],
+                    "verification": {},
+                    "state": {},
+                },
+                "gate result requirements must contain GateRequirement entries",
+            ),
+            (
+                {
+                    "gate": "product-structuring",
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "requirements": [requirement],
+                    "verification": [],
+                    "state": {},
+                },
+                "gate result verification must be an object",
+            ),
+            (
+                {
+                    "gate": "product-structuring",
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "requirements": [requirement],
+                    "verification": {},
+                    "state": [],
+                },
+                "gate result state must be an object",
+            ),
+        ]
+        for values, message in cases:
+            with self.subTest(message=message, values=values):
+                with self.assertRaisesRegex(ValueError, message):
+                    gates_module.GateResult(
+                        gate=values["gate"],
+                        target=values["target"],
+                        ok=values["ok"],
+                        requirements=values["requirements"],
+                        verification=values["verification"],
+                        state=values["state"],
+                    )
+
     def test_phases_main_json_advances_product_structuring(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

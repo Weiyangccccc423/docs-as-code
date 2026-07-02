@@ -91,6 +91,22 @@ class GateResult:
     verification: dict[str, Any] = field(default_factory=dict)
     state: dict[str, Any] = field(default_factory=dict)
 
+    def __post_init__(self) -> None:
+        if self.gate not in GATE_NAMES:
+            raise ValueError("gate result gate must be a known gate")
+        if not isinstance(self.target, str) or not self.target:
+            raise ValueError("gate result target must be a non-empty string")
+        if not isinstance(self.ok, bool):
+            raise ValueError("gate result ok must be a boolean")
+        if not isinstance(self.requirements, list):
+            raise ValueError("gate result requirements must be a list")
+        if not all(isinstance(item, GateRequirement) for item in self.requirements):
+            raise ValueError("gate result requirements must contain GateRequirement entries")
+        if not isinstance(self.verification, dict):
+            raise ValueError("gate result verification must be an object")
+        if not isinstance(self.state, dict):
+            raise ValueError("gate result state must be an object")
+
     def to_dict(self) -> dict[str, object]:
         return {
             "gate": self.gate,
