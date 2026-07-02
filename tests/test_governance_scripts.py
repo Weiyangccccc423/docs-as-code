@@ -14,6 +14,7 @@ import scripts.phases as phases_module
 import scripts.product_import as product_import_module
 import scripts.scaffold as scaffold_module
 import scripts.verify_governance as verify_governance_module
+import scripts.workflow_actions as workflow_actions_module
 from scripts.check_env import (
     PackageManager,
     ToolStatus,
@@ -566,6 +567,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             runtime_manifest = json.loads((root / "docs/agent-workflow/runtime-manifest.json").read_text(encoding="utf-8"))
             self.assertTrue(any(item["path"] == "bin/governance" for item in runtime_manifest["files"]))
             self.assertTrue(any(item["path"] == "scripts/verify_governance.py" for item in runtime_manifest["files"]))
+            self.assertTrue(any(item["path"] == "scripts/workflow_actions.py" for item in runtime_manifest["files"]))
             self.assertIn("Demo Product", (root / "docs/product/core/PRD.md").read_text(encoding="utf-8"))
             self.assertIn("`U-NNN`", (root / "docs/unresolved.md").read_text(encoding="utf-8"))
             manifest = json.loads((root / "docs/product/core/source/source-manifest.json").read_text(encoding="utf-8"))
@@ -1203,6 +1205,80 @@ class GovernanceScriptsTest(unittest.TestCase):
             with self.subTest(message=message, values=values):
                 with self.assertRaisesRegex(ValueError, message):
                     phases_module.AdvanceResult(**values)
+
+    def test_next_actions_recommend_product_import_closeout_until_ready(self) -> None:
+        actions = workflow_actions_module.next_actions_payload(
+            {
+                "phase": "initialized",
+                "product_import_status": "conversion_required",
+            }
+        )
+
+        self.assertEqual(
+            [
+                {
+                    "id": "product-mark-ready-check",
+                    "kind": "preflight",
+                    "phase": "product-document-archiving",
+                    "workflow": "docs/agent-workflow/workflow-pack/workflows/02-product-document-archiving.md",
+                    "skills": ["archiving-product-document", "verifying-governance-docs"],
+                    "command": (
+                        "bin/governance product mark-ready . --reviewed "
+                        "--method manual-reviewed-markdown --check --json"
+                    ),
+                    "writes_state": False,
+                    "requires": "docs/product/core/PRD.md has been manually reviewed against the archived source",
+                    "description": "preview product import readiness closeout before allowing downstream derivation",
+                },
+                {
+                    "id": "product-mark-ready",
+                    "kind": "apply",
+                    "phase": "product-document-archiving",
+                    "workflow": "docs/agent-workflow/workflow-pack/workflows/02-product-document-archiving.md",
+                    "skills": ["archiving-product-document", "verifying-governance-docs"],
+                    "command": (
+                        "bin/governance product mark-ready . --reviewed "
+                        "--method manual-reviewed-markdown --json"
+                    ),
+                    "writes_state": True,
+                    "requires": "product-mark-ready-check ok:true",
+                    "description": (
+                        "record reviewed product import readiness in source manifest and governance state"
+                    ),
+                },
+            ],
+            actions,
+        )
+        actions[0]["skills"].append("mutated")
+        self.assertEqual(
+            ["archiving-product-document", "verifying-governance-docs"],
+            workflow_actions_module.next_actions_payload({"phase": "initialized"})[0]["skills"],
+        )
+
+    def test_next_actions_recommend_next_sequential_phase_advance(self) -> None:
+        initialized = workflow_actions_module.next_actions_payload(
+            {
+                "phase": "initialized",
+                "product_import_status": "ready_for_structuring",
+            }
+        )
+        product_structuring = workflow_actions_module.next_actions_payload({"phase": "product-structuring"})
+        design_derivation = workflow_actions_module.next_actions_payload({"phase": "design-derivation"})
+
+        self.assertEqual("advance-product-structuring-check", initialized[0]["id"])
+        self.assertEqual("bin/governance advance product-structuring . --check --json", initialized[0]["command"])
+        self.assertEqual("advance-product-structuring", initialized[1]["id"])
+        self.assertEqual("bin/governance advance product-structuring . --json", initialized[1]["command"])
+        self.assertEqual(
+            ["structuring-product-requirements", "verifying-governance-docs"],
+            initialized[0]["skills"],
+        )
+        self.assertEqual("advance-design-derivation-check", product_structuring[0]["id"])
+        self.assertEqual("advance-implementation-check", design_derivation[0]["id"])
+        self.assertEqual([], workflow_actions_module.next_actions_payload({"phase": "implementation"}))
+        self.assertEqual([], workflow_actions_module.next_actions_payload({"phase": "unknown-phase"}))
+        with self.assertRaisesRegex(ValueError, "workflow action state must be an object"):
+            workflow_actions_module.next_actions_payload([])
 
     def test_scaffold_spec_rejects_unstable_template_shape(self) -> None:
         valid = scaffold_module.ScaffoldSpec(
@@ -2933,6 +3009,20 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "description": "print workflow state as JSON",
                 },
                 payload["local_commands"],
+            )
+            self.assertIn(
+                {
+                    "id": "advance-product-structuring-check",
+                    "kind": "preflight",
+                    "phase": "product-structuring",
+                    "workflow": "docs/agent-workflow/workflow-pack/workflows/03-product-structuring.md",
+                    "skills": ["structuring-product-requirements", "verifying-governance-docs"],
+                    "command": "bin/governance advance product-structuring . --check --json",
+                    "writes_state": False,
+                    "requires": "current phase is the previous workflow phase and the gate can pass",
+                    "description": "preflight advance from initialization into product structuring",
+                },
+                payload["next_actions"],
             )
             self.assertTrue((root / "bin/governance").exists())
 
@@ -6822,6 +6912,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertTrue((root / "scripts/product_import.py").exists())
             self.assertTrue((root / "scripts/scaffold.py").exists())
             self.assertTrue((root / "scripts/verify_governance.py").exists())
+            self.assertTrue((root / "scripts/workflow_actions.py").exists())
             self.assertTrue((root / "docs/agent-workflow/workflow-pack/manifest.json").exists())
             makefile_text = (root / "Makefile").read_text(encoding="utf-8")
             self.assertIn("bin/governance verify .", makefile_text)
@@ -6880,6 +6971,20 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "description": "preview environment repair without writing files",
                 },
                 status_payload["local_commands"],
+            )
+            self.assertIn(
+                {
+                    "id": "advance-product-structuring",
+                    "kind": "apply",
+                    "phase": "product-structuring",
+                    "workflow": "docs/agent-workflow/workflow-pack/workflows/03-product-structuring.md",
+                    "skills": ["structuring-product-requirements", "verifying-governance-docs"],
+                    "command": "bin/governance advance product-structuring . --json",
+                    "writes_state": True,
+                    "requires": "advance-product-structuring-check ok:true",
+                    "description": "record advance from initialization into product structuring",
+                },
+                status_payload["next_actions"],
             )
 
             repair_check_result = subprocess.run(

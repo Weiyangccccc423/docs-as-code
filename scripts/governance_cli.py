@@ -40,6 +40,7 @@ from scaffold import (
 )
 from state import STATE_REL, StateFileError, load_state, merge_state, utc_now
 from verify_governance import verify
+from workflow_actions import next_actions_payload
 
 
 def _print_json(payload: dict[str, object]) -> None:
@@ -95,6 +96,7 @@ def _cmd_init(args: argparse.Namespace) -> int:
         payload["conflicts"] = []
         payload["state"] = load_state(target)
         payload["local_commands"] = target_local_commands_payload()
+        payload["next_actions"] = next_actions_payload(payload["state"])
         _print_json(payload)
         return 0
     print(f"Initialized governance repository at {target}")
@@ -226,6 +228,7 @@ def _cmd_status(args: argparse.Namespace) -> int:
                 "target": str(target),
                 "state": state,
                 "local_commands": target_local_commands_payload(),
+                "next_actions": next_actions_payload(state),
             }
         )
         return 0

@@ -31,6 +31,8 @@ Create the minimum structure needed for reliable docs-as-code work.
    bin/governance init --target <target> --product <product-doc>
    ```
 
+   For automation, use `--json` and follow `next_actions`: run the reported `preflight` command first, then the matching state-writing `apply` command only after `ok: true`.
+
 4. Verify:
 
    ```bash

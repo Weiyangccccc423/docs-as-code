@@ -11,8 +11,10 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 
 try:
     from .state import STATE_REL, StateFileError, load_state, merge_state, utc_now
+    from .workflow_actions import next_actions_payload
 except ImportError:  # pragma: no cover - direct script execution
     from state import STATE_REL, StateFileError, load_state, merge_state, utc_now
+    from workflow_actions import next_actions_payload
 
 
 DOC_DIRS = [
@@ -45,6 +47,7 @@ RUNTIME_SCRIPT_FILES = [
     "scaffold.py",
     "state.py",
     "verify_governance.py",
+    "workflow_actions.py",
 ]
 RUNTIME_MANIFEST_REL = "docs/agent-workflow/runtime-manifest.json"
 MARKDOWN_PRODUCT_SUFFIXES = {".md", ".markdown"}
@@ -1529,6 +1532,7 @@ def main() -> int:
         payload["conflicts"] = []
         payload["state"] = load_state(target)
         payload["local_commands"] = target_local_commands_payload()
+        payload["next_actions"] = next_actions_payload(payload["state"])
         print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
         return 0
     print(f"Initialized governance repository at {target}")

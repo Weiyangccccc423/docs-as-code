@@ -1654,6 +1654,20 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertTrue(init_payload["ok"])
             self.assertEqual(str(target), init_payload["target"])
             self.assertEqual("initialized", init_payload["state"]["phase"])
+            self.assertIn(
+                {
+                    "id": "advance-product-structuring-check",
+                    "kind": "preflight",
+                    "phase": "product-structuring",
+                    "workflow": "docs/agent-workflow/workflow-pack/workflows/03-product-structuring.md",
+                    "skills": ["structuring-product-requirements", "verifying-governance-docs"],
+                    "command": "bin/governance advance product-structuring . --check --json",
+                    "writes_state": False,
+                    "requires": "current phase is the previous workflow phase and the gate can pass",
+                    "description": "preflight advance from initialization into product structuring",
+                },
+                init_payload["next_actions"],
+            )
 
             verify_result = subprocess.run(
                 [sys.executable, str(CLI), "verify", str(target), "--json"],
@@ -1685,6 +1699,20 @@ class GovernanceCliTest(unittest.TestCase):
                     "description": "run governance verification and update verification state",
                 },
                 status_payload["local_commands"],
+            )
+            self.assertIn(
+                {
+                    "id": "advance-product-structuring-check",
+                    "kind": "preflight",
+                    "phase": "product-structuring",
+                    "workflow": "docs/agent-workflow/workflow-pack/workflows/03-product-structuring.md",
+                    "skills": ["structuring-product-requirements", "verifying-governance-docs"],
+                    "command": "bin/governance advance product-structuring . --check --json",
+                    "writes_state": False,
+                    "requires": "current phase is the previous workflow phase and the gate can pass",
+                    "description": "preflight advance from initialization into product structuring",
+                },
+                status_payload["next_actions"],
             )
 
     def test_initialized_target_local_governance_wrapper_verifies_and_reports_status(self) -> None:
@@ -1758,6 +1786,20 @@ class GovernanceCliTest(unittest.TestCase):
                     "description": "print workflow state as JSON",
                 },
                 status_payload["local_commands"],
+            )
+            self.assertIn(
+                {
+                    "id": "advance-product-structuring",
+                    "kind": "apply",
+                    "phase": "product-structuring",
+                    "workflow": "docs/agent-workflow/workflow-pack/workflows/03-product-structuring.md",
+                    "skills": ["structuring-product-requirements", "verifying-governance-docs"],
+                    "command": "bin/governance advance product-structuring . --json",
+                    "writes_state": True,
+                    "requires": "advance-product-structuring-check ok:true",
+                    "description": "record advance from initialization into product structuring",
+                },
+                status_payload["next_actions"],
             )
 
     def test_verify_check_json_does_not_update_state(self) -> None:

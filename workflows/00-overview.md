@@ -37,6 +37,8 @@ make check-env
 make repair-env-check
 ```
 
+Machine-readable `init --json` and `status --json` success payloads include `next_actions`. Agents should execute `preflight` actions first and run state-writing `apply` actions only after the referenced preflight returns `ok: true`.
+
 From a trusted source workflow-pack checkout, refresh generated target runtime and workflow-pack snapshot files without rewriting product or design documents:
 
 ```bash

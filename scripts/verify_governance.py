@@ -137,6 +137,7 @@ RUNTIME_REQUIRED_SCRIPT_FILES = (
     "scaffold.py",
     "state.py",
     "verify_governance.py",
+    "workflow_actions.py",
 )
 RUNTIME_REQUIRED_PATHS = tuple(
     sorted(
