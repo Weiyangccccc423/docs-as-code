@@ -10,6 +10,11 @@ from datetime import datetime
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Callable
 
+try:
+    from .bootstrap_tree import TARGET_LOCAL_COMMANDS
+except ImportError:  # pragma: no cover - direct script execution
+    from bootstrap_tree import TARGET_LOCAL_COMMANDS
+
 
 DOC_DIRS = {
     "product",
@@ -374,30 +379,17 @@ DOMAIN_AGENTS_RULE_GUARDRAILS = (
     "update readme.md when adding or renaming documents",
     "link back to upstream source documents instead of copying large sections",
 )
-TARGET_MAKEFILE_REQUIRED_TARGETS = (
-    "verify-governance",
-    "verify-check",
-    "governance-status",
-    "check-env",
-    "repair-env-check",
+TARGET_MAKEFILE_REQUIRED_TARGETS = tuple(
+    target for target, _recipe, _description in TARGET_LOCAL_COMMANDS
 )
 TARGET_MAKEFILE_REQUIRED_TARGET_RECIPES = {
-    "verify-governance": (
-        "bin/governance verify .",
-    ),
-    "verify-check": (
-        "bin/governance verify . --check --json",
-    ),
-    "governance-status": (
-        "bin/governance status . --json",
-    ),
-    "check-env": (
-        "bin/governance env --target .",
-    ),
-    "repair-env-check": (
-        "bin/governance env --repair --check --target . --json",
-    ),
+    target: (recipe,)
+    for target, recipe, _description in TARGET_LOCAL_COMMANDS
 }
+TARGET_LOCAL_MAKE_COMMANDS = tuple(
+    f"make {target}"
+    for target, _recipe, _description in TARGET_LOCAL_COMMANDS
+)
 TARGET_SUPPORT_FILE_GUARDRAILS = {
     "CONTRIBUTING.md": (
         "docs/agent-workflow/task-handoff.md",
@@ -420,11 +412,7 @@ TARGET_ENTRY_DOC_GUARDRAILS = {
         "docs/agent-workflow/workflow-pack/",
         "docs/unresolved.md",
         "docs/development/readme.md",
-        "make verify-governance",
-        "make verify-check",
-        "make governance-status",
-        "make check-env",
-        "make repair-env-check",
+        *TARGET_LOCAL_MAKE_COMMANDS,
     ),
     "SPEC.md": (
         "summary view",

@@ -8,12 +8,14 @@ from dataclasses import dataclass
 from pathlib import Path
 
 try:
+    from .bootstrap_tree import TARGET_LOCAL_COMMANDS
     from .verify_governance import (
         RUNTIME_EXECUTABLE_PATHS,
         RUNTIME_REQUIRED_PATHS,
         WORKFLOW_PACK_REQUIRED_PATHS,
     )
 except ImportError:  # pragma: no cover - direct script execution
+    from bootstrap_tree import TARGET_LOCAL_COMMANDS
     from verify_governance import RUNTIME_EXECUTABLE_PATHS, RUNTIME_REQUIRED_PATHS, WORKFLOW_PACK_REQUIRED_PATHS
 
 
@@ -466,12 +468,8 @@ TARGET_MAKEFILE_DOC_PATHS = (
     "skills/verifying-governance-docs/SKILL.md",
     "templates/root/README.md",
 )
-TARGET_MAKEFILE_REQUIRED_COMMANDS = (
-    "make verify-governance",
-    "make verify-check",
-    "make governance-status",
-    "make check-env",
-    "make repair-env-check",
+TARGET_MAKEFILE_REQUIRED_COMMANDS = tuple(
+    f"make {target}" for target, _recipe, _description in TARGET_LOCAL_COMMANDS
 )
 PHASE_ADVANCE_DOC_PATHS = (
     "README.md",
