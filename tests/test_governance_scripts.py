@@ -680,6 +680,21 @@ class GovernanceScriptsTest(unittest.TestCase):
         self.assertEqual([warning.message], mutable.warnings)
         self.assertEqual(report.to_dict(), mutable.to_dict())
 
+        payload = report.to_dict()
+        payload_errors = payload["errors"]
+        payload_warnings = payload["warnings"]
+        payload_findings = payload["findings"]
+        self.assertIsInstance(payload_errors, list)
+        self.assertIsInstance(payload_warnings, list)
+        self.assertIsInstance(payload_findings, list)
+        payload_errors.append("mutated error")
+        payload_warnings.append("mutated warning")
+        self.assertIsInstance(payload_findings[0], dict)
+        payload_findings[0]["message"] = "mutated finding"
+        self.assertEqual([error.message], report.errors)
+        self.assertEqual([warning.message], report.warnings)
+        self.assertEqual(error.message, report.findings[0].message)
+
         cases = [
             (
                 lambda: verify_governance_module.VerificationFinding(

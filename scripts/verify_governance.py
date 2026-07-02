@@ -512,8 +512,8 @@ class VerificationReport:
     def to_dict(self) -> dict[str, object]:
         return {
             "ok": self.ok,
-            "errors": self.errors,
-            "warnings": self.warnings,
+            "errors": list(self.errors),
+            "warnings": list(self.warnings),
             "findings": [finding.to_dict() for finding in self.findings],
         }
 
