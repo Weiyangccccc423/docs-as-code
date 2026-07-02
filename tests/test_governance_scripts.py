@@ -4374,6 +4374,39 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_target_governance_status_makefile_recipe_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            makefile = root / "Makefile"
+            makefile.write_text(
+                makefile.read_text(encoding="utf-8").replace(
+                    "\tbin/governance status . --json\n",
+                    "\tbin/governance status .\n",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "Makefile target governance-status must run command: bin/governance status . --json",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "target_makefile_target_recipe_missing",
+                    "severity": "error",
+                    "path": "Makefile",
+                    "message": "Makefile target governance-status must run command: bin/governance status . --json",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_target_repair_env_check_makefile_recipe_drift(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -6728,6 +6761,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             makefile_text = (root / "Makefile").read_text(encoding="utf-8")
             self.assertIn("bin/governance verify .", makefile_text)
             self.assertIn("bin/governance verify . --check --json", makefile_text)
+            self.assertIn("bin/governance status . --json", makefile_text)
             self.assertIn("bin/governance env --repair --check --target . --json", makefile_text)
 
             verify_result = subprocess.run(
@@ -6758,6 +6792,21 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertFalse(verify_check_payload["state_updated"])
             self.assertEqual([], verify_check_payload["errors"])
             self.assertEqual(state_before, state_path.read_text(encoding="utf-8"))
+
+            status_result = subprocess.run(
+                ["make", "governance-status"],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, status_result.returncode, status_result.stderr)
+            payload_start = status_result.stdout.find("{")
+            self.assertNotEqual(-1, payload_start, status_result.stdout)
+            status_payload, _ = json.JSONDecoder().raw_decode(status_result.stdout[payload_start:])
+            self.assertTrue(status_payload["ok"])
+            self.assertEqual(".", status_payload["target"])
+            self.assertEqual("initialized", status_payload["state"]["phase"])
 
             repair_check_result = subprocess.run(
                 ["make", "repair-env-check"],
