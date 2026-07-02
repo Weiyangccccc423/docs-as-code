@@ -163,12 +163,7 @@ def evaluate_gate(root: Path, gate: str) -> GateResult:
         target=str(root),
         ok=all(item.ok for item in requirements),
         requirements=requirements,
-        verification={
-            "ok": report.ok,
-            "errors": report.errors,
-            "warnings": report.warnings,
-            "findings": [finding.to_dict() for finding in report.findings],
-        },
+        verification=report.to_dict(),
         state=state,
     )
 

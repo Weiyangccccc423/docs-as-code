@@ -600,6 +600,9 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertEqual(str(root.resolve()), payload["target"])
             self.assertTrue(all(requirement["ok"] for requirement in payload["requirements"]))
             self.assertTrue(payload["verification"]["ok"])
+            self.assertEqual([], payload["verification"]["errors"])
+            self.assertEqual([], payload["verification"]["warnings"])
+            self.assertEqual([], payload["verification"]["findings"])
 
     def test_gates_main_json_reports_structured_failed_requirements(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
