@@ -2280,6 +2280,18 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual("product-structuring", payload["state"]["phase_history"][0]["gate"])
             self.assertIn(
                 {
+                    "make_target": "governance-status",
+                    "cwd": str(target.resolve()),
+                    "command": "make governance-status",
+                    "argv": ["make", "governance-status"],
+                    "recipe": "bin/governance status . --json",
+                    "writes_state": False,
+                    "description": "print workflow state as JSON",
+                },
+                payload["local_commands"],
+            )
+            self.assertIn(
+                {
                     "id": "advance-design-derivation-check",
                     "kind": "preflight",
                     "cwd": str(target.resolve()),
@@ -2383,6 +2395,7 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual("initialized", payload["would_state"]["phase_history"][0]["from_phase"])
             self.assertEqual("product-structuring", payload["would_state"]["phase_history"][0]["gate"])
             self.assertEqual(state_before, state_path.read_text(encoding="utf-8"))
+            self.assertNotIn("local_commands", payload)
             self.assertNotIn("next_actions", payload)
 
     def test_advance_check_json_rejects_blocked_state_temp_without_writing(self) -> None:
@@ -2999,6 +3012,18 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertTrue(manifest["import"]["can_derive_design"])
             self.assertIn(
                 {
+                    "make_target": "verify-check",
+                    "cwd": str(target.resolve()),
+                    "command": "make verify-check",
+                    "argv": ["make", "verify-check"],
+                    "recipe": "bin/governance verify . --check --json",
+                    "writes_state": False,
+                    "description": "run read-only JSON verification without updating state",
+                },
+                payload["local_commands"],
+            )
+            self.assertIn(
+                {
                     "id": "advance-product-structuring-check",
                     "kind": "preflight",
                     "cwd": str(target.resolve()),
@@ -3084,6 +3109,7 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual(manifest_before, manifest_path.read_text(encoding="utf-8"))
             self.assertEqual(unresolved_before, unresolved_path.read_text(encoding="utf-8"))
             self.assertEqual(state_before, state_path.read_text(encoding="utf-8"))
+            self.assertNotIn("local_commands", payload)
             self.assertNotIn("next_actions", payload)
 
     def test_gate_design_derivation_requires_product_chapter(self) -> None:

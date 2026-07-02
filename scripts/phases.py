@@ -8,10 +8,12 @@ from pathlib import Path
 from typing import Any
 
 try:
+    from .bootstrap_tree import target_local_commands_payload
     from .gates import GATE_NAMES, evaluate_gate
     from .state import STATE_REL, StateFileError, load_state, save_state, utc_now
     from .workflow_actions import next_actions_payload
 except ImportError:  # pragma: no cover - direct script execution
+    from bootstrap_tree import target_local_commands_payload
     from gates import GATE_NAMES, evaluate_gate
     from state import STATE_REL, StateFileError, load_state, save_state, utc_now
     from workflow_actions import next_actions_payload
@@ -269,6 +271,7 @@ def main() -> int:
     if args.json:
         payload = result.to_dict()
         if result.ok and result.advanced and not args.check:
+            payload["local_commands"] = target_local_commands_payload(cwd=result.target)
             payload["next_actions"] = next_actions_payload(result.state, cwd=result.target)
         print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
         return 0 if result.ok else 1

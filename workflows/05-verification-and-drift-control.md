@@ -53,7 +53,7 @@ Load:
    make repair-env-check
    ```
 
-   `governance-status` runs `bin/governance status . --json`; on success, its payload includes `local_commands` with `cwd`, `argv`, and `writes_state` so resumed agents can rediscover and execute the target-local `make` command contract without re-running initialization. It also includes `next_actions` with `cwd`, `argv`, workflow paths, required skills, preflight commands, and apply commands for the next state transition.
+   `governance-status` runs `bin/governance status . --json`; on success, its payload includes `local_commands` with `cwd`, `argv`, and `writes_state` so resumed agents can rediscover and execute the target-local `make` command contract without re-running initialization. Successful state-writing `product mark-ready --json` and `advance --json` payloads include the same `local_commands` contract. These payloads also include `next_actions` with `cwd`, `argv`, workflow paths, required skills, preflight commands, and apply commands for the next state transition.
 
 4. If verification reports target-local runtime or workflow-pack snapshot drift, inspect the refresh plan from a trusted source workflow-pack checkout before writing repairs:
 

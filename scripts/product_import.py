@@ -9,11 +9,11 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
 try:
-    from .bootstrap_tree import _product_meta
+    from .bootstrap_tree import _product_meta, target_local_commands_payload
     from .state import STATE_REL, StateFileError, load_state, merge_state, utc_now
     from .workflow_actions import next_actions_payload
 except ImportError:  # pragma: no cover - direct script execution
-    from bootstrap_tree import _product_meta
+    from bootstrap_tree import _product_meta, target_local_commands_payload
     from state import STATE_REL, StateFileError, load_state, merge_state, utc_now
     from workflow_actions import next_actions_payload
 
@@ -711,6 +711,7 @@ def main() -> int:
         if args.json:
             payload = result.to_dict()
             if result.ok and not args.check:
+                payload["local_commands"] = target_local_commands_payload(cwd=result.target)
                 payload["next_actions"] = next_actions_payload(result.state, cwd=result.target)
             print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
             return 0 if result.ok else 1

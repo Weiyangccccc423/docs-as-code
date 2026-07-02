@@ -2745,6 +2745,18 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertEqual("product-structuring", payload["state"]["phase"])
             self.assertEqual("initialized", payload["state"]["phase_history"][0]["from_phase"])
             self.assertEqual("product-structuring", payload["state"]["phase_history"][0]["gate"])
+            self.assertIn(
+                {
+                    "make_target": "governance-status",
+                    "cwd": str(root.resolve()),
+                    "command": "make governance-status",
+                    "argv": ["make", "governance-status"],
+                    "recipe": "bin/governance status . --json",
+                    "writes_state": False,
+                    "description": "print workflow state as JSON",
+                },
+                payload["local_commands"],
+            )
             self.assertEqual("product-structuring", state["phase"])
 
     def test_phases_main_check_json_reports_plan_without_writing(self) -> None:
@@ -2773,6 +2785,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertEqual("initialized", payload["state"]["phase"])
             self.assertEqual("product-structuring", payload["would_state"]["phase"])
             self.assertEqual(state_before, state)
+            self.assertNotIn("local_commands", payload)
 
     def test_phases_main_json_failed_gate_does_not_advance(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -7247,6 +7260,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertTrue(mark_ready_check_payload["check"])
             self.assertEqual([], mark_ready_check_payload["updated"])
             self.assertIn("docs/product/core/source/source-manifest.json", mark_ready_check_payload["would_update"])
+            self.assertNotIn("local_commands", mark_ready_check_payload)
             self.assertNotIn("next_actions", mark_ready_check_payload)
             manifest = json.loads((root / "docs/product/core/source/source-manifest.json").read_text(encoding="utf-8"))
             self.assertEqual("conversion_required", manifest["import"]["status"])
@@ -7256,6 +7270,8 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertTrue(mark_ready_payload["ok"])
             self.assertEqual(str(root.resolve()), mark_ready_payload["target"])
             self.assertTrue(mark_ready_payload["conversion_blocker_resolved"])
+            self.assertEqual("verify-check", mark_ready_payload["local_commands"][1]["make_target"])
+            self.assertEqual(str(root.resolve()), mark_ready_payload["local_commands"][1]["cwd"])
             self.assertEqual("advance-product-structuring-check", mark_ready_payload["next_actions"][0]["id"])
             self.assertEqual(str(root.resolve()), mark_ready_payload["next_actions"][0]["cwd"])
             self.assertEqual(
@@ -7290,6 +7306,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertFalse(advance_check_payload["advanced"])
             self.assertTrue(advance_check_payload["would_advance"])
             self.assertEqual("initialized", load_state(root)["phase"])
+            self.assertNotIn("local_commands", advance_check_payload)
             self.assertNotIn("next_actions", advance_check_payload)
 
             advance_result, advance_payload = run_direct("phases.py", "product-structuring", ".", "--json")
@@ -7297,6 +7314,8 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertTrue(advance_payload["ok"])
             self.assertTrue(advance_payload["advanced"])
             self.assertEqual("product-structuring", advance_payload["state"]["phase"])
+            self.assertEqual("governance-status", advance_payload["local_commands"][2]["make_target"])
+            self.assertEqual(str(root.resolve()), advance_payload["local_commands"][2]["cwd"])
             self.assertEqual("advance-design-derivation-check", advance_payload["next_actions"][0]["id"])
             self.assertEqual(str(root.resolve()), advance_payload["next_actions"][0]["cwd"])
             self.assertEqual(
@@ -7372,6 +7391,18 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertTrue(payload["conversion_blocker_resolved"])
             self.assertIn("docs/product/core/source/source-manifest.json", payload["updated"])
             self.assertIn(".governance/state.json", payload["updated"])
+            self.assertIn(
+                {
+                    "make_target": "verify-check",
+                    "cwd": str(root.resolve()),
+                    "command": "make verify-check",
+                    "argv": ["make", "verify-check"],
+                    "recipe": "bin/governance verify . --check --json",
+                    "writes_state": False,
+                    "description": "run read-only JSON verification without updating state",
+                },
+                payload["local_commands"],
+            )
             self.assertEqual("advance-product-structuring-check", payload["next_actions"][0]["id"])
             self.assertEqual(str(root.resolve()), payload["next_actions"][0]["cwd"])
             self.assertEqual("ready_for_structuring", manifest["import"]["status"])

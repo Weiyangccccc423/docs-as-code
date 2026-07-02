@@ -492,6 +492,7 @@ def _cmd_advance(args: argparse.Namespace) -> int:
     if args.json:
         payload = result.to_dict()
         if result.ok and result.advanced and not args.check:
+            payload["local_commands"] = target_local_commands_payload(cwd=result.target)
             payload["next_actions"] = next_actions_payload(result.state, cwd=result.target)
         _print_json(payload)
         return 0 if result.ok else 1
@@ -520,6 +521,7 @@ def _cmd_product_mark_ready(args: argparse.Namespace) -> int:
         result = mark_product_import_ready(target, method=args.method, reviewed=args.reviewed)
     payload = result.to_dict()
     if result.ok and not args.check:
+        payload["local_commands"] = target_local_commands_payload(cwd=result.target)
         payload["next_actions"] = next_actions_payload(result.state, cwd=result.target)
     if args.json:
         _print_json(payload)

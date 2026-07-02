@@ -88,7 +88,7 @@ bin/governance gate product-structuring /path/to/new-project --json
 bin/governance status /path/to/new-project
 ```
 
-For agent automation, append `--json` to `init`, `verify`, `status`, or `env`:
+For agent automation, append `--json` to `init`, `verify`, `status`, `env`, `product mark-ready`, or `advance`:
 
 ```bash
 bin/governance verify /path/to/new-project --check --json
@@ -101,6 +101,7 @@ bin/governance env --repair --target /path/to/new-project --json
 
 Use `gate --json` before phase transitions. Supported gates are `product-structuring`, `design-derivation`, and `implementation`.
 Use `advance --check --json` to preview phase state changes, then `advance --json` when actually moving phases; it runs the matching gate and records `phase_history` in `.governance/state.json`.
+Successful state-writing `product mark-ready --json` and `advance --json` payloads include `local_commands` and `next_actions` so agents can continue from the returned command contract.
 `advance` records adjacent transitions one phase at a time and cannot skip phases; use `gate --json` for repeated checks or earlier-phase audits instead of moving the recorded phase backward.
 The `implementation` gate requires the standard design handoff files, a traceable task board with at least one `Ready` task, and `docs/development/03-verification-log.md` as the stable evidence target for completed work.
 
