@@ -938,6 +938,15 @@ def _check_governance_last_verification(state: dict[str, object], rel: str, repo
                 rel,
             )
             return
+    for key in ("errors", "warnings"):
+        for item in last_verification[key]:
+            if not isinstance(item, str):
+                report.add_error(
+                    "state_last_verification_field_invalid",
+                    f"governance state last_verification {key} entries must be strings",
+                    rel,
+                )
+                return
     for finding in last_verification["findings"]:
         if not isinstance(finding, dict):
             report.add_error(
