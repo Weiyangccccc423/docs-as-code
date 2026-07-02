@@ -6,7 +6,6 @@ from pathlib import Path
 
 from bootstrap_tree import InitPreflightError, bootstrap, check_runtime_refresh, preflight_init, refresh_runtime
 from check_env import (
-    ToolStatus,
     _env_payload as build_env_payload,
     apply_install_plan,
     build_install_plan,
@@ -37,10 +36,6 @@ from verify_governance import verify
 
 def _print_json(payload: dict[str, object]) -> None:
     print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
-
-
-def _tool_status_payload(statuses: list[ToolStatus]) -> list[dict[str, object]]:
-    return [status.to_dict() for status in statuses]
 
 
 def _cmd_init(args: argparse.Namespace) -> int:
