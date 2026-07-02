@@ -17,6 +17,16 @@ class ToolSpec:
     level: str
     apt_package: str | None = None
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.name, str) or not self.name:
+            raise ValueError("tool spec name must be a non-empty string")
+        if not isinstance(self.note, str) or not self.note:
+            raise ValueError("tool spec note must be a non-empty string")
+        if self.level not in TOOL_LEVELS:
+            raise ValueError("tool spec level must be required or recommended")
+        if self.apt_package is not None and (not isinstance(self.apt_package, str) or not self.apt_package):
+            raise ValueError("tool spec apt_package must be a non-empty string or null")
+
 
 TOOL_LEVELS = {"required", "recommended"}
 TOOLS = [
@@ -165,6 +175,19 @@ def _require_nullable_non_empty_string(value: object, label: str) -> None:
 def _require_bool(value: object, label: str) -> None:
     if not isinstance(value, bool):
         raise ValueError(f"{label} must be a boolean")
+
+
+def _validate_tool_specs(specs: object) -> None:
+    if not isinstance(specs, list):
+        raise ValueError("tool specs must be a list")
+    if not all(isinstance(spec, ToolSpec) for spec in specs):
+        raise ValueError("tool specs must contain ToolSpec entries")
+    names = [spec.name for spec in specs]
+    if len(names) != len(set(names)):
+        raise ValueError("tool specs must use unique tool names")
+
+
+_validate_tool_specs(TOOLS)
 
 
 def collect_status() -> list[ToolStatus]:

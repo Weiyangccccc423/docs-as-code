@@ -2124,6 +2124,56 @@ class GovernanceScriptsTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, message):
                     bootstrap_module.RuntimeRefreshResult(**values)
 
+    def test_check_env_tool_specs_reject_unstable_inventory_shape(self) -> None:
+        required = check_env_module.ToolSpec(
+            name="git",
+            note="Required for version control.",
+            level="required",
+            apt_package="git",
+        )
+        recommended = check_env_module.ToolSpec(
+            name="pandoc",
+            note="Recommended for document conversion.",
+            level="recommended",
+            apt_package="pandoc",
+        )
+        check_env_module._validate_tool_specs([required, recommended])
+
+        cases = [
+            (
+                lambda: check_env_module.ToolSpec("", "Required for version control.", "required", "git"),
+                "tool spec name must be a non-empty string",
+            ),
+            (
+                lambda: check_env_module.ToolSpec("git", "", "required", "git"),
+                "tool spec note must be a non-empty string",
+            ),
+            (
+                lambda: check_env_module.ToolSpec("git", "Required for version control.", "optional", "git"),
+                "tool spec level must be required or recommended",
+            ),
+            (
+                lambda: check_env_module.ToolSpec("git", "Required for version control.", "required", ""),
+                "tool spec apt_package must be a non-empty string or null",
+            ),
+            (
+                lambda: check_env_module._validate_tool_specs((required, recommended)),
+                "tool specs must be a list",
+            ),
+            (
+                lambda: check_env_module._validate_tool_specs([required, {}]),
+                "tool specs must contain ToolSpec entries",
+            ),
+            (
+                lambda: check_env_module._validate_tool_specs([required, required]),
+                "tool specs must use unique tool names",
+            ),
+        ]
+        for factory, message in cases:
+            with self.subTest(message=message):
+                with self.assertRaisesRegex(ValueError, message):
+                    factory()
+
     def test_check_env_status_objects_reject_unstable_output_shape(self) -> None:
         tool = check_env_module.ToolStatus(
             name="git",
