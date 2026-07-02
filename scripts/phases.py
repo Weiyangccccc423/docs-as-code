@@ -70,10 +70,10 @@ class AdvanceResult:
             "advanced": self.advanced,
             "check": self.check,
             "would_advance": self.would_advance,
-            "would_state": self.would_state,
-            "errors": self.errors,
-            "gate": self.gate,
-            "state": self.state,
+            "would_state": copy.deepcopy(self.would_state),
+            "errors": list(self.errors),
+            "gate": copy.deepcopy(self.gate),
+            "state": copy.deepcopy(self.state),
         }
 
 

@@ -1005,6 +1005,23 @@ class GovernanceScriptsTest(unittest.TestCase):
             },
             valid.to_dict(),
         )
+        payload = valid.to_dict()
+        payload_errors = payload["errors"]
+        payload_gate = payload["gate"]
+        payload_state = payload["state"]
+        payload_would_state = payload["would_state"]
+        self.assertIsInstance(payload_errors, list)
+        self.assertIsInstance(payload_gate, dict)
+        self.assertIsInstance(payload_state, dict)
+        self.assertIsInstance(payload_would_state, dict)
+        payload_errors.append("mutated error")
+        payload_gate["ok"] = False
+        payload_state["phase"] = "mutated"
+        payload_would_state["phase"] = "mutated"
+        self.assertEqual([], valid.errors)
+        self.assertEqual({}, valid.gate)
+        self.assertEqual({"phase": "product-structuring"}, valid.state)
+        self.assertEqual({}, valid.would_state)
 
         cases = [
             (
