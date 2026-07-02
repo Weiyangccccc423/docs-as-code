@@ -1694,6 +1694,19 @@ class GovernanceScriptsTest(unittest.TestCase):
             (
                 {
                     "code": "example",
+                    "severity": "error",
+                    "path": "docs\\product\\PRD.md",
+                    "message": "example error",
+                },
+                "governance state last_verification findings path must use normalized POSIX form",
+            ),
+            (
+                {"code": "example", "severity": "error", "path": "./README.md", "message": "example error"},
+                "governance state last_verification findings path must use normalized POSIX form",
+            ),
+            (
+                {
+                    "code": "example",
                     "severity": "notice",
                     "path": ".governance/state.json",
                     "message": "example",

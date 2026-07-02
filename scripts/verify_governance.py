@@ -1012,6 +1012,7 @@ def _check_governance_last_verification(state: dict[str, object], rel: str, repo
         if isinstance(finding_path, str):
             posix_path = PurePosixPath(finding_path)
             windows_path = PureWindowsPath(finding_path)
+            normalized_path = posix_path.as_posix()
             if (
                 posix_path.is_absolute()
                 or windows_path.is_absolute()
@@ -1021,6 +1022,13 @@ def _check_governance_last_verification(state: dict[str, object], rel: str, repo
                 report.add_error(
                     "state_last_verification_finding_invalid",
                     "governance state last_verification findings path must be repository-relative",
+                    rel,
+                )
+                return
+            if "\\" in finding_path or finding_path != normalized_path:
+                report.add_error(
+                    "state_last_verification_finding_invalid",
+                    "governance state last_verification findings path must use normalized POSIX form",
                     rel,
                 )
                 return
