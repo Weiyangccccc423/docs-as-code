@@ -154,7 +154,15 @@ make verify-pack
 
 ## Runtime Strategy
 
-Core governance commands use POSIX shell wrappers and Python standard-library scripts so empty target folders can be initialized without package installation. Generated targets receive their own `bin/` and `scripts/` runtime plus `docs/agent-workflow/runtime-manifest.json`; after initialization, run checks from the target repository with `bin/governance verify .` or `make verify-governance`.
+Core governance commands use POSIX shell wrappers and Python standard-library scripts so empty target folders can be initialized without package installation. Generated targets receive their own `bin/` and `scripts/` runtime plus `docs/agent-workflow/runtime-manifest.json`; after initialization, run checks from the target repository with `bin/governance verify .` or the target Makefile entries:
+
+```bash
+make verify-governance
+make verify-check
+make governance-status
+make check-env
+make repair-env-check
+```
 
 Generated targets also receive `docs/agent-workflow/workflow-pack/`, a manifest-verified snapshot of this pack's workflows, skills, references, and templates. `verify` fails if a required runtime or workflow-pack snapshot file is missing, omitted from its manifest, or modified. From this source pack, run `bin/governance runtime refresh <target> --check --json` to inspect the repair plan, then `bin/governance runtime refresh <target> --json` to refresh only generated `bin/`, `scripts/`, and workflow-pack snapshot files.
 

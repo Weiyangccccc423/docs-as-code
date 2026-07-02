@@ -51,6 +51,10 @@ Create the minimum structure needed for reliable docs-as-code work.
    ```bash
    bin/governance verify .
    make verify-governance
+   make verify-check
+   make governance-status
+   make check-env
+   make repair-env-check
    ```
 
 7. If generated runtime or workflow-pack snapshot integrity fails, repair it from a trusted source workflow-pack checkout:

@@ -122,6 +122,10 @@ When already inside an initialized target repository, prefer target-local checks
 ```bash
 bin/governance verify .
 make verify-governance
+make verify-check
+make governance-status
+make check-env
+make repair-env-check
 make ci
 ```
 

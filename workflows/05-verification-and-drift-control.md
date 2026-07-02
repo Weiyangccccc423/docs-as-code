@@ -47,6 +47,10 @@ Load:
 
    ```bash
    make verify-governance
+   make verify-check
+   make governance-status
+   make check-env
+   make repair-env-check
    ```
 
 4. If verification reports target-local runtime or workflow-pack snapshot drift, inspect the refresh plan from a trusted source workflow-pack checkout before writing repairs:

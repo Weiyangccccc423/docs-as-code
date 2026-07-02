@@ -14,4 +14,8 @@ One-sentence project summary.
 
 ```bash
 make verify-governance
+make verify-check
+make governance-status
+make check-env
+make repair-env-check
 ```

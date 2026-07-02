@@ -456,6 +456,21 @@ README_AGENT_AUTOMATION_REQUIRED_COMMANDS = (
     "bin/governance env --repair --check --target /path/to/new-project --json",
     "bin/governance env --repair --target /path/to/new-project --json",
 )
+TARGET_MAKEFILE_DOC_PATHS = (
+    "README.md",
+    "workflows/01-empty-repo-initialization.md",
+    "workflows/05-verification-and-drift-control.md",
+    "skills/initializing-governance-repo/SKILL.md",
+    "skills/verifying-governance-docs/SKILL.md",
+    "templates/root/README.md",
+)
+TARGET_MAKEFILE_REQUIRED_COMMANDS = (
+    "make verify-governance",
+    "make verify-check",
+    "make governance-status",
+    "make check-env",
+    "make repair-env-check",
+)
 PHASE_ADVANCE_DOC_PATHS = (
     "README.md",
     "workflows/00-overview.md",
@@ -688,6 +703,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_runtime_wrapper_commands(root, findings)
     _check_readme_package_layout(root, findings)
     _check_readme_quick_start(root, findings)
+    _check_target_makefile_command_docs(root, findings)
     _check_phase_order_docs(root, findings)
     _check_phase_advance_docs(root, findings)
     _check_phase_primary_skill_alignment(root, findings)
@@ -1088,6 +1104,27 @@ def _check_readme_quick_start(root: Path, findings: list[PackFinding]) -> None:
                 "README.md",
             )
         )
+
+
+def _check_target_makefile_command_docs(root: Path, findings: list[PackFinding]) -> None:
+    for rel in TARGET_MAKEFILE_DOC_PATHS:
+        path = root / rel
+        if not path.is_file():
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        for command in TARGET_MAKEFILE_REQUIRED_COMMANDS:
+            if command in text:
+                continue
+            findings.append(
+                PackFinding(
+                    "pack_target_makefile_command_doc_missing",
+                    f"{rel} must document generated target Makefile command: {command}",
+                    rel,
+                )
+            )
 
 
 def _check_phase_order_docs(root: Path, findings: list[PackFinding]) -> None:

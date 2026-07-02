@@ -86,6 +86,10 @@ The target receives a local governance runtime under `bin/` and `scripts/`, a ru
 ```bash
 bin/governance verify .
 make verify-governance
+make verify-check
+make governance-status
+make check-env
+make repair-env-check
 ```
 
 If runtime or workflow-pack snapshot verification fails, run the refresh command from a trusted source workflow-pack checkout:
