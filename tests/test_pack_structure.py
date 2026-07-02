@@ -28,7 +28,9 @@ class PackStructureTest(unittest.TestCase):
             path="references/community-practices.md",
             severity="warning",
         )
-        report = PackReport("/tmp/pack", [finding, warning])
+        source_findings = [finding, warning]
+        report = PackReport("/tmp/pack", source_findings)
+        source_findings.clear()
 
         self.assertEqual(
             {
@@ -52,6 +54,20 @@ class PackStructureTest(unittest.TestCase):
             },
             report.to_dict(),
         )
+        payload = report.to_dict()
+        payload_errors = payload["errors"]
+        payload_warnings = payload["warnings"]
+        payload_findings = payload["findings"]
+        self.assertIsInstance(payload_errors, list)
+        self.assertIsInstance(payload_warnings, list)
+        self.assertIsInstance(payload_findings, list)
+        payload_errors.append("mutated error")
+        payload_warnings.append("mutated warning")
+        self.assertIsInstance(payload_findings[0], dict)
+        payload_findings[0]["message"] = "mutated finding"
+        self.assertEqual(["missing required pack file: README.md"], report.errors)
+        self.assertEqual(["reference should be reviewed"], report.warnings)
+        self.assertEqual("missing required pack file: README.md", report.findings[0].message)
 
         cases = [
             (

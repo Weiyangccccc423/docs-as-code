@@ -631,6 +631,7 @@ class PackReport:
             raise ValueError("pack report findings must be a list")
         if not all(isinstance(finding, PackFinding) for finding in self.findings):
             raise ValueError("pack report findings must contain PackFinding entries")
+        object.__setattr__(self, "findings", list(self.findings))
 
     @property
     def errors(self) -> list[str]:
