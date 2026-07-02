@@ -464,6 +464,7 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn("missing_required", payload)
             self.assertIn("missing_recommended", payload)
             self.assertIn("repairs", payload)
+            self.assertEqual([], payload["errors"])
             self.assertTrue(any(tool["name"] == "python3" for tool in payload["tools"]))
             self.assertEqual(str(target / ".governance/env-repair.md"), payload["repair_plan"])
 
