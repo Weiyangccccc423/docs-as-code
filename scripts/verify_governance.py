@@ -833,6 +833,29 @@ def _check_governance_last_verification(state: dict[str, object], rel: str, repo
                 rel,
             )
             return
+    for finding in last_verification["findings"]:
+        if not isinstance(finding, dict):
+            report.add_error(
+                "state_last_verification_finding_invalid",
+                "governance state last_verification findings entries must be objects",
+                rel,
+            )
+            return
+        for key in ("code", "severity", "path", "message"):
+            if not isinstance(finding.get(key), str):
+                report.add_error(
+                    "state_last_verification_finding_invalid",
+                    f"governance state last_verification findings entries must include string {key}",
+                    rel,
+                )
+                return
+        if finding.get("severity") not in {"error", "warning"}:
+            report.add_error(
+                "state_last_verification_finding_invalid",
+                "governance state last_verification findings severity must be error or warning",
+                rel,
+            )
+            return
     checked_at = last_verification.get("checked_at")
     if not isinstance(checked_at, str) or not checked_at:
         report.add_error(
