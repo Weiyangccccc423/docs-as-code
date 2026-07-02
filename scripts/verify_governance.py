@@ -661,6 +661,13 @@ def _check_governance_state(root: Path, report: VerificationReport) -> None:
             rel,
         )
         return
+    if phase_is_valid and phase == "initialized" and "phase_history" in state:
+        report.add_error(
+            "state_phase_history_stale",
+            "governance state phase_history must be absent while phase is initialized",
+            rel,
+        )
+        return
 
     history = state.get("phase_history")
     if history is None:

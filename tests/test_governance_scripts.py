@@ -2127,6 +2127,32 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_stale_governance_state_phase_history_while_initialized(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            state_path = root / ".governance/state.json"
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            state["phase_history"] = []
+            state_path.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
+
+            report = verify(root)
+
+            message = "governance state phase_history must be absent while phase is initialized"
+            self.assertIn(message, report.errors)
+            self.assertIn(
+                {
+                    "code": "state_phase_history_stale",
+                    "severity": "error",
+                    "path": ".governance/state.json",
+                    "message": message,
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_missing_governance_state_last_gate_after_advance(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
