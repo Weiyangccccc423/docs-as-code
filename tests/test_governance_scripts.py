@@ -659,6 +659,15 @@ class GovernanceScriptsTest(unittest.TestCase):
         self.assertEqual([error.message], report.errors)
         self.assertEqual([warning.message], report.warnings)
         self.assertEqual([error.to_dict(), warning.to_dict()], [finding.to_dict() for finding in report.findings])
+        self.assertEqual(
+            {
+                "ok": False,
+                "errors": [error.message],
+                "warnings": [warning.message],
+                "findings": [error.to_dict(), warning.to_dict()],
+            },
+            report.to_dict(),
+        )
 
         mutable = verify_governance_module.VerificationReport()
         mutable.add_error("missing_required_file", "missing required file: README.md", "README.md")
@@ -666,6 +675,7 @@ class GovernanceScriptsTest(unittest.TestCase):
         self.assertEqual([error.to_dict(), warning.to_dict()], [finding.to_dict() for finding in mutable.findings])
         self.assertEqual([error.message], mutable.errors)
         self.assertEqual([warning.message], mutable.warnings)
+        self.assertEqual(report.to_dict(), mutable.to_dict())
 
         cases = [
             (

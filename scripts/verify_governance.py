@@ -509,6 +509,14 @@ class VerificationReport:
     def ok(self) -> bool:
         return not self.errors
 
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "ok": self.ok,
+            "errors": self.errors,
+            "warnings": self.warnings,
+            "findings": [finding.to_dict() for finding in self.findings],
+        }
+
     def add_error(self, code: str, message: str, path: str = "") -> None:
         finding = VerificationFinding(code=code, severity="error", path=path, message=message)
         self.errors.append(finding.message)
@@ -4585,13 +4593,8 @@ def main() -> int:
     target = Path(args.target)
     report = verify(target)
     if args.json:
-        payload = {
-            "ok": report.ok,
-            "target": str(target),
-            "errors": report.errors,
-            "warnings": report.warnings,
-            "findings": [finding.to_dict() for finding in report.findings],
-        }
+        payload = report.to_dict()
+        payload["target"] = str(target)
         print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
         return 0 if report.ok else 1
     if report.errors:

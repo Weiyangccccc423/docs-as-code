@@ -109,6 +109,7 @@ def _init_error_message(error: OSError | StateFileError) -> str:
 def _cmd_verify(args: argparse.Namespace) -> int:
     target = Path(args.target)
     report = verify(target)
+    report_payload = report.to_dict()
     if target.exists() and not target.is_dir() and not args.check:
         raise StateFileError(target / STATE_REL, "unwritable: target path is not a directory")
     state = {}
@@ -129,11 +130,8 @@ def _cmd_verify(args: argparse.Namespace) -> int:
             state = merge_state(
                 target,
                 last_verification={
-                    "ok": report.ok,
                     "checked_at": checked_at,
-                    "errors": report.errors,
-                    "warnings": report.warnings,
-                    "findings": [finding.to_dict() for finding in report.findings],
+                    **report_payload,
                 },
             )
             state_updated = True
@@ -151,13 +149,12 @@ def _cmd_verify(args: argparse.Namespace) -> int:
     ok = report.ok and not state_error
     if args.json:
         payload = {
+            **report_payload,
             "ok": ok,
             "target": str(target),
             "check": args.check,
             "state_updated": state_updated,
             "errors": errors,
-            "warnings": report.warnings,
-            "findings": [finding.to_dict() for finding in report.findings],
             "state": state,
         }
         if state_error:
