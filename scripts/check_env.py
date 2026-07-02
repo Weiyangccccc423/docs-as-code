@@ -358,9 +358,8 @@ def _env_payload(
         "repairs": copy.deepcopy(repairs),
         "repair_plan": repair_plan,
         "would_repair": copy.deepcopy(would_repair or []),
+        "errors": list(errors or []),
     }
-    if errors is not None:
-        payload["errors"] = list(errors)
     return payload
 
 

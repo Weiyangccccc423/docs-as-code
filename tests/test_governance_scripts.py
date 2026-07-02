@@ -2566,6 +2566,35 @@ class GovernanceScriptsTest(unittest.TestCase):
         payload["install_results"][0]["meta"]["attempt"] = 3
         self.assertEqual({"attempt": 2}, install_results[0]["meta"])
 
+    def test_check_env_payload_reports_empty_errors_for_success(self) -> None:
+        statuses = [
+            check_env_module.ToolStatus(
+                "python3",
+                True,
+                "Python 3.10",
+                "Required for workflow-pack scripts.",
+                "required",
+                "python3",
+            ),
+        ]
+        payload = check_env_module._env_payload(
+            Path("/tmp/project"),
+            strict=False,
+            check=False,
+            statuses=statuses,
+            system=check_env_module.SystemStatus("linux", "ubuntu", "debian", "Ubuntu", False),
+            package_manager=check_env_module.PackageManager("apt", "/usr/bin/apt-get", True),
+            git=check_env_module.GitStatus(True, True, "main", "Example", "example@example.com"),
+            install_plan=[],
+            needs_escalation=False,
+            install_results=[],
+            repairs=[],
+            repair_plan=None,
+        )
+
+        self.assertTrue(payload["ok"])
+        self.assertEqual([], payload["errors"])
+
     def test_phases_main_json_advances_product_structuring(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
