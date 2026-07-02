@@ -69,6 +69,50 @@ WORKFLOW_PACK_RESOURCE_PATHS = [
     "templates",
 ]
 
+TARGET_LOCAL_COMMANDS = (
+    (
+        "verify-governance",
+        "bin/governance verify .",
+        "run governance verification and update verification state",
+    ),
+    (
+        "verify-check",
+        "bin/governance verify . --check --json",
+        "run read-only JSON verification without updating state",
+    ),
+    (
+        "governance-status",
+        "bin/governance status . --json",
+        "print workflow state as JSON",
+    ),
+    (
+        "check-env",
+        "bin/governance env --target .",
+        "inventory local governance tools",
+    ),
+    (
+        "repair-env-check",
+        "bin/governance env --repair --check --target . --json",
+        "preview environment repair without writing files",
+    ),
+)
+
+
+def _target_local_commands_readme() -> str:
+    return "".join(
+        f"- `make {target}` - {description}.\n"
+        for target, _recipe, description in TARGET_LOCAL_COMMANDS
+    )
+
+
+def _target_makefile() -> str:
+    targets = [target for target, _recipe, _description in TARGET_LOCAL_COMMANDS]
+    rules = "\n\n".join(
+        f"{target}:\n\t{recipe}"
+        for target, recipe, _description in TARGET_LOCAL_COMMANDS
+    )
+    return f".PHONY: {' '.join(targets)}\n\n{rules}\n"
+
 
 def _safe_write(path: Path, content: str, force: bool = False) -> None:
     if path.exists() and not force:
@@ -1116,11 +1160,7 @@ def _write_bootstrap_outputs(
         "- Open questions: `docs/unresolved.md`\n"
         "- Delivery plan: `docs/development/README.md`\n\n"
         "## Local Commands\n\n"
-        "- `make verify-governance` - run governance verification and update verification state.\n"
-        "- `make verify-check` - run read-only JSON verification without updating state.\n"
-        "- `make governance-status` - print workflow state as JSON.\n"
-        "- `make check-env` - inventory local governance tools.\n"
-        "- `make repair-env-check` - preview environment repair without writing files.\n",
+        + _target_local_commands_readme(),
         force,
     )
     _safe_write(
@@ -1180,17 +1220,7 @@ def _write_bootstrap_outputs(
     )
     _safe_write(
         root / "Makefile",
-        ".PHONY: verify-governance verify-check governance-status check-env repair-env-check\n\n"
-        "verify-governance:\n"
-        "\tbin/governance verify .\n\n"
-        "verify-check:\n"
-        "\tbin/governance verify . --check --json\n\n"
-        "governance-status:\n"
-        "\tbin/governance status . --json\n\n"
-        "check-env:\n"
-        "\tbin/governance env --target .\n\n"
-        "repair-env-check:\n"
-        "\tbin/governance env --repair --check --target . --json\n",
+        _target_makefile(),
         force,
     )
 

@@ -6773,6 +6773,19 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [conflict.to_dict() for conflict in result.conflicts],
             )
 
+    def test_target_local_command_helpers_share_command_source(self) -> None:
+        readme = bootstrap_module._target_local_commands_readme()
+        makefile = bootstrap_module._target_makefile()
+        targets = [
+            target
+            for target, _recipe, _description in bootstrap_module.TARGET_LOCAL_COMMANDS
+        ]
+
+        self.assertIn(f".PHONY: {' '.join(targets)}", makefile)
+        for target, recipe, description in bootstrap_module.TARGET_LOCAL_COMMANDS:
+            self.assertIn(f"- `make {target}` - {description}.", readme)
+            self.assertIn(f"{target}:\n\t{recipe}", makefile)
+
     def test_bootstrap_installs_target_runtime(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
