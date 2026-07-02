@@ -627,6 +627,113 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertFalse(requirements["product_acceptance_chapter_present"]["ok"])
             self.assertTrue(payload["verification"]["ok"])
 
+    def test_verification_report_objects_reject_unstable_output_shape(self) -> None:
+        error = verify_governance_module.VerificationFinding(
+            code="missing_required_file",
+            severity="error",
+            path="README.md",
+            message="missing required file: README.md",
+        )
+        warning = verify_governance_module.VerificationFinding(
+            code="docs_reference_review",
+            severity="warning",
+            path="docs/README.md",
+            message="docs reference should be reviewed",
+        )
+        self.assertEqual(
+            {
+                "code": "missing_required_file",
+                "severity": "error",
+                "path": "README.md",
+                "message": "missing required file: README.md",
+            },
+            error.to_dict(),
+        )
+
+        report = verify_governance_module.VerificationReport(
+            errors=[error.message],
+            warnings=[warning.message],
+            findings=[error, warning],
+        )
+        self.assertFalse(report.ok)
+        self.assertEqual([error.message], report.errors)
+        self.assertEqual([warning.message], report.warnings)
+        self.assertEqual([error.to_dict(), warning.to_dict()], [finding.to_dict() for finding in report.findings])
+
+        mutable = verify_governance_module.VerificationReport()
+        mutable.add_error("missing_required_file", "missing required file: README.md", "README.md")
+        mutable.add_warning("docs_reference_review", "docs reference should be reviewed", "docs/README.md")
+        self.assertEqual([error.to_dict(), warning.to_dict()], [finding.to_dict() for finding in mutable.findings])
+        self.assertEqual([error.message], mutable.errors)
+        self.assertEqual([warning.message], mutable.warnings)
+
+        cases = [
+            (
+                lambda: verify_governance_module.VerificationFinding(
+                    code="MissingRequiredFile",
+                    severity="error",
+                    path="README.md",
+                    message="missing required file",
+                ),
+                "verification finding code must use lowercase snake_case",
+            ),
+            (
+                lambda: verify_governance_module.VerificationFinding(
+                    code="missing_required_file",
+                    severity="info",
+                    path="README.md",
+                    message="missing required file",
+                ),
+                "verification finding severity must be error or warning",
+            ),
+            (
+                lambda: verify_governance_module.VerificationFinding(
+                    code="missing_required_file",
+                    severity="error",
+                    path="README.md",
+                    message="",
+                ),
+                "verification finding message must be a non-empty string",
+            ),
+            (
+                lambda: verify_governance_module.VerificationFinding(
+                    code="missing_required_file",
+                    severity="error",
+                    path=123,
+                    message="missing required file",
+                ),
+                "verification finding path must be a string",
+            ),
+            (
+                lambda: verify_governance_module.VerificationReport(errors=("missing",), warnings=[], findings=[]),
+                "verification report errors must be strings",
+            ),
+            (
+                lambda: verify_governance_module.VerificationReport(errors=[], warnings=("warning",), findings=[]),
+                "verification report warnings must be strings",
+            ),
+            (
+                lambda: verify_governance_module.VerificationReport(errors=[], warnings=[], findings=(error,)),
+                "verification report findings must be a list",
+            ),
+            (
+                lambda: verify_governance_module.VerificationReport(errors=[], warnings=[], findings=[error.to_dict()]),
+                "verification report findings must contain VerificationFinding entries",
+            ),
+            (
+                lambda: verify_governance_module.VerificationReport(errors=[], warnings=[], findings=[error]),
+                "verification report errors must match error findings",
+            ),
+            (
+                lambda: verify_governance_module.VerificationReport(errors=[error.message], warnings=[], findings=[error, warning]),
+                "verification report warnings must match warning findings",
+            ),
+        ]
+        for factory, message in cases:
+            with self.subTest(message=message):
+                with self.assertRaisesRegex(ValueError, message):
+                    factory()
+
     def test_gate_requirement_rejects_unstable_routing_fields(self) -> None:
         valid = gates_module.GateRequirement(
             code="product_import_ready",

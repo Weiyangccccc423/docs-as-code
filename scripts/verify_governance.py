@@ -448,6 +448,8 @@ BARE_MARKDOWN_REFERENCE_RE = re.compile(
     r"((?:\.{1,2}/)?docs/[^\s`<>\]),;]+\.md(?:#[^\s`<>\]),;]+)?|"
     r"(?:\.{1,2}/)[^\s`<>\]),;]+\.md(?:#[^\s`<>\]),;]+)?)"
 )
+VERIFICATION_FINDING_CODE_RE = re.compile(r"^[a-z][a-z0-9_]*$")
+VERIFICATION_FINDING_SEVERITIES = {"error", "warning"}
 
 
 @dataclass
@@ -456,6 +458,16 @@ class VerificationFinding:
     severity: str
     message: str
     path: str = ""
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.code, str) or not VERIFICATION_FINDING_CODE_RE.fullmatch(self.code):
+            raise ValueError("verification finding code must use lowercase snake_case")
+        if self.severity not in VERIFICATION_FINDING_SEVERITIES:
+            raise ValueError("verification finding severity must be error or warning")
+        if not isinstance(self.message, str) or not self.message:
+            raise ValueError("verification finding message must be a non-empty string")
+        if not isinstance(self.path, str):
+            raise ValueError("verification finding path must be a string")
 
     def to_dict(self) -> dict[str, str]:
         return {
@@ -479,17 +491,33 @@ class VerificationReport:
     warnings: list[str] = field(default_factory=list)
     findings: list[VerificationFinding] = field(default_factory=list)
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.errors, list) or not all(isinstance(error, str) for error in self.errors):
+            raise ValueError("verification report errors must be strings")
+        if not isinstance(self.warnings, list) or not all(isinstance(warning, str) for warning in self.warnings):
+            raise ValueError("verification report warnings must be strings")
+        if not isinstance(self.findings, list):
+            raise ValueError("verification report findings must be a list")
+        if not all(isinstance(finding, VerificationFinding) for finding in self.findings):
+            raise ValueError("verification report findings must contain VerificationFinding entries")
+        if self.errors != [finding.message for finding in self.findings if finding.severity == "error"]:
+            raise ValueError("verification report errors must match error findings")
+        if self.warnings != [finding.message for finding in self.findings if finding.severity == "warning"]:
+            raise ValueError("verification report warnings must match warning findings")
+
     @property
     def ok(self) -> bool:
         return not self.errors
 
     def add_error(self, code: str, message: str, path: str = "") -> None:
-        self.errors.append(message)
-        self.findings.append(VerificationFinding(code=code, severity="error", path=path, message=message))
+        finding = VerificationFinding(code=code, severity="error", path=path, message=message)
+        self.errors.append(finding.message)
+        self.findings.append(finding)
 
     def add_warning(self, code: str, message: str, path: str = "") -> None:
-        self.warnings.append(message)
-        self.findings.append(VerificationFinding(code=code, severity="warning", path=path, message=message))
+        finding = VerificationFinding(code=code, severity="warning", path=path, message=message)
+        self.warnings.append(finding.message)
+        self.findings.append(finding)
 
 
 def verify(root: Path) -> VerificationReport:
