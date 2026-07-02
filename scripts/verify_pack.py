@@ -589,6 +589,8 @@ PHASE_WORKFLOW_REQUIRED_SECTIONS = (
     "Verification",
     "Stop Conditions",
 )
+PACK_FINDING_CODE_RE = re.compile(r"^[a-z][a-z0-9_]*$")
+PACK_FINDING_SEVERITIES = {"error", "warning"}
 
 
 @dataclass(frozen=True)
@@ -597,6 +599,16 @@ class PackFinding:
     message: str
     path: str
     severity: str = "error"
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.code, str) or not PACK_FINDING_CODE_RE.fullmatch(self.code):
+            raise ValueError("pack finding code must use lowercase snake_case")
+        if not isinstance(self.message, str) or not self.message:
+            raise ValueError("pack finding message must be a non-empty string")
+        if not isinstance(self.path, str) or not self.path:
+            raise ValueError("pack finding path must be a non-empty string")
+        if self.severity not in PACK_FINDING_SEVERITIES:
+            raise ValueError("pack finding severity must be error or warning")
 
     def to_dict(self) -> dict[str, str]:
         return {
@@ -611,6 +623,14 @@ class PackFinding:
 class PackReport:
     target: str
     findings: list[PackFinding]
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.target, str) or not self.target:
+            raise ValueError("pack report target must be a non-empty string")
+        if not isinstance(self.findings, list):
+            raise ValueError("pack report findings must be a list")
+        if not all(isinstance(finding, PackFinding) for finding in self.findings):
+            raise ValueError("pack report findings must contain PackFinding entries")
 
     @property
     def errors(self) -> list[str]:

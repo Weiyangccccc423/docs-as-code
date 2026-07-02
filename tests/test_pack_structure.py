@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 
 from scripts.bootstrap_tree import _iter_workflow_pack_files
-from scripts.verify_pack import verify_pack
+from scripts.verify_pack import PackFinding, PackReport, verify_pack
 from scripts.verify_governance import WORKFLOW_PACK_REQUIRED_PATHS
 
 
@@ -16,6 +16,78 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class PackStructureTest(unittest.TestCase):
+    def test_verify_pack_report_objects_reject_unstable_output_shape(self) -> None:
+        finding = PackFinding(
+            code="pack_required_file_missing",
+            message="missing required pack file: README.md",
+            path="README.md",
+        )
+        warning = PackFinding(
+            code="pack_reference_warning",
+            message="reference should be reviewed",
+            path="references/community-practices.md",
+            severity="warning",
+        )
+        report = PackReport("/tmp/pack", [finding, warning])
+
+        self.assertEqual(
+            {
+                "code": "pack_required_file_missing",
+                "severity": "error",
+                "path": "README.md",
+                "message": "missing required pack file: README.md",
+            },
+            finding.to_dict(),
+        )
+        self.assertEqual(["missing required pack file: README.md"], report.errors)
+        self.assertEqual(["reference should be reviewed"], report.warnings)
+        self.assertFalse(report.ok)
+        self.assertEqual(
+            {
+                "ok": False,
+                "target": "/tmp/pack",
+                "errors": ["missing required pack file: README.md"],
+                "warnings": ["reference should be reviewed"],
+                "findings": [finding.to_dict(), warning.to_dict()],
+            },
+            report.to_dict(),
+        )
+
+        cases = [
+            (
+                lambda: PackFinding("PackRequiredFileMissing", "message", "README.md"),
+                "pack finding code must use lowercase snake_case",
+            ),
+            (
+                lambda: PackFinding("pack_required_file_missing", "", "README.md"),
+                "pack finding message must be a non-empty string",
+            ),
+            (
+                lambda: PackFinding("pack_required_file_missing", "message", ""),
+                "pack finding path must be a non-empty string",
+            ),
+            (
+                lambda: PackFinding("pack_required_file_missing", "message", "README.md", "info"),
+                "pack finding severity must be error or warning",
+            ),
+            (
+                lambda: PackReport("", []),
+                "pack report target must be a non-empty string",
+            ),
+            (
+                lambda: PackReport("/tmp/pack", (finding,)),
+                "pack report findings must be a list",
+            ),
+            (
+                lambda: PackReport("/tmp/pack", [finding.to_dict()]),
+                "pack report findings must contain PackFinding entries",
+            ),
+        ]
+        for factory, message in cases:
+            with self.subTest(message=message):
+                with self.assertRaisesRegex(ValueError, message):
+                    factory()
+
     def test_verify_pack_script_json_reports_ok(self) -> None:
         result = subprocess.run(
             [sys.executable, str(ROOT / "scripts/verify_pack.py"), "--json"],
