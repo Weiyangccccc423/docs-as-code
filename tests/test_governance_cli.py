@@ -333,6 +333,39 @@ def _acceptance_matrix_doc() -> str:
 
 
 class GovernanceCliTest(unittest.TestCase):
+    def test_env_tool_payload_reuses_status_output_contract(self) -> None:
+        scripts_dir = str(ROOT / "scripts")
+        if scripts_dir not in sys.path:
+            sys.path.insert(0, scripts_dir)
+        governance_cli = importlib.import_module("governance_cli")
+
+        class CustomStatus:
+            def to_dict(self) -> dict[str, object]:
+                return {
+                    "name": "custom",
+                    "present": True,
+                    "version": "custom 1.0",
+                    "note": "Uses the status object contract.",
+                    "level": "recommended",
+                    "install_package": None,
+                    "extra_contract_field": "preserved",
+                }
+
+        self.assertEqual(
+            [
+                {
+                    "name": "custom",
+                    "present": True,
+                    "version": "custom 1.0",
+                    "note": "Uses the status object contract.",
+                    "level": "recommended",
+                    "install_package": None,
+                    "extra_contract_field": "preserved",
+                }
+            ],
+            governance_cli._tool_status_payload([CustomStatus()]),
+        )
+
     def test_env_repair_writes_repair_plan(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "target"

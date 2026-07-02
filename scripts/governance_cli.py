@@ -40,17 +40,7 @@ def _print_json(payload: dict[str, object]) -> None:
 
 
 def _tool_status_payload(statuses: list[ToolStatus]) -> list[dict[str, object]]:
-    return [
-        {
-            "name": status.name,
-            "present": status.present,
-            "version": status.version,
-            "note": status.note,
-            "level": status.level,
-            "install_package": status.install_package,
-        }
-        for status in statuses
-    ]
+    return [status.to_dict() for status in statuses]
 
 
 def _cmd_init(args: argparse.Namespace) -> int:
