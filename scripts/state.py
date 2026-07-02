@@ -46,6 +46,8 @@ def load_state(root: Path) -> dict[str, Any]:
 
 def save_state(root: Path, state: dict[str, Any]) -> None:
     path = state_path(root)
+    if not isinstance(state, dict):
+        raise StateFileError(path, "root must be an object")
     tmp_path = path.with_name(f".{path.name}.tmp")
     try:
         path.parent.mkdir(parents=True, exist_ok=True)

@@ -29,7 +29,7 @@ from scripts.bootstrap_tree import InitPreflightError
 from scripts.bootstrap_tree import bootstrap
 from scripts.bootstrap_tree import preflight_init
 from scripts.gates import evaluate_gate
-from scripts.state import StateFileError, load_state, merge_state
+from scripts.state import StateFileError, load_state, merge_state, save_state
 from scripts.verify_governance import task_board_ready_tasks, verify
 
 
@@ -12478,6 +12478,22 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertEqual(state_path, context.exception.path)
             self.assertIn("unwritable", context.exception.reason)
             self.assertEqual(original, json.loads(state_path.read_text(encoding="utf-8")))
+
+    def test_save_state_rejects_non_object_without_overwriting_existing_state(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp)
+            state_path = target / ".governance/state.json"
+            state_path.parent.mkdir()
+            original = {"phase": "initialized", "profile": "service"}
+            state_path.write_text(json.dumps(original, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+            with self.assertRaises(StateFileError) as context:
+                save_state(target, ["phase", "initialized"])
+
+            self.assertEqual(state_path, context.exception.path)
+            self.assertEqual("root must be an object", context.exception.reason)
+            self.assertEqual(original, json.loads(state_path.read_text(encoding="utf-8")))
+            self.assertFalse((state_path.parent / ".state.json.tmp").exists())
 
     def test_load_state_reports_state_directory(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
