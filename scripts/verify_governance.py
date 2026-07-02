@@ -832,10 +832,27 @@ def _check_governance_state_timestamps(state: dict[str, object], rel: str, repor
             rel,
         )
         return
-    if not _is_iso_timestamp_with_timezone(updated_at):
+    updated_at_timestamp = _parse_iso_timestamp_with_timezone(updated_at)
+    if updated_at_timestamp is None:
         report.add_error(
             "state_timestamp_updated_at_invalid",
             "governance state updated_at must be an ISO timestamp with timezone",
+            rel,
+        )
+        return
+    last_verification = state.get("last_verification")
+    if not isinstance(last_verification, dict):
+        return
+    checked_at = last_verification.get("checked_at")
+    if not isinstance(checked_at, str):
+        return
+    checked_at_timestamp = _parse_iso_timestamp_with_timezone(checked_at)
+    if checked_at_timestamp is None:
+        return
+    if updated_at_timestamp < checked_at_timestamp:
+        report.add_error(
+            "state_timestamp_updated_at_stale",
+            "governance state updated_at must not be older than last_verification.checked_at",
             rel,
         )
 
