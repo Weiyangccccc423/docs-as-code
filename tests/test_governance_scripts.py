@@ -1227,6 +1227,17 @@ class GovernanceScriptsTest(unittest.TestCase):
                         "bin/governance product mark-ready . --reviewed "
                         "--method manual-reviewed-markdown --check --json"
                     ),
+                    "argv": [
+                        "bin/governance",
+                        "product",
+                        "mark-ready",
+                        ".",
+                        "--reviewed",
+                        "--method",
+                        "manual-reviewed-markdown",
+                        "--check",
+                        "--json",
+                    ],
                     "writes_state": False,
                     "requires": "docs/product/core/PRD.md has been manually reviewed against the archived source",
                     "description": "preview product import readiness closeout before allowing downstream derivation",
@@ -1242,6 +1253,16 @@ class GovernanceScriptsTest(unittest.TestCase):
                         "bin/governance product mark-ready . --reviewed "
                         "--method manual-reviewed-markdown --json"
                     ),
+                    "argv": [
+                        "bin/governance",
+                        "product",
+                        "mark-ready",
+                        ".",
+                        "--reviewed",
+                        "--method",
+                        "manual-reviewed-markdown",
+                        "--json",
+                    ],
                     "writes_state": True,
                     "requires": "product-mark-ready-check ok:true",
                     "description": (
@@ -1252,9 +1273,24 @@ class GovernanceScriptsTest(unittest.TestCase):
             actions,
         )
         actions[0]["skills"].append("mutated")
+        actions[0]["argv"].append("mutated")
         self.assertEqual(
             ["archiving-product-document", "verifying-governance-docs"],
             workflow_actions_module.next_actions_payload({"phase": "initialized"})[0]["skills"],
+        )
+        self.assertEqual(
+            [
+                "bin/governance",
+                "product",
+                "mark-ready",
+                ".",
+                "--reviewed",
+                "--method",
+                "manual-reviewed-markdown",
+                "--check",
+                "--json",
+            ],
+            workflow_actions_module.next_actions_payload({"phase": "initialized"})[0]["argv"],
         )
 
     def test_next_actions_recommend_next_sequential_phase_advance(self) -> None:
@@ -1270,8 +1306,16 @@ class GovernanceScriptsTest(unittest.TestCase):
         self.assertEqual("advance-product-structuring-check", initialized[0]["id"])
         self.assertEqual(".", initialized[0]["cwd"])
         self.assertEqual("bin/governance advance product-structuring . --check --json", initialized[0]["command"])
+        self.assertEqual(
+            ["bin/governance", "advance", "product-structuring", ".", "--check", "--json"],
+            initialized[0]["argv"],
+        )
         self.assertEqual("advance-product-structuring", initialized[1]["id"])
         self.assertEqual("bin/governance advance product-structuring . --json", initialized[1]["command"])
+        self.assertEqual(
+            ["bin/governance", "advance", "product-structuring", ".", "--json"],
+            initialized[1]["argv"],
+        )
         self.assertEqual(
             ["structuring-product-requirements", "verifying-governance-docs"],
             initialized[0]["skills"],
@@ -3024,6 +3068,7 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "workflow": "docs/agent-workflow/workflow-pack/workflows/03-product-structuring.md",
                     "skills": ["structuring-product-requirements", "verifying-governance-docs"],
                     "command": "bin/governance advance product-structuring . --check --json",
+                    "argv": ["bin/governance", "advance", "product-structuring", ".", "--check", "--json"],
                     "writes_state": False,
                     "requires": "current phase is the previous workflow phase and the gate can pass",
                     "description": "preflight advance from initialization into product structuring",
@@ -6987,6 +7032,7 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "workflow": "docs/agent-workflow/workflow-pack/workflows/03-product-structuring.md",
                     "skills": ["structuring-product-requirements", "verifying-governance-docs"],
                     "command": "bin/governance advance product-structuring . --json",
+                    "argv": ["bin/governance", "advance", "product-structuring", ".", "--json"],
                     "writes_state": True,
                     "requires": "advance-product-structuring-check ok:true",
                     "description": "record advance from initialization into product structuring",
@@ -7203,6 +7249,10 @@ class GovernanceScriptsTest(unittest.TestCase):
                 "bin/governance advance product-structuring . --check --json",
                 mark_ready_payload["next_actions"][0]["command"],
             )
+            self.assertEqual(
+                ["bin/governance", "advance", "product-structuring", ".", "--check", "--json"],
+                mark_ready_payload["next_actions"][0]["argv"],
+            )
 
             verify_result, verify_payload = run_direct("verify_governance.py", ".", "--json")
             self.assertEqual(0, verify_result.returncode)
@@ -7239,6 +7289,10 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertEqual(
                 "bin/governance advance design-derivation . --check --json",
                 advance_payload["next_actions"][0]["command"],
+            )
+            self.assertEqual(
+                ["bin/governance", "advance", "design-derivation", ".", "--check", "--json"],
+                advance_payload["next_actions"][0]["argv"],
             )
 
             scaffold_check, scaffold_check_payload = run_direct(

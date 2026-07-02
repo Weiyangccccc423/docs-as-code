@@ -14,6 +14,17 @@ PRODUCT_IMPORT_ACTIONS: tuple[dict[str, object], ...] = (
         "workflow": f"{TARGET_WORKFLOW_ROOT}/workflows/02-product-document-archiving.md",
         "skills": ("archiving-product-document", "verifying-governance-docs"),
         "command": "bin/governance product mark-ready . --reviewed --method manual-reviewed-markdown --check --json",
+        "argv": (
+            "bin/governance",
+            "product",
+            "mark-ready",
+            ".",
+            "--reviewed",
+            "--method",
+            "manual-reviewed-markdown",
+            "--check",
+            "--json",
+        ),
         "writes_state": False,
         "requires": "docs/product/core/PRD.md has been manually reviewed against the archived source",
         "description": "preview product import readiness closeout before allowing downstream derivation",
@@ -25,6 +36,16 @@ PRODUCT_IMPORT_ACTIONS: tuple[dict[str, object], ...] = (
         "workflow": f"{TARGET_WORKFLOW_ROOT}/workflows/02-product-document-archiving.md",
         "skills": ("archiving-product-document", "verifying-governance-docs"),
         "command": "bin/governance product mark-ready . --reviewed --method manual-reviewed-markdown --json",
+        "argv": (
+            "bin/governance",
+            "product",
+            "mark-ready",
+            ".",
+            "--reviewed",
+            "--method",
+            "manual-reviewed-markdown",
+            "--json",
+        ),
         "writes_state": True,
         "requires": "product-mark-ready-check ok:true",
         "description": "record reviewed product import readiness in source manifest and governance state",
@@ -88,6 +109,8 @@ def _next_phase(phase: object) -> str:
 
 def _advance_actions(phase: str, cwd: str) -> list[dict[str, object]]:
     metadata = PHASE_ACTIONS[phase]
+    preflight_argv = ["bin/governance", "advance", phase, ".", "--check", "--json"]
+    apply_argv = ["bin/governance", "advance", phase, ".", "--json"]
     return [
         {
             "id": f"advance-{phase}-check",
@@ -96,7 +119,8 @@ def _advance_actions(phase: str, cwd: str) -> list[dict[str, object]]:
             "phase": phase,
             "workflow": metadata["workflow"],
             "skills": list(metadata["skills"]),
-            "command": f"bin/governance advance {phase} . --check --json",
+            "command": _command_text(preflight_argv),
+            "argv": preflight_argv,
             "writes_state": False,
             "requires": "current phase is the previous workflow phase and the gate can pass",
             "description": f"preflight {metadata['description']}",
@@ -108,7 +132,8 @@ def _advance_actions(phase: str, cwd: str) -> list[dict[str, object]]:
             "phase": phase,
             "workflow": metadata["workflow"],
             "skills": list(metadata["skills"]),
-            "command": f"bin/governance advance {phase} . --json",
+            "command": _command_text(apply_argv),
+            "argv": apply_argv,
             "writes_state": True,
             "requires": f"advance-{phase}-check ok:true",
             "description": f"record {metadata['description']}",
@@ -122,4 +147,10 @@ def _copy_actions(actions: tuple[dict[str, object], ...], cwd: str) -> list[dict
         action["cwd"] = cwd
         if isinstance(action.get("skills"), tuple):
             action["skills"] = list(action["skills"])
+        if isinstance(action.get("argv"), tuple):
+            action["argv"] = list(action["argv"])
     return payload
+
+
+def _command_text(argv: list[str]) -> str:
+    return " ".join(argv)
