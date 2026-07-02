@@ -1650,6 +1650,23 @@ class GovernanceScriptsTest(unittest.TestCase):
             ),
             (
                 {
+                    "code": "",
+                    "severity": "error",
+                    "path": ".governance/state.json",
+                    "message": "example",
+                },
+                "governance state last_verification findings entries must include non-empty string code",
+            ),
+            (
+                {"code": "example", "severity": "error", "path": " ", "message": "example"},
+                "governance state last_verification findings entries must include non-empty string path",
+            ),
+            (
+                {"code": "example", "severity": "error", "path": ".governance/state.json", "message": ""},
+                "governance state last_verification findings entries must include non-empty string message",
+            ),
+            (
+                {
                     "code": "example",
                     "severity": "notice",
                     "path": ".governance/state.json",

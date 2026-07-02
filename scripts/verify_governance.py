@@ -963,6 +963,15 @@ def _check_governance_last_verification(state: dict[str, object], rel: str, repo
                     rel,
                 )
                 return
+        for key in ("code", "path", "message"):
+            value = finding.get(key)
+            if isinstance(value, str) and not value.strip():
+                report.add_error(
+                    "state_last_verification_finding_invalid",
+                    f"governance state last_verification findings entries must include non-empty string {key}",
+                    rel,
+                )
+                return
         if finding.get("severity") not in {"error", "warning"}:
             report.add_error(
                 "state_last_verification_finding_invalid",
