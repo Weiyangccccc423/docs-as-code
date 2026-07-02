@@ -650,6 +650,7 @@ def _check_governance_state(root: Path, report: VerificationReport) -> None:
     if not phase_is_valid:
         report.add_error("state_phase_invalid", f"governance state phase is invalid: {phase}", rel)
 
+    _check_governance_state_timestamps(state, rel, report)
     _check_governance_state_product_import_cache(root, state, rel, report)
     _check_governance_last_verification(state, rel, report)
 
@@ -806,6 +807,23 @@ def _check_governance_state(root: Path, report: VerificationReport) -> None:
                 "governance state last_gate checked_at must match latest phase_history advanced_at",
                 rel,
             )
+
+
+def _check_governance_state_timestamps(state: dict[str, object], rel: str, report: VerificationReport) -> None:
+    updated_at = state.get("updated_at")
+    if not isinstance(updated_at, str) or not updated_at:
+        report.add_error(
+            "state_timestamp_updated_at_missing",
+            "governance state must include updated_at",
+            rel,
+        )
+        return
+    if not _is_iso_timestamp_with_timezone(updated_at):
+        report.add_error(
+            "state_timestamp_updated_at_invalid",
+            "governance state updated_at must be an ISO timestamp with timezone",
+            rel,
+        )
 
 
 def _check_governance_state_product_import_cache(

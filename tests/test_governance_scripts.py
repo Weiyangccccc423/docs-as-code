@@ -1235,6 +1235,57 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_missing_governance_state_updated_at(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            state_path = root / ".governance/state.json"
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            state.pop("updated_at")
+            state_path.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
+
+            report = verify(root)
+
+            self.assertIn("governance state must include updated_at", report.errors)
+            self.assertIn(
+                {
+                    "code": "state_timestamp_updated_at_missing",
+                    "severity": "error",
+                    "path": ".governance/state.json",
+                    "message": "governance state must include updated_at",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_invalid_governance_state_updated_at(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            state_path = root / ".governance/state.json"
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            state["updated_at"] = "not-a-timestamp"
+            state_path.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
+
+            report = verify(root)
+
+            message = "governance state updated_at must be an ISO timestamp with timezone"
+            self.assertIn(message, report.errors)
+            self.assertIn(
+                {
+                    "code": "state_timestamp_updated_at_invalid",
+                    "severity": "error",
+                    "path": ".governance/state.json",
+                    "message": message,
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_invalid_governance_state_last_verification(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
