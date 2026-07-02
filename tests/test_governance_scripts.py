@@ -627,6 +627,59 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertFalse(requirements["product_acceptance_chapter_present"]["ok"])
             self.assertTrue(payload["verification"]["ok"])
 
+    def test_gate_requirement_rejects_unstable_routing_fields(self) -> None:
+        valid = gates_module.GateRequirement(
+            code="product_import_ready",
+            ok=True,
+            path="docs/product/core/source/source-manifest.json",
+            message="product import is ready",
+        )
+        self.assertEqual(
+            {
+                "code": "product_import_ready",
+                "ok": True,
+                "path": "docs/product/core/source/source-manifest.json",
+                "message": "product import is ready",
+            },
+            valid.to_dict(),
+        )
+
+        cases = [
+            (
+                {"code": "product-import-ready", "path": "docs/product/core/source/source-manifest.json"},
+                "gate requirement code must use lowercase snake_case",
+            ),
+            (
+                {"code": "Product Import Ready", "path": "docs/product/core/source/source-manifest.json"},
+                "gate requirement code must use lowercase snake_case",
+            ),
+            (
+                {"code": "product_import_ready", "path": "/tmp/source-manifest.json"},
+                "gate requirement path must be repository-relative",
+            ),
+            (
+                {"code": "product_import_ready", "path": "../source-manifest.json"},
+                "gate requirement path must be repository-relative",
+            ),
+            (
+                {"code": "product_import_ready", "path": "docs\\product\\core.md"},
+                "gate requirement path must use normalized POSIX form",
+            ),
+            (
+                {"code": "product_import_ready", "path": "./docs/product/core.md"},
+                "gate requirement path must use normalized POSIX form",
+            ),
+        ]
+        for values, message in cases:
+            with self.subTest(message=message, values=values):
+                with self.assertRaisesRegex(ValueError, message):
+                    gates_module.GateRequirement(
+                        code=values["code"],
+                        ok=False,
+                        path=values["path"],
+                        message="product import is ready",
+                    )
+
     def test_phases_main_json_advances_product_structuring(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

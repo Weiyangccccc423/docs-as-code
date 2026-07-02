@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
 try:
@@ -15,6 +16,7 @@ except ImportError:  # pragma: no cover - direct script execution
 
 
 GATE_NAMES = ("product-structuring", "design-derivation", "implementation")
+REQUIREMENT_CODE_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 IMPLEMENTATION_REQUIRED_FILES = (
     ("architecture_system_context_present", "docs/architecture/01-system-context.md", "system context architecture doc exists"),
     ("architecture_containers_present", "docs/architecture/02-containers.md", "containers architecture doc exists"),
@@ -47,6 +49,25 @@ class GateRequirement:
     ok: bool
     message: str
     path: str = ""
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.code, str) or not REQUIREMENT_CODE_RE.match(self.code):
+            raise ValueError("gate requirement code must use lowercase snake_case")
+        if not isinstance(self.path, str):
+            raise ValueError("gate requirement path must be a string")
+        if self.path:
+            posix_path = PurePosixPath(self.path)
+            windows_path = PureWindowsPath(self.path)
+            normalized_path = posix_path.as_posix()
+            if (
+                posix_path.is_absolute()
+                or windows_path.is_absolute()
+                or ".." in posix_path.parts
+                or ".." in windows_path.parts
+            ):
+                raise ValueError("gate requirement path must be repository-relative")
+            if "\\" in self.path or self.path != normalized_path:
+                raise ValueError("gate requirement path must use normalized POSIX form")
 
     def to_dict(self) -> dict[str, object]:
         return {
