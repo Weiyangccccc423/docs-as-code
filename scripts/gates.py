@@ -53,6 +53,10 @@ class GateRequirement:
     def __post_init__(self) -> None:
         if not isinstance(self.code, str) or not REQUIREMENT_CODE_RE.match(self.code):
             raise ValueError("gate requirement code must use lowercase snake_case")
+        if not isinstance(self.ok, bool):
+            raise ValueError("gate requirement ok must be a boolean")
+        if not isinstance(self.message, str) or not self.message.strip():
+            raise ValueError("gate requirement message must be a non-empty string")
         if not isinstance(self.path, str):
             raise ValueError("gate requirement path must be a string")
         if self.path:

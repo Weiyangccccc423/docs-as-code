@@ -646,27 +646,75 @@ class GovernanceScriptsTest(unittest.TestCase):
 
         cases = [
             (
-                {"code": "product-import-ready", "path": "docs/product/core/source/source-manifest.json"},
+                {
+                    "code": "product-import-ready",
+                    "ok": False,
+                    "path": "docs/product/core/source/source-manifest.json",
+                    "message": "product import is ready",
+                },
                 "gate requirement code must use lowercase snake_case",
             ),
             (
-                {"code": "Product Import Ready", "path": "docs/product/core/source/source-manifest.json"},
+                {
+                    "code": "Product Import Ready",
+                    "ok": False,
+                    "path": "docs/product/core/source/source-manifest.json",
+                    "message": "product import is ready",
+                },
                 "gate requirement code must use lowercase snake_case",
             ),
             (
-                {"code": "product_import_ready", "path": "/tmp/source-manifest.json"},
+                {
+                    "code": "product_import_ready",
+                    "ok": "false",
+                    "path": "docs/product/core/source/source-manifest.json",
+                    "message": "product import is ready",
+                },
+                "gate requirement ok must be a boolean",
+            ),
+            (
+                {
+                    "code": "product_import_ready",
+                    "ok": False,
+                    "path": "docs/product/core/source/source-manifest.json",
+                    "message": "",
+                },
+                "gate requirement message must be a non-empty string",
+            ),
+            (
+                {
+                    "code": "product_import_ready",
+                    "ok": False,
+                    "path": "/tmp/source-manifest.json",
+                    "message": "product import is ready",
+                },
                 "gate requirement path must be repository-relative",
             ),
             (
-                {"code": "product_import_ready", "path": "../source-manifest.json"},
+                {
+                    "code": "product_import_ready",
+                    "ok": False,
+                    "path": "../source-manifest.json",
+                    "message": "product import is ready",
+                },
                 "gate requirement path must be repository-relative",
             ),
             (
-                {"code": "product_import_ready", "path": "docs\\product\\core.md"},
+                {
+                    "code": "product_import_ready",
+                    "ok": False,
+                    "path": "docs\\product\\core.md",
+                    "message": "product import is ready",
+                },
                 "gate requirement path must use normalized POSIX form",
             ),
             (
-                {"code": "product_import_ready", "path": "./docs/product/core.md"},
+                {
+                    "code": "product_import_ready",
+                    "ok": False,
+                    "path": "./docs/product/core.md",
+                    "message": "product import is ready",
+                },
                 "gate requirement path must use normalized POSIX form",
             ),
         ]
@@ -675,9 +723,9 @@ class GovernanceScriptsTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, message):
                     gates_module.GateRequirement(
                         code=values["code"],
-                        ok=False,
+                        ok=values["ok"],
                         path=values["path"],
-                        message="product import is ready",
+                        message=values["message"],
                     )
 
     def test_phases_main_json_advances_product_structuring(self) -> None:
