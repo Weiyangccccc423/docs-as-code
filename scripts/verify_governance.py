@@ -961,6 +961,22 @@ def _check_governance_last_verification(state: dict[str, object], rel: str, repo
                 rel,
             )
             return
+    if last_verification["ok"] is True and last_verification["errors"]:
+        report.add_error(
+            "state_last_verification_ok_mismatch",
+            "governance state last_verification ok must be false when errors are present",
+            rel,
+        )
+        return
+    if last_verification["ok"] is True and any(
+        finding.get("severity") == "error" for finding in last_verification["findings"]
+    ):
+        report.add_error(
+            "state_last_verification_ok_mismatch",
+            "governance state last_verification ok must be false when error findings are present",
+            rel,
+        )
+        return
     checked_at = last_verification.get("checked_at")
     if not isinstance(checked_at, str) or not checked_at:
         report.add_error(

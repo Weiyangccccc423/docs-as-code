@@ -1380,6 +1380,77 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_governance_state_last_verification_ok_error_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            state_path = root / ".governance/state.json"
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            state["last_verification"] = {
+                "ok": True,
+                "errors": ["example error"],
+                "warnings": [],
+                "findings": [],
+                "checked_at": "2026-01-01T00:00:00+00:00",
+            }
+            state_path.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
+
+            report = verify(root)
+
+            message = "governance state last_verification ok must be false when errors are present"
+            self.assertIn(message, report.errors)
+            self.assertIn(
+                {
+                    "code": "state_last_verification_ok_mismatch",
+                    "severity": "error",
+                    "path": ".governance/state.json",
+                    "message": message,
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_governance_state_last_verification_ok_finding_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            state_path = root / ".governance/state.json"
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            state["last_verification"] = {
+                "ok": True,
+                "errors": [],
+                "warnings": [],
+                "findings": [
+                    {
+                        "code": "example",
+                        "severity": "error",
+                        "path": "README.md",
+                        "message": "example error",
+                    }
+                ],
+                "checked_at": "2026-01-01T00:00:00+00:00",
+            }
+            state_path.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
+
+            report = verify(root)
+
+            message = "governance state last_verification ok must be false when error findings are present"
+            self.assertIn(message, report.errors)
+            self.assertIn(
+                {
+                    "code": "state_last_verification_ok_mismatch",
+                    "severity": "error",
+                    "path": ".governance/state.json",
+                    "message": message,
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_governance_state_last_verification_finding_invalid(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
