@@ -870,25 +870,48 @@ class GovernanceScriptsTest(unittest.TestCase):
             path="docs/product/core/source/source-manifest.json",
             message="product import is ready",
         )
+        source_requirements = [requirement]
+        source_verification = {"ok": True, "errors": [], "findings": [{"code": "verification_passed"}]}
+        source_state = {"phase": "initialized", "phase_history": [{"phase": "initialized"}]}
         valid = gates_module.GateResult(
             gate="product-structuring",
             target="/tmp/project",
             ok=True,
-            requirements=[requirement],
-            verification={},
-            state={},
+            requirements=source_requirements,
+            verification=source_verification,
+            state=source_state,
         )
+        source_requirements.clear()
+        source_verification["ok"] = False
+        source_verification["findings"][0]["code"] = "mutated"
+        source_state["phase"] = "mutated"
+        source_state["phase_history"][0]["phase"] = "mutated"
         self.assertEqual(
             {
                 "gate": "product-structuring",
                 "target": "/tmp/project",
                 "ok": True,
                 "requirements": [requirement.to_dict()],
-                "verification": {},
-                "state": {},
+                "verification": {"ok": True, "errors": [], "findings": [{"code": "verification_passed"}]},
+                "state": {"phase": "initialized", "phase_history": [{"phase": "initialized"}]},
             },
             valid.to_dict(),
         )
+        payload = valid.to_dict()
+        payload_requirements = payload["requirements"]
+        payload_verification = payload["verification"]
+        payload_state = payload["state"]
+        self.assertIsInstance(payload_requirements, list)
+        self.assertIsInstance(payload_verification, dict)
+        self.assertIsInstance(payload_state, dict)
+        payload_requirements.clear()
+        payload_verification["ok"] = False
+        payload_verification["findings"][0]["code"] = "mutated"
+        payload_state["phase"] = "mutated"
+        payload_state["phase_history"][0]["phase"] = "mutated"
+        self.assertEqual([requirement], valid.requirements)
+        self.assertEqual({"ok": True, "errors": [], "findings": [{"code": "verification_passed"}]}, valid.verification)
+        self.assertEqual({"phase": "initialized", "phase_history": [{"phase": "initialized"}]}, valid.state)
 
         cases = [
             (

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import re
 from dataclasses import dataclass, field
@@ -106,6 +107,9 @@ class GateResult:
             raise ValueError("gate result verification must be an object")
         if not isinstance(self.state, dict):
             raise ValueError("gate result state must be an object")
+        self.requirements = list(self.requirements)
+        self.verification = copy.deepcopy(self.verification)
+        self.state = copy.deepcopy(self.state)
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -113,8 +117,8 @@ class GateResult:
             "target": self.target,
             "ok": self.ok,
             "requirements": [item.to_dict() for item in self.requirements],
-            "verification": self.verification,
-            "state": self.state,
+            "verification": copy.deepcopy(self.verification),
+            "state": copy.deepcopy(self.state),
         }
 
 
