@@ -1677,6 +1677,15 @@ class GovernanceCliTest(unittest.TestCase):
             status_payload = json.loads(status_result.stdout)
             self.assertTrue(status_payload["ok"])
             self.assertEqual("service", status_payload["state"]["profile"])
+            self.assertIn(
+                {
+                    "make_target": "verify-governance",
+                    "command": "make verify-governance",
+                    "recipe": "bin/governance verify .",
+                    "description": "run governance verification and update verification state",
+                },
+                status_payload["local_commands"],
+            )
 
     def test_initialized_target_local_governance_wrapper_verifies_and_reports_status(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1740,6 +1749,15 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual(
                 "docs/agent-workflow/workflow-pack/manifest.json",
                 status_payload["state"]["workflow_pack_manifest"],
+            )
+            self.assertIn(
+                {
+                    "make_target": "governance-status",
+                    "command": "make governance-status",
+                    "recipe": "bin/governance status . --json",
+                    "description": "print workflow state as JSON",
+                },
+                status_payload["local_commands"],
             )
 
     def test_verify_check_json_does_not_update_state(self) -> None:

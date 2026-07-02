@@ -225,6 +225,7 @@ def _cmd_status(args: argparse.Namespace) -> int:
                 "ok": True,
                 "target": str(target),
                 "state": state,
+                "local_commands": target_local_commands_payload(),
             }
         )
         return 0

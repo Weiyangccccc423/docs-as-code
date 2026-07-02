@@ -53,6 +53,8 @@ Load:
    make repair-env-check
    ```
 
+   `governance-status` runs `bin/governance status . --json`; on success, its payload includes `local_commands` so resumed agents can rediscover the target-local `make` command contract without re-running initialization.
+
 4. If verification reports target-local runtime or workflow-pack snapshot drift, inspect the refresh plan from a trusted source workflow-pack checkout before writing repairs:
 
    ```bash

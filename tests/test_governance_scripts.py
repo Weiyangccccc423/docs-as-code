@@ -6872,6 +6872,15 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertTrue(status_payload["ok"])
             self.assertEqual(".", status_payload["target"])
             self.assertEqual("initialized", status_payload["state"]["phase"])
+            self.assertIn(
+                {
+                    "make_target": "repair-env-check",
+                    "command": "make repair-env-check",
+                    "recipe": "bin/governance env --repair --check --target . --json",
+                    "description": "preview environment repair without writing files",
+                },
+                status_payload["local_commands"],
+            )
 
             repair_check_result = subprocess.run(
                 ["make", "repair-env-check"],
