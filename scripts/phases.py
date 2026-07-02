@@ -32,6 +32,36 @@ class AdvanceResult:
     state: dict[str, Any] = field(default_factory=dict)
     errors: list[str] = field(default_factory=list)
 
+    def __post_init__(self) -> None:
+        if self.phase not in PHASE_NAMES:
+            raise ValueError("advance result phase must be a known phase")
+        if not isinstance(self.target, str) or not self.target:
+            raise ValueError("advance result target must be a non-empty string")
+        if not isinstance(self.ok, bool):
+            raise ValueError("advance result ok must be a boolean")
+        if not isinstance(self.advanced, bool):
+            raise ValueError("advance result advanced must be a boolean")
+        if not isinstance(self.check, bool):
+            raise ValueError("advance result check must be a boolean")
+        if not isinstance(self.would_advance, bool):
+            raise ValueError("advance result would_advance must be a boolean")
+        if not isinstance(self.gate, dict):
+            raise ValueError("advance result gate must be an object")
+        if not isinstance(self.would_state, dict):
+            raise ValueError("advance result would_state must be an object")
+        if not isinstance(self.state, dict):
+            raise ValueError("advance result state must be an object")
+        if not isinstance(self.errors, list) or not all(isinstance(item, str) for item in self.errors):
+            raise ValueError("advance result errors must be strings")
+        if self.advanced and not self.ok:
+            raise ValueError("advance result advanced requires ok: true")
+        if self.check and self.advanced:
+            raise ValueError("advance result check mode cannot advance state")
+        if self.would_advance and not self.check:
+            raise ValueError("advance result would_advance requires check mode")
+        if self.would_advance and not self.ok:
+            raise ValueError("advance result would_advance requires ok: true")
+
     def to_dict(self) -> dict[str, object]:
         return {
             "phase": self.phase,

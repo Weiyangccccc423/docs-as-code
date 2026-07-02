@@ -846,6 +846,189 @@ class GovernanceScriptsTest(unittest.TestCase):
                         state=values["state"],
                     )
 
+    def test_advance_result_rejects_unstable_output_shape(self) -> None:
+        valid = phases_module.AdvanceResult(
+            phase="product-structuring",
+            target="/tmp/project",
+            ok=True,
+            advanced=True,
+            gate={},
+            state={"phase": "product-structuring"},
+        )
+        self.assertEqual(
+            {
+                "phase": "product-structuring",
+                "target": "/tmp/project",
+                "ok": True,
+                "advanced": True,
+                "check": False,
+                "would_advance": False,
+                "would_state": {},
+                "errors": [],
+                "gate": {},
+                "state": {"phase": "product-structuring"},
+            },
+            valid.to_dict(),
+        )
+
+        cases = [
+            (
+                {
+                    "phase": "unknown",
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "advanced": True,
+                    "gate": {},
+                    "state": {"phase": "product-structuring"},
+                },
+                "advance result phase must be a known phase",
+            ),
+            (
+                {
+                    "phase": "product-structuring",
+                    "target": "",
+                    "ok": True,
+                    "advanced": True,
+                    "gate": {},
+                    "state": {"phase": "product-structuring"},
+                },
+                "advance result target must be a non-empty string",
+            ),
+            (
+                {
+                    "phase": "product-structuring",
+                    "target": "/tmp/project",
+                    "ok": "true",
+                    "advanced": True,
+                    "gate": {},
+                },
+                "advance result ok must be a boolean",
+            ),
+            (
+                {
+                    "phase": "product-structuring",
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "advanced": "true",
+                    "gate": {},
+                },
+                "advance result advanced must be a boolean",
+            ),
+            (
+                {
+                    "phase": "product-structuring",
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "advanced": False,
+                    "check": "false",
+                    "gate": {},
+                },
+                "advance result check must be a boolean",
+            ),
+            (
+                {
+                    "phase": "product-structuring",
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "advanced": False,
+                    "would_advance": "false",
+                    "gate": {},
+                },
+                "advance result would_advance must be a boolean",
+            ),
+            (
+                {
+                    "phase": "product-structuring",
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "advanced": False,
+                    "gate": [],
+                },
+                "advance result gate must be an object",
+            ),
+            (
+                {
+                    "phase": "product-structuring",
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "advanced": False,
+                    "gate": {},
+                    "would_state": [],
+                },
+                "advance result would_state must be an object",
+            ),
+            (
+                {
+                    "phase": "product-structuring",
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "advanced": False,
+                    "gate": {},
+                    "state": [],
+                },
+                "advance result state must be an object",
+            ),
+            (
+                {
+                    "phase": "product-structuring",
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "advanced": False,
+                    "gate": {},
+                    "errors": ["ok", 123],
+                },
+                "advance result errors must be strings",
+            ),
+            (
+                {
+                    "phase": "product-structuring",
+                    "target": "/tmp/project",
+                    "ok": False,
+                    "advanced": True,
+                    "gate": {},
+                },
+                "advance result advanced requires ok: true",
+            ),
+            (
+                {
+                    "phase": "product-structuring",
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "advanced": True,
+                    "check": True,
+                    "gate": {},
+                },
+                "advance result check mode cannot advance state",
+            ),
+            (
+                {
+                    "phase": "product-structuring",
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "advanced": False,
+                    "would_advance": True,
+                    "gate": {},
+                },
+                "advance result would_advance requires check mode",
+            ),
+            (
+                {
+                    "phase": "product-structuring",
+                    "target": "/tmp/project",
+                    "ok": False,
+                    "advanced": False,
+                    "check": True,
+                    "would_advance": True,
+                    "gate": {},
+                },
+                "advance result would_advance requires ok: true",
+            ),
+        ]
+        for values, message in cases:
+            with self.subTest(message=message, values=values):
+                with self.assertRaisesRegex(ValueError, message):
+                    phases_module.AdvanceResult(**values)
+
     def test_phases_main_json_advances_product_structuring(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
