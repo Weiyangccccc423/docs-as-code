@@ -7,15 +7,39 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from scripts.bootstrap_tree import _iter_workflow_pack_files
-from scripts.verify_pack import PackFinding, PackReport, verify_pack
-from scripts.verify_governance import WORKFLOW_PACK_REQUIRED_PATHS
+from scripts.bootstrap_tree import TARGET_LOCAL_COMMANDS, _iter_workflow_pack_files
+from scripts.verify_pack import (
+    TARGET_MAKEFILE_REQUIRED_COMMANDS,
+    PackFinding,
+    PackReport,
+    verify_pack,
+)
+from scripts.verify_governance import (
+    TARGET_ENTRY_DOC_GUARDRAILS,
+    TARGET_MAKEFILE_REQUIRED_TARGETS,
+    TARGET_MAKEFILE_REQUIRED_TARGET_RECIPES,
+    WORKFLOW_PACK_REQUIRED_PATHS,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 class PackStructureTest(unittest.TestCase):
+    def test_target_local_command_contracts_stay_aligned(self) -> None:
+        expected_targets = tuple(target for target, _recipe, _description in TARGET_LOCAL_COMMANDS)
+        expected_recipes = {
+            target: (recipe,)
+            for target, recipe, _description in TARGET_LOCAL_COMMANDS
+        }
+        expected_make_commands = tuple(f"make {target}" for target in expected_targets)
+
+        self.assertEqual(expected_targets, TARGET_MAKEFILE_REQUIRED_TARGETS)
+        self.assertEqual(expected_recipes, TARGET_MAKEFILE_REQUIRED_TARGET_RECIPES)
+        self.assertEqual(expected_make_commands, TARGET_MAKEFILE_REQUIRED_COMMANDS)
+        for command in expected_make_commands:
+            self.assertIn(command, TARGET_ENTRY_DOC_GUARDRAILS["README.md"])
+
     def test_verify_pack_report_objects_reject_unstable_output_shape(self) -> None:
         finding = PackFinding(
             code="pack_required_file_missing",
