@@ -44,6 +44,8 @@ Load:
    bin/governance init --target <target> --product <product-doc> --profile <profile> --project-name "<name>"
    ```
 
+   When `--json` is used, the success payload includes `local_commands` with target-local `make` entries, recipes, and descriptions for agent automation.
+
 4. Inspect generated root files:
 
    - `README.md`

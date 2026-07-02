@@ -114,6 +114,18 @@ def _target_makefile() -> str:
     return f".PHONY: {' '.join(targets)}\n\n{rules}\n"
 
 
+def target_local_commands_payload() -> list[dict[str, str]]:
+    return [
+        {
+            "make_target": target,
+            "command": f"make {target}",
+            "recipe": recipe,
+            "description": description,
+        }
+        for target, recipe, description in TARGET_LOCAL_COMMANDS
+    ]
+
+
 def _safe_write(path: Path, content: str, force: bool = False) -> None:
     if path.exists() and not force:
         return
@@ -1516,6 +1528,7 @@ def main() -> int:
         payload["ok"] = True
         payload["conflicts"] = []
         payload["state"] = load_state(target)
+        payload["local_commands"] = target_local_commands_payload()
         print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
         return 0
     print(f"Initialized governance repository at {target}")

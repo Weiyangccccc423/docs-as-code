@@ -4,7 +4,14 @@ import argparse
 import json
 from pathlib import Path
 
-from bootstrap_tree import InitPreflightError, bootstrap, check_runtime_refresh, preflight_init, refresh_runtime
+from bootstrap_tree import (
+    InitPreflightError,
+    bootstrap,
+    check_runtime_refresh,
+    preflight_init,
+    refresh_runtime,
+    target_local_commands_payload,
+)
 from check_env import (
     _env_payload as build_env_payload,
     apply_install_plan,
@@ -87,6 +94,7 @@ def _cmd_init(args: argparse.Namespace) -> int:
         payload["ok"] = True
         payload["conflicts"] = []
         payload["state"] = load_state(target)
+        payload["local_commands"] = target_local_commands_payload()
         _print_json(payload)
         return 0
     print(f"Initialized governance repository at {target}")

@@ -922,6 +922,15 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual("initialized", payload["state"]["phase"])
             self.assertEqual("docs/agent-workflow/runtime-manifest.json", payload["state"]["runtime_manifest"])
             self.assertEqual("docs/agent-workflow/workflow-pack/manifest.json", payload["state"]["workflow_pack_manifest"])
+            self.assertIn(
+                {
+                    "make_target": "verify-check",
+                    "command": "make verify-check",
+                    "recipe": "bin/governance verify . --check --json",
+                    "description": "run read-only JSON verification without updating state",
+                },
+                payload["local_commands"],
+            )
             self.assertIn("# Forced Demo", (target / "README.md").read_text(encoding="utf-8"))
             self.assertTrue((target / "docs/README.md").exists())
 

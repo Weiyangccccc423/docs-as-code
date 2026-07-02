@@ -2925,6 +2925,15 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertEqual([], payload["conflicts"])
             self.assertEqual("initialized", payload["state"]["phase"])
             self.assertEqual("web-app", payload["state"]["profile"])
+            self.assertIn(
+                {
+                    "make_target": "governance-status",
+                    "command": "make governance-status",
+                    "recipe": "bin/governance status . --json",
+                    "description": "print workflow state as JSON",
+                },
+                payload["local_commands"],
+            )
             self.assertTrue((root / "bin/governance").exists())
 
     def test_bootstrap_main_json_reports_write_failure_without_traceback(self) -> None:
@@ -6776,15 +6785,28 @@ class GovernanceScriptsTest(unittest.TestCase):
     def test_target_local_command_helpers_share_command_source(self) -> None:
         readme = bootstrap_module._target_local_commands_readme()
         makefile = bootstrap_module._target_makefile()
+        payload = bootstrap_module.target_local_commands_payload()
         targets = [
             target
             for target, _recipe, _description in bootstrap_module.TARGET_LOCAL_COMMANDS
         ]
 
         self.assertIn(f".PHONY: {' '.join(targets)}", makefile)
-        for target, recipe, description in bootstrap_module.TARGET_LOCAL_COMMANDS:
+        self.assertEqual(len(bootstrap_module.TARGET_LOCAL_COMMANDS), len(payload))
+        for index, (target, recipe, description) in enumerate(bootstrap_module.TARGET_LOCAL_COMMANDS):
             self.assertIn(f"- `make {target}` - {description}.", readme)
             self.assertIn(f"{target}:\n\t{recipe}", makefile)
+            self.assertEqual(
+                {
+                    "make_target": target,
+                    "command": f"make {target}",
+                    "recipe": recipe,
+                    "description": description,
+                },
+                payload[index],
+            )
+        payload[0]["command"] = "mutated"
+        self.assertEqual("make verify-governance", bootstrap_module.target_local_commands_payload()[0]["command"])
 
     def test_bootstrap_installs_target_runtime(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
