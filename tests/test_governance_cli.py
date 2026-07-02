@@ -366,6 +366,78 @@ class GovernanceCliTest(unittest.TestCase):
             governance_cli._tool_status_payload([CustomStatus()]),
         )
 
+    def test_env_json_uses_shared_payload_builder(self) -> None:
+        scripts_dir = str(ROOT / "scripts")
+        if scripts_dir not in sys.path:
+            sys.path.insert(0, scripts_dir)
+        governance_cli = importlib.import_module("governance_cli")
+        check_env = importlib.import_module("check_env")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            target.mkdir()
+            statuses = [
+                check_env.ToolStatus(
+                    name="python3",
+                    present=True,
+                    version="Python 3",
+                    note="Required",
+                    level="required",
+                    install_package="python3",
+                )
+            ]
+            system = check_env.SystemStatus(
+                platform="linux",
+                os_id="ubuntu",
+                os_like="debian",
+                pretty_name="Ubuntu",
+                is_root=False,
+            )
+            package_manager = check_env.PackageManager("none", None, False)
+            git = check_env.GitStatus(False, False, "", "", "")
+            calls: list[dict[str, object]] = []
+            original_collect_status = governance_cli.collect_status
+            original_collect_system_status = governance_cli.collect_system_status
+            original_detect_package_manager = governance_cli.detect_package_manager
+            original_collect_git_status = governance_cli.collect_git_status
+            original_build_install_plan = governance_cli.build_install_plan
+            original_build_env_payload = governance_cli.build_env_payload
+
+            def fake_payload(target_arg: Path, **kwargs: object) -> dict[str, object]:
+                calls.append(kwargs)
+                return {
+                    "ok": True,
+                    "target": str(target_arg),
+                    "check": kwargs["check"],
+                    "from_shared_payload": True,
+                }
+
+            governance_cli.collect_status = lambda: statuses
+            governance_cli.collect_system_status = lambda: system
+            governance_cli.detect_package_manager = lambda _system=None: package_manager
+            governance_cli.collect_git_status = lambda _target: git
+            governance_cli.build_install_plan = lambda _statuses, _strict, _package_manager: []
+            governance_cli.build_env_payload = fake_payload
+            stdout = io.StringIO()
+            try:
+                with contextlib.redirect_stdout(stdout):
+                    returncode = governance_cli._cmd_env(
+                        SimpleNamespace(target=str(target), repair=False, json=True, strict=False)
+                    )
+            finally:
+                governance_cli.collect_status = original_collect_status
+                governance_cli.collect_system_status = original_collect_system_status
+                governance_cli.detect_package_manager = original_detect_package_manager
+                governance_cli.collect_git_status = original_collect_git_status
+                governance_cli.build_install_plan = original_build_install_plan
+                governance_cli.build_env_payload = original_build_env_payload
+
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(0, returncode)
+            self.assertTrue(payload["from_shared_payload"])
+            self.assertEqual([statuses], [call["statuses"] for call in calls])
+            self.assertEqual([False], [call["check"] for call in calls])
+
     def test_env_repair_writes_repair_plan(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "target"

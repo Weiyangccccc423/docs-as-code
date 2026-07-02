@@ -7,6 +7,7 @@ from pathlib import Path
 from bootstrap_tree import InitPreflightError, bootstrap, check_runtime_refresh, preflight_init, refresh_runtime
 from check_env import (
     ToolStatus,
+    _env_payload as build_env_payload,
     apply_install_plan,
     build_install_plan,
     collect_git_status,
@@ -16,7 +17,6 @@ from check_env import (
     environment_ok,
     install_command_text,
     install_commands,
-    missing_tools_by_level,
     planned_repair_actions,
     repair_target_error,
     write_repair_plan,
@@ -242,7 +242,6 @@ def _cmd_status(args: argparse.Namespace) -> int:
 def _cmd_env(args: argparse.Namespace) -> int:
     target = Path(args.target)
     check = bool(getattr(args, "check", False))
-    missing: list[str] = []
     statuses = collect_status()
     system = collect_system_status()
     package_manager = detect_package_manager(system)
@@ -254,40 +253,28 @@ def _cmd_env(args: argparse.Namespace) -> int:
         mark = "OK" if status.present else "MISSING"
         if not args.json:
             print(f"{mark:7} {status.name:10} {status.version or status.note}")
-        if not status.present:
-            missing.append(status.name)
     repair_plan = None
     repairs: list[dict[str, object]] = []
     if args.repair:
         target_error = repair_target_error(target)
         if target_error:
-            missing_required = missing_tools_by_level(statuses, "required")
-            missing_recommended = missing_tools_by_level(statuses, "recommended")
-            commands = install_commands(install_plan, package_manager)
             if args.json:
                 _print_json(
-                    {
-                        "ok": False,
-                        "target": str(target),
-                        "strict": args.strict,
-                        "check": check,
-                        "errors": [target_error],
-                        "missing": missing,
-                        "missing_required": missing_required,
-                        "missing_recommended": missing_recommended,
-                        "tools": _tool_status_payload(statuses),
-                        "system": system.to_dict(),
-                        "package_manager": package_manager.to_dict(),
-                        "git": git.to_dict(),
-                        "install_plan": [item.to_dict() for item in install_plan],
-                        "install_commands": commands,
-                        "install_command": install_command_text(commands),
-                        "needs_escalation": needs_escalation,
-                        "install_results": install_results,
-                        "repairs": repairs,
-                        "repair_plan": repair_plan,
-                        "would_repair": [],
-                    }
+                    build_env_payload(
+                        target,
+                        strict=args.strict,
+                        check=check,
+                        statuses=statuses,
+                        system=system,
+                        package_manager=package_manager,
+                        git=git,
+                        install_plan=install_plan,
+                        needs_escalation=needs_escalation,
+                        install_results=install_results,
+                        repairs=repairs,
+                        repair_plan=repair_plan,
+                        errors=[target_error],
+                    )
                 )
             else:
                 print("Environment repair failed:")
@@ -297,27 +284,21 @@ def _cmd_env(args: argparse.Namespace) -> int:
             would_repair = planned_repair_actions(target)
             if args.json:
                 _print_json(
-                    {
-                        "ok": environment_ok(statuses, args.strict),
-                        "target": str(target),
-                        "strict": args.strict,
-                        "check": True,
-                        "missing": missing,
-                        "missing_required": missing_tools_by_level(statuses, "required"),
-                        "missing_recommended": missing_tools_by_level(statuses, "recommended"),
-                        "tools": _tool_status_payload(statuses),
-                        "system": system.to_dict(),
-                        "package_manager": package_manager.to_dict(),
-                        "git": git.to_dict(),
-                        "install_plan": [item.to_dict() for item in install_plan],
-                        "install_commands": install_commands(install_plan, package_manager),
-                        "install_command": install_command_text(install_commands(install_plan, package_manager)),
-                        "needs_escalation": needs_escalation,
-                        "install_results": install_results,
-                        "repairs": repairs,
-                        "repair_plan": repair_plan,
-                        "would_repair": would_repair,
-                    }
+                    build_env_payload(
+                        target,
+                        strict=args.strict,
+                        check=True,
+                        statuses=statuses,
+                        system=system,
+                        package_manager=package_manager,
+                        git=git,
+                        install_plan=install_plan,
+                        needs_escalation=needs_escalation,
+                        install_results=install_results,
+                        repairs=repairs,
+                        repair_plan=repair_plan,
+                        would_repair=would_repair,
+                    )
                 )
             else:
                 print("\nEnvironment repair preflight:")
@@ -332,7 +313,6 @@ def _cmd_env(args: argparse.Namespace) -> int:
         install_results = apply_install_plan(install_plan, package_manager, system)
         if install_results and all(result["returncode"] == 0 for result in install_results):
             statuses = collect_status()
-            missing = [status.name for status in statuses if not status.present]
         try:
             path = write_repair_plan(
                 target,
@@ -345,33 +325,23 @@ def _cmd_env(args: argparse.Namespace) -> int:
         except (OSError, ValueError) as error:
             reason = error.strerror if isinstance(error, OSError) and error.strerror else str(error)
             repair_error = f"environment repair failed: {reason}"
-            missing_required = missing_tools_by_level(statuses, "required")
-            missing_recommended = missing_tools_by_level(statuses, "recommended")
-            commands = install_commands(install_plan, package_manager)
             if args.json:
                 _print_json(
-                    {
-                        "ok": False,
-                        "target": str(target),
-                        "strict": args.strict,
-                        "check": check,
-                        "errors": [repair_error],
-                        "missing": missing,
-                        "missing_required": missing_required,
-                        "missing_recommended": missing_recommended,
-                        "tools": _tool_status_payload(statuses),
-                        "system": system.to_dict(),
-                        "package_manager": package_manager.to_dict(),
-                        "git": git.to_dict(),
-                        "install_plan": [item.to_dict() for item in install_plan],
-                        "install_commands": commands,
-                        "install_command": install_command_text(commands),
-                        "needs_escalation": needs_escalation,
-                        "install_results": install_results,
-                        "repairs": repairs,
-                        "repair_plan": repair_plan,
-                        "would_repair": [],
-                    }
+                    build_env_payload(
+                        target,
+                        strict=args.strict,
+                        check=check,
+                        statuses=statuses,
+                        system=system,
+                        package_manager=package_manager,
+                        git=git,
+                        install_plan=install_plan,
+                        needs_escalation=needs_escalation,
+                        install_results=install_results,
+                        repairs=repairs,
+                        repair_plan=repair_plan,
+                        errors=[repair_error],
+                    )
                 )
             else:
                 print("Environment repair failed:")
@@ -389,33 +359,23 @@ def _cmd_env(args: argparse.Namespace) -> int:
                 )
             for result in install_results:
                 print(f"Install command exited {result['returncode']}: {result['command']}")
-    missing_required = missing_tools_by_level(statuses, "required")
-    missing_recommended = missing_tools_by_level(statuses, "recommended")
-    commands = install_commands(install_plan, package_manager)
     ok = environment_ok(statuses, args.strict)
     if args.json:
         _print_json(
-            {
-                "ok": ok,
-                "target": str(target),
-                "strict": args.strict,
-                "check": check,
-                "missing": missing,
-                "missing_required": missing_required,
-                "missing_recommended": missing_recommended,
-                "tools": _tool_status_payload(statuses),
-                "system": system.to_dict(),
-                "package_manager": package_manager.to_dict(),
-                "git": git.to_dict(),
-                "install_plan": [item.to_dict() for item in install_plan],
-                "install_commands": commands,
-                "install_command": install_command_text(commands),
-                "needs_escalation": needs_escalation,
-                "install_results": install_results,
-                "repairs": repairs,
-                "repair_plan": repair_plan,
-                "would_repair": [],
-            }
+            build_env_payload(
+                target,
+                strict=args.strict,
+                check=check,
+                statuses=statuses,
+                system=system,
+                package_manager=package_manager,
+                git=git,
+                install_plan=install_plan,
+                needs_escalation=needs_escalation,
+                install_results=install_results,
+                repairs=repairs,
+                repair_plan=repair_plan,
+            )
         )
     return 0 if ok else 1
 
