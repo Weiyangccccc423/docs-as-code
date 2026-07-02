@@ -1136,6 +1136,137 @@ class GovernanceScriptsTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, message):
                     phases_module.AdvanceResult(**values)
 
+    def test_scaffold_spec_rejects_unstable_template_shape(self) -> None:
+        valid = scaffold_module.ScaffoldSpec(
+            path="docs/api/00-conventions.md",
+            title="API Conventions",
+            purpose="Define shared API rules.",
+            sections=("Product Links", "HTTP Conventions"),
+            index_description="shared API conventions",
+            placeholder=False,
+        )
+        self.assertEqual("docs/api/00-conventions.md", valid.path)
+        self.assertEqual(("Product Links", "HTTP Conventions"), valid.sections)
+        self.assertFalse(valid.placeholder)
+
+        cases = [
+            (
+                {
+                    "path": "",
+                    "title": "API Conventions",
+                    "purpose": "Define shared API rules.",
+                    "sections": ("Product Links",),
+                    "index_description": "shared API conventions",
+                },
+                "scaffold spec path must be a non-empty string",
+            ),
+            (
+                {
+                    "path": "/docs/api/00-conventions.md",
+                    "title": "API Conventions",
+                    "purpose": "Define shared API rules.",
+                    "sections": ("Product Links",),
+                    "index_description": "shared API conventions",
+                },
+                "scaffold spec path must be repository-relative",
+            ),
+            (
+                {
+                    "path": "../docs/api/00-conventions.md",
+                    "title": "API Conventions",
+                    "purpose": "Define shared API rules.",
+                    "sections": ("Product Links",),
+                    "index_description": "shared API conventions",
+                },
+                "scaffold spec path must be repository-relative",
+            ),
+            (
+                {
+                    "path": "docs\\api\\00-conventions.md",
+                    "title": "API Conventions",
+                    "purpose": "Define shared API rules.",
+                    "sections": ("Product Links",),
+                    "index_description": "shared API conventions",
+                },
+                "scaffold spec path must use normalized POSIX form",
+            ),
+            (
+                {
+                    "path": "docs/api/00-conventions.md",
+                    "title": "",
+                    "purpose": "Define shared API rules.",
+                    "sections": ("Product Links",),
+                    "index_description": "shared API conventions",
+                },
+                "scaffold spec title must be a non-empty string",
+            ),
+            (
+                {
+                    "path": "docs/api/00-conventions.md",
+                    "title": "API Conventions",
+                    "purpose": "",
+                    "sections": ("Product Links",),
+                    "index_description": "shared API conventions",
+                },
+                "scaffold spec purpose must be a non-empty string",
+            ),
+            (
+                {
+                    "path": "docs/api/00-conventions.md",
+                    "title": "API Conventions",
+                    "purpose": "Define shared API rules.",
+                    "sections": ["Product Links"],
+                    "index_description": "shared API conventions",
+                },
+                "scaffold spec sections must be a tuple",
+            ),
+            (
+                {
+                    "path": "docs/api/00-conventions.md",
+                    "title": "API Conventions",
+                    "purpose": "Define shared API rules.",
+                    "sections": (),
+                    "index_description": "shared API conventions",
+                },
+                "scaffold spec sections must not be empty",
+            ),
+            (
+                {
+                    "path": "docs/api/00-conventions.md",
+                    "title": "API Conventions",
+                    "purpose": "Define shared API rules.",
+                    "sections": ("Product Links", ""),
+                    "index_description": "shared API conventions",
+                },
+                "scaffold spec sections must be non-empty strings",
+            ),
+            (
+                {
+                    "path": "docs/api/00-conventions.md",
+                    "title": "API Conventions",
+                    "purpose": "Define shared API rules.",
+                    "sections": ("Product Links",),
+                    "index_description": "",
+                },
+                "scaffold spec index_description must be a non-empty string",
+            ),
+            (
+                {
+                    "path": "docs/api/00-conventions.md",
+                    "title": "API Conventions",
+                    "purpose": "Define shared API rules.",
+                    "sections": ("Product Links",),
+                    "index_description": "shared API conventions",
+                    "placeholder": "false",
+                },
+                "scaffold spec placeholder must be a boolean",
+            ),
+        ]
+        for values, message in cases:
+            with self.subTest(message=message, values=values):
+                with self.assertRaisesRegex(ValueError, message):
+                    scaffold_module.ScaffoldSpec(**values)
+
     def test_scaffold_result_rejects_unstable_output_shape(self) -> None:
         valid = scaffold_module.ScaffoldResult(
             scaffold="product",

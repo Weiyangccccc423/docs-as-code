@@ -26,6 +26,23 @@ class ScaffoldSpec:
     index_description: str
     placeholder: bool = True
 
+    def __post_init__(self) -> None:
+        _validate_scaffold_spec_path(self.path)
+        if not isinstance(self.title, str) or not self.title:
+            raise ValueError("scaffold spec title must be a non-empty string")
+        if not isinstance(self.purpose, str) or not self.purpose:
+            raise ValueError("scaffold spec purpose must be a non-empty string")
+        if not isinstance(self.sections, tuple):
+            raise ValueError("scaffold spec sections must be a tuple")
+        if not self.sections:
+            raise ValueError("scaffold spec sections must not be empty")
+        if not all(isinstance(section, str) and section for section in self.sections):
+            raise ValueError("scaffold spec sections must be non-empty strings")
+        if not isinstance(self.index_description, str) or not self.index_description:
+            raise ValueError("scaffold spec index_description must be a non-empty string")
+        if not isinstance(self.placeholder, bool):
+            raise ValueError("scaffold spec placeholder must be a boolean")
+
 
 @dataclass
 class ScaffoldResult:
@@ -110,6 +127,24 @@ def _validate_scaffold_path_list(field_name: str, paths: object) -> None:
             raise ValueError(f"scaffold result {field_name} paths must be repository-relative")
         if "\\" in path or path != normalized_path:
             raise ValueError(f"scaffold result {field_name} paths must use normalized POSIX form")
+
+
+def _validate_scaffold_spec_path(path: object) -> None:
+    if not isinstance(path, str) or not path:
+        raise ValueError("scaffold spec path must be a non-empty string")
+    posix_path = PurePosixPath(path)
+    windows_path = PureWindowsPath(path)
+    normalized_path = posix_path.as_posix()
+    if (
+        path == "."
+        or posix_path.is_absolute()
+        or windows_path.is_absolute()
+        or ".." in posix_path.parts
+        or ".." in windows_path.parts
+    ):
+        raise ValueError("scaffold spec path must be repository-relative")
+    if "\\" in path or path != normalized_path:
+        raise ValueError("scaffold spec path must use normalized POSIX form")
 
 
 @dataclass(frozen=True)
