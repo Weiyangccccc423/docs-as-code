@@ -772,6 +772,26 @@ def _check_governance_state(root: Path, report: VerificationReport) -> None:
         latest_history_item = item
         expected_from_phase = item_phase
 
+    updated_at = state.get("updated_at")
+    updated_at_timestamp = (
+        _parse_iso_timestamp_with_timezone(updated_at) if isinstance(updated_at, str) else None
+    )
+    latest_advanced_at = latest_history_item.get("advanced_at") if latest_history_item else None
+    latest_advanced_at_timestamp = (
+        _parse_iso_timestamp_with_timezone(latest_advanced_at) if isinstance(latest_advanced_at, str) else None
+    )
+    if (
+        updated_at_timestamp is not None
+        and latest_advanced_at_timestamp is not None
+        and updated_at_timestamp < latest_advanced_at_timestamp
+    ):
+        report.add_error(
+            "state_timestamp_updated_at_phase_stale",
+            "governance state updated_at must not be older than latest phase_history advanced_at",
+            rel,
+        )
+        return
+
     if phase_is_valid and latest_phase and latest_phase != phase:
         report.add_error(
             "state_phase_history_current_mismatch",

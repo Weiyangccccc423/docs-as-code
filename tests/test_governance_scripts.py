@@ -2030,6 +2030,34 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_governance_state_updated_at_before_phase_history(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            advance = phases_module.advance_phase(root, "product-structuring")
+            self.assertTrue(advance.ok)
+
+            state_path = root / ".governance/state.json"
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            state["updated_at"] = "2000-01-01T00:00:00+00:00"
+            state_path.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
+
+            report = verify(root)
+
+            message = "governance state updated_at must not be older than latest phase_history advanced_at"
+            self.assertIn(message, report.errors)
+            self.assertIn(
+                {
+                    "code": "state_timestamp_updated_at_phase_stale",
+                    "severity": "error",
+                    "path": ".governance/state.json",
+                    "message": message,
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_governance_state_phase_history_current_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
