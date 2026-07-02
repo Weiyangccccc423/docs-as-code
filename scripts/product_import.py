@@ -81,6 +81,12 @@ class ProductImportReadyResult:
             raise ValueError("product import result ok cannot include errors")
         if not self.ok and not self.errors:
             raise ValueError("product import result failure requires errors")
+        self.errors = list(self.errors)
+        self.warnings = list(self.warnings)
+        self.updated = list(self.updated)
+        self.would_update = list(self.would_update)
+        self.manifest = copy.deepcopy(self.manifest)
+        self.state = copy.deepcopy(self.state)
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -89,14 +95,14 @@ class ProductImportReadyResult:
             "reviewed": self.reviewed,
             "method": self.method,
             "check": self.check,
-            "errors": self.errors,
-            "warnings": self.warnings,
-            "updated": self.updated,
-            "would_update": self.would_update,
+            "errors": list(self.errors),
+            "warnings": list(self.warnings),
+            "updated": list(self.updated),
+            "would_update": list(self.would_update),
             "conversion_blocker_resolved": self.conversion_blocker_resolved,
             "would_resolve_conversion_blocker": self.would_resolve_conversion_blocker,
-            "manifest": self.manifest,
-            "state": self.state,
+            "manifest": copy.deepcopy(self.manifest),
+            "state": copy.deepcopy(self.state),
         }
 
 

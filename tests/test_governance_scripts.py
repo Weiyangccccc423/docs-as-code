@@ -1564,19 +1564,25 @@ class GovernanceScriptsTest(unittest.TestCase):
                     scaffold_module.ScaffoldResult(**values)
 
     def test_product_import_ready_result_rejects_unstable_output_shape(self) -> None:
+        source_updated = [
+            "docs/product/core/source/source-manifest.json",
+            ".governance/state.json",
+        ]
+        source_manifest = {"import": {"status": "ready_for_structuring"}}
+        source_state = {"product_import_status": "ready_for_structuring"}
         valid = product_import_module.ProductImportReadyResult(
             target="/tmp/project",
             ok=True,
             reviewed=True,
             method="manual-reviewed-markdown",
-            updated=[
-                "docs/product/core/source/source-manifest.json",
-                ".governance/state.json",
-            ],
+            updated=source_updated,
             conversion_blocker_resolved=True,
-            manifest={"import": {"status": "ready_for_structuring"}},
-            state={"product_import_status": "ready_for_structuring"},
+            manifest=source_manifest,
+            state=source_state,
         )
+        source_updated.clear()
+        source_manifest["import"]["status"] = "mutated"
+        source_state["product_import_status"] = "mutated"
         self.assertEqual(
             {
                 "target": "/tmp/project",
@@ -1598,6 +1604,33 @@ class GovernanceScriptsTest(unittest.TestCase):
             },
             valid.to_dict(),
         )
+        payload = valid.to_dict()
+        payload_errors = payload["errors"]
+        payload_warnings = payload["warnings"]
+        payload_updated = payload["updated"]
+        payload_manifest = payload["manifest"]
+        payload_state = payload["state"]
+        self.assertIsInstance(payload_errors, list)
+        self.assertIsInstance(payload_warnings, list)
+        self.assertIsInstance(payload_updated, list)
+        self.assertIsInstance(payload_manifest, dict)
+        self.assertIsInstance(payload_state, dict)
+        payload_errors.append("mutated error")
+        payload_warnings.append("mutated warning")
+        payload_updated.clear()
+        payload_manifest["import"]["status"] = "mutated"
+        payload_state["product_import_status"] = "mutated"
+        self.assertEqual([], valid.errors)
+        self.assertEqual([], valid.warnings)
+        self.assertEqual(
+            [
+                "docs/product/core/source/source-manifest.json",
+                ".governance/state.json",
+            ],
+            valid.updated,
+        )
+        self.assertEqual({"import": {"status": "ready_for_structuring"}}, valid.manifest)
+        self.assertEqual({"product_import_status": "ready_for_structuring"}, valid.state)
 
         cases = [
             (
