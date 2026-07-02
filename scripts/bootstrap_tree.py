@@ -77,26 +77,31 @@ TARGET_LOCAL_COMMANDS = (
         "verify-governance",
         "bin/governance verify .",
         "run governance verification and update verification state",
+        True,
     ),
     (
         "verify-check",
         "bin/governance verify . --check --json",
         "run read-only JSON verification without updating state",
+        False,
     ),
     (
         "governance-status",
         "bin/governance status . --json",
         "print workflow state as JSON",
+        False,
     ),
     (
         "check-env",
         "bin/governance env --target .",
         "inventory local governance tools",
+        False,
     ),
     (
         "repair-env-check",
         "bin/governance env --repair --check --target . --json",
         "preview environment repair without writing files",
+        False,
     ),
 )
 
@@ -104,15 +109,15 @@ TARGET_LOCAL_COMMANDS = (
 def _target_local_commands_readme() -> str:
     return "".join(
         f"- `make {target}` - {description}.\n"
-        for target, _recipe, description in TARGET_LOCAL_COMMANDS
+        for target, _recipe, description, _writes_state in TARGET_LOCAL_COMMANDS
     )
 
 
 def _target_makefile() -> str:
-    targets = [target for target, _recipe, _description in TARGET_LOCAL_COMMANDS]
+    targets = [target for target, _recipe, _description, _writes_state in TARGET_LOCAL_COMMANDS]
     rules = "\n\n".join(
         f"{target}:\n\t{recipe}"
-        for target, recipe, _description in TARGET_LOCAL_COMMANDS
+        for target, recipe, _description, _writes_state in TARGET_LOCAL_COMMANDS
     )
     return f".PHONY: {' '.join(targets)}\n\n{rules}\n"
 
@@ -127,9 +132,10 @@ def target_local_commands_payload(cwd: str = ".") -> list[dict[str, object]]:
             "command": f"make {target}",
             "argv": ["make", target],
             "recipe": recipe,
+            "writes_state": writes_state,
             "description": description,
         }
-        for target, recipe, description in TARGET_LOCAL_COMMANDS
+        for target, recipe, description, writes_state in TARGET_LOCAL_COMMANDS
     ]
 
 

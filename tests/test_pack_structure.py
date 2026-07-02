@@ -27,10 +27,10 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class PackStructureTest(unittest.TestCase):
     def test_target_local_command_contracts_stay_aligned(self) -> None:
-        expected_targets = tuple(target for target, _recipe, _description in TARGET_LOCAL_COMMANDS)
+        expected_targets = tuple(target for target, _recipe, _description, _writes_state in TARGET_LOCAL_COMMANDS)
         expected_recipes = {
             target: (recipe,)
-            for target, recipe, _description in TARGET_LOCAL_COMMANDS
+            for target, recipe, _description, _writes_state in TARGET_LOCAL_COMMANDS
         }
         expected_make_commands = tuple(f"make {target}" for target in expected_targets)
 

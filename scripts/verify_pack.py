@@ -469,7 +469,7 @@ TARGET_MAKEFILE_DOC_PATHS = (
     "templates/root/README.md",
 )
 TARGET_MAKEFILE_REQUIRED_COMMANDS = tuple(
-    f"make {target}" for target, _recipe, _description in TARGET_LOCAL_COMMANDS
+    f"make {target}" for target, _recipe, _description, _writes_state in TARGET_LOCAL_COMMANDS
 )
 PHASE_ADVANCE_DOC_PATHS = (
     "README.md",

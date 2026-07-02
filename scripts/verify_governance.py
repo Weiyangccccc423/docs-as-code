@@ -381,15 +381,15 @@ DOMAIN_AGENTS_RULE_GUARDRAILS = (
     "link back to upstream source documents instead of copying large sections",
 )
 TARGET_MAKEFILE_REQUIRED_TARGETS = tuple(
-    target for target, _recipe, _description in TARGET_LOCAL_COMMANDS
+    target for target, _recipe, _description, _writes_state in TARGET_LOCAL_COMMANDS
 )
 TARGET_MAKEFILE_REQUIRED_TARGET_RECIPES = {
     target: (recipe,)
-    for target, recipe, _description in TARGET_LOCAL_COMMANDS
+    for target, recipe, _description, _writes_state in TARGET_LOCAL_COMMANDS
 }
 TARGET_LOCAL_MAKE_COMMANDS = tuple(
     f"make {target}"
-    for target, _recipe, _description in TARGET_LOCAL_COMMANDS
+    for target, _recipe, _description, _writes_state in TARGET_LOCAL_COMMANDS
 )
 TARGET_SUPPORT_FILE_GUARDRAILS = {
     "CONTRIBUTING.md": (

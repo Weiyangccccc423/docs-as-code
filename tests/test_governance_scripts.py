@@ -3057,6 +3057,7 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "command": "make governance-status",
                     "argv": ["make", "governance-status"],
                     "recipe": "bin/governance status . --json",
+                    "writes_state": False,
                     "description": "print workflow state as JSON",
                 },
                 payload["local_commands"],
@@ -6931,12 +6932,12 @@ class GovernanceScriptsTest(unittest.TestCase):
         payload = bootstrap_module.target_local_commands_payload()
         targets = [
             target
-            for target, _recipe, _description in bootstrap_module.TARGET_LOCAL_COMMANDS
+            for target, _recipe, _description, _writes_state in bootstrap_module.TARGET_LOCAL_COMMANDS
         ]
 
         self.assertIn(f".PHONY: {' '.join(targets)}", makefile)
         self.assertEqual(len(bootstrap_module.TARGET_LOCAL_COMMANDS), len(payload))
-        for index, (target, recipe, description) in enumerate(bootstrap_module.TARGET_LOCAL_COMMANDS):
+        for index, (target, recipe, description, writes_state) in enumerate(bootstrap_module.TARGET_LOCAL_COMMANDS):
             self.assertIn(f"- `make {target}` - {description}.", readme)
             self.assertIn(f"{target}:\n\t{recipe}", makefile)
             self.assertEqual(
@@ -6946,6 +6947,7 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "command": f"make {target}",
                     "argv": ["make", target],
                     "recipe": recipe,
+                    "writes_state": writes_state,
                     "description": description,
                 },
                 payload[index],
@@ -7029,6 +7031,7 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "command": "make repair-env-check",
                     "argv": ["make", "repair-env-check"],
                     "recipe": "bin/governance env --repair --check --target . --json",
+                    "writes_state": False,
                     "description": "preview environment repair without writing files",
                 },
                 status_payload["local_commands"],
