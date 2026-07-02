@@ -36,6 +36,16 @@ bin/governance env --repair --check --target . --json
 bin/governance env --repair --target . --json
 ```
 
+Generated targets also include stable Makefile entries for routine checks:
+
+```bash
+make verify-governance
+make verify-check
+make governance-status
+make check-env
+make repair-env-check
+```
+
 When target-local runtime or workflow-pack integrity checks fail, run the refresh command from a trusted copy of this source workflow pack:
 
 ```bash

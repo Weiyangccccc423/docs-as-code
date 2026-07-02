@@ -27,6 +27,16 @@ bin/governance env --repair --check --target . --json
 bin/governance env --repair --target . --json
 ```
 
+Generated targets also provide stable Makefile entries for common agent checks:
+
+```bash
+make verify-governance
+make verify-check
+make governance-status
+make check-env
+make repair-env-check
+```
+
 From a trusted source workflow-pack checkout, refresh generated target runtime and workflow-pack snapshot files without rewriting product or design documents:
 
 ```bash

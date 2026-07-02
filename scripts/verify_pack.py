@@ -458,8 +458,10 @@ README_AGENT_AUTOMATION_REQUIRED_COMMANDS = (
 )
 TARGET_MAKEFILE_DOC_PATHS = (
     "README.md",
+    "workflows/00-overview.md",
     "workflows/01-empty-repo-initialization.md",
     "workflows/05-verification-and-drift-control.md",
+    "references/runtime-strategy.md",
     "skills/initializing-governance-repo/SKILL.md",
     "skills/verifying-governance-docs/SKILL.md",
     "templates/root/README.md",
