@@ -2506,6 +2506,66 @@ class GovernanceScriptsTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, message):
                     factory()
 
+    def test_check_env_payload_isolates_repair_inputs(self) -> None:
+        statuses = [
+            check_env_module.ToolStatus(
+                "git",
+                True,
+                "git version 2.34.1",
+                "Required for version control.",
+                "required",
+                "git",
+            ),
+        ]
+        system = check_env_module.SystemStatus("linux", "ubuntu", "debian", "Ubuntu", False)
+        package_manager = check_env_module.PackageManager("apt", "/usr/bin/apt-get", True)
+        git = check_env_module.GitStatus(True, True, "main", "Example", "example@example.com")
+        install_plan = [check_env_module.InstallPlanItem("pandoc", "pandoc", "apt")]
+        install_results = [
+            {"command": "apt-get install pandoc", "returncode": 0, "meta": {"attempt": 1}},
+        ]
+        repairs = [
+            {"kind": "repair_plan", "path": "/tmp/project/.governance/env-repair.md", "status": "written"},
+        ]
+        would_repair = [
+            {"kind": "directory", "path": "/tmp/project/.governance", "status": "would_ensure"},
+        ]
+        errors = ["environment repair failed: permission denied"]
+
+        payload = check_env_module._env_payload(
+            Path("/tmp/project"),
+            strict=False,
+            check=True,
+            statuses=statuses,
+            system=system,
+            package_manager=package_manager,
+            git=git,
+            install_plan=install_plan,
+            needs_escalation=True,
+            install_results=install_results,
+            repairs=repairs,
+            repair_plan="/tmp/project/.governance/env-repair.md",
+            would_repair=would_repair,
+            errors=errors,
+        )
+        install_results[0]["meta"]["attempt"] = 2
+        repairs.clear()
+        would_repair.clear()
+        errors.clear()
+        self.assertEqual({"attempt": 1}, payload["install_results"][0]["meta"])
+        self.assertEqual(
+            [{"kind": "repair_plan", "path": "/tmp/project/.governance/env-repair.md", "status": "written"}],
+            payload["repairs"],
+        )
+        self.assertEqual(
+            [{"kind": "directory", "path": "/tmp/project/.governance", "status": "would_ensure"}],
+            payload["would_repair"],
+        )
+        self.assertEqual(["environment repair failed: permission denied"], payload["errors"])
+
+        payload["install_results"][0]["meta"]["attempt"] = 3
+        self.assertEqual({"attempt": 2}, install_results[0]["meta"])
+
     def test_phases_main_json_advances_product_structuring(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

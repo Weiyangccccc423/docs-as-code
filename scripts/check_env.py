@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import os
 import platform
@@ -353,13 +354,13 @@ def _env_payload(
         "install_commands": commands,
         "install_command": install_command_text(commands),
         "needs_escalation": needs_escalation,
-        "install_results": install_results,
-        "repairs": repairs,
+        "install_results": copy.deepcopy(install_results),
+        "repairs": copy.deepcopy(repairs),
         "repair_plan": repair_plan,
-        "would_repair": would_repair or [],
+        "would_repair": copy.deepcopy(would_repair or []),
     }
     if errors is not None:
-        payload["errors"] = errors
+        payload["errors"] = list(errors)
     return payload
 
 
