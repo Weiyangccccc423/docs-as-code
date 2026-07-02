@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import json
 import shutil
@@ -319,15 +320,19 @@ class InitPreflightResult:
             raise ValueError("init preflight result ok cannot include conflicts")
         if not self.ok and not self.conflicts:
             raise ValueError("init preflight result failure requires conflicts")
+        self.conflicts = list(self.conflicts)
+        self.warnings = list(self.warnings)
+        self.product = copy.deepcopy(self.product)
+        self.would_write = list(self.would_write)
 
     def to_dict(self) -> dict[str, object]:
         return {
             "target": self.target,
             "ok": self.ok,
             "conflicts": [conflict.to_dict() for conflict in self.conflicts],
-            "warnings": self.warnings,
-            "product": self.product,
-            "would_write": self.would_write,
+            "warnings": list(self.warnings),
+            "product": copy.deepcopy(self.product),
+            "would_write": list(self.would_write),
         }
 
 

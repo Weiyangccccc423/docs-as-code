@@ -1890,23 +1890,30 @@ class GovernanceScriptsTest(unittest.TestCase):
             conflict.to_dict(),
         )
 
+        source_warnings = ["recommended tool missing: pandoc"]
+        source_product = {"source": "product.md", "archive": {"path": "docs/product/core/source/product.md"}}
+        source_would_write = [
+            "README.md",
+            "docs/product/core/PRD.md",
+            ".governance/state.json",
+        ]
         valid = bootstrap_module.InitPreflightResult(
             target="/tmp/project",
             ok=True,
-            product={"source": "product.md"},
-            would_write=[
-                "README.md",
-                "docs/product/core/PRD.md",
-                ".governance/state.json",
-            ],
+            warnings=source_warnings,
+            product=source_product,
+            would_write=source_would_write,
         )
+        source_warnings.clear()
+        source_product["archive"]["path"] = "mutated"
+        source_would_write.clear()
         self.assertEqual(
             {
                 "target": "/tmp/project",
                 "ok": True,
                 "conflicts": [],
-                "warnings": [],
-                "product": {"source": "product.md"},
+                "warnings": ["recommended tool missing: pandoc"],
+                "product": {"source": "product.md", "archive": {"path": "docs/product/core/source/product.md"}},
                 "would_write": [
                     "README.md",
                     "docs/product/core/PRD.md",
@@ -1914,6 +1921,29 @@ class GovernanceScriptsTest(unittest.TestCase):
                 ],
             },
             valid.to_dict(),
+        )
+        payload = valid.to_dict()
+        payload_warnings = payload["warnings"]
+        payload_product = payload["product"]
+        payload_would_write = payload["would_write"]
+        self.assertIsInstance(payload_warnings, list)
+        self.assertIsInstance(payload_product, dict)
+        self.assertIsInstance(payload_would_write, list)
+        payload_warnings.clear()
+        payload_product["archive"]["path"] = "mutated"
+        payload_would_write.clear()
+        self.assertEqual(["recommended tool missing: pandoc"], valid.warnings)
+        self.assertEqual(
+            {"source": "product.md", "archive": {"path": "docs/product/core/source/product.md"}},
+            valid.product,
+        )
+        self.assertEqual(
+            [
+                "README.md",
+                "docs/product/core/PRD.md",
+                ".governance/state.json",
+            ],
+            valid.would_write,
         )
 
         conflict_cases = [
