@@ -1336,14 +1336,21 @@ class GovernanceScriptsTest(unittest.TestCase):
                     scaffold_module.ScaffoldSpec(**values)
 
     def test_scaffold_result_rejects_unstable_output_shape(self) -> None:
+        source_created = ["docs/product/03-goals-and-requirements.md"]
+        source_indexed = ["docs/product/README.md"]
+        source_gate = {"ok": True, "requirements": [{"code": "product_import_ready"}]}
         valid = scaffold_module.ScaffoldResult(
             scaffold="product",
             target="/tmp/project",
             ok=True,
-            created=["docs/product/03-goals-and-requirements.md"],
-            indexed=["docs/product/README.md"],
-            gate={},
+            created=source_created,
+            indexed=source_indexed,
+            gate=source_gate,
         )
+        source_created[0] = "mutated"
+        source_indexed.clear()
+        source_gate["ok"] = False
+        source_gate["requirements"][0]["code"] = "mutated"
         self.assertEqual(
             {
                 "scaffold": "product",
@@ -1357,10 +1364,28 @@ class GovernanceScriptsTest(unittest.TestCase):
                 "would_skip": [],
                 "would_index": [],
                 "errors": [],
-                "gate": {},
+                "gate": {"ok": True, "requirements": [{"code": "product_import_ready"}]},
             },
             valid.to_dict(),
         )
+        payload = valid.to_dict()
+        payload_created = payload["created"]
+        payload_indexed = payload["indexed"]
+        payload_errors = payload["errors"]
+        payload_gate = payload["gate"]
+        self.assertIsInstance(payload_created, list)
+        self.assertIsInstance(payload_indexed, list)
+        self.assertIsInstance(payload_errors, list)
+        self.assertIsInstance(payload_gate, dict)
+        payload_created[0] = "mutated"
+        payload_indexed.clear()
+        payload_errors.append("mutated error")
+        payload_gate["ok"] = False
+        payload_gate["requirements"][0]["code"] = "mutated"
+        self.assertEqual(["docs/product/03-goals-and-requirements.md"], valid.created)
+        self.assertEqual(["docs/product/README.md"], valid.indexed)
+        self.assertEqual([], valid.errors)
+        self.assertEqual({"ok": True, "requirements": [{"code": "product_import_ready"}]}, valid.gate)
 
         cases = [
             (

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath, PureWindowsPath
@@ -89,6 +90,14 @@ class ScaffoldResult:
             raise ValueError("scaffold result ok cannot include errors")
         if not self.ok and not self.errors:
             raise ValueError("scaffold result failure requires errors")
+        self.created = list(self.created)
+        self.skipped = list(self.skipped)
+        self.indexed = list(self.indexed)
+        self.would_create = list(self.would_create)
+        self.would_skip = list(self.would_skip)
+        self.would_index = list(self.would_index)
+        self.errors = list(self.errors)
+        self.gate = copy.deepcopy(self.gate)
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -96,14 +105,14 @@ class ScaffoldResult:
             "target": self.target,
             "ok": self.ok,
             "check": self.check,
-            "created": self.created,
-            "skipped": self.skipped,
-            "indexed": self.indexed,
-            "would_create": self.would_create,
-            "would_skip": self.would_skip,
-            "would_index": self.would_index,
-            "errors": self.errors,
-            "gate": self.gate,
+            "created": list(self.created),
+            "skipped": list(self.skipped),
+            "indexed": list(self.indexed),
+            "would_create": list(self.would_create),
+            "would_skip": list(self.would_skip),
+            "would_index": list(self.would_index),
+            "errors": list(self.errors),
+            "gate": copy.deepcopy(self.gate),
         }
 
 
