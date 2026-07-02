@@ -27,7 +27,7 @@ Load:
    bin/governance verify <target> --json
    ```
 
-   Use `--check` when automation only needs findings and should not update `.governance/state.json`. Use the command without `--check` when recording `last_verification`. Use `findings[].code` for automation. Keep `errors` and `warnings` for human-readable summaries.
+   Use `--check` when automation only needs findings and should not update `.governance/state.json`. Use the command without `--check` when recording `last_verification`. Use `findings[].code` for automation. Keep `errors` and `warnings` for human-readable summaries. When governance state is readable, both JSON forms include `local_commands` and `next_actions` for continuing from the verified state.
 
    When already inside an initialized target repository, prefer:
 

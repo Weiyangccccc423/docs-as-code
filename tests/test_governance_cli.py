@@ -1685,6 +1685,34 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertTrue(verify_payload["ok"])
             self.assertEqual([], verify_payload["errors"])
             self.assertEqual(str(target), verify_payload["target"])
+            self.assertIn(
+                {
+                    "make_target": "verify-check",
+                    "cwd": str(target.resolve()),
+                    "command": "make verify-check",
+                    "argv": ["make", "verify-check"],
+                    "recipe": "bin/governance verify . --check --json",
+                    "writes_state": False,
+                    "description": "run read-only JSON verification without updating state",
+                },
+                verify_payload["local_commands"],
+            )
+            self.assertIn(
+                {
+                    "id": "advance-product-structuring-check",
+                    "kind": "preflight",
+                    "cwd": str(target.resolve()),
+                    "phase": "product-structuring",
+                    "workflow": "docs/agent-workflow/workflow-pack/workflows/03-product-structuring.md",
+                    "skills": ["structuring-product-requirements", "verifying-governance-docs"],
+                    "command": "bin/governance advance product-structuring . --check --json",
+                    "argv": ["bin/governance", "advance", "product-structuring", ".", "--check", "--json"],
+                    "writes_state": False,
+                    "requires": "current phase is the previous workflow phase and the gate can pass",
+                    "description": "preflight advance from initialization into product structuring",
+                },
+                verify_payload["next_actions"],
+            )
 
             status_result = subprocess.run(
                 [sys.executable, str(CLI), "status", str(target), "--json"],
@@ -1769,6 +1797,34 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual([], verify_payload["errors"])
             self.assertEqual(".", verify_payload["target"])
             self.assertEqual("initialized", verify_payload["state"]["phase"])
+            self.assertIn(
+                {
+                    "make_target": "governance-status",
+                    "cwd": str(target.resolve()),
+                    "command": "make governance-status",
+                    "argv": ["make", "governance-status"],
+                    "recipe": "bin/governance status . --json",
+                    "writes_state": False,
+                    "description": "print workflow state as JSON",
+                },
+                verify_payload["local_commands"],
+            )
+            self.assertIn(
+                {
+                    "id": "advance-product-structuring-check",
+                    "kind": "preflight",
+                    "cwd": str(target.resolve()),
+                    "phase": "product-structuring",
+                    "workflow": "docs/agent-workflow/workflow-pack/workflows/03-product-structuring.md",
+                    "skills": ["structuring-product-requirements", "verifying-governance-docs"],
+                    "command": "bin/governance advance product-structuring . --check --json",
+                    "argv": ["bin/governance", "advance", "product-structuring", ".", "--check", "--json"],
+                    "writes_state": False,
+                    "requires": "current phase is the previous workflow phase and the gate can pass",
+                    "description": "preflight advance from initialization into product structuring",
+                },
+                verify_payload["next_actions"],
+            )
             self.assertEqual(state_before, state_path.read_text(encoding="utf-8"))
 
             status_result = subprocess.run(
@@ -1856,6 +1912,34 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertFalse(payload["state_updated"])
             self.assertEqual([], payload["errors"])
             self.assertEqual("initialized", payload["state"]["phase"])
+            self.assertIn(
+                {
+                    "make_target": "verify-check",
+                    "cwd": str(target.resolve()),
+                    "command": "make verify-check",
+                    "argv": ["make", "verify-check"],
+                    "recipe": "bin/governance verify . --check --json",
+                    "writes_state": False,
+                    "description": "run read-only JSON verification without updating state",
+                },
+                payload["local_commands"],
+            )
+            self.assertIn(
+                {
+                    "id": "advance-product-structuring-check",
+                    "kind": "preflight",
+                    "cwd": str(target.resolve()),
+                    "phase": "product-structuring",
+                    "workflow": "docs/agent-workflow/workflow-pack/workflows/03-product-structuring.md",
+                    "skills": ["structuring-product-requirements", "verifying-governance-docs"],
+                    "command": "bin/governance advance product-structuring . --check --json",
+                    "argv": ["bin/governance", "advance", "product-structuring", ".", "--check", "--json"],
+                    "writes_state": False,
+                    "requires": "current phase is the previous workflow phase and the gate can pass",
+                    "description": "preflight advance from initialization into product structuring",
+                },
+                payload["next_actions"],
+            )
             self.assertNotIn("last_verification", payload["state"])
             self.assertEqual(state_before, state_path.read_text(encoding="utf-8"))
 
@@ -1900,6 +1984,8 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn("failed to read verification state", payload["errors"][-1])
             self.assertNotIn("failed to update verification state", payload["errors"][-1])
             self.assertEqual(str(state_path), payload["path"])
+            self.assertNotIn("local_commands", payload)
+            self.assertNotIn("next_actions", payload)
             self.assertEqual("{not json\n", state_path.read_text(encoding="utf-8"))
 
     def test_status_json_reports_missing_state_with_status_shape(self) -> None:

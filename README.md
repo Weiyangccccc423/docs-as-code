@@ -97,7 +97,7 @@ bin/governance env --repair --check --target /path/to/new-project --json
 bin/governance env --repair --target /path/to/new-project --json
 ```
 
-`verify --check --json` includes human-compatible `errors` and `warnings` plus structured `findings` with `code`, `severity`, `path`, and `message` without updating state. Use `verify --json` when you want to record `last_verification` in `.governance/state.json`.
+`verify --check --json` includes human-compatible `errors` and `warnings` plus structured `findings` with `code`, `severity`, `path`, and `message` without updating state. Use `verify --json` when you want to record `last_verification` in `.governance/state.json`. When governance state is readable, both JSON forms include `local_commands` and `next_actions` for continuing from the verified state.
 
 Use `gate --json` before phase transitions. Supported gates are `product-structuring`, `design-derivation`, and `implementation`.
 Use `advance --check --json` to preview phase state changes, then `advance --json` when actually moving phases; it runs the matching gate and records `phase_history` in `.governance/state.json`.

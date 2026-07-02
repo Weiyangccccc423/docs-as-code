@@ -37,7 +37,7 @@ bin/governance runtime refresh <target> --check --json
 bin/governance runtime refresh <target> --json
 ```
 
-Use `verify --check --json` `findings[].code` and `findings[].path` for deterministic repair routing without updating state. Use `verify --json` when recording `last_verification` in `.governance/state.json`. Use `errors` and `warnings` only for human-facing summaries.
+Use `verify --check --json` `findings[].code` and `findings[].path` for deterministic repair routing without updating state. Use `verify --json` when recording `last_verification` in `.governance/state.json`. When governance state is readable, use returned `local_commands[].argv` and `next_actions[].argv` to continue without rerunning `status`. Use `errors` and `warnings` only for human-facing summaries.
 Use `gate --json` `requirements[].code` for phase-transition repair routing; `verification.findings[]` contains the embedded structural verification result.
 Use `advance --check --json` to inspect `would_state`; use `advance --json` when the next phase should be recorded in `.governance/state.json`. `advance` records adjacent transitions one phase at a time and cannot skip phases.
 After successful state-writing `product mark-ready --json` or `advance --json`, use returned `local_commands[].argv` for target-local checks and `next_actions[].argv` for the next preflight/apply sequence.

@@ -7021,6 +7021,20 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertTrue(verify_check_payload["check"])
             self.assertFalse(verify_check_payload["state_updated"])
             self.assertEqual([], verify_check_payload["errors"])
+            self.assertIn(
+                {
+                    "make_target": "verify-check",
+                    "cwd": str(root.resolve()),
+                    "command": "make verify-check",
+                    "argv": ["make", "verify-check"],
+                    "recipe": "bin/governance verify . --check --json",
+                    "writes_state": False,
+                    "description": "run read-only JSON verification without updating state",
+                },
+                verify_check_payload["local_commands"],
+            )
+            self.assertEqual("advance-product-structuring-check", verify_check_payload["next_actions"][0]["id"])
+            self.assertEqual(str(root.resolve()), verify_check_payload["next_actions"][0]["cwd"])
             self.assertEqual(state_before, state_path.read_text(encoding="utf-8"))
 
             status_result = subprocess.run(
@@ -7174,6 +7188,10 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertTrue(check_payload["ok"])
             self.assertTrue(check_payload["check"])
             self.assertFalse(check_payload["state_updated"])
+            self.assertEqual("verify-check", check_payload["local_commands"][1]["make_target"])
+            self.assertEqual(str(nested.resolve()), check_payload["local_commands"][1]["cwd"])
+            self.assertEqual("advance-product-structuring-check", check_payload["next_actions"][0]["id"])
+            self.assertEqual(str(nested.resolve()), check_payload["next_actions"][0]["cwd"])
             self.assertEqual(state_before, (nested / ".governance/state.json").read_text(encoding="utf-8"))
 
     def test_bootstrap_installed_direct_runtime_scripts_emit_json(self) -> None:

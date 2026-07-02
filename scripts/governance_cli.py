@@ -175,6 +175,10 @@ def _cmd_verify(args: argparse.Namespace) -> int:
             payload["state_error"] = state_error
             payload["error"] = state_error
             payload["path"] = state_error_path
+        elif state:
+            cwd = str(target.resolve())
+            payload["local_commands"] = target_local_commands_payload(cwd=cwd)
+            payload["next_actions"] = next_actions_payload(state, cwd=cwd)
         _print_json(payload)
         return 0 if ok else 1
     if ok:
