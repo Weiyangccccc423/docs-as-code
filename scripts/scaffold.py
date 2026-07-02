@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
 try:
@@ -14,6 +14,7 @@ except ImportError:  # pragma: no cover - direct script execution
 
 SCAFFOLD_PLACEHOLDER = "governance:scaffold-placeholder"
 STARTER_ENDPOINT_CONTRACT_PATH = "docs/api/endpoints/01-endpoint-contract.md"
+SCAFFOLD_NAMES = ("product", "design")
 
 
 @dataclass(frozen=True)
@@ -41,6 +42,37 @@ class ScaffoldResult:
     errors: list[str] = field(default_factory=list)
     gate: dict[str, Any] = field(default_factory=dict)
 
+    def __post_init__(self) -> None:
+        if self.scaffold not in SCAFFOLD_NAMES:
+            raise ValueError("scaffold result scaffold must be product or design")
+        if not isinstance(self.target, str) or not self.target:
+            raise ValueError("scaffold result target must be a non-empty string")
+        if not isinstance(self.ok, bool):
+            raise ValueError("scaffold result ok must be a boolean")
+        if not isinstance(self.check, bool):
+            raise ValueError("scaffold result check must be a boolean")
+        for field_name in (
+            "created",
+            "skipped",
+            "indexed",
+            "would_create",
+            "would_skip",
+            "would_index",
+        ):
+            _validate_scaffold_path_list(field_name, getattr(self, field_name))
+        if not isinstance(self.errors, list) or not all(isinstance(item, str) for item in self.errors):
+            raise ValueError("scaffold result errors must be strings")
+        if not isinstance(self.gate, dict):
+            raise ValueError("scaffold result gate must be an object")
+        if self.check and (self.created or self.skipped or self.indexed):
+            raise ValueError("scaffold result check mode cannot contain write outputs")
+        if not self.check and (self.would_create or self.would_skip or self.would_index):
+            raise ValueError("scaffold result write mode cannot contain would outputs")
+        if self.ok and self.errors:
+            raise ValueError("scaffold result ok cannot include errors")
+        if not self.ok and not self.errors:
+            raise ValueError("scaffold result failure requires errors")
+
     def to_dict(self) -> dict[str, object]:
         return {
             "scaffold": self.scaffold,
@@ -56,6 +88,28 @@ class ScaffoldResult:
             "errors": self.errors,
             "gate": self.gate,
         }
+
+
+def _validate_scaffold_path_list(field_name: str, paths: object) -> None:
+    if not isinstance(paths, list):
+        raise ValueError(f"scaffold result {field_name} must be a list")
+    if not all(isinstance(path, str) for path in paths):
+        raise ValueError(f"scaffold result {field_name} paths must be strings")
+    if len(paths) != len(set(paths)):
+        raise ValueError(f"scaffold result {field_name} paths must be unique")
+    for path in paths:
+        posix_path = PurePosixPath(path)
+        windows_path = PureWindowsPath(path)
+        normalized_path = posix_path.as_posix()
+        if (
+            posix_path.is_absolute()
+            or windows_path.is_absolute()
+            or ".." in posix_path.parts
+            or ".." in windows_path.parts
+        ):
+            raise ValueError(f"scaffold result {field_name} paths must be repository-relative")
+        if "\\" in path or path != normalized_path:
+            raise ValueError(f"scaffold result {field_name} paths must use normalized POSIX form")
 
 
 @dataclass(frozen=True)
@@ -907,25 +961,19 @@ def main() -> int:
     args = parser.parse_args()
     target = Path(args.target)
     if args.scaffold != "product" and args.chapter:
-        payload = {
-            "scaffold": args.scaffold,
-            "target": str(target),
-            "ok": False,
-            "check": args.check,
-            "created": [],
-            "skipped": [],
-            "indexed": [],
-            "would_create": [],
-            "would_skip": [],
-            "would_index": [],
-            "errors": [f"scaffold {args.scaffold} does not accept --chapter"],
-            "gate": {},
-        }
+        result = ScaffoldResult(
+            scaffold=args.scaffold,
+            target=str(target),
+            ok=False,
+            check=args.check,
+            errors=[f"scaffold {args.scaffold} does not accept --chapter"],
+            gate={},
+        )
         if args.json:
-            print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
+            print(json.dumps(result.to_dict(), ensure_ascii=False, indent=2, sort_keys=True))
             return 1
         print(f"Scaffold failed: {args.scaffold}")
-        for error in payload["errors"]:
+        for error in result.errors:
             print(f"- ERROR: {error}")
         return 1
     if args.scaffold == "design":

@@ -1029,6 +1029,209 @@ class GovernanceScriptsTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, message):
                     phases_module.AdvanceResult(**values)
 
+    def test_scaffold_result_rejects_unstable_output_shape(self) -> None:
+        valid = scaffold_module.ScaffoldResult(
+            scaffold="product",
+            target="/tmp/project",
+            ok=True,
+            created=["docs/product/03-goals-and-requirements.md"],
+            indexed=["docs/product/README.md"],
+            gate={},
+        )
+        self.assertEqual(
+            {
+                "scaffold": "product",
+                "target": "/tmp/project",
+                "ok": True,
+                "check": False,
+                "created": ["docs/product/03-goals-and-requirements.md"],
+                "skipped": [],
+                "indexed": ["docs/product/README.md"],
+                "would_create": [],
+                "would_skip": [],
+                "would_index": [],
+                "errors": [],
+                "gate": {},
+            },
+            valid.to_dict(),
+        )
+
+        cases = [
+            (
+                {
+                    "scaffold": "unknown",
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "gate": {},
+                },
+                "scaffold result scaffold must be product or design",
+            ),
+            (
+                {
+                    "scaffold": "product",
+                    "target": "",
+                    "ok": True,
+                    "gate": {},
+                },
+                "scaffold result target must be a non-empty string",
+            ),
+            (
+                {
+                    "scaffold": "product",
+                    "target": "/tmp/project",
+                    "ok": "true",
+                    "gate": {},
+                },
+                "scaffold result ok must be a boolean",
+            ),
+            (
+                {
+                    "scaffold": "product",
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "check": "false",
+                    "gate": {},
+                },
+                "scaffold result check must be a boolean",
+            ),
+            (
+                {
+                    "scaffold": "product",
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "created": "docs/product/03-goals-and-requirements.md",
+                    "gate": {},
+                },
+                "scaffold result created must be a list",
+            ),
+            (
+                {
+                    "scaffold": "product",
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "created": ["docs/product/03-goals-and-requirements.md", 123],
+                    "gate": {},
+                },
+                "scaffold result created paths must be strings",
+            ),
+            (
+                {
+                    "scaffold": "product",
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "created": ["/tmp/project/docs/product/03-goals-and-requirements.md"],
+                    "gate": {},
+                },
+                "scaffold result created paths must be repository-relative",
+            ),
+            (
+                {
+                    "scaffold": "product",
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "created": ["../docs/product/03-goals-and-requirements.md"],
+                    "gate": {},
+                },
+                "scaffold result created paths must be repository-relative",
+            ),
+            (
+                {
+                    "scaffold": "product",
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "skipped": ["docs\\product\\03-goals-and-requirements.md"],
+                    "gate": {},
+                },
+                "scaffold result skipped paths must use normalized POSIX form",
+            ),
+            (
+                {
+                    "scaffold": "product",
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "would_create": ["./docs/product/03-goals-and-requirements.md"],
+                    "gate": {},
+                },
+                "scaffold result would_create paths must use normalized POSIX form",
+            ),
+            (
+                {
+                    "scaffold": "product",
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "indexed": [
+                        "docs/product/README.md",
+                        "docs/product/README.md",
+                    ],
+                    "gate": {},
+                },
+                "scaffold result indexed paths must be unique",
+            ),
+            (
+                {
+                    "scaffold": "product",
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "errors": ["ok", 123],
+                    "gate": {},
+                },
+                "scaffold result errors must be strings",
+            ),
+            (
+                {
+                    "scaffold": "product",
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "gate": [],
+                },
+                "scaffold result gate must be an object",
+            ),
+            (
+                {
+                    "scaffold": "product",
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "check": True,
+                    "created": ["docs/product/03-goals-and-requirements.md"],
+                    "gate": {},
+                },
+                "scaffold result check mode cannot contain write outputs",
+            ),
+            (
+                {
+                    "scaffold": "product",
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "would_create": ["docs/product/03-goals-and-requirements.md"],
+                    "gate": {},
+                },
+                "scaffold result write mode cannot contain would outputs",
+            ),
+            (
+                {
+                    "scaffold": "product",
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "errors": ["unexpected error"],
+                    "gate": {},
+                },
+                "scaffold result ok cannot include errors",
+            ),
+            (
+                {
+                    "scaffold": "product",
+                    "target": "/tmp/project",
+                    "ok": False,
+                    "gate": {},
+                },
+                "scaffold result failure requires errors",
+            ),
+        ]
+        for values, message in cases:
+            with self.subTest(message=message, values=values):
+                with self.assertRaisesRegex(ValueError, message):
+                    scaffold_module.ScaffoldResult(**values)
+
     def test_phases_main_json_advances_product_structuring(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
