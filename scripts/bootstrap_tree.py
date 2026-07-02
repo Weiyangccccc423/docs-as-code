@@ -117,11 +117,15 @@ def _target_makefile() -> str:
     return f".PHONY: {' '.join(targets)}\n\n{rules}\n"
 
 
-def target_local_commands_payload() -> list[dict[str, str]]:
+def target_local_commands_payload(cwd: str = ".") -> list[dict[str, object]]:
+    if not isinstance(cwd, str) or not cwd.strip():
+        raise ValueError("target local command cwd must be a non-empty string")
     return [
         {
             "make_target": target,
+            "cwd": cwd,
             "command": f"make {target}",
+            "argv": ["make", target],
             "recipe": recipe,
             "description": description,
         }
@@ -1531,7 +1535,7 @@ def main() -> int:
         payload["ok"] = True
         payload["conflicts"] = []
         payload["state"] = load_state(target)
-        payload["local_commands"] = target_local_commands_payload()
+        payload["local_commands"] = target_local_commands_payload(cwd=str(target.resolve()))
         payload["next_actions"] = next_actions_payload(payload["state"], cwd=str(target.resolve()))
         print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
         return 0

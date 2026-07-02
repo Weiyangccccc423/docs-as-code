@@ -925,7 +925,9 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn(
                 {
                     "make_target": "verify-check",
+                    "cwd": str(target.resolve()),
                     "command": "make verify-check",
+                    "argv": ["make", "verify-check"],
                     "recipe": "bin/governance verify . --check --json",
                     "description": "run read-only JSON verification without updating state",
                 },
@@ -1696,7 +1698,9 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn(
                 {
                     "make_target": "verify-governance",
+                    "cwd": str(target.resolve()),
                     "command": "make verify-governance",
+                    "argv": ["make", "verify-governance"],
                     "recipe": "bin/governance verify .",
                     "description": "run governance verification and update verification state",
                 },
@@ -1785,7 +1789,9 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn(
                 {
                     "make_target": "governance-status",
+                    "cwd": str(target.resolve()),
                     "command": "make governance-status",
+                    "argv": ["make", "governance-status"],
                     "recipe": "bin/governance status . --json",
                     "description": "print workflow state as JSON",
                 },

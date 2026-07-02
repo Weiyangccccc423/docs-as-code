@@ -95,7 +95,7 @@ def _cmd_init(args: argparse.Namespace) -> int:
         payload["ok"] = True
         payload["conflicts"] = []
         payload["state"] = load_state(target)
-        payload["local_commands"] = target_local_commands_payload()
+        payload["local_commands"] = target_local_commands_payload(cwd=str(target.resolve()))
         payload["next_actions"] = next_actions_payload(payload["state"], cwd=str(target.resolve()))
         _print_json(payload)
         return 0
@@ -227,7 +227,7 @@ def _cmd_status(args: argparse.Namespace) -> int:
                 "ok": True,
                 "target": str(target),
                 "state": state,
-                "local_commands": target_local_commands_payload(),
+                "local_commands": target_local_commands_payload(cwd=str(target.resolve())),
                 "next_actions": next_actions_payload(state, cwd=str(target.resolve())),
             }
         )

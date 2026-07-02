@@ -37,6 +37,8 @@ make check-env
 make repair-env-check
 ```
 
+Machine-readable `local_commands` entries include `cwd`, a human-readable `command`, and structured `argv`; agents should run `argv` from `cwd` instead of reparsing `command`.
+
 Machine-readable `init --json` and `status --json` success payloads include `next_actions`. Successful state-writing `product mark-ready --json` and `advance --json` commands also return the next `next_actions` set. Each action includes `cwd`, a human-readable `command`, and structured `argv`; agents should run `argv` from `cwd` instead of reparsing `command`. Agents should execute `preflight` actions first and run state-writing `apply` actions only after the referenced preflight returns `ok: true`.
 
 From a trusted source workflow-pack checkout, refresh generated target runtime and workflow-pack snapshot files without rewriting product or design documents:

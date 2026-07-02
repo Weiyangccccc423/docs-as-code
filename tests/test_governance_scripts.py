@@ -3053,7 +3053,9 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertIn(
                 {
                     "make_target": "governance-status",
+                    "cwd": str(root.resolve()),
                     "command": "make governance-status",
+                    "argv": ["make", "governance-status"],
                     "recipe": "bin/governance status . --json",
                     "description": "print workflow state as JSON",
                 },
@@ -6940,14 +6942,20 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertEqual(
                 {
                     "make_target": target,
+                    "cwd": ".",
                     "command": f"make {target}",
+                    "argv": ["make", target],
                     "recipe": recipe,
                     "description": description,
                 },
                 payload[index],
             )
         payload[0]["command"] = "mutated"
+        payload[0]["argv"].append("mutated")
         self.assertEqual("make verify-governance", bootstrap_module.target_local_commands_payload()[0]["command"])
+        self.assertEqual(["make", "verify-governance"], bootstrap_module.target_local_commands_payload()[0]["argv"])
+        with self.assertRaisesRegex(ValueError, "target local command cwd must be a non-empty string"):
+            bootstrap_module.target_local_commands_payload(cwd="")
 
     def test_bootstrap_installs_target_runtime(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -7017,7 +7025,9 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertIn(
                 {
                     "make_target": "repair-env-check",
+                    "cwd": str(root.resolve()),
                     "command": "make repair-env-check",
+                    "argv": ["make", "repair-env-check"],
                     "recipe": "bin/governance env --repair --check --target . --json",
                     "description": "preview environment repair without writing files",
                 },
