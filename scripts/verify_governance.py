@@ -654,6 +654,14 @@ def _check_governance_state(root: Path, report: VerificationReport) -> None:
     _check_governance_state_product_import_cache(root, state, rel, report)
     _check_governance_last_verification(state, rel, report)
 
+    if phase_is_valid and phase == "initialized" and "last_gate" in state:
+        report.add_error(
+            "state_phase_last_gate_stale",
+            "governance state last_gate must be absent while phase is initialized",
+            rel,
+        )
+        return
+
     history = state.get("phase_history")
     if history is None:
         if phase_is_valid and phase != "initialized":
