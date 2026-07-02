@@ -5,7 +5,7 @@ import copy
 import hashlib
 import json
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
 try:
@@ -48,6 +48,40 @@ class ProductImportReadyResult:
     manifest: dict[str, Any] = field(default_factory=dict)
     state: dict[str, Any] = field(default_factory=dict)
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.target, str) or not self.target:
+            raise ValueError("product import result target must be a non-empty string")
+        if not isinstance(self.ok, bool):
+            raise ValueError("product import result ok must be a boolean")
+        if not isinstance(self.reviewed, bool):
+            raise ValueError("product import result reviewed must be a boolean")
+        if not isinstance(self.method, str) or not self.method:
+            raise ValueError("product import result method must be a non-empty string")
+        if not isinstance(self.check, bool):
+            raise ValueError("product import result check must be a boolean")
+        if not isinstance(self.errors, list) or not all(isinstance(item, str) for item in self.errors):
+            raise ValueError("product import result errors must be strings")
+        if not isinstance(self.warnings, list) or not all(isinstance(item, str) for item in self.warnings):
+            raise ValueError("product import result warnings must be strings")
+        _validate_product_import_path_list("updated", self.updated)
+        _validate_product_import_path_list("would_update", self.would_update)
+        if not isinstance(self.conversion_blocker_resolved, bool):
+            raise ValueError("product import result conversion_blocker_resolved must be a boolean")
+        if not isinstance(self.would_resolve_conversion_blocker, bool):
+            raise ValueError("product import result would_resolve_conversion_blocker must be a boolean")
+        if not isinstance(self.manifest, dict):
+            raise ValueError("product import result manifest must be an object")
+        if not isinstance(self.state, dict):
+            raise ValueError("product import result state must be an object")
+        if self.check and (self.updated or self.conversion_blocker_resolved):
+            raise ValueError("product import result check mode cannot contain write outputs")
+        if not self.check and (self.would_update or self.would_resolve_conversion_blocker):
+            raise ValueError("product import result write mode cannot contain would outputs")
+        if self.ok and self.errors:
+            raise ValueError("product import result ok cannot include errors")
+        if not self.ok and not self.errors:
+            raise ValueError("product import result failure requires errors")
+
     def to_dict(self) -> dict[str, object]:
         return {
             "target": self.target,
@@ -64,6 +98,30 @@ class ProductImportReadyResult:
             "manifest": self.manifest,
             "state": self.state,
         }
+
+
+def _validate_product_import_path_list(field_name: str, paths: object) -> None:
+    if not isinstance(paths, list):
+        raise ValueError(f"product import result {field_name} must be a list")
+    if not all(isinstance(path, str) for path in paths):
+        raise ValueError(f"product import result {field_name} paths must be strings")
+    if len(paths) != len(set(paths)):
+        raise ValueError(f"product import result {field_name} paths must be unique")
+    for path in paths:
+        posix_path = PurePosixPath(path)
+        windows_path = PureWindowsPath(path)
+        normalized_path = posix_path.as_posix()
+        if (
+            not path
+            or path == "."
+            or posix_path.is_absolute()
+            or windows_path.is_absolute()
+            or ".." in posix_path.parts
+            or ".." in windows_path.parts
+        ):
+            raise ValueError(f"product import result {field_name} paths must be repository-relative")
+        if "\\" in path or path != normalized_path:
+            raise ValueError(f"product import result {field_name} paths must use normalized POSIX form")
 
 
 @dataclass(frozen=True)

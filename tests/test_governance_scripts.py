@@ -1232,6 +1232,290 @@ class GovernanceScriptsTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, message):
                     scaffold_module.ScaffoldResult(**values)
 
+    def test_product_import_ready_result_rejects_unstable_output_shape(self) -> None:
+        valid = product_import_module.ProductImportReadyResult(
+            target="/tmp/project",
+            ok=True,
+            reviewed=True,
+            method="manual-reviewed-markdown",
+            updated=[
+                "docs/product/core/source/source-manifest.json",
+                ".governance/state.json",
+            ],
+            conversion_blocker_resolved=True,
+            manifest={"import": {"status": "ready_for_structuring"}},
+            state={"product_import_status": "ready_for_structuring"},
+        )
+        self.assertEqual(
+            {
+                "target": "/tmp/project",
+                "ok": True,
+                "reviewed": True,
+                "method": "manual-reviewed-markdown",
+                "check": False,
+                "errors": [],
+                "warnings": [],
+                "updated": [
+                    "docs/product/core/source/source-manifest.json",
+                    ".governance/state.json",
+                ],
+                "would_update": [],
+                "conversion_blocker_resolved": True,
+                "would_resolve_conversion_blocker": False,
+                "manifest": {"import": {"status": "ready_for_structuring"}},
+                "state": {"product_import_status": "ready_for_structuring"},
+            },
+            valid.to_dict(),
+        )
+
+        cases = [
+            (
+                {
+                    "target": "",
+                    "ok": True,
+                    "reviewed": True,
+                    "method": "manual-reviewed-markdown",
+                },
+                "product import result target must be a non-empty string",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": "true",
+                    "reviewed": True,
+                    "method": "manual-reviewed-markdown",
+                },
+                "product import result ok must be a boolean",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "reviewed": "true",
+                    "method": "manual-reviewed-markdown",
+                },
+                "product import result reviewed must be a boolean",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "reviewed": True,
+                    "method": "",
+                },
+                "product import result method must be a non-empty string",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "reviewed": True,
+                    "method": "manual-reviewed-markdown",
+                    "check": "false",
+                },
+                "product import result check must be a boolean",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "reviewed": True,
+                    "method": "manual-reviewed-markdown",
+                    "updated": "docs/product/core/source/source-manifest.json",
+                },
+                "product import result updated must be a list",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "reviewed": True,
+                    "method": "manual-reviewed-markdown",
+                    "updated": ["docs/product/core/source/source-manifest.json", 123],
+                },
+                "product import result updated paths must be strings",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "reviewed": True,
+                    "method": "manual-reviewed-markdown",
+                    "updated": ["/tmp/project/docs/product/core/source/source-manifest.json"],
+                },
+                "product import result updated paths must be repository-relative",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "reviewed": True,
+                    "method": "manual-reviewed-markdown",
+                    "updated": ["../docs/product/core/source/source-manifest.json"],
+                },
+                "product import result updated paths must be repository-relative",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "reviewed": True,
+                    "method": "manual-reviewed-markdown",
+                    "updated": ["docs\\product\\core\\source\\source-manifest.json"],
+                },
+                "product import result updated paths must use normalized POSIX form",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "reviewed": True,
+                    "method": "manual-reviewed-markdown",
+                    "would_update": ["./docs/product/core/source/source-manifest.json"],
+                    "check": True,
+                },
+                "product import result would_update paths must use normalized POSIX form",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "reviewed": True,
+                    "method": "manual-reviewed-markdown",
+                    "updated": [
+                        "docs/product/core/source/source-manifest.json",
+                        "docs/product/core/source/source-manifest.json",
+                    ],
+                },
+                "product import result updated paths must be unique",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "reviewed": True,
+                    "method": "manual-reviewed-markdown",
+                    "errors": ["ok", 123],
+                },
+                "product import result errors must be strings",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "reviewed": True,
+                    "method": "manual-reviewed-markdown",
+                    "warnings": ["ok", 123],
+                },
+                "product import result warnings must be strings",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "reviewed": True,
+                    "method": "manual-reviewed-markdown",
+                    "conversion_blocker_resolved": "true",
+                },
+                "product import result conversion_blocker_resolved must be a boolean",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "reviewed": True,
+                    "method": "manual-reviewed-markdown",
+                    "would_resolve_conversion_blocker": "true",
+                },
+                "product import result would_resolve_conversion_blocker must be a boolean",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "reviewed": True,
+                    "method": "manual-reviewed-markdown",
+                    "manifest": [],
+                },
+                "product import result manifest must be an object",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "reviewed": True,
+                    "method": "manual-reviewed-markdown",
+                    "state": [],
+                },
+                "product import result state must be an object",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "reviewed": True,
+                    "method": "manual-reviewed-markdown",
+                    "check": True,
+                    "updated": ["docs/product/core/source/source-manifest.json"],
+                },
+                "product import result check mode cannot contain write outputs",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "reviewed": True,
+                    "method": "manual-reviewed-markdown",
+                    "check": True,
+                    "conversion_blocker_resolved": True,
+                },
+                "product import result check mode cannot contain write outputs",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "reviewed": True,
+                    "method": "manual-reviewed-markdown",
+                    "would_update": ["docs/product/core/source/source-manifest.json"],
+                },
+                "product import result write mode cannot contain would outputs",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "reviewed": True,
+                    "method": "manual-reviewed-markdown",
+                    "would_resolve_conversion_blocker": True,
+                },
+                "product import result write mode cannot contain would outputs",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "reviewed": True,
+                    "method": "manual-reviewed-markdown",
+                    "errors": ["unexpected error"],
+                },
+                "product import result ok cannot include errors",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": False,
+                    "reviewed": True,
+                    "method": "manual-reviewed-markdown",
+                },
+                "product import result failure requires errors",
+            ),
+        ]
+        for values, message in cases:
+            with self.subTest(message=message, values=values):
+                with self.assertRaisesRegex(ValueError, message):
+                    product_import_module.ProductImportReadyResult(**values)
+
     def test_phases_main_json_advances_product_structuring(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
