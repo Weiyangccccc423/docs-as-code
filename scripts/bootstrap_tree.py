@@ -6,7 +6,7 @@ import json
 import shutil
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 try:
     from .state import STATE_REL, StateFileError, load_state, merge_state, utc_now
@@ -279,6 +279,12 @@ class InitConflict:
     path: str
     reason: str
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.path, str) or not self.path:
+            raise ValueError("init conflict path must be a non-empty string")
+        if not isinstance(self.reason, str) or not self.reason:
+            raise ValueError("init conflict reason must be a non-empty string")
+
     def to_dict(self) -> dict[str, str]:
         return {
             "path": self.path,
@@ -295,6 +301,25 @@ class InitPreflightResult:
     product: dict[str, object] = field(default_factory=dict)
     would_write: list[str] = field(default_factory=list)
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.target, str) or not self.target:
+            raise ValueError("init preflight result target must be a non-empty string")
+        if not isinstance(self.ok, bool):
+            raise ValueError("init preflight result ok must be a boolean")
+        if not isinstance(self.conflicts, list):
+            raise ValueError("init preflight result conflicts must be a list")
+        if not all(isinstance(conflict, InitConflict) for conflict in self.conflicts):
+            raise ValueError("init preflight result conflicts must contain InitConflict entries")
+        if not isinstance(self.warnings, list) or not all(isinstance(warning, str) for warning in self.warnings):
+            raise ValueError("init preflight result warnings must be strings")
+        if not isinstance(self.product, dict):
+            raise ValueError("init preflight result product must be an object")
+        _validate_init_path_list("would_write", self.would_write)
+        if self.ok and self.conflicts:
+            raise ValueError("init preflight result ok cannot include conflicts")
+        if not self.ok and not self.conflicts:
+            raise ValueError("init preflight result failure requires conflicts")
+
     def to_dict(self) -> dict[str, object]:
         return {
             "target": self.target,
@@ -304,6 +329,30 @@ class InitPreflightResult:
             "product": self.product,
             "would_write": self.would_write,
         }
+
+
+def _validate_init_path_list(field_name: str, paths: object) -> None:
+    if not isinstance(paths, list):
+        raise ValueError(f"init preflight result {field_name} must be a list")
+    if not all(isinstance(path, str) for path in paths):
+        raise ValueError(f"init preflight result {field_name} paths must be strings")
+    if len(paths) != len(set(paths)):
+        raise ValueError(f"init preflight result {field_name} paths must be unique")
+    for path in paths:
+        posix_path = PurePosixPath(path)
+        windows_path = PureWindowsPath(path)
+        normalized_path = posix_path.as_posix()
+        if (
+            not path
+            or path == "."
+            or posix_path.is_absolute()
+            or windows_path.is_absolute()
+            or ".." in posix_path.parts
+            or ".." in windows_path.parts
+        ):
+            raise ValueError(f"init preflight result {field_name} paths must be repository-relative")
+        if "\\" in path or path != normalized_path:
+            raise ValueError(f"init preflight result {field_name} paths must use normalized POSIX form")
 
 
 class InitPreflightError(RuntimeError):

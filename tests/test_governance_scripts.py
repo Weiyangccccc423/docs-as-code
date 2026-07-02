@@ -1516,6 +1516,189 @@ class GovernanceScriptsTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, message):
                     product_import_module.ProductImportReadyResult(**values)
 
+    def test_init_preflight_result_rejects_unstable_output_shape(self) -> None:
+        conflict = bootstrap_module.InitConflict(path="README.md", reason="generated file already exists")
+        self.assertEqual(
+            {
+                "path": "README.md",
+                "reason": "generated file already exists",
+            },
+            conflict.to_dict(),
+        )
+
+        valid = bootstrap_module.InitPreflightResult(
+            target="/tmp/project",
+            ok=True,
+            product={"source": "product.md"},
+            would_write=[
+                "README.md",
+                "docs/product/core/PRD.md",
+                ".governance/state.json",
+            ],
+        )
+        self.assertEqual(
+            {
+                "target": "/tmp/project",
+                "ok": True,
+                "conflicts": [],
+                "warnings": [],
+                "product": {"source": "product.md"},
+                "would_write": [
+                    "README.md",
+                    "docs/product/core/PRD.md",
+                    ".governance/state.json",
+                ],
+            },
+            valid.to_dict(),
+        )
+
+        conflict_cases = [
+            (
+                {"path": "", "reason": "generated file already exists"},
+                "init conflict path must be a non-empty string",
+            ),
+            (
+                {"path": "README.md", "reason": ""},
+                "init conflict reason must be a non-empty string",
+            ),
+        ]
+        for values, message in conflict_cases:
+            with self.subTest(message=message, values=values):
+                with self.assertRaisesRegex(ValueError, message):
+                    bootstrap_module.InitConflict(**values)
+
+        result_cases = [
+            (
+                {
+                    "target": "",
+                    "ok": True,
+                    "would_write": ["README.md"],
+                },
+                "init preflight result target must be a non-empty string",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": "true",
+                    "would_write": ["README.md"],
+                },
+                "init preflight result ok must be a boolean",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "conflicts": "README.md",
+                    "would_write": ["README.md"],
+                },
+                "init preflight result conflicts must be a list",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "conflicts": [object()],
+                    "would_write": ["README.md"],
+                },
+                "init preflight result conflicts must contain InitConflict entries",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "warnings": ["ok", 123],
+                    "would_write": ["README.md"],
+                },
+                "init preflight result warnings must be strings",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "product": [],
+                    "would_write": ["README.md"],
+                },
+                "init preflight result product must be an object",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "would_write": "README.md",
+                },
+                "init preflight result would_write must be a list",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "would_write": ["README.md", 123],
+                },
+                "init preflight result would_write paths must be strings",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "would_write": ["/tmp/project/README.md"],
+                },
+                "init preflight result would_write paths must be repository-relative",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "would_write": ["../README.md"],
+                },
+                "init preflight result would_write paths must be repository-relative",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "would_write": ["docs\\product\\core\\PRD.md"],
+                },
+                "init preflight result would_write paths must use normalized POSIX form",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "would_write": ["./README.md"],
+                },
+                "init preflight result would_write paths must use normalized POSIX form",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "would_write": ["README.md", "README.md"],
+                },
+                "init preflight result would_write paths must be unique",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "conflicts": [conflict],
+                    "would_write": ["README.md"],
+                },
+                "init preflight result ok cannot include conflicts",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": False,
+                    "would_write": ["README.md"],
+                },
+                "init preflight result failure requires conflicts",
+            ),
+        ]
+        for values, message in result_cases:
+            with self.subTest(message=message, values=values):
+                with self.assertRaisesRegex(ValueError, message):
+                    bootstrap_module.InitPreflightResult(**values)
+
     def test_phases_main_json_advances_product_structuring(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
