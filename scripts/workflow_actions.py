@@ -63,16 +63,18 @@ PHASE_ACTIONS: dict[str, dict[str, object]] = {
 PHASE_ORDER = ("initialized", "product-structuring", "design-derivation", "implementation")
 
 
-def next_actions_payload(state: dict[str, Any]) -> list[dict[str, object]]:
+def next_actions_payload(state: dict[str, Any], cwd: str = ".") -> list[dict[str, object]]:
     if not isinstance(state, dict):
         raise ValueError("workflow action state must be an object")
+    if not isinstance(cwd, str) or not cwd.strip():
+        raise ValueError("workflow action cwd must be a non-empty string")
     phase = state.get("phase")
     if phase == "initialized" and state.get("product_import_status") != "ready_for_structuring":
-        return _copy_actions(PRODUCT_IMPORT_ACTIONS)
+        return _copy_actions(PRODUCT_IMPORT_ACTIONS, cwd)
     next_phase = _next_phase(phase)
     if not next_phase:
         return []
-    return _advance_actions(next_phase)
+    return _advance_actions(next_phase, cwd)
 
 
 def _next_phase(phase: object) -> str:
@@ -84,12 +86,13 @@ def _next_phase(phase: object) -> str:
     return PHASE_ORDER[index + 1]
 
 
-def _advance_actions(phase: str) -> list[dict[str, object]]:
+def _advance_actions(phase: str, cwd: str) -> list[dict[str, object]]:
     metadata = PHASE_ACTIONS[phase]
     return [
         {
             "id": f"advance-{phase}-check",
             "kind": "preflight",
+            "cwd": cwd,
             "phase": phase,
             "workflow": metadata["workflow"],
             "skills": list(metadata["skills"]),
@@ -101,6 +104,7 @@ def _advance_actions(phase: str) -> list[dict[str, object]]:
         {
             "id": f"advance-{phase}",
             "kind": "apply",
+            "cwd": cwd,
             "phase": phase,
             "workflow": metadata["workflow"],
             "skills": list(metadata["skills"]),
@@ -112,9 +116,10 @@ def _advance_actions(phase: str) -> list[dict[str, object]]:
     ]
 
 
-def _copy_actions(actions: tuple[dict[str, object], ...]) -> list[dict[str, object]]:
+def _copy_actions(actions: tuple[dict[str, object], ...], cwd: str) -> list[dict[str, object]]:
     payload = [deepcopy(action) for action in actions]
     for action in payload:
+        action["cwd"] = cwd
         if isinstance(action.get("skills"), tuple):
             action["skills"] = list(action["skills"])
     return payload

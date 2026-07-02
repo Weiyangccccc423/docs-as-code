@@ -1532,7 +1532,7 @@ def main() -> int:
         payload["conflicts"] = []
         payload["state"] = load_state(target)
         payload["local_commands"] = target_local_commands_payload()
-        payload["next_actions"] = next_actions_payload(payload["state"])
+        payload["next_actions"] = next_actions_payload(payload["state"], cwd=str(target.resolve()))
         print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
         return 0
     print(f"Initialized governance repository at {target}")

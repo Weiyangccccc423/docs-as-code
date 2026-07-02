@@ -711,7 +711,7 @@ def main() -> int:
         if args.json:
             payload = result.to_dict()
             if result.ok and not args.check:
-                payload["next_actions"] = next_actions_payload(result.state)
+                payload["next_actions"] = next_actions_payload(result.state, cwd=result.target)
             print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
             return 0 if result.ok else 1
         if not result.ok:

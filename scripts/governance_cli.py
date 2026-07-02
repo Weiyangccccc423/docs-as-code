@@ -96,7 +96,7 @@ def _cmd_init(args: argparse.Namespace) -> int:
         payload["conflicts"] = []
         payload["state"] = load_state(target)
         payload["local_commands"] = target_local_commands_payload()
-        payload["next_actions"] = next_actions_payload(payload["state"])
+        payload["next_actions"] = next_actions_payload(payload["state"], cwd=str(target.resolve()))
         _print_json(payload)
         return 0
     print(f"Initialized governance repository at {target}")
@@ -228,7 +228,7 @@ def _cmd_status(args: argparse.Namespace) -> int:
                 "target": str(target),
                 "state": state,
                 "local_commands": target_local_commands_payload(),
-                "next_actions": next_actions_payload(state),
+                "next_actions": next_actions_payload(state, cwd=str(target.resolve())),
             }
         )
         return 0
@@ -492,7 +492,7 @@ def _cmd_advance(args: argparse.Namespace) -> int:
     if args.json:
         payload = result.to_dict()
         if result.ok and result.advanced and not args.check:
-            payload["next_actions"] = next_actions_payload(result.state)
+            payload["next_actions"] = next_actions_payload(result.state, cwd=result.target)
         _print_json(payload)
         return 0 if result.ok else 1
     if args.check and result.ok:
@@ -520,7 +520,7 @@ def _cmd_product_mark_ready(args: argparse.Namespace) -> int:
         result = mark_product_import_ready(target, method=args.method, reviewed=args.reviewed)
     payload = result.to_dict()
     if result.ok and not args.check:
-        payload["next_actions"] = next_actions_payload(result.state)
+        payload["next_actions"] = next_actions_payload(result.state, cwd=result.target)
     if args.json:
         _print_json(payload)
         return 0 if result.ok else 1

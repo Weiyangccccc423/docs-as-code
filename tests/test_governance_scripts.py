@@ -1219,6 +1219,7 @@ class GovernanceScriptsTest(unittest.TestCase):
                 {
                     "id": "product-mark-ready-check",
                     "kind": "preflight",
+                    "cwd": ".",
                     "phase": "product-document-archiving",
                     "workflow": "docs/agent-workflow/workflow-pack/workflows/02-product-document-archiving.md",
                     "skills": ["archiving-product-document", "verifying-governance-docs"],
@@ -1233,6 +1234,7 @@ class GovernanceScriptsTest(unittest.TestCase):
                 {
                     "id": "product-mark-ready",
                     "kind": "apply",
+                    "cwd": ".",
                     "phase": "product-document-archiving",
                     "workflow": "docs/agent-workflow/workflow-pack/workflows/02-product-document-archiving.md",
                     "skills": ["archiving-product-document", "verifying-governance-docs"],
@@ -1266,6 +1268,7 @@ class GovernanceScriptsTest(unittest.TestCase):
         design_derivation = workflow_actions_module.next_actions_payload({"phase": "design-derivation"})
 
         self.assertEqual("advance-product-structuring-check", initialized[0]["id"])
+        self.assertEqual(".", initialized[0]["cwd"])
         self.assertEqual("bin/governance advance product-structuring . --check --json", initialized[0]["command"])
         self.assertEqual("advance-product-structuring", initialized[1]["id"])
         self.assertEqual("bin/governance advance product-structuring . --json", initialized[1]["command"])
@@ -1279,6 +1282,8 @@ class GovernanceScriptsTest(unittest.TestCase):
         self.assertEqual([], workflow_actions_module.next_actions_payload({"phase": "unknown-phase"}))
         with self.assertRaisesRegex(ValueError, "workflow action state must be an object"):
             workflow_actions_module.next_actions_payload([])
+        with self.assertRaisesRegex(ValueError, "workflow action cwd must be a non-empty string"):
+            workflow_actions_module.next_actions_payload({"phase": "initialized"}, cwd="")
 
     def test_scaffold_spec_rejects_unstable_template_shape(self) -> None:
         valid = scaffold_module.ScaffoldSpec(
@@ -3014,6 +3019,7 @@ class GovernanceScriptsTest(unittest.TestCase):
                 {
                     "id": "advance-product-structuring-check",
                     "kind": "preflight",
+                    "cwd": str(root.resolve()),
                     "phase": "product-structuring",
                     "workflow": "docs/agent-workflow/workflow-pack/workflows/03-product-structuring.md",
                     "skills": ["structuring-product-requirements", "verifying-governance-docs"],
@@ -6976,6 +6982,7 @@ class GovernanceScriptsTest(unittest.TestCase):
                 {
                     "id": "advance-product-structuring",
                     "kind": "apply",
+                    "cwd": str(root.resolve()),
                     "phase": "product-structuring",
                     "workflow": "docs/agent-workflow/workflow-pack/workflows/03-product-structuring.md",
                     "skills": ["structuring-product-requirements", "verifying-governance-docs"],
@@ -7191,6 +7198,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertEqual(str(root.resolve()), mark_ready_payload["target"])
             self.assertTrue(mark_ready_payload["conversion_blocker_resolved"])
             self.assertEqual("advance-product-structuring-check", mark_ready_payload["next_actions"][0]["id"])
+            self.assertEqual(str(root.resolve()), mark_ready_payload["next_actions"][0]["cwd"])
             self.assertEqual(
                 "bin/governance advance product-structuring . --check --json",
                 mark_ready_payload["next_actions"][0]["command"],
@@ -7227,6 +7235,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertTrue(advance_payload["advanced"])
             self.assertEqual("product-structuring", advance_payload["state"]["phase"])
             self.assertEqual("advance-design-derivation-check", advance_payload["next_actions"][0]["id"])
+            self.assertEqual(str(root.resolve()), advance_payload["next_actions"][0]["cwd"])
             self.assertEqual(
                 "bin/governance advance design-derivation . --check --json",
                 advance_payload["next_actions"][0]["command"],
@@ -7297,6 +7306,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertIn("docs/product/core/source/source-manifest.json", payload["updated"])
             self.assertIn(".governance/state.json", payload["updated"])
             self.assertEqual("advance-product-structuring-check", payload["next_actions"][0]["id"])
+            self.assertEqual(str(root.resolve()), payload["next_actions"][0]["cwd"])
             self.assertEqual("ready_for_structuring", manifest["import"]["status"])
             self.assertTrue(manifest["import"]["can_derive_design"])
             self.assertEqual("ready_for_structuring", state["product_import_status"])

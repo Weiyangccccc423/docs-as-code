@@ -1658,6 +1658,7 @@ class GovernanceCliTest(unittest.TestCase):
                 {
                     "id": "advance-product-structuring-check",
                     "kind": "preflight",
+                    "cwd": str(target.resolve()),
                     "phase": "product-structuring",
                     "workflow": "docs/agent-workflow/workflow-pack/workflows/03-product-structuring.md",
                     "skills": ["structuring-product-requirements", "verifying-governance-docs"],
@@ -1704,6 +1705,7 @@ class GovernanceCliTest(unittest.TestCase):
                 {
                     "id": "advance-product-structuring-check",
                     "kind": "preflight",
+                    "cwd": str(target.resolve()),
                     "phase": "product-structuring",
                     "workflow": "docs/agent-workflow/workflow-pack/workflows/03-product-structuring.md",
                     "skills": ["structuring-product-requirements", "verifying-governance-docs"],
@@ -1791,6 +1793,7 @@ class GovernanceCliTest(unittest.TestCase):
                 {
                     "id": "advance-product-structuring",
                     "kind": "apply",
+                    "cwd": str(target.resolve()),
                     "phase": "product-structuring",
                     "workflow": "docs/agent-workflow/workflow-pack/workflows/03-product-structuring.md",
                     "skills": ["structuring-product-requirements", "verifying-governance-docs"],
@@ -2267,6 +2270,7 @@ class GovernanceCliTest(unittest.TestCase):
                 {
                     "id": "advance-design-derivation-check",
                     "kind": "preflight",
+                    "cwd": str(target.resolve()),
                     "phase": "design-derivation",
                     "workflow": "docs/agent-workflow/workflow-pack/workflows/04-design-derivation.md",
                     "skills": [
@@ -2984,6 +2988,7 @@ class GovernanceCliTest(unittest.TestCase):
                 {
                     "id": "advance-product-structuring-check",
                     "kind": "preflight",
+                    "cwd": str(target.resolve()),
                     "phase": "product-structuring",
                     "workflow": "docs/agent-workflow/workflow-pack/workflows/03-product-structuring.md",
                     "skills": ["structuring-product-requirements", "verifying-governance-docs"],

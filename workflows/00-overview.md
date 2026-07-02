@@ -37,7 +37,7 @@ make check-env
 make repair-env-check
 ```
 
-Machine-readable `init --json` and `status --json` success payloads include `next_actions`. Successful state-writing `product mark-ready --json` and `advance --json` commands also return the next `next_actions` set. Agents should execute `preflight` actions first and run state-writing `apply` actions only after the referenced preflight returns `ok: true`.
+Machine-readable `init --json` and `status --json` success payloads include `next_actions`. Successful state-writing `product mark-ready --json` and `advance --json` commands also return the next `next_actions` set. Each action includes `cwd`; agents must run its `command` from that directory. Agents should execute `preflight` actions first and run state-writing `apply` actions only after the referenced preflight returns `ok: true`.
 
 From a trusted source workflow-pack checkout, refresh generated target runtime and workflow-pack snapshot files without rewriting product or design documents:
 
