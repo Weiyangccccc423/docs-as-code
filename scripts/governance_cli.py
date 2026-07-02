@@ -110,14 +110,17 @@ def _cmd_verify(args: argparse.Namespace) -> int:
     target = Path(args.target)
     report = verify(target)
     report_payload = report.to_dict()
-    if target.exists() and not target.is_dir() and not args.check:
-        raise StateFileError(target / STATE_REL, "unwritable: target path is not a directory")
     state = {}
     state_error = ""
     state_error_action = ""
     state_error_path = ""
     state_updated = False
-    if (target / STATE_REL).exists() and args.check:
+    if target.exists() and not target.is_dir() and not args.check:
+        error = StateFileError(target / STATE_REL, "unwritable: target path is not a directory")
+        state_error = str(error)
+        state_error_action = "update"
+        state_error_path = str(error.path)
+    elif (target / STATE_REL).exists() and args.check:
         try:
             state = load_state(target)
         except StateFileError as error:

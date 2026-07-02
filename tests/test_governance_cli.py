@@ -1982,9 +1982,16 @@ class GovernanceCliTest(unittest.TestCase):
             payload = json.loads(verify_result.stdout)
             self.assertFalse(payload["ok"])
             self.assertEqual(str(target), payload["target"])
+            self.assertFalse(payload["check"])
+            self.assertFalse(payload["state_updated"])
+            self.assertEqual({}, payload["state"])
+            self.assertIn("warnings", payload)
+            self.assertIn("findings", payload)
+            self.assertIn("state_error", payload)
             self.assertEqual(str(target / ".governance/state.json"), payload["path"])
             self.assertIn("invalid governance state file", payload["error"])
             self.assertIn("unwritable", payload["error"])
+            self.assertIn("failed to update verification state", payload["errors"][-1])
 
     def test_verify_json_reports_structured_findings(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
