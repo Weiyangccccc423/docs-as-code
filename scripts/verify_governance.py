@@ -7,7 +7,7 @@ import re
 import stat
 from dataclasses import dataclass, field
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Callable
 
 
@@ -1004,6 +1004,22 @@ def _check_governance_last_verification(state: dict[str, object], rel: str, repo
                 report.add_error(
                     "state_last_verification_finding_invalid",
                     f"governance state last_verification findings entries must include non-empty string {key}",
+                    rel,
+                )
+                return
+        finding_path = finding.get("path")
+        if isinstance(finding_path, str):
+            posix_path = PurePosixPath(finding_path)
+            windows_path = PureWindowsPath(finding_path)
+            if (
+                posix_path.is_absolute()
+                or windows_path.is_absolute()
+                or ".." in posix_path.parts
+                or ".." in windows_path.parts
+            ):
+                report.add_error(
+                    "state_last_verification_finding_invalid",
+                    "governance state last_verification findings path must be repository-relative",
                     rel,
                 )
                 return

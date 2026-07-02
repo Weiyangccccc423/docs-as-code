@@ -1666,6 +1666,14 @@ class GovernanceScriptsTest(unittest.TestCase):
                 "governance state last_verification findings entries must include non-empty string message",
             ),
             (
+                {"code": "example", "severity": "error", "path": "/tmp/state.json", "message": "example error"},
+                "governance state last_verification findings path must be repository-relative",
+            ),
+            (
+                {"code": "example", "severity": "error", "path": "../state.json", "message": "example error"},
+                "governance state last_verification findings path must be repository-relative",
+            ),
+            (
                 {
                     "code": "example",
                     "severity": "notice",
