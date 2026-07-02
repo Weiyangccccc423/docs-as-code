@@ -4341,6 +4341,43 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_target_repair_env_check_makefile_recipe_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            makefile = root / "Makefile"
+            makefile.write_text(
+                makefile.read_text(encoding="utf-8").replace(
+                    "\tbin/governance env --repair --check --target . --json\n",
+                    "\tbin/governance env --repair --target . --json\n",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "Makefile target repair-env-check must run command: "
+                "bin/governance env --repair --check --target . --json",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "target_makefile_target_recipe_missing",
+                    "severity": "error",
+                    "path": "Makefile",
+                    "message": (
+                        "Makefile target repair-env-check must run command: "
+                        "bin/governance env --repair --check --target . --json"
+                    ),
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_missing_target_support_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -6655,7 +6692,9 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertTrue((root / "scripts/scaffold.py").exists())
             self.assertTrue((root / "scripts/verify_governance.py").exists())
             self.assertTrue((root / "docs/agent-workflow/workflow-pack/manifest.json").exists())
-            self.assertIn("bin/governance verify .", (root / "Makefile").read_text(encoding="utf-8"))
+            makefile_text = (root / "Makefile").read_text(encoding="utf-8")
+            self.assertIn("bin/governance verify .", makefile_text)
+            self.assertIn("bin/governance env --repair --check --target . --json", makefile_text)
 
             verify_result = subprocess.run(
                 ["make", "verify-governance"],
@@ -6666,6 +6705,23 @@ class GovernanceScriptsTest(unittest.TestCase):
             )
             self.assertEqual(0, verify_result.returncode, verify_result.stderr)
             self.assertIn("Governance verification passed.", verify_result.stdout)
+
+            repair_check_result = subprocess.run(
+                ["make", "repair-env-check"],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, repair_check_result.returncode, repair_check_result.stderr)
+            payload_start = repair_check_result.stdout.find("{")
+            self.assertNotEqual(-1, payload_start, repair_check_result.stdout)
+            repair_check_payload, _ = json.JSONDecoder().raw_decode(repair_check_result.stdout[payload_start:])
+            self.assertTrue(repair_check_payload["ok"])
+            self.assertTrue(repair_check_payload["check"])
+            self.assertEqual([], repair_check_payload["repairs"])
+            self.assertIsNone(repair_check_payload["repair_plan"])
+            self.assertFalse((root / ".governance/env-repair.md").exists())
 
             cli_result = subprocess.run(
                 [str(root / "bin/governance"), "status", str(root)],

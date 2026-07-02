@@ -1174,11 +1174,13 @@ def _write_bootstrap_outputs(
     )
     _safe_write(
         root / "Makefile",
-        ".PHONY: verify-governance check-env\n\n"
+        ".PHONY: verify-governance check-env repair-env-check\n\n"
         "verify-governance:\n"
         "\tbin/governance verify .\n\n"
         "check-env:\n"
-        "\tbin/governance env --target .\n",
+        "\tbin/governance env --target .\n\n"
+        "repair-env-check:\n"
+        "\tbin/governance env --repair --check --target . --json\n",
         force,
     )
 

@@ -377,6 +377,7 @@ DOMAIN_AGENTS_RULE_GUARDRAILS = (
 TARGET_MAKEFILE_REQUIRED_TARGETS = (
     "verify-governance",
     "check-env",
+    "repair-env-check",
 )
 TARGET_MAKEFILE_REQUIRED_TARGET_RECIPES = {
     "verify-governance": (
@@ -384,6 +385,9 @@ TARGET_MAKEFILE_REQUIRED_TARGET_RECIPES = {
     ),
     "check-env": (
         "bin/governance env --target .",
+    ),
+    "repair-env-check": (
+        "bin/governance env --repair --check --target . --json",
     ),
 }
 TARGET_SUPPORT_FILE_GUARDRAILS = {
