@@ -1886,6 +1886,159 @@ class GovernanceScriptsTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, message):
                     bootstrap_module.RuntimeRefreshResult(**values)
 
+    def test_check_env_status_objects_reject_unstable_output_shape(self) -> None:
+        tool = check_env_module.ToolStatus(
+            name="git",
+            present=True,
+            version="git version 2.34.1",
+            note="Required for version control.",
+            level="required",
+            install_package="git",
+        )
+        self.assertEqual(
+            {
+                "name": "git",
+                "present": True,
+                "version": "git version 2.34.1",
+                "note": "Required for version control.",
+                "level": "required",
+                "install_package": "git",
+            },
+            tool.to_dict(),
+        )
+        self.assertEqual([tool.to_dict()], check_env_module._tool_status_payload([tool]))
+
+        system = check_env_module.SystemStatus(
+            platform="linux",
+            os_id="ubuntu",
+            os_like="debian",
+            pretty_name="Ubuntu",
+            is_root=False,
+        )
+        self.assertEqual(
+            {
+                "platform": "linux",
+                "os_id": "ubuntu",
+                "os_like": "debian",
+                "pretty_name": "Ubuntu",
+                "is_root": False,
+            },
+            system.to_dict(),
+        )
+
+        package_manager = check_env_module.PackageManager("apt", "/usr/bin/apt-get", True)
+        self.assertEqual(
+            {
+                "name": "apt",
+                "command": "/usr/bin/apt-get",
+                "supported": True,
+            },
+            package_manager.to_dict(),
+        )
+
+        install_item = check_env_module.InstallPlanItem("git", "git", "apt")
+        self.assertEqual(
+            {
+                "tool": "git",
+                "package": "git",
+                "manager": "apt",
+            },
+            install_item.to_dict(),
+        )
+
+        git = check_env_module.GitStatus(
+            installed=True,
+            is_repo=True,
+            branch="main",
+            user_name="Example",
+            user_email="example@example.com",
+        )
+        self.assertEqual(
+            {
+                "installed": True,
+                "is_repo": True,
+                "branch": "main",
+                "user_name": "Example",
+                "user_email": "example@example.com",
+            },
+            git.to_dict(),
+        )
+
+        cases = [
+            (
+                lambda: check_env_module.ToolStatus("", True, "version", "note", "required", "git"),
+                "tool status name must be a non-empty string",
+            ),
+            (
+                lambda: check_env_module.ToolStatus("git", "true", "version", "note", "required", "git"),
+                "tool status present must be a boolean",
+            ),
+            (
+                lambda: check_env_module.ToolStatus("git", True, 123, "note", "required", "git"),
+                "tool status version must be a string",
+            ),
+            (
+                lambda: check_env_module.ToolStatus("git", True, "version", "", "required", "git"),
+                "tool status note must be a non-empty string",
+            ),
+            (
+                lambda: check_env_module.ToolStatus("git", True, "version", "note", "optional", "git"),
+                "tool status level must be required or recommended",
+            ),
+            (
+                lambda: check_env_module.ToolStatus("git", True, "version", "note", "required", ""),
+                "tool status install_package must be a non-empty string or null",
+            ),
+            (
+                lambda: check_env_module.SystemStatus("linux", "ubuntu", "debian", "Ubuntu", "false"),
+                "system status is_root must be a boolean",
+            ),
+            (
+                lambda: check_env_module.SystemStatus("linux", "ubuntu", "debian", "", False),
+                "system status pretty_name must be a non-empty string",
+            ),
+            (
+                lambda: check_env_module.PackageManager("", "/usr/bin/apt-get", True),
+                "package manager name must be a non-empty string",
+            ),
+            (
+                lambda: check_env_module.PackageManager("apt", "", True),
+                "package manager command must be a non-empty string or null",
+            ),
+            (
+                lambda: check_env_module.PackageManager("apt", "/usr/bin/apt-get", "true"),
+                "package manager supported must be a boolean",
+            ),
+            (
+                lambda: check_env_module.InstallPlanItem("", "git", "apt"),
+                "install plan item tool must be a non-empty string",
+            ),
+            (
+                lambda: check_env_module.InstallPlanItem("git", "", "apt"),
+                "install plan item package must be a non-empty string",
+            ),
+            (
+                lambda: check_env_module.InstallPlanItem("git", "git", ""),
+                "install plan item manager must be a non-empty string",
+            ),
+            (
+                lambda: check_env_module.GitStatus("true", True, "main", "Example", "example@example.com"),
+                "git status installed must be a boolean",
+            ),
+            (
+                lambda: check_env_module.GitStatus(True, "true", "main", "Example", "example@example.com"),
+                "git status is_repo must be a boolean",
+            ),
+            (
+                lambda: check_env_module.GitStatus(True, True, 123, "Example", "example@example.com"),
+                "git status branch must be a string",
+            ),
+        ]
+        for factory, message in cases:
+            with self.subTest(message=message):
+                with self.assertRaisesRegex(ValueError, message):
+                    factory()
+
     def test_phases_main_json_advances_product_structuring(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

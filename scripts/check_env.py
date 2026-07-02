@@ -18,6 +18,7 @@ class ToolSpec:
     apt_package: str | None = None
 
 
+TOOL_LEVELS = {"required", "recommended"}
 TOOLS = [
     ToolSpec("git", "Required for version control and change evidence.", "required", "git"),
     ToolSpec("rg", "Recommended for fast repository search.", "recommended", "ripgrep"),
@@ -38,6 +39,25 @@ class ToolStatus:
     level: str
     install_package: str | None = None
 
+    def __post_init__(self) -> None:
+        _require_non_empty_string(self.name, "tool status name")
+        _require_bool(self.present, "tool status present")
+        _require_string(self.version, "tool status version")
+        _require_non_empty_string(self.note, "tool status note")
+        if self.level not in TOOL_LEVELS:
+            raise ValueError("tool status level must be required or recommended")
+        _require_nullable_non_empty_string(self.install_package, "tool status install_package")
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "name": self.name,
+            "present": self.present,
+            "version": self.version,
+            "note": self.note,
+            "level": self.level,
+            "install_package": self.install_package,
+        }
+
 
 @dataclass
 class SystemStatus:
@@ -46,6 +66,13 @@ class SystemStatus:
     os_like: str
     pretty_name: str
     is_root: bool
+
+    def __post_init__(self) -> None:
+        _require_string(self.platform, "system status platform")
+        _require_string(self.os_id, "system status os_id")
+        _require_string(self.os_like, "system status os_like")
+        _require_non_empty_string(self.pretty_name, "system status pretty_name")
+        _require_bool(self.is_root, "system status is_root")
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -63,6 +90,11 @@ class PackageManager:
     command: str | None
     supported: bool
 
+    def __post_init__(self) -> None:
+        _require_non_empty_string(self.name, "package manager name")
+        _require_nullable_non_empty_string(self.command, "package manager command")
+        _require_bool(self.supported, "package manager supported")
+
     def to_dict(self) -> dict[str, object]:
         return {
             "name": self.name,
@@ -76,6 +108,11 @@ class InstallPlanItem:
     tool: str
     package: str
     manager: str
+
+    def __post_init__(self) -> None:
+        _require_non_empty_string(self.tool, "install plan item tool")
+        _require_non_empty_string(self.package, "install plan item package")
+        _require_non_empty_string(self.manager, "install plan item manager")
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -93,6 +130,13 @@ class GitStatus:
     user_name: str
     user_email: str
 
+    def __post_init__(self) -> None:
+        _require_bool(self.installed, "git status installed")
+        _require_bool(self.is_repo, "git status is_repo")
+        _require_string(self.branch, "git status branch")
+        _require_string(self.user_name, "git status user_name")
+        _require_string(self.user_email, "git status user_email")
+
     def to_dict(self) -> dict[str, object]:
         return {
             "installed": self.installed,
@@ -101,6 +145,26 @@ class GitStatus:
             "user_name": self.user_name,
             "user_email": self.user_email,
         }
+
+
+def _require_string(value: object, label: str) -> None:
+    if not isinstance(value, str):
+        raise ValueError(f"{label} must be a string")
+
+
+def _require_non_empty_string(value: object, label: str) -> None:
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"{label} must be a non-empty string")
+
+
+def _require_nullable_non_empty_string(value: object, label: str) -> None:
+    if value is not None and (not isinstance(value, str) or not value):
+        raise ValueError(f"{label} must be a non-empty string or null")
+
+
+def _require_bool(value: object, label: str) -> None:
+    if not isinstance(value, bool):
+        raise ValueError(f"{label} must be a boolean")
 
 
 def collect_status() -> list[ToolStatus]:
@@ -229,17 +293,7 @@ def _failed_install_result(command: list[str], returncode: int, stderr: str) -> 
 
 
 def _tool_status_payload(statuses: list[ToolStatus]) -> list[dict[str, object]]:
-    return [
-        {
-            "name": status.name,
-            "present": status.present,
-            "version": status.version,
-            "note": status.note,
-            "level": status.level,
-            "install_package": status.install_package,
-        }
-        for status in statuses
-    ]
+    return [status.to_dict() for status in statuses]
 
 
 def _env_payload(
