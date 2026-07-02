@@ -992,6 +992,19 @@ def _check_governance_last_verification(state: dict[str, object], rel: str, repo
             rel,
         )
         return
+    for summary_key, severity in (("errors", "error"), ("warnings", "warning")):
+        finding_messages = [
+            finding["message"]
+            for finding in last_verification["findings"]
+            if finding["severity"] == severity
+        ]
+        if last_verification[summary_key] != finding_messages:
+            report.add_error(
+                "state_last_verification_summary_mismatch",
+                f"governance state last_verification {summary_key} must match {severity} finding messages",
+                rel,
+            )
+            return
     checked_at = last_verification.get("checked_at")
     if not isinstance(checked_at, str) or not checked_at:
         report.add_error(
