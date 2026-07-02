@@ -2263,6 +2263,31 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual("product-structuring", payload["state"]["phase"])
             self.assertEqual("initialized", payload["state"]["phase_history"][0]["from_phase"])
             self.assertEqual("product-structuring", payload["state"]["phase_history"][0]["gate"])
+            self.assertIn(
+                {
+                    "id": "advance-design-derivation-check",
+                    "kind": "preflight",
+                    "phase": "design-derivation",
+                    "workflow": "docs/agent-workflow/workflow-pack/workflows/04-design-derivation.md",
+                    "skills": [
+                        "designing-system-architecture",
+                        "designing-ui-interactions",
+                        "designing-api-contracts",
+                        "designing-backend-modules",
+                        "designing-data-models",
+                        "capturing-architecture-decisions",
+                        "designing-frontend-modules",
+                        "designing-test-strategy",
+                        "planning-implementation-work",
+                        "verifying-governance-docs",
+                    ],
+                    "command": "bin/governance advance design-derivation . --check --json",
+                    "writes_state": False,
+                    "requires": "current phase is the previous workflow phase and the gate can pass",
+                    "description": "preflight advance from product structuring into design derivation",
+                },
+                payload["next_actions"],
+            )
 
     def test_advance_rejects_duplicate_current_phase_without_writing_history(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -2341,6 +2366,7 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual("initialized", payload["would_state"]["phase_history"][0]["from_phase"])
             self.assertEqual("product-structuring", payload["would_state"]["phase_history"][0]["gate"])
             self.assertEqual(state_before, state_path.read_text(encoding="utf-8"))
+            self.assertNotIn("next_actions", payload)
 
     def test_advance_check_json_rejects_blocked_state_temp_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -2954,6 +2980,20 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual("ready_for_structuring", manifest["import"]["status"])
             self.assertEqual("manual-reviewed-markdown", manifest["import"]["conversion_method"])
             self.assertTrue(manifest["import"]["can_derive_design"])
+            self.assertIn(
+                {
+                    "id": "advance-product-structuring-check",
+                    "kind": "preflight",
+                    "phase": "product-structuring",
+                    "workflow": "docs/agent-workflow/workflow-pack/workflows/03-product-structuring.md",
+                    "skills": ["structuring-product-requirements", "verifying-governance-docs"],
+                    "command": "bin/governance advance product-structuring . --check --json",
+                    "writes_state": False,
+                    "requires": "current phase is the previous workflow phase and the gate can pass",
+                    "description": "preflight advance from initialization into product structuring",
+                },
+                payload["next_actions"],
+            )
             self.assertIn("- Import status: `ready_for_structuring`", (target / "docs/product/core/product-meta.md").read_text(encoding="utf-8"))
             self.assertIn("| U-001 | Product Archiving |", (target / "docs/unresolved.md").read_text(encoding="utf-8"))
             self.assertIn("| resolved |", (target / "docs/unresolved.md").read_text(encoding="utf-8"))
@@ -3025,6 +3065,7 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual(manifest_before, manifest_path.read_text(encoding="utf-8"))
             self.assertEqual(unresolved_before, unresolved_path.read_text(encoding="utf-8"))
             self.assertEqual(state_before, state_path.read_text(encoding="utf-8"))
+            self.assertNotIn("next_actions", payload)
 
     def test_gate_design_derivation_requires_product_chapter(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

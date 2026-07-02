@@ -10,9 +10,11 @@ from typing import Any
 try:
     from .gates import GATE_NAMES, evaluate_gate
     from .state import STATE_REL, StateFileError, load_state, save_state, utc_now
+    from .workflow_actions import next_actions_payload
 except ImportError:  # pragma: no cover - direct script execution
     from gates import GATE_NAMES, evaluate_gate
     from state import STATE_REL, StateFileError, load_state, save_state, utc_now
+    from workflow_actions import next_actions_payload
 
 
 PHASE_NAMES = GATE_NAMES
@@ -265,7 +267,10 @@ def main() -> int:
     else:
         result = advance_phase(Path(args.target), args.phase)
     if args.json:
-        print(json.dumps(result.to_dict(), ensure_ascii=False, indent=2, sort_keys=True))
+        payload = result.to_dict()
+        if result.ok and result.advanced and not args.check:
+            payload["next_actions"] = next_actions_payload(result.state)
+        print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
         return 0 if result.ok else 1
     if args.check and result.ok:
         print(f"Advance preflight passed: {args.phase}")

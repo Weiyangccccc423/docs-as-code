@@ -26,7 +26,7 @@ Turn a preserved PRD into navigable product truth without changing its meaning.
    bin/governance advance product-structuring <target> --json
    ```
 
-   Stop on `ok: false` and repair by `requirements[].code`.
+   Stop on `ok: false` and repair by `requirements[].code`. When the write command succeeds, keep the returned `next_actions` for later, but finish this phase's authored product chapters before running the next transition.
 
 2. Read `core/source/source-manifest.json`.
 3. Stop if `can_derive_design` is not true or the manifest hash does not verify.

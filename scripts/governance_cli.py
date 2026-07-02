@@ -490,7 +490,10 @@ def _cmd_advance(args: argparse.Namespace) -> int:
     else:
         result = advance_phase(target, args.phase)
     if args.json:
-        _print_json(result.to_dict())
+        payload = result.to_dict()
+        if result.ok and result.advanced and not args.check:
+            payload["next_actions"] = next_actions_payload(result.state)
+        _print_json(payload)
         return 0 if result.ok else 1
     if args.check and result.ok:
         print(f"Advance preflight passed: {args.phase}")
@@ -516,6 +519,8 @@ def _cmd_product_mark_ready(args: argparse.Namespace) -> int:
     else:
         result = mark_product_import_ready(target, method=args.method, reviewed=args.reviewed)
     payload = result.to_dict()
+    if result.ok and not args.check:
+        payload["next_actions"] = next_actions_payload(result.state)
     if args.json:
         _print_json(payload)
         return 0 if result.ok else 1

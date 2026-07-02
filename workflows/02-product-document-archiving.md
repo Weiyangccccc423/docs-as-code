@@ -35,7 +35,7 @@ Load:
    bin/governance product mark-ready <target> --reviewed --method manual-reviewed-markdown --json
    ```
 
-   The `--check` command reports `would_update` without writing files. The write command updates `source-manifest.json`, refreshes `product-meta.md`, records state, and marks the bootstrap conversion blocker `U-001` as `resolved`.
+   The `--check` command reports `would_update` without writing files. The write command updates `source-manifest.json`, refreshes `product-meta.md`, records state, marks the bootstrap conversion blocker `U-001` as `resolved`, and returns `next_actions` for the product-structuring transition.
 
 ## Recommended Conversion Rules
 

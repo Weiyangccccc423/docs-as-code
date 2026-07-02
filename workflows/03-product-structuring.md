@@ -24,6 +24,8 @@ Load:
    bin/governance advance product-structuring <target> --json
    ```
 
+   The write command records the phase transition and returns `next_actions` for the next workflow transition. Do not follow those later actions until this phase's product chapters and verification requirements are complete.
+
 2. Select only the product chapters that the source document supports. Use the deterministic scaffold to create selected files, update `docs/product/README.md`, and link them from `product-meta.md`:
 
    ```bash

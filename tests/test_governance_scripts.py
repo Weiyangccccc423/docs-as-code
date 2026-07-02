@@ -7181,6 +7181,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertTrue(mark_ready_check_payload["check"])
             self.assertEqual([], mark_ready_check_payload["updated"])
             self.assertIn("docs/product/core/source/source-manifest.json", mark_ready_check_payload["would_update"])
+            self.assertNotIn("next_actions", mark_ready_check_payload)
             manifest = json.loads((root / "docs/product/core/source/source-manifest.json").read_text(encoding="utf-8"))
             self.assertEqual("conversion_required", manifest["import"]["status"])
 
@@ -7189,6 +7190,11 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertTrue(mark_ready_payload["ok"])
             self.assertEqual(str(root.resolve()), mark_ready_payload["target"])
             self.assertTrue(mark_ready_payload["conversion_blocker_resolved"])
+            self.assertEqual("advance-product-structuring-check", mark_ready_payload["next_actions"][0]["id"])
+            self.assertEqual(
+                "bin/governance advance product-structuring . --check --json",
+                mark_ready_payload["next_actions"][0]["command"],
+            )
 
             verify_result, verify_payload = run_direct("verify_governance.py", ".", "--json")
             self.assertEqual(0, verify_result.returncode)
@@ -7213,12 +7219,18 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertFalse(advance_check_payload["advanced"])
             self.assertTrue(advance_check_payload["would_advance"])
             self.assertEqual("initialized", load_state(root)["phase"])
+            self.assertNotIn("next_actions", advance_check_payload)
 
             advance_result, advance_payload = run_direct("phases.py", "product-structuring", ".", "--json")
             self.assertEqual(0, advance_result.returncode)
             self.assertTrue(advance_payload["ok"])
             self.assertTrue(advance_payload["advanced"])
             self.assertEqual("product-structuring", advance_payload["state"]["phase"])
+            self.assertEqual("advance-design-derivation-check", advance_payload["next_actions"][0]["id"])
+            self.assertEqual(
+                "bin/governance advance design-derivation . --check --json",
+                advance_payload["next_actions"][0]["command"],
+            )
 
             scaffold_check, scaffold_check_payload = run_direct(
                 "scaffold.py",
@@ -7284,6 +7296,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertTrue(payload["conversion_blocker_resolved"])
             self.assertIn("docs/product/core/source/source-manifest.json", payload["updated"])
             self.assertIn(".governance/state.json", payload["updated"])
+            self.assertEqual("advance-product-structuring-check", payload["next_actions"][0]["id"])
             self.assertEqual("ready_for_structuring", manifest["import"]["status"])
             self.assertTrue(manifest["import"]["can_derive_design"])
             self.assertEqual("ready_for_structuring", state["product_import_status"])
