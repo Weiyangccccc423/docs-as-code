@@ -1378,6 +1378,87 @@ class GovernanceScriptsTest(unittest.TestCase):
                         [item.to_dict() for item in report.findings],
                     )
 
+    def test_verify_reports_governance_state_product_import_status_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            state_path = root / ".governance/state.json"
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            state["product_import_status"] = "conversion_required"
+            state_path.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
+
+            report = verify(root)
+
+            message = "governance state product_import_status must match product source manifest import.status"
+            self.assertIn(message, report.errors)
+            self.assertIn(
+                {
+                    "code": "state_product_import_status_mismatch",
+                    "severity": "error",
+                    "path": ".governance/state.json",
+                    "message": message,
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_governance_state_archived_product_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            state_path = root / ".governance/state.json"
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            state["archived_product"] = "docs/product/core/source/other.md"
+            state_path.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
+
+            report = verify(root)
+
+            message = "governance state archived_product must match product source manifest archive.path"
+            self.assertIn(message, report.errors)
+            self.assertIn(
+                {
+                    "code": "state_product_archive_mismatch",
+                    "severity": "error",
+                    "path": ".governance/state.json",
+                    "message": message,
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_governance_state_product_can_derive_design_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            state_path = root / ".governance/state.json"
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            state["product_can_derive_design"] = False
+            state_path.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
+
+            report = verify(root)
+
+            message = (
+                "governance state product_can_derive_design must match "
+                "product source manifest import.can_derive_design"
+            )
+            self.assertIn(message, report.errors)
+            self.assertIn(
+                {
+                    "code": "state_product_import_can_derive_design_mismatch",
+                    "severity": "error",
+                    "path": ".governance/state.json",
+                    "message": message,
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_non_monotonic_governance_phase_history(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

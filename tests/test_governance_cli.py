@@ -2207,20 +2207,23 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual("conversion_required", state["product_import_status"])
 
             (target / "docs/product/core/PRD.md").write_text("# Converted Product\n", encoding="utf-8")
-            manifest_path = target / "docs/product/core/source/source-manifest.json"
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-            manifest["import"]["status"] = "ready_for_structuring"
-            manifest["import"]["conversion_method"] = "manual-reviewed-markdown"
-            manifest["import"]["can_derive_design"] = True
-            manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-            unresolved = target / "docs/unresolved.md"
-            unresolved.write_text(
-                unresolved.read_text(encoding="utf-8").replace(
-                    "product structuring/design derivation",
-                    "resolved",
-                ),
-                encoding="utf-8",
+            mark_ready = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "product",
+                    "mark-ready",
+                    str(target),
+                    "--reviewed",
+                    "--method",
+                    "manual-reviewed-markdown",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
             )
+            self.assertEqual(0, mark_ready.returncode, mark_ready.stderr)
 
             gate_result = subprocess.run(
                 [sys.executable, str(CLI), "gate", "product-structuring", str(target), "--json"],

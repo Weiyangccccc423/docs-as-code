@@ -650,6 +650,7 @@ def _check_governance_state(root: Path, report: VerificationReport) -> None:
     if not phase_is_valid:
         report.add_error("state_phase_invalid", f"governance state phase is invalid: {phase}", rel)
 
+    _check_governance_state_product_import_cache(root, state, rel, report)
     _check_governance_last_verification(state, rel, report)
 
     history = state.get("phase_history")
@@ -805,6 +806,61 @@ def _check_governance_state(root: Path, report: VerificationReport) -> None:
                 "governance state last_gate checked_at must match latest phase_history advanced_at",
                 rel,
             )
+
+
+def _check_governance_state_product_import_cache(
+    root: Path,
+    state: dict[str, object],
+    rel: str,
+    report: VerificationReport,
+) -> None:
+    manifest = _load_product_source_manifest_object(root)
+    if manifest is None:
+        return
+    archive = manifest.get("archive")
+    imported = manifest.get("import")
+    if not isinstance(archive, dict) or not isinstance(imported, dict):
+        return
+
+    expected_status = imported.get("status")
+    if isinstance(expected_status, str) and state.get("product_import_status") != expected_status:
+        report.add_error(
+            "state_product_import_status_mismatch",
+            "governance state product_import_status must match product source manifest import.status",
+            rel,
+        )
+        return
+    expected_can_derive_design = imported.get("can_derive_design")
+    if (
+        isinstance(expected_can_derive_design, bool)
+        and state.get("product_can_derive_design") != expected_can_derive_design
+    ):
+        report.add_error(
+            "state_product_import_can_derive_design_mismatch",
+            "governance state product_can_derive_design must match product source manifest import.can_derive_design",
+            rel,
+        )
+        return
+    expected_archived_product = archive.get("path")
+    if (isinstance(expected_archived_product, str) or expected_archived_product is None) and state.get(
+        "archived_product"
+    ) != expected_archived_product:
+        report.add_error(
+            "state_product_archive_mismatch",
+            "governance state archived_product must match product source manifest archive.path",
+            rel,
+        )
+
+
+def _load_product_source_manifest_object(root: Path) -> dict[str, object] | None:
+    manifest_path = root / "docs/product/core/source/source-manifest.json"
+    if not manifest_path.exists() or not manifest_path.is_file():
+        return None
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    return manifest if isinstance(manifest, dict) else None
 
 
 def _check_governance_last_verification(state: dict[str, object], rel: str, report: VerificationReport) -> None:
