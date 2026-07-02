@@ -677,6 +677,7 @@ def _check_governance_state(root: Path, report: VerificationReport) -> None:
 
     expected_from_phase = "initialized"
     previous_index = WORKFLOW_PHASE_ORDER.index(expected_from_phase)
+    previous_advanced_at: datetime | None = None
     latest_phase = ""
     latest_history_item: dict[str, object] | None = None
     for item in history:
@@ -745,7 +746,20 @@ def _check_governance_state(root: Path, report: VerificationReport) -> None:
                 rel,
             )
             return
+        current_advanced_at = _parse_iso_timestamp_with_timezone(advanced_at)
+        if (
+            previous_advanced_at is not None
+            and current_advanced_at is not None
+            and current_advanced_at < previous_advanced_at
+        ):
+            report.add_error(
+                "state_phase_history_advanced_at_order",
+                "governance state phase_history advanced_at must not move backward",
+                rel,
+            )
+            return
         previous_index = item_index
+        previous_advanced_at = current_advanced_at
         latest_phase = item_phase
         latest_history_item = item
         expected_from_phase = item_phase
@@ -947,13 +961,19 @@ def _check_governance_last_verification(state: dict[str, object], rel: str, repo
 
 
 def _is_iso_timestamp_with_timezone(value: str) -> bool:
+    return _parse_iso_timestamp_with_timezone(value) is not None
+
+
+def _parse_iso_timestamp_with_timezone(value: str) -> datetime | None:
     if "T" not in value:
-        return False
+        return None
     try:
         parsed = datetime.fromisoformat(value)
     except ValueError:
-        return False
-    return parsed.tzinfo is not None and parsed.utcoffset() is not None
+        return None
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        return None
+    return parsed
 
 
 def _check_reserved_markers(root: Path, path: Path, report: VerificationReport) -> None:

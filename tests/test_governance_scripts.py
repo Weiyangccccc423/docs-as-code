@@ -1707,6 +1707,51 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_governance_phase_history_advanced_at_order(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            state_path = root / ".governance/state.json"
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            state["phase"] = "design-derivation"
+            state["phase_history"] = [
+                {
+                    "phase": "product-structuring",
+                    "from_phase": "initialized",
+                    "gate": "product-structuring",
+                    "advanced_at": "2026-01-01T00:01:00+00:00",
+                },
+                {
+                    "phase": "design-derivation",
+                    "from_phase": "product-structuring",
+                    "gate": "design-derivation",
+                    "advanced_at": "2026-01-01T00:00:00+00:00",
+                },
+            ]
+            state["last_gate"] = {
+                "name": "design-derivation",
+                "ok": True,
+                "checked_at": "2026-01-01T00:00:00+00:00",
+            }
+            state_path.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
+
+            report = verify(root)
+
+            message = "governance state phase_history advanced_at must not move backward"
+            self.assertIn(message, report.errors)
+            self.assertIn(
+                {
+                    "code": "state_phase_history_advanced_at_order",
+                    "severity": "error",
+                    "path": ".governance/state.json",
+                    "message": message,
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_governance_state_phase_history_current_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
