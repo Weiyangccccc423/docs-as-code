@@ -2204,7 +2204,7 @@ def _strip_fenced_markdown_code(text: str) -> str:
 
 def _check_workflow_pack_file_list(root: Path, findings: list[PackFinding]) -> None:
     copied = [path.as_posix() for path in _iter_workflow_pack_files(root)]
-    required = list(WORKFLOW_PACK_REQUIRED_PATHS)
+    required = list(_workflow_pack_required_paths(root, findings))
     copied_set = set(copied)
     required_set = set(required)
     for rel in sorted(required_set - copied_set):
@@ -2231,6 +2231,45 @@ def _check_workflow_pack_file_list(root: Path, findings: list[PackFinding]) -> N
                 "docs/agent-workflow/workflow-pack/manifest.json",
             )
         )
+
+
+def _workflow_pack_required_paths(root: Path, findings: list[PackFinding]) -> tuple[str, ...]:
+    rel = "scripts/verify_governance.py"
+    path = root / rel
+    if not path.is_file():
+        return tuple(WORKFLOW_PACK_REQUIRED_PATHS)
+    try:
+        source = path.read_text(encoding="utf-8")
+        tree = ast.parse(source, filename=rel)
+    except (SyntaxError, UnicodeDecodeError, OSError):
+        return tuple(WORKFLOW_PACK_REQUIRED_PATHS)
+    value = _top_level_string_sequence(tree, "WORKFLOW_PACK_REQUIRED_PATHS")
+    if value is None:
+        findings.append(
+            PackFinding(
+                "pack_workflow_pack_required_paths_not_literal",
+                f"{rel} must define WORKFLOW_PACK_REQUIRED_PATHS as a literal string list or tuple",
+                rel,
+            )
+        )
+        return tuple(WORKFLOW_PACK_REQUIRED_PATHS)
+    return value
+
+
+def _top_level_string_sequence(tree: ast.AST, name: str) -> tuple[str, ...] | None:
+    if not isinstance(tree, ast.Module):
+        return None
+    for node in tree.body:
+        value: ast.AST | None = None
+        if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+            if node.targets[0].id == name:
+                value = node.value
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name) and node.target.id == name:
+            value = node.value
+        if value is None:
+            continue
+        return _ast_string_sequence(value)
+    return None
 
 
 def _iter_workflow_pack_files(root: Path) -> list[Path]:

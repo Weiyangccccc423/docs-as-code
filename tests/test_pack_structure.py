@@ -1037,6 +1037,56 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_verifier_workflow_pack_required_path_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/verify_governance.py"
+            text = script.read_text(encoding="utf-8")
+            self.assertIn('    "references/runtime-strategy.md",\n', text)
+            script.write_text(text.replace('    "references/runtime-strategy.md",\n', "", 1), encoding="utf-8")
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_snapshot_unverified_file"
+                    and finding.path == "references/runtime-strategy.md"
+                    and "references/runtime-strategy.md" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_non_literal_workflow_pack_required_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/verify_governance.py"
+            text = script.read_text(encoding="utf-8")
+            original = "WORKFLOW_PACK_REQUIRED_PATHS = (\n"
+            self.assertIn(original, text)
+            script.write_text(text.replace(original, "WORKFLOW_PACK_REQUIRED_PATHS = tuple(\n", 1), encoding="utf-8")
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_workflow_pack_required_paths_not_literal"
+                    and finding.path == "scripts/verify_governance.py"
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_missing_governance_cli_command(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
