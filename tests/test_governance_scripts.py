@@ -4683,8 +4683,8 @@ class GovernanceScriptsTest(unittest.TestCase):
             makefile = root / "Makefile"
             makefile.write_text(
                 makefile.read_text(encoding="utf-8").replace(
-                    "\tbin/governance verify .\n",
-                    "\tbin/governance status .\n",
+                    "\t@bin/governance verify .\n",
+                    "\t@bin/governance status .\n",
                     1,
                 ),
                 encoding="utf-8",
@@ -4716,8 +4716,8 @@ class GovernanceScriptsTest(unittest.TestCase):
             makefile = root / "Makefile"
             makefile.write_text(
                 makefile.read_text(encoding="utf-8").replace(
-                    "\tbin/governance verify . --check --json\n",
-                    "\tbin/governance verify . --json\n",
+                    "\t@bin/governance verify . --check --json\n",
+                    "\t@bin/governance verify . --json\n",
                     1,
                 ),
                 encoding="utf-8",
@@ -4749,8 +4749,8 @@ class GovernanceScriptsTest(unittest.TestCase):
             makefile = root / "Makefile"
             makefile.write_text(
                 makefile.read_text(encoding="utf-8").replace(
-                    "\tbin/governance status . --json\n",
-                    "\tbin/governance status .\n",
+                    "\t@bin/governance status . --json\n",
+                    "\t@bin/governance status .\n",
                     1,
                 ),
                 encoding="utf-8",
@@ -4782,8 +4782,8 @@ class GovernanceScriptsTest(unittest.TestCase):
             makefile = root / "Makefile"
             makefile.write_text(
                 makefile.read_text(encoding="utf-8").replace(
-                    "\tbin/governance env --repair --check --target . --json\n",
-                    "\tbin/governance env --repair --target . --json\n",
+                    "\t@bin/governance env --repair --check --target . --json\n",
+                    "\t@bin/governance env --repair --target . --json\n",
                     1,
                 ),
                 encoding="utf-8",
@@ -7184,7 +7184,7 @@ class GovernanceScriptsTest(unittest.TestCase):
         self.assertEqual(len(bootstrap_module.TARGET_LOCAL_COMMANDS), len(payload))
         for index, (target, recipe, description, writes_state) in enumerate(bootstrap_module.TARGET_LOCAL_COMMANDS):
             self.assertIn(f"- `make {target}` - {description}.", readme)
-            self.assertIn(f"{target}:\n\t{recipe}", makefile)
+            self.assertIn(f"{target}:\n\t@{recipe}", makefile)
             self.assertEqual(
                 {
                     "make_target": target,

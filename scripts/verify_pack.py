@@ -2441,6 +2441,8 @@ def _makefile_target_recipes(text: str) -> dict[str, list[str]]:
     for line in text.splitlines():
         if line and line[0].isspace():
             recipe = line.strip()
+            if recipe.startswith("@"):
+                recipe = recipe[1:].lstrip()
             if current_targets and recipe and not recipe.startswith("#"):
                 for target in current_targets:
                     target_recipes[target].append(recipe)

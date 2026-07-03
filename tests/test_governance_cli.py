@@ -2,6 +2,7 @@ import json
 import contextlib
 import importlib
 import io
+import os
 import shutil
 import subprocess
 import sys
@@ -2416,6 +2417,70 @@ class GovernanceCliTest(unittest.TestCase):
                 },
                 payload["next_actions"],
             )
+
+    def test_init_next_actions_execute_from_reported_cwd(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            init_payload = json.loads(init_result.stdout)
+            preflight_action, apply_action = init_payload["next_actions"]
+
+            preflight = subprocess.run(
+                preflight_action["argv"],
+                cwd=preflight_action["cwd"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, preflight.returncode, preflight.stderr)
+            preflight_payload = json.loads(preflight.stdout)
+            self.assertTrue(preflight_payload["ok"])
+            self.assertTrue(preflight_payload["check"])
+            self.assertTrue(preflight_payload["would_advance"])
+            self.assertFalse(preflight_payload["advanced"])
+            self.assertEqual("product-structuring", preflight_payload["phase"])
+
+            applied = subprocess.run(
+                apply_action["argv"],
+                cwd=apply_action["cwd"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, applied.returncode, applied.stderr)
+            applied_payload = json.loads(applied.stdout)
+            self.assertTrue(applied_payload["ok"])
+            self.assertFalse(applied_payload["check"])
+            self.assertTrue(applied_payload["advanced"])
+            self.assertEqual("product-structuring", applied_payload["state"]["phase"])
+
+            status_action = next(
+                action for action in applied_payload["local_commands"] if action["make_target"] == "governance-status"
+            )
+            agent_env = os.environ.copy()
+            agent_env.pop("MAKEFLAGS", None)
+            agent_env.pop("MAKELEVEL", None)
+            status = subprocess.run(
+                status_action["argv"],
+                cwd=status_action["cwd"],
+                env=agent_env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, status.returncode, status.stderr)
+            status_payload = json.loads(status.stdout)
+            self.assertTrue(status_payload["ok"])
+            self.assertEqual("product-structuring", status_payload["state"]["phase"])
 
     def test_gate_json_reports_invalid_state_with_gate_shape(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -116,7 +116,7 @@ def _target_local_commands_readme() -> str:
 def _target_makefile() -> str:
     targets = [target for target, _recipe, _description, _writes_state in TARGET_LOCAL_COMMANDS]
     rules = "\n\n".join(
-        f"{target}:\n\t{recipe}"
+        f"{target}:\n\t@{recipe}"
         for target, recipe, _description, _writes_state in TARGET_LOCAL_COMMANDS
     )
     return f".PHONY: {' '.join(targets)}\n\n{rules}\n"
