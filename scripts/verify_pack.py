@@ -753,6 +753,13 @@ DESIGN_REFERENCE_DOC_REQUIREMENTS = (
         ),
     ),
     (
+        "references/backend-operability-checklist.md",
+        (
+            "workflows/04-design-derivation.md",
+            "skills/designing-backend-modules/SKILL.md",
+        ),
+    ),
+    (
         "references/security-design-checklist.md",
         (
             "workflows/04-design-derivation.md",
@@ -879,6 +886,47 @@ METHOD_REFERENCE_BASELINES = {
         ),
         ("Observability and Security", ("## Observability and Security", "auth boundaries")),
         ("Acceptance and Tests", ("## Acceptance and Tests", "unit, integration, and contract tests")),
+    ),
+    "references/backend-operability-checklist.md": (
+        (
+            "Service Levels",
+            (
+                "## Service Levels",
+                "SLIs and SLOs",
+                "https://sre.google/sre-book/service-level-objectives/",
+            ),
+        ),
+        (
+            "Observability Signals",
+            (
+                "## Observability Signals",
+                "logs, metrics, traces, and audit events",
+                "https://opentelemetry.io/docs/concepts/signals/",
+            ),
+        ),
+        (
+            "Configuration and Secrets",
+            (
+                "## Configuration and Secrets",
+                "secrets, credentials, tokens, rotation expectations",
+                "https://12factor.net/config",
+            ),
+        ),
+        (
+            "Runtime Controls",
+            (
+                "## Runtime Controls",
+                "timeouts, retries, backoff, circuit breakers, rate limits, quotas",
+            ),
+        ),
+        (
+            "Operational Logs",
+            (
+                "## Operational Logs",
+                "logs treated as event streams",
+                "https://12factor.net/logs",
+            ),
+        ),
     ),
     "references/security-design-checklist.md": (
         (

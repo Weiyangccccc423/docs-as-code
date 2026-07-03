@@ -60,6 +60,7 @@ Create reliable project governance before implementation starts:
 - `references/architecture-quality-checklist.md`: architecture-description, quality-model, scenario, runtime, tradeoff, and implementation-readiness checklist.
 - `references/api-design-checklist.md`: API contract, HTTP semantics, error, idempotency, collection, compatibility, and traceability checklist.
 - `references/backend-design-checklist.md`: backend and data-design completion checklist.
+- `references/backend-operability-checklist.md`: backend service-level, observability, configuration, runtime-control, logging, and runbook checklist.
 - `references/security-design-checklist.md`: security, abuse-case, and supply-chain design checklist.
 - `references/runtime-strategy.md`: core runtime, optional tooling, and repair policy.
 
