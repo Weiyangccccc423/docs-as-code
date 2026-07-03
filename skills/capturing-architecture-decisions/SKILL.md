@@ -7,6 +7,8 @@ description: Use when recording cross-module, hard-to-reverse, high-cost, repeat
 
 Use ADRs for decision history, not general design notes.
 
+Read `references/architecture-methods.md` before creating ADRs. Use its ADR guidance as the minimum method baseline.
+
 ## ADR Trigger
 
 Create an ADR when a decision:

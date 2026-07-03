@@ -491,6 +491,7 @@ DESIGN_REFERENCE_DOC_REQUIREMENTS = (
         "references/architecture-methods.md",
         (
             "workflows/04-design-derivation.md",
+            "skills/capturing-architecture-decisions/SKILL.md",
             "skills/designing-api-contracts/SKILL.md",
             "skills/designing-system-architecture/SKILL.md",
         ),
