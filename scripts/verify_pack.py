@@ -478,6 +478,13 @@ TARGET_MAKEFILE_DOC_PATHS = (
 TARGET_MAKEFILE_REQUIRED_COMMANDS = tuple(
     f"make {target}" for target, _recipe, _description, _writes_state in TARGET_LOCAL_COMMANDS
 )
+TARGET_LOCAL_COMMAND_REQUIRED_TARGETS = (
+    "verify-governance",
+    "verify-check",
+    "governance-status",
+    "check-env",
+    "repair-env-check",
+)
 ENV_REPAIR_DOC_PATHS = (
     "README.md",
     "references/runtime-strategy.md",
@@ -1097,6 +1104,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_runtime_file_list_alignment(root, findings)
     _check_governance_cli_commands(root, findings)
     _check_runtime_continuation_calls(root, findings)
+    _check_target_local_command_source(root, findings)
     _check_target_local_command_schema(root, findings)
     _check_workflow_action_schema(root, findings)
     _check_runtime_executable_bits(root, findings)
@@ -1515,6 +1523,96 @@ def _check_runtime_continuation_calls(root: Path, findings: list[PackFinding]) -
             )
 
 
+def _check_target_local_command_source(root: Path, findings: list[PackFinding]) -> None:
+    rel = BOOTSTRAP_TREE_PATH.as_posix()
+    path = root / BOOTSTRAP_TREE_PATH
+    if not path.is_file():
+        return
+    try:
+        source = path.read_text(encoding="utf-8")
+        tree = ast.parse(source, filename=rel)
+    except (SyntaxError, UnicodeDecodeError, OSError):
+        return
+    entries = _sequence_tuple_literals(_top_level_assignment_value(tree, "TARGET_LOCAL_COMMANDS"))
+    if not entries:
+        findings.append(
+            PackFinding(
+                "pack_target_local_command_source_missing",
+                "scripts/bootstrap_tree.py TARGET_LOCAL_COMMANDS must contain command tuples",
+                rel,
+            )
+        )
+        return
+    seen: set[str] = set()
+    targets: list[str] = []
+    for index, entry in enumerate(entries):
+        if len(entry.elts) != 4:
+            findings.append(
+                PackFinding(
+                    "pack_target_local_command_source_invalid",
+                    f"scripts/bootstrap_tree.py TARGET_LOCAL_COMMANDS entry {index} must have target, recipe, description, writes_state",
+                    rel,
+                )
+            )
+            continue
+        target = _ast_string_literal(entry.elts[0])
+        recipe = _ast_string_literal(entry.elts[1])
+        description = _ast_string_literal(entry.elts[2])
+        writes_state = _ast_bool_literal(entry.elts[3])
+        if not target or not re.fullmatch(r"[A-Za-z0-9_.-]+", target):
+            findings.append(
+                PackFinding(
+                    "pack_target_local_command_source_invalid",
+                    f"scripts/bootstrap_tree.py TARGET_LOCAL_COMMANDS entry {index} target must be a non-empty make target",
+                    rel,
+                )
+            )
+        elif target in seen:
+            findings.append(
+                PackFinding(
+                    "pack_target_local_command_source_invalid",
+                    f"scripts/bootstrap_tree.py TARGET_LOCAL_COMMANDS target must be unique: {target}",
+                    rel,
+                )
+            )
+        else:
+            seen.add(target)
+            targets.append(target)
+        if not recipe:
+            findings.append(
+                PackFinding(
+                    "pack_target_local_command_source_invalid",
+                    f"scripts/bootstrap_tree.py TARGET_LOCAL_COMMANDS entry {index} recipe must be a non-empty string",
+                    rel,
+                )
+            )
+        if not description:
+            findings.append(
+                PackFinding(
+                    "pack_target_local_command_source_invalid",
+                    f"scripts/bootstrap_tree.py TARGET_LOCAL_COMMANDS entry {index} description must be a non-empty string",
+                    rel,
+                )
+            )
+        if writes_state is None:
+            findings.append(
+                PackFinding(
+                    "pack_target_local_command_source_invalid",
+                    f"scripts/bootstrap_tree.py TARGET_LOCAL_COMMANDS entry {index} writes_state must be boolean",
+                    rel,
+                )
+            )
+    missing = [target for target in TARGET_LOCAL_COMMAND_REQUIRED_TARGETS if target not in targets]
+    if missing:
+        findings.append(
+            PackFinding(
+                "pack_target_local_command_source_missing",
+                f"scripts/bootstrap_tree.py TARGET_LOCAL_COMMANDS missing target(s): {', '.join(missing)}",
+                rel,
+            )
+        )
+
+
 def _check_target_local_command_schema(root: Path, findings: list[PackFinding]) -> None:
     rel = BOOTSTRAP_TREE_PATH.as_posix()
     path = root / BOOTSTRAP_TREE_PATH
@@ -1906,6 +2004,12 @@ def _sequence_dict_literals(node: ast.AST | None) -> list[ast.Dict]:
     return [element for element in node.elts if isinstance(element, ast.Dict)]
 
 
+def _sequence_tuple_literals(node: ast.AST | None) -> list[ast.Tuple | ast.List]:
+    if not isinstance(node, ast.Tuple | ast.List):
+        return []
+    return [element for element in node.elts if isinstance(element, ast.Tuple | ast.List)]
+
+
 def _dict_literal_values(node: ast.AST | None) -> list[ast.Dict]:
     if not isinstance(node, ast.Dict):
         return []
@@ -2066,6 +2170,12 @@ def _governance_cli_parser_calls(function: ast.FunctionDef) -> dict[str, set[str
 
 def _ast_string_literal(node: ast.AST) -> str | None:
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    return None
+
+
+def _ast_bool_literal(node: ast.AST) -> bool | None:
+    if isinstance(node, ast.Constant) and isinstance(node.value, bool):
         return node.value
     return None
 

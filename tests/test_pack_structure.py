@@ -593,6 +593,67 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_missing_target_local_command_source_target(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/bootstrap_tree.py"
+            script.write_text(
+                script.read_text(encoding="utf-8").replace(
+                    '    (\n        "check-env",\n        "bin/governance env --target .",\n'
+                    '        "inventory local governance tools",\n        False,\n    ),\n',
+                    "",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_target_local_command_source_missing"
+                    and finding.path == "scripts/bootstrap_tree.py"
+                    and "check-env" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_invalid_target_local_command_source_entry(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/bootstrap_tree.py"
+            script.write_text(
+                script.read_text(encoding="utf-8").replace(
+                    '        True,\n    ),\n    (\n        "verify-check",',
+                    '        "yes",\n    ),\n    (\n        "verify-check",',
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_target_local_command_source_invalid"
+                    and finding.path == "scripts/bootstrap_tree.py"
+                    and "writes_state" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_missing_target_makefile_command_doc(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
