@@ -1369,6 +1369,35 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_missing_test_strategy_reference_doc_routing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            skill = target / "skills/designing-test-strategy/SKILL.md"
+            skill.write_text(
+                skill.read_text(encoding="utf-8").replace(
+                    "`references/test-strategy-checklist.md`",
+                    "the test strategy checklist",
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_design_reference_doc_missing"
+                    and finding.path == "skills/designing-test-strategy/SKILL.md"
+                    and "references/test-strategy-checklist.md" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_missing_backend_operability_reference_baseline(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
@@ -1427,6 +1456,37 @@ class PackStructureTest(unittest.TestCase):
                     and finding.path == "references/implementation-readiness-checklist.md"
                     and "Definition of Done" in finding.message
                     and "synchronized docs" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_missing_test_strategy_reference_baseline(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            reference = target / "references/test-strategy-checklist.md"
+            reference.write_text(
+                reference.read_text(encoding="utf-8").replace(
+                    "unit tests, integration tests, contract tests, and end-to-end tests",
+                    "unit tests and end-to-end tests",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_method_reference_baseline_missing"
+                    and finding.path == "references/test-strategy-checklist.md"
+                    and "Test Portfolio" in finding.message
+                    and "contract tests" in finding.message
                     for finding in report.findings
                 )
             )

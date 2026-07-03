@@ -785,6 +785,13 @@ DESIGN_REFERENCE_DOC_REQUIREMENTS = (
             "skills/designing-test-strategy/SKILL.md",
         ),
     ),
+    (
+        "references/test-strategy-checklist.md",
+        (
+            "workflows/04-design-derivation.md",
+            "skills/designing-test-strategy/SKILL.md",
+        ),
+    ),
 )
 METHOD_REFERENCE_BASELINES = {
     "references/architecture-methods.md": (
@@ -1011,6 +1018,49 @@ METHOD_REFERENCE_BASELINES = {
         ("OWASP ASVS", ("OWASP ASVS", "https://owasp.org/www-project-application-security-verification-standard/")),
         ("OWASP API Security Top 10", ("OWASP API Security Top 10 2023", "https://owasp.org/API-Security/editions/2023/en/0x11-t10/")),
         ("OpenSSF Best Practices", ("OpenSSF Best Practices", "https://bestpractices.coreinfrastructure.org/en")),
+    ),
+    "references/test-strategy-checklist.md": (
+        (
+            "Acceptance Traceability",
+            (
+                "## Acceptance Traceability",
+                "product-defined `A-NNN` acceptance criterion",
+                "Uncovered Criteria",
+            ),
+        ),
+        (
+            "Test Portfolio",
+            (
+                "## Test Portfolio",
+                "unit tests, integration tests, contract tests, and end-to-end tests",
+                "https://martinfowler.com/bliki/TestPyramid.html",
+            ),
+        ),
+        (
+            "Automation and Feedback",
+            (
+                "## Automation and Feedback",
+                "local, deterministic, and suitable for agent execution",
+                "https://dora.dev/capabilities/test-automation/",
+            ),
+        ),
+        (
+            "Test Data and Environments",
+            (
+                "## Test Data and Environments",
+                "fixtures, seed data, cleanup, privacy constraints",
+                "https://dora.dev/capabilities/test-data-management/",
+            ),
+        ),
+        (
+            "Non-Functional Verification",
+            (
+                "## Non-Functional Verification",
+                "performance, accessibility, security, reliability, observability",
+                "https://www.w3.org/TR/WCAG22/",
+                "https://opentelemetry.io/docs/concepts/signals/",
+            ),
+        ),
     ),
 }
 PHASE_ADVANCE_DOC_PATHS = (

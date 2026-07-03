@@ -63,6 +63,7 @@ Create reliable project governance before implementation starts:
 - `references/backend-operability-checklist.md`: backend service-level, observability, configuration, runtime-control, logging, and runbook checklist.
 - `references/implementation-readiness-checklist.md`: Ready task, Definition of Done, verification, integration, agent handoff, and supply-chain evidence checklist.
 - `references/security-design-checklist.md`: security, abuse-case, and supply-chain design checklist.
+- `references/test-strategy-checklist.md`: acceptance traceability, test portfolio, automation, test data, non-functional verification, and evidence checklist.
 - `references/runtime-strategy.md`: core runtime, optional tooling, and repair policy.
 
 ## Skill Files
