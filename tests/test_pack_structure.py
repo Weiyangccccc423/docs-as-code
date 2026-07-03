@@ -528,6 +528,37 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_missing_method_reference_baseline(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            reference = target / "references/architecture-methods.md"
+            reference.write_text(
+                reference.read_text(encoding="utf-8").replace(
+                    "Reference: `https://spec.openapis.org/oas/latest.html`\n",
+                    "",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_method_reference_baseline_missing"
+                    and finding.path == "references/architecture-methods.md"
+                    and "OpenAPI" in finding.message
+                    and "https://spec.openapis.org/oas/latest.html" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_missing_data_model_reference_doc_routing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"

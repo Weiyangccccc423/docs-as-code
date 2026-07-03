@@ -505,6 +505,20 @@ DESIGN_REFERENCE_DOC_REQUIREMENTS = (
         ),
     ),
 )
+METHOD_REFERENCE_BASELINES = {
+    "references/architecture-methods.md": (
+        ("C4 Model", ("## C4 Model", "https://c4model.com/")),
+        ("arc42", ("## arc42", "https://docs.arc42.org/home/")),
+        (
+            "ADR",
+            (
+                "## ADR",
+                "https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions",
+            ),
+        ),
+        ("OpenAPI", ("## OpenAPI", "https://spec.openapis.org/oas/latest.html")),
+    ),
+}
 PHASE_ADVANCE_DOC_PATHS = (
     "README.md",
     "workflows/00-overview.md",
@@ -766,6 +780,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_target_makefile_command_docs(root, findings)
     _check_env_repair_docs(root, findings)
     _check_design_reference_docs(root, findings)
+    _check_method_reference_baselines(root, findings)
     _check_phase_order_docs(root, findings)
     _check_phase_advance_docs(root, findings)
     _check_phase_primary_skill_alignment(root, findings)
@@ -1373,6 +1388,24 @@ def _check_design_reference_docs(root: Path, findings: list[PackFinding]) -> Non
                 PackFinding(
                     "pack_design_reference_doc_missing",
                     f"{rel} must route design work through reference document: {reference}",
+                    rel,
+                )
+            )
+
+
+def _check_method_reference_baselines(root: Path, findings: list[PackFinding]) -> None:
+    for rel, baselines in METHOD_REFERENCE_BASELINES.items():
+        text = _read_utf8_text_or_none(root / rel)
+        if text is None:
+            continue
+        for label, required_phrases in baselines:
+            missing = [phrase for phrase in required_phrases if phrase not in text]
+            if not missing:
+                continue
+            findings.append(
+                PackFinding(
+                    "pack_method_reference_baseline_missing",
+                    f"{rel} must preserve {label} method baseline phrase(s): {', '.join(missing)}",
                     rel,
                 )
             )
