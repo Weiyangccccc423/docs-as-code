@@ -3394,6 +3394,20 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn("docs/product/03-goals-and-requirements.md", payload["indexed"])
             self.assertIn("docs/product/08-acceptance-criteria.md", payload["indexed"])
             self.assertIn("docs/product/core/product-meta.md", payload["indexed"])
+            self.assertIn(
+                {
+                    "make_target": "verify-check",
+                    "cwd": str(target.resolve()),
+                    "command": "make verify-check",
+                    "argv": ["make", "verify-check"],
+                    "recipe": "bin/governance verify . --check --json",
+                    "writes_state": False,
+                    "description": "run read-only JSON verification without updating state",
+                },
+                payload["local_commands"],
+            )
+            self.assertEqual("advance-product-structuring-check", payload["next_actions"][0]["id"])
+            self.assertEqual(str(target.resolve()), payload["next_actions"][0]["cwd"])
             goals = (target / "docs/product/03-goals-and-requirements.md").read_text(encoding="utf-8")
             acceptance = (target / "docs/product/08-acceptance-criteria.md").read_text(encoding="utf-8")
             product_readme = (target / "docs/product/README.md").read_text(encoding="utf-8")
@@ -3465,6 +3479,8 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn("docs/product/03-goals-and-requirements.md", payload["would_index"])
             self.assertIn("docs/product/08-acceptance-criteria.md", payload["would_index"])
             self.assertIn("docs/product/core/product-meta.md", payload["would_index"])
+            self.assertNotIn("local_commands", payload)
+            self.assertNotIn("next_actions", payload)
             self.assertFalse((target / "docs/product/03-goals-and-requirements.md").exists())
             self.assertFalse((target / "docs/product/08-acceptance-criteria.md").exists())
             self.assertEqual(readme_before, readme_path.read_text(encoding="utf-8"))
@@ -3560,6 +3576,8 @@ class GovernanceCliTest(unittest.TestCase):
             payload = json.loads(result.stdout)
             self.assertFalse(payload["ok"])
             self.assertIn("product-structuring gate failed", payload["errors"])
+            self.assertNotIn("local_commands", payload)
+            self.assertNotIn("next_actions", payload)
             finding_codes = {
                 finding["code"]
                 for finding in payload["gate"]["verification"]["findings"]
@@ -4063,6 +4081,20 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn("docs/api/endpoints/01-endpoint-contract.md", payload["created"])
             self.assertIn("docs/development/03-verification-log.md", payload["created"])
             self.assertTrue((target / "docs/backend/02-data-model.md").exists())
+            self.assertIn(
+                {
+                    "make_target": "governance-status",
+                    "cwd": str(target.resolve()),
+                    "command": "make governance-status",
+                    "argv": ["make", "governance-status"],
+                    "recipe": "bin/governance status . --json",
+                    "writes_state": False,
+                    "description": "print workflow state as JSON",
+                },
+                payload["local_commands"],
+            )
+            self.assertEqual("advance-product-structuring-check", payload["next_actions"][0]["id"])
+            self.assertEqual(str(target.resolve()), payload["next_actions"][0]["cwd"])
             self.assertIn("01-system-context.md", (target / "docs/architecture/README.md").read_text(encoding="utf-8"))
             self.assertIn("00-conventions.md", (target / "docs/api/README.md").read_text(encoding="utf-8"))
             self.assertIn("03-verification-log.md", (target / "docs/development/README.md").read_text(encoding="utf-8"))
@@ -4150,6 +4182,8 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn("docs/architecture/01-system-context.md", payload["would_index"])
             self.assertIn("docs/api/endpoints/01-endpoint-contract.md", payload["would_index"])
             self.assertIn("docs/development/03-verification-log.md", payload["would_index"])
+            self.assertNotIn("local_commands", payload)
+            self.assertNotIn("next_actions", payload)
             self.assertFalse((target / "docs/architecture/01-system-context.md").exists())
             self.assertFalse((target / "docs/api/endpoints/01-endpoint-contract.md").exists())
             self.assertFalse((target / "docs/development/03-verification-log.md").exists())

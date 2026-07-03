@@ -28,7 +28,7 @@ Read `references/backend-design-checklist.md` before writing backend design docs
 
    Stop on `ok: false` and repair by `requirements[].code`.
 
-2. Run `bin/governance scaffold design <target> --check --json` when standard backend files are missing, then run it without `--check` when the plan is correct.
+2. Run `bin/governance scaffold design <target> --check --json` when standard backend files are missing, then run it without `--check` when the plan is correct; use returned `local_commands` for checks and keep returned `next_actions` for later.
 3. Read `references/backend-design-checklist.md`.
 4. Replace scaffold placeholders in backend files with product-derived content.
 5. Identify module responsibility and boundaries.

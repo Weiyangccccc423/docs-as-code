@@ -39,7 +39,7 @@ make repair-env-check
 
 Machine-readable `local_commands` entries include `cwd`, a human-readable `command`, structured `argv`, and `writes_state`; agents should run `argv` from `cwd` instead of reparsing `command`, and prefer `writes_state: false` entries for read-only inspection.
 
-Machine-readable `init --json` and `status --json` success payloads include `local_commands` and `next_actions`. `verify --check --json` and `verify --json` payloads include both fields when governance state is readable. `gate --json` payloads include `local_commands` when governance state is readable, and include `next_actions` only when the gate passes. Successful state-writing `product mark-ready --json`, `advance --json`, and `runtime refresh --json` commands also return both fields so agents can continue without rerunning `status`. Each action includes `cwd`, a human-readable `command`, structured `argv`, and `writes_state`; agents should run `argv` from `cwd` instead of reparsing `command`. Agents should execute `preflight` actions first and run state-writing `apply` actions only after the referenced preflight returns `ok: true`.
+Machine-readable `init --json` and `status --json` success payloads include `local_commands` and `next_actions`. `verify --check --json` and `verify --json` payloads include both fields when governance state is readable. `gate --json` payloads include `local_commands` when governance state is readable, and include `next_actions` only when the gate passes. Successful write-mode `scaffold product --json` and `scaffold design --json` payloads include both fields when the gate state is readable. Successful state-writing `product mark-ready --json`, `advance --json`, and `runtime refresh --json` commands also return both fields so agents can continue without rerunning `status`. Each action includes `cwd`, a human-readable `command`, structured `argv`, and `writes_state`; agents should run `argv` from `cwd` instead of reparsing `command`. Agents should execute `preflight` actions first and run state-writing `apply` actions only after the referenced preflight returns `ok: true`.
 
 From a trusted source workflow-pack checkout, refresh generated target runtime and workflow-pack snapshot files without rewriting product or design documents:
 
@@ -98,6 +98,7 @@ bin/governance scaffold design <target> --json
 ```
 
 Use `--check` to inspect `would_create`, `would_skip`, and `would_index` before writing scaffold placeholders. Scaffold placeholders block verification until replaced with product-derived content.
+After successful write-mode scaffold commands, use returned `local_commands[].argv` for checks and keep `next_actions[].argv` for the next transition, but do not run downstream state-writing actions while scaffold placeholders remain.
 
 ## Source-of-Truth Flow
 

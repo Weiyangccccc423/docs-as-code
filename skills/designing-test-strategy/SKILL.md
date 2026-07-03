@@ -28,7 +28,7 @@ Test design turns acceptance criteria and design risks into implementation-ready
 
    Stop on `ok: false` and repair by `requirements[].code`.
 
-2. Run `bin/governance scaffold design <target> --check --json` when test files are missing, then run it without `--check` when the plan is correct.
+2. Run `bin/governance scaffold design <target> --check --json` when test files are missing, then run it without `--check` when the plan is correct; use returned `local_commands` for checks and keep returned `next_actions` for later.
 3. Replace scaffold placeholders in `docs/tests/01-strategy.md` and `docs/tests/02-acceptance-matrix.md` with source-backed content.
 4. Build `docs/tests/01-strategy.md` from acceptance criteria, endpoint contracts, architecture quality attributes, backend failure modes, frontend states, and UI accessibility expectations.
 5. Assign test layers for each risk: unit, integration, contract, end-to-end, accessibility, performance, security, observability, or manual review.

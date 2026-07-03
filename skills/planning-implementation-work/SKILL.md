@@ -26,7 +26,7 @@ Implementation planning converts completed product and design documents into tra
 
    Use `requirements[].code` and `verification.findings[]` to identify missing design, test, or traceability inputs.
 
-2. Run `bin/governance scaffold design <target> --check --json` when development files are missing, then run it without `--check` when the plan is correct.
+2. Run `bin/governance scaffold design <target> --check --json` when development files are missing, then run it without `--check` when the plan is correct; use returned `local_commands` for checks and keep returned `next_actions` for later.
 3. Replace scaffold placeholders in `docs/development/01-roadmap.md`, `docs/development/02-task-board.md`, and `docs/development/03-verification-log.md`.
 4. Derive roadmap milestones from product acceptance IDs, architecture/API/backend/frontend dependencies, and test strategy risk order.
 5. Assign stable `TASK-NNN` IDs in `docs/development/01-roadmap.md`; use standard statuses only.

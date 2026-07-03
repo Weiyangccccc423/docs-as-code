@@ -81,7 +81,7 @@ Link `Frontend Consumers` to existing local UI or frontend API-consumption Markd
 
    Stop on `ok: false` and repair by `requirements[].code`.
 
-2. Run `bin/governance scaffold design <target> --check --json` when standard API files are missing, then run it without `--check` when the plan is correct.
+2. Run `bin/governance scaffold design <target> --check --json` when standard API files are missing, then run it without `--check` when the plan is correct; use returned `local_commands` for checks and keep returned `next_actions` for later.
 3. Replace scaffold placeholders in API files with product-derived content.
 4. Derive endpoints from structured product chapters and architecture docs.
 5. Name endpoint files with the next unique `NN-<slug>.md` prefix.

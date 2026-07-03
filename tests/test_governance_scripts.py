@@ -2878,6 +2878,20 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertIn("docs/product/03-goals-and-requirements.md", payload["created"])
             self.assertIn("docs/product/08-acceptance-criteria.md", payload["created"])
             self.assertIn("docs/product/core/product-meta.md", payload["indexed"])
+            self.assertIn(
+                {
+                    "make_target": "verify-check",
+                    "cwd": str(root.resolve()),
+                    "command": "make verify-check",
+                    "argv": ["make", "verify-check"],
+                    "recipe": "bin/governance verify . --check --json",
+                    "writes_state": False,
+                    "description": "run read-only JSON verification without updating state",
+                },
+                payload["local_commands"],
+            )
+            self.assertEqual("advance-product-structuring-check", payload["next_actions"][0]["id"])
+            self.assertEqual(str(root.resolve()), payload["next_actions"][0]["cwd"])
             self.assertIn("03-goals-and-requirements.md", product_readme)
             self.assertIn("[Acceptance Criteria](../08-acceptance-criteria.md)", product_meta)
 
@@ -2900,6 +2914,8 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertEqual("design", payload["scaffold"])
             self.assertEqual(str(root), payload["target"])
             self.assertIn("scaffold design does not accept --chapter", payload["errors"])
+            self.assertNotIn("local_commands", payload)
+            self.assertNotIn("next_actions", payload)
             self.assertEqual([], payload["created"])
             self.assertEqual({}, payload["gate"])
 

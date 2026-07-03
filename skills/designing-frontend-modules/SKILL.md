@@ -28,7 +28,7 @@ Frontend design translates product interaction and API contracts into implementa
 
    Stop on `ok: false` and repair by `requirements[].code`.
 
-2. Run `bin/governance scaffold design <target> --check --json` when standard frontend files are missing, then run it without `--check` when the plan is correct.
+2. Run `bin/governance scaffold design <target> --check --json` when standard frontend files are missing, then run it without `--check` when the plan is correct; use returned `local_commands` for checks and keep returned `next_actions` for later.
 3. Replace scaffold placeholders in `docs/frontend/01-modules.md` and `docs/frontend/02-api-consumption.md` with product-derived content.
 4. Derive frontend modules from UI flows, screens, routes, and acceptance criteria.
 5. Assign state ownership for local, shared, server-derived, cached, optimistic, and persisted state.

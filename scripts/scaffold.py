@@ -8,9 +8,13 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
 try:
+    from .bootstrap_tree import target_local_commands_payload
     from .gates import evaluate_gate
+    from .workflow_actions import next_actions_payload
 except ImportError:  # pragma: no cover - direct script execution
+    from bootstrap_tree import target_local_commands_payload
     from gates import evaluate_gate
+    from workflow_actions import next_actions_payload
 
 
 SCAFFOLD_PLACEHOLDER = "governance:scaffold-placeholder"
@@ -114,6 +118,18 @@ class ScaffoldResult:
             "errors": list(self.errors),
             "gate": copy.deepcopy(self.gate),
         }
+
+
+def scaffold_continuation_payload(result: ScaffoldResult) -> dict[str, object]:
+    if not result.ok or result.check:
+        return {}
+    state = result.gate.get("state")
+    if not isinstance(state, dict) or not state:
+        return {}
+    return {
+        "local_commands": target_local_commands_payload(cwd=result.target),
+        "next_actions": next_actions_payload(state, cwd=result.target),
+    }
 
 
 def _validate_scaffold_path_list(field_name: str, paths: object) -> None:
@@ -1026,8 +1042,10 @@ def main() -> int:
         result = check_scaffold_product(target, args.chapter) if args.check else scaffold_product(target, args.chapter)
     else:  # pragma: no cover - argparse choices prevent this
         raise ValueError(f"unknown scaffold: {args.scaffold}")
+    payload = result.to_dict()
+    payload.update(scaffold_continuation_payload(result))
     if args.json:
-        print(json.dumps(result.to_dict(), ensure_ascii=False, indent=2, sort_keys=True))
+        print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
         return 0 if result.ok else 1
     if not result.ok:
         print(f"Scaffold failed: {args.scaffold}")

@@ -36,6 +36,7 @@ from scaffold import (
     check_scaffold_design,
     check_scaffold_product,
     scaffold_design,
+    scaffold_continuation_payload,
     scaffold_product,
 )
 from state import STATE_REL, StateFileError, load_state, merge_state, utc_now
@@ -470,6 +471,7 @@ def _cmd_scaffold(args: argparse.Namespace) -> int:
     else:  # pragma: no cover - argparse choices prevent this
         raise ValueError(f"unknown scaffold: {args.scaffold}")
     payload = result.to_dict()
+    payload.update(scaffold_continuation_payload(result))
     if args.json:
         _print_json(payload)
         return 0 if result.ok else 1
