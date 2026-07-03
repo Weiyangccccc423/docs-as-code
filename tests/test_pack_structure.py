@@ -935,7 +935,7 @@ class PackStructureTest(unittest.TestCase):
             skill = target / "skills/planning-implementation-work/SKILL.md"
             skill.write_text(
                 skill.read_text(encoding="utf-8").replace(
-                    " and its `A-NNN` ID is mapped in `docs/tests/02-acceptance-matrix.md`",
+                    "its `A-NNN` ID is mapped in `docs/tests/02-acceptance-matrix.md`, and ",
                     "",
                     1,
                 ),
@@ -1311,6 +1311,35 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_missing_implementation_readiness_doc_routing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            skill = target / "skills/planning-implementation-work/SKILL.md"
+            skill.write_text(
+                skill.read_text(encoding="utf-8").replace(
+                    "`references/implementation-readiness-checklist.md`",
+                    "the implementation readiness checklist",
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_design_reference_doc_missing"
+                    and finding.path == "skills/planning-implementation-work/SKILL.md"
+                    and "references/implementation-readiness-checklist.md" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_missing_security_reference_doc_routing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
@@ -1367,6 +1396,37 @@ class PackStructureTest(unittest.TestCase):
                     and finding.path == "references/backend-operability-checklist.md"
                     and "Observability Signals" in finding.message
                     and "traces" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_missing_implementation_readiness_reference_baseline(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            reference = target / "references/implementation-readiness-checklist.md"
+            reference.write_text(
+                reference.read_text(encoding="utf-8").replace(
+                    "working code, synchronized docs, passing verification commands",
+                    "working code",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_method_reference_baseline_missing"
+                    and finding.path == "references/implementation-readiness-checklist.md"
+                    and "Definition of Done" in finding.message
+                    and "synchronized docs" in finding.message
                     for finding in report.findings
                 )
             )

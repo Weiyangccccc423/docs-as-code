@@ -5059,6 +5059,41 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_task_handoff_scope_guardrail_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            handoff = root / "docs/agent-workflow/task-handoff.md"
+            handoff.write_text(
+                handoff.read_text(encoding="utf-8").replace(
+                    "- Allowed files or modules:\n",
+                    "",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/agent-workflow/task-handoff.md Implementation Scope section must preserve guardrail: "
+                "allowed files or modules:",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "target_task_handoff_guardrail_missing",
+                    "severity": "error",
+                    "path": "docs/agent-workflow/task-handoff.md",
+                    "message": "docs/agent-workflow/task-handoff.md Implementation Scope section must preserve guardrail: "
+                    "allowed files or modules:",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_task_handoff_verification_record_drift(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

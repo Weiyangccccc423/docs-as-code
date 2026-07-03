@@ -69,13 +69,22 @@ TEMPLATE_REQUIRED_GUARDRAILS = {
         "- Product:",
         "- API:",
         "- Architecture:",
+        "- Design:",
         "- Acceptance:",
+        "- Task:",
+        "## Implementation Scope",
+        "- Allowed files or modules:",
+        "- Out of scope:",
+        "- Dependencies or sequencing:",
+        "- Open questions:",
         "- Code and tests are complete.",
         "- Documentation is synchronized.",
         "- Verification commands pass and output is recorded.",
+        "- Task satisfies `docs/agent-workflow/workflow-pack/references/implementation-readiness-checklist.md`.",
         "| Command | Result | Evidence |",
         "- Open follow-ups:",
         "- Risks:",
+        "- Supply-chain or release evidence:",
     ),
     "templates/docs/api/00-conventions.md": (
         "# API Conventions",
@@ -298,6 +307,7 @@ TEMPLATE_REQUIRED_SECTIONS = {
     "templates/docs/agent-workflow/task-handoff.md": (
         "Task Goal",
         "Related Specs",
+        "Implementation Scope",
         "Definition of Done",
         "Verification Record",
         "Handoff Notes",
@@ -760,6 +770,13 @@ DESIGN_REFERENCE_DOC_REQUIREMENTS = (
         ),
     ),
     (
+        "references/implementation-readiness-checklist.md",
+        (
+            "workflows/04-design-derivation.md",
+            "skills/planning-implementation-work/SKILL.md",
+        ),
+    ),
+    (
         "references/security-design-checklist.md",
         (
             "workflows/04-design-derivation.md",
@@ -925,6 +942,48 @@ METHOD_REFERENCE_BASELINES = {
                 "## Operational Logs",
                 "logs treated as event streams",
                 "https://12factor.net/logs",
+            ),
+        ),
+    ),
+    "references/implementation-readiness-checklist.md": (
+        (
+            "Ready Task Contract",
+            (
+                "## Ready Task Contract",
+                "Product, Design, API, Acceptance, and Verification cells",
+                "https://scrumguides.org/scrum-guide.html",
+            ),
+        ),
+        (
+            "Definition of Done",
+            (
+                "## Definition of Done",
+                "working code, synchronized docs, passing verification commands",
+                "https://scrumguides.org/scrum-guide.html",
+            ),
+        ),
+        (
+            "Verification Plan",
+            (
+                "## Verification Plan",
+                "exact commands, test layers, expected evidence target",
+                "https://dora.dev/capabilities/test-automation/",
+            ),
+        ),
+        (
+            "Change Integration",
+            (
+                "## Change Integration",
+                "small enough to review, integrate, and verify independently",
+                "https://dora.dev/capabilities/trunk-based-development/",
+            ),
+        ),
+        (
+            "Supply Chain Evidence",
+            (
+                "## Supply Chain Evidence",
+                "provenance, integrity, and dependency update expectations",
+                "https://slsa.dev/spec/v1.1/about",
             ),
         ),
     ),

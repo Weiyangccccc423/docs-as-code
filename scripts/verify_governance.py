@@ -79,6 +79,7 @@ WORKFLOW_PACK_REQUIRED_PATHS = (
     "references/backend-design-checklist.md",
     "references/backend-operability-checklist.md",
     "references/community-practices.md",
+    "references/implementation-readiness-checklist.md",
     "references/runtime-strategy.md",
     "references/security-design-checklist.md",
     "skills/archiving-product-document/SKILL.md",
@@ -442,6 +443,7 @@ TASK_HANDOFF_REL = Path("docs/agent-workflow/task-handoff.md")
 TASK_HANDOFF_REQUIRED_SECTIONS = {
     "task goal": "Task Goal",
     "related specs": "Related Specs",
+    "implementation scope": "Implementation Scope",
     "definition of done": "Definition of Done",
     "verification record": "Verification Record",
     "handoff notes": "Handoff Notes",
@@ -450,12 +452,21 @@ TASK_HANDOFF_RELATED_SPEC_GUARDRAILS = (
     "product:",
     "api:",
     "architecture:",
+    "design:",
     "acceptance:",
+    "task:",
+)
+TASK_HANDOFF_SCOPE_GUARDRAILS = (
+    "allowed files or modules:",
+    "out of scope:",
+    "dependencies or sequencing:",
+    "open questions:",
 )
 TASK_HANDOFF_DOD_GUARDRAILS = (
     "code and tests are complete",
     "documentation is synchronized",
     "verification commands pass and output is recorded",
+    "implementation-readiness-checklist.md",
 )
 TASK_HANDOFF_VERIFICATION_GUARDRAILS = (
     "command",
@@ -465,6 +476,7 @@ TASK_HANDOFF_VERIFICATION_GUARDRAILS = (
 TASK_HANDOFF_NOTES_GUARDRAILS = (
     "open follow-ups:",
     "risks:",
+    "supply-chain or release evidence:",
 )
 MARKDOWN_LINK_RE = re.compile(r"(?<!!)\[[^\]]*]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 MARKDOWN_REFERENCE_DEFINITION_RE = re.compile(r"^\s{0,3}\[[^\]]+]:\s*(\S+)", re.MULTILINE)
@@ -1218,6 +1230,13 @@ def _check_task_handoff(root: Path, report: VerificationReport) -> None:
         "Related Specs",
         sections["related specs"],
         TASK_HANDOFF_RELATED_SPEC_GUARDRAILS,
+        report,
+    )
+    _check_task_handoff_section_guardrails(
+        rel,
+        "Implementation Scope",
+        sections["implementation scope"],
+        TASK_HANDOFF_SCOPE_GUARDRAILS,
         report,
     )
     _check_task_handoff_section_guardrails(
