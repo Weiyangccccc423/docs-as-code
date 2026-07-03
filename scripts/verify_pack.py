@@ -532,6 +532,20 @@ RUNTIME_WRAPPER_REQUIRED_GUARDS = (
     "set -euo pipefail",
 )
 RUNTIME_WRAPPER_ROOT_DIR_LINE = 'ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"'
+CONTINUATION_RUNTIME_SCRIPT_PATHS = (
+    "scripts/bootstrap_tree.py",
+    "scripts/check_env.py",
+    "scripts/gates.py",
+    "scripts/governance_cli.py",
+    "scripts/phases.py",
+    "scripts/product_import.py",
+    "scripts/scaffold.py",
+    "scripts/verify_governance.py",
+)
+CONTINUATION_RUNTIME_REQUIRED_CALLS = (
+    "target_local_commands_payload",
+    "next_actions_payload",
+)
 VERIFICATION_COMMAND_DOC_PATHS = (
     "README.md",
     "AGENTS.md",
@@ -699,6 +713,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_workflow_pack_file_encoding(root, findings)
     _check_runtime_python_syntax(root, findings)
     _check_governance_cli_commands(root, findings)
+    _check_runtime_continuation_calls(root, findings)
     _check_runtime_executable_bits(root, findings)
     _check_runtime_wrapper_commands(root, findings)
     _check_readme_package_layout(root, findings)
@@ -956,6 +971,37 @@ def _check_governance_cli_commands(root: Path, findings: list[PackFinding]) -> N
                     rel,
                 )
             )
+
+
+def _check_runtime_continuation_calls(root: Path, findings: list[PackFinding]) -> None:
+    for rel in CONTINUATION_RUNTIME_SCRIPT_PATHS:
+        path = root / rel
+        if not path.is_file():
+            continue
+        try:
+            source = path.read_text(encoding="utf-8")
+            tree = ast.parse(source, filename=rel)
+        except (SyntaxError, UnicodeDecodeError, OSError):
+            continue
+        for function_name in CONTINUATION_RUNTIME_REQUIRED_CALLS:
+            if _script_calls_function(tree, function_name):
+                continue
+            findings.append(
+                PackFinding(
+                    "pack_runtime_continuation_call_missing",
+                    f"{rel} must call {function_name} for machine-readable continuation payloads",
+                    rel,
+                )
+            )
+
+
+def _script_calls_function(tree: ast.AST, name: str) -> bool:
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        if isinstance(node.func, ast.Name) and node.func.id == name:
+            return True
+    return False
 
 
 def _find_function_def(tree: ast.AST, name: str) -> ast.FunctionDef | None:

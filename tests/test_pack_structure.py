@@ -290,6 +290,66 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_missing_runtime_local_commands_payload_call(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            gates = target / "scripts/gates.py"
+            gates.write_text(
+                gates.read_text(encoding="utf-8").replace(
+                    '"local_commands": target_local_commands_payload(cwd=result.target),',
+                    '"local_commands": [],',
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_runtime_continuation_call_missing"
+                    and finding.path == "scripts/gates.py"
+                    and "target_local_commands_payload" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_missing_runtime_next_actions_payload_call(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            gates = target / "scripts/gates.py"
+            gates.write_text(
+                gates.read_text(encoding="utf-8").replace(
+                    'payload["next_actions"] = next_actions_payload(result.state, cwd=result.target)',
+                    'payload["next_actions"] = []',
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_runtime_continuation_call_missing"
+                    and finding.path == "scripts/gates.py"
+                    and "next_actions_payload" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_missing_target_makefile_command_doc(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
