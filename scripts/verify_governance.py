@@ -11,9 +11,13 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Callable
 
 try:
-    from .bootstrap_tree import TARGET_LOCAL_COMMANDS
+    from .bootstrap_tree import TARGET_LOCAL_COMMANDS, target_local_commands_payload
+    from .state import StateFileError, load_state
+    from .workflow_actions import next_actions_payload
 except ImportError:  # pragma: no cover - direct script execution
-    from bootstrap_tree import TARGET_LOCAL_COMMANDS
+    from bootstrap_tree import TARGET_LOCAL_COMMANDS, target_local_commands_payload
+    from state import StateFileError, load_state
+    from workflow_actions import next_actions_payload
 
 
 DOC_DIRS = {
@@ -4591,6 +4595,21 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def verification_continuation_payload(target: Path) -> dict[str, object]:
+    try:
+        state = load_state(target)
+    except (OSError, StateFileError):
+        return {}
+    if not state:
+        return {}
+    cwd = str(target.resolve())
+    return {
+        "state": state,
+        "local_commands": target_local_commands_payload(cwd=cwd),
+        "next_actions": next_actions_payload(state, cwd=cwd),
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Verify docs-as-code governance consistency.")
     parser.add_argument("target", nargs="?", default=".", help="Repository root to verify.")
@@ -4601,6 +4620,7 @@ def main() -> int:
     if args.json:
         payload = report.to_dict()
         payload["target"] = str(target)
+        payload.update(verification_continuation_payload(target))
         print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
         return 0 if report.ok else 1
     if report.errors:

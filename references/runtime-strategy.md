@@ -46,6 +46,8 @@ make check-env
 make repair-env-check
 ```
 
+Target-local direct scripts under `scripts/` should mirror the same machine-readable continuation fields as the `bin/governance` wrapper when they can read workflow state.
+
 When target-local runtime or workflow-pack integrity checks fail, run the refresh command from a trusted copy of this source workflow pack:
 
 ```bash

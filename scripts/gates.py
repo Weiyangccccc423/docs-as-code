@@ -9,11 +9,15 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
 try:
+    from .bootstrap_tree import target_local_commands_payload
     from .state import STATE_REL, StateFileError, load_state
     from .verify_governance import task_board_ready_tasks, verify
+    from .workflow_actions import next_actions_payload
 except ImportError:  # pragma: no cover - direct script execution
+    from bootstrap_tree import target_local_commands_payload
     from state import STATE_REL, StateFileError, load_state
     from verify_governance import task_board_ready_tasks, verify
+    from workflow_actions import next_actions_payload
 
 
 GATE_NAMES = ("product-structuring", "design-derivation", "implementation")
@@ -120,6 +124,17 @@ class GateResult:
             "verification": copy.deepcopy(self.verification),
             "state": copy.deepcopy(self.state),
         }
+
+
+def gate_continuation_payload(result: GateResult) -> dict[str, object]:
+    if not result.state:
+        return {}
+    payload: dict[str, object] = {
+        "local_commands": target_local_commands_payload(cwd=result.target),
+    }
+    if result.ok:
+        payload["next_actions"] = next_actions_payload(result.state, cwd=result.target)
+    return payload
 
 
 def evaluate_gate(root: Path, gate: str) -> GateResult:
@@ -277,7 +292,9 @@ def main() -> int:
     args = parser.parse_args()
     result = evaluate_gate(Path(args.target), args.gate)
     if args.json:
-        print(json.dumps(result.to_dict(), ensure_ascii=False, indent=2, sort_keys=True))
+        payload = result.to_dict()
+        payload.update(gate_continuation_payload(result))
+        print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
         return 0 if result.ok else 1
     if result.ok:
         print(f"Gate passed: {args.gate}")

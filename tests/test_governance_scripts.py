@@ -605,6 +605,20 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertEqual([], payload["verification"]["errors"])
             self.assertEqual([], payload["verification"]["warnings"])
             self.assertEqual([], payload["verification"]["findings"])
+            self.assertIn(
+                {
+                    "make_target": "verify-check",
+                    "cwd": str(root.resolve()),
+                    "command": "make verify-check",
+                    "argv": ["make", "verify-check"],
+                    "recipe": "bin/governance verify . --check --json",
+                    "writes_state": False,
+                    "description": "run read-only JSON verification without updating state",
+                },
+                payload["local_commands"],
+            )
+            self.assertEqual("advance-product-structuring-check", payload["next_actions"][0]["id"])
+            self.assertEqual(str(root.resolve()), payload["next_actions"][0]["cwd"])
 
     def test_gates_main_json_reports_structured_failed_requirements(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -631,6 +645,19 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertFalse(requirements["product_chapters_present"]["ok"])
             self.assertFalse(requirements["product_acceptance_chapter_present"]["ok"])
             self.assertTrue(payload["verification"]["ok"])
+            self.assertIn(
+                {
+                    "make_target": "verify-check",
+                    "cwd": str(root.resolve()),
+                    "command": "make verify-check",
+                    "argv": ["make", "verify-check"],
+                    "recipe": "bin/governance verify . --check --json",
+                    "writes_state": False,
+                    "description": "run read-only JSON verification without updating state",
+                },
+                payload["local_commands"],
+            )
+            self.assertNotIn("next_actions", payload)
 
     def test_verification_report_objects_reject_unstable_output_shape(self) -> None:
         error = verify_governance_module.VerificationFinding(
@@ -7389,11 +7416,40 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertEqual(0, verify_result.returncode)
             self.assertTrue(verify_payload["ok"])
             self.assertEqual(".", verify_payload["target"])
+            self.assertEqual("initialized", verify_payload["state"]["phase"])
+            self.assertIn(
+                {
+                    "make_target": "verify-check",
+                    "cwd": str(root.resolve()),
+                    "command": "make verify-check",
+                    "argv": ["make", "verify-check"],
+                    "recipe": "bin/governance verify . --check --json",
+                    "writes_state": False,
+                    "description": "run read-only JSON verification without updating state",
+                },
+                verify_payload["local_commands"],
+            )
+            self.assertEqual("advance-product-structuring-check", verify_payload["next_actions"][0]["id"])
+            self.assertEqual(str(root.resolve()), verify_payload["next_actions"][0]["cwd"])
 
             gate_result, gate_payload = run_direct("gates.py", "product-structuring", ".", "--json")
             self.assertEqual(0, gate_result.returncode)
             self.assertTrue(gate_payload["ok"])
             self.assertEqual("product-structuring", gate_payload["gate"])
+            self.assertIn(
+                {
+                    "make_target": "verify-check",
+                    "cwd": str(root.resolve()),
+                    "command": "make verify-check",
+                    "argv": ["make", "verify-check"],
+                    "recipe": "bin/governance verify . --check --json",
+                    "writes_state": False,
+                    "description": "run read-only JSON verification without updating state",
+                },
+                gate_payload["local_commands"],
+            )
+            self.assertEqual("advance-product-structuring-check", gate_payload["next_actions"][0]["id"])
+            self.assertEqual(str(root.resolve()), gate_payload["next_actions"][0]["cwd"])
 
             advance_check_result, advance_check_payload = run_direct(
                 "phases.py",
