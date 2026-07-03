@@ -129,11 +129,30 @@ def scaffold_continuation_payload(result: ScaffoldResult) -> dict[str, object]:
     payload: dict[str, object] = {
         "local_commands": target_local_commands_payload(cwd=result.target),
         "next_actions": next_actions_payload(state, cwd=result.target),
+        "scaffold_phase": _scaffold_phase_payload(result, state),
     }
     blockers = _scaffold_next_action_blockers(result)
     if blockers:
         payload["next_actions_blocked_by"] = blockers
     return payload
+
+
+def _scaffold_phase_payload(result: ScaffoldResult, state: dict[str, object]) -> dict[str, object]:
+    expected_phase = {
+        "product": "product-structuring",
+        "design": "design-derivation",
+    }[result.scaffold]
+    current_phase = state.get("phase")
+    return {
+        "current": current_phase if isinstance(current_phase, str) else "",
+        "expected": expected_phase,
+        "matches": current_phase == expected_phase,
+        "message": (
+            "recorded phase matches scaffold phase"
+            if current_phase == expected_phase
+            else f"recorded phase is not {expected_phase}; use returned next_actions to advance phases in order"
+        ),
+    }
 
 
 def _scaffold_next_action_blockers(result: ScaffoldResult) -> list[dict[str, str]]:

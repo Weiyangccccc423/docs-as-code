@@ -3610,6 +3610,18 @@ class GovernanceCliTest(unittest.TestCase):
             )
             self.assertEqual("advance-product-structuring-check", payload["next_actions"][0]["id"])
             self.assertEqual(str(target.resolve()), payload["next_actions"][0]["cwd"])
+            self.assertEqual(
+                {
+                    "current": "initialized",
+                    "expected": "product-structuring",
+                    "matches": False,
+                    "message": (
+                        "recorded phase is not product-structuring; "
+                        "use returned next_actions to advance phases in order"
+                    ),
+                },
+                payload["scaffold_phase"],
+            )
             blockers = {
                 blocker["path"]: blocker
                 for blocker in payload["next_actions_blocked_by"]
@@ -3695,6 +3707,54 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertFalse((target / "docs/product/08-acceptance-criteria.md").exists())
             self.assertEqual(readme_before, readme_path.read_text(encoding="utf-8"))
             self.assertEqual(meta_before, meta_path.read_text(encoding="utf-8"))
+
+    def test_scaffold_product_reports_matching_phase_after_advance(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text("# Product\n\n## Goal\n\nShip governed projects.\n", encoding="utf-8")
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            advance = subprocess.run(
+                [sys.executable, str(CLI), "advance", "product-structuring", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, advance.returncode, advance.stderr)
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "scaffold",
+                    "product",
+                    str(target),
+                    "--chapter",
+                    "goals-and-requirements",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(
+                {
+                    "current": "product-structuring",
+                    "expected": "product-structuring",
+                    "matches": True,
+                    "message": "recorded phase matches scaffold phase",
+                },
+                payload["scaffold_phase"],
+            )
 
     def test_scaffold_product_can_add_chapters_while_product_placeholders_remain(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -4305,6 +4365,18 @@ class GovernanceCliTest(unittest.TestCase):
             )
             self.assertEqual("advance-product-structuring-check", payload["next_actions"][0]["id"])
             self.assertEqual(str(target.resolve()), payload["next_actions"][0]["cwd"])
+            self.assertEqual(
+                {
+                    "current": "initialized",
+                    "expected": "design-derivation",
+                    "matches": False,
+                    "message": (
+                        "recorded phase is not design-derivation; "
+                        "use returned next_actions to advance phases in order"
+                    ),
+                },
+                payload["scaffold_phase"],
+            )
             blockers = {
                 blocker["path"]: blocker
                 for blocker in payload["next_actions_blocked_by"]
