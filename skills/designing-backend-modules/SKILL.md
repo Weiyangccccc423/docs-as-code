@@ -15,7 +15,7 @@ Use architecture first, then module design.
 - `docs/api/`
 - `docs/unresolved.md`
 
-Read `references/backend-design-checklist.md` before writing backend design docs. Use it as the completion checklist for module boundaries, data ownership, API ownership, runtime flows, observability, security, acceptance, and tests.
+Read `references/backend-design-checklist.md` before writing backend design docs. Use it as the completion checklist for module boundaries, data ownership, API ownership, runtime flows, transaction boundaries, consistency, observability, security, acceptance, and tests.
 
 ## Procedure
 
@@ -37,14 +37,16 @@ Read `references/backend-design-checklist.md` before writing backend design docs
 8. Link `docs/backend/01-modules.md` to `docs/backend/02-data-model.md`.
 9. Link `docs/backend/01-modules.md` to `docs/backend/03-external-services.md`, even when the document states there are no external services.
 10. Define data ownership and lifecycle states.
-11. Document external dependencies, retries, timeouts, and failure modes.
-12. Define observability and auth behavior.
-13. Link acceptance criteria and test strategy.
-14. Re-check the backend checklist before considering implementation tasks ready.
+11. Document transaction boundaries, consistency expectations, concurrency conflicts, and duplicate-submission behavior for state-changing operations.
+12. Document external dependencies, retries, timeouts, and failure modes.
+13. Define observability and auth behavior.
+14. Link acceptance criteria and test strategy.
+15. Re-check the backend checklist before considering implementation tasks ready.
 
 ## Stop Conditions
 
 - A module needs an API field not defined in `docs/api/`.
 - A module needs a table or field not defined in the data model.
+- A state-changing operation lacks transaction, consistency, or duplicate-submission behavior.
 - A module changes product meaning.
 - An external dependency lacks an owner or contract.

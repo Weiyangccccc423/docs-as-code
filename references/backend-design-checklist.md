@@ -14,6 +14,7 @@ Use this checklist before creating implementation tasks.
 - Are tables, fields, indexes, and ownership documented?
 - Are lifecycle states and state transitions explicit?
 - Are idempotency keys and uniqueness constraints defined?
+- Are transaction boundaries, consistency expectations, and concurrency conflicts documented for state-changing operations?
 - Are soft-delete and retention rules defined when relevant?
 
 ## API Contract
@@ -26,6 +27,7 @@ Use this checklist before creating implementation tasks.
 
 - Are success and failure paths documented?
 - Are retries, timeouts, and compensation behavior explicit?
+- Are duplicate-submission handling and out-of-order or parallel execution outcomes explicit?
 - Are long-running jobs and async state changes traceable?
 
 ## Observability and Security
