@@ -546,6 +546,16 @@ CONTINUATION_RUNTIME_REQUIRED_CALLS = (
     "target_local_commands_payload",
     "next_actions_payload",
 )
+RUNTIME_FILE_LIST_MODULES = {
+    "scripts/bootstrap_tree.py": {
+        "bin": "RUNTIME_BIN_FILES",
+        "scripts": "RUNTIME_SCRIPT_FILES",
+    },
+    "scripts/verify_governance.py": {
+        "bin": "RUNTIME_REQUIRED_BIN_FILES",
+        "scripts": "RUNTIME_REQUIRED_SCRIPT_FILES",
+    },
+}
 VERIFICATION_COMMAND_DOC_PATHS = (
     "README.md",
     "AGENTS.md",
@@ -712,6 +722,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_agents_guardrails(root, findings)
     _check_workflow_pack_file_encoding(root, findings)
     _check_runtime_python_syntax(root, findings)
+    _check_runtime_file_list_alignment(root, findings)
     _check_governance_cli_commands(root, findings)
     _check_runtime_continuation_calls(root, findings)
     _check_runtime_executable_bits(root, findings)
@@ -927,6 +938,132 @@ def _check_runtime_python_syntax(root: Path, findings: list[PackFinding]) -> Non
                     rel,
                 )
             )
+
+
+def _check_runtime_file_list_alignment(root: Path, findings: list[PackFinding]) -> None:
+    bootstrap_rel = "scripts/bootstrap_tree.py"
+    verifier_rel = "scripts/verify_governance.py"
+    bootstrap_lists = _runtime_file_lists(root, bootstrap_rel, findings)
+    verifier_lists = _runtime_file_lists(root, verifier_rel, findings)
+    for label in ("bin", "scripts"):
+        bootstrap_name = RUNTIME_FILE_LIST_MODULES[bootstrap_rel][label]
+        verifier_name = RUNTIME_FILE_LIST_MODULES[verifier_rel][label]
+        bootstrap_values = bootstrap_lists.get(bootstrap_name)
+        verifier_values = verifier_lists.get(verifier_name)
+        if bootstrap_values is None or verifier_values is None:
+            continue
+        if bootstrap_values == verifier_values:
+            continue
+        details = _runtime_file_list_mismatch_details(
+            bootstrap_name,
+            verifier_name,
+            bootstrap_values,
+            verifier_values,
+        )
+        path = _runtime_file_list_mismatch_path(
+            bootstrap_rel,
+            verifier_rel,
+            bootstrap_values,
+            verifier_values,
+        )
+        findings.append(
+            PackFinding(
+                "pack_runtime_file_list_mismatch",
+                f"runtime {label} file lists must stay aligned between {bootstrap_rel}:{bootstrap_name} "
+                f"and {verifier_rel}:{verifier_name}: {details}",
+                path,
+            )
+        )
+
+
+def _runtime_file_lists(root: Path, rel: str, findings: list[PackFinding]) -> dict[str, tuple[str, ...]]:
+    path = root / rel
+    if not path.is_file():
+        return {}
+    try:
+        source = path.read_text(encoding="utf-8")
+        tree = ast.parse(source, filename=rel)
+    except (SyntaxError, UnicodeDecodeError, OSError):
+        return {}
+
+    required_names = set(RUNTIME_FILE_LIST_MODULES[rel].values())
+    assignments: dict[str, tuple[str, ...]] = {}
+    invalid_names: set[str] = set()
+    for node in tree.body:
+        name: str | None = None
+        value: ast.AST | None = None
+        if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+            name = node.targets[0].id
+            value = node.value
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            name = node.target.id
+            value = node.value
+        if name not in required_names:
+            continue
+        sequence = _ast_string_sequence(value)
+        if sequence is None:
+            invalid_names.add(name)
+            continue
+        assignments[name] = sequence
+
+    for name in sorted(required_names - set(assignments) - invalid_names):
+        findings.append(
+            PackFinding(
+                "pack_runtime_file_list_missing",
+                f"{rel} must define runtime file list: {name}",
+                rel,
+            )
+        )
+    for name in sorted(invalid_names):
+        findings.append(
+            PackFinding(
+                "pack_runtime_file_list_not_literal",
+                f"{rel} runtime file list must be a literal string list or tuple: {name}",
+                rel,
+            )
+        )
+    return assignments
+
+
+def _ast_string_sequence(node: ast.AST | None) -> tuple[str, ...] | None:
+    if not isinstance(node, ast.List | ast.Tuple):
+        return None
+    values: list[str] = []
+    for element in node.elts:
+        value = _ast_string_literal(element)
+        if value is None:
+            return None
+        values.append(value)
+    return tuple(values)
+
+
+def _runtime_file_list_mismatch_details(
+    bootstrap_name: str,
+    verifier_name: str,
+    bootstrap_values: tuple[str, ...],
+    verifier_values: tuple[str, ...],
+) -> str:
+    missing_from_bootstrap = [value for value in verifier_values if value not in bootstrap_values]
+    missing_from_verifier = [value for value in bootstrap_values if value not in verifier_values]
+    details = []
+    if missing_from_bootstrap:
+        details.append(f"missing from {bootstrap_name}: {', '.join(missing_from_bootstrap)}")
+    if missing_from_verifier:
+        details.append(f"missing from {verifier_name}: {', '.join(missing_from_verifier)}")
+    if not details:
+        details.append("same entries but order differs")
+    return "; ".join(details)
+
+
+def _runtime_file_list_mismatch_path(
+    bootstrap_rel: str,
+    verifier_rel: str,
+    bootstrap_values: tuple[str, ...],
+    verifier_values: tuple[str, ...],
+) -> str:
+    if any(value not in bootstrap_values for value in verifier_values):
+        return bootstrap_rel
+    return verifier_rel
 
 
 def _check_governance_cli_commands(root: Path, findings: list[PackFinding]) -> None:

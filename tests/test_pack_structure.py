@@ -985,6 +985,58 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_bootstrap_runtime_script_list_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/bootstrap_tree.py"
+            text = script.read_text(encoding="utf-8")
+            self.assertIn('    "workflow_actions.py",\n', text)
+            script.write_text(text.replace('    "workflow_actions.py",\n', "", 1), encoding="utf-8")
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_runtime_file_list_mismatch"
+                    and finding.path == "scripts/bootstrap_tree.py"
+                    and "RUNTIME_SCRIPT_FILES" in finding.message
+                    and "workflow_actions.py" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_verifier_runtime_script_list_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/verify_governance.py"
+            text = script.read_text(encoding="utf-8")
+            self.assertIn('    "workflow_actions.py",\n', text)
+            script.write_text(text.replace('    "workflow_actions.py",\n', "", 1), encoding="utf-8")
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_runtime_file_list_mismatch"
+                    and finding.path == "scripts/verify_governance.py"
+                    and "RUNTIME_REQUIRED_SCRIPT_FILES" in finding.message
+                    and "workflow_actions.py" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_missing_governance_cli_command(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
