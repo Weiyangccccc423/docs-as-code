@@ -838,6 +838,7 @@ RUNTIME_WRAPPER_REQUIRED_COMMANDS = {
     "bin/governance-verify": 'python3 "$ROOT_DIR/scripts/governance_cli.py" verify "$@"',
 }
 GOVERNANCE_CLI_PATH = Path("scripts/governance_cli.py")
+WORKFLOW_ACTIONS_PATH = Path("scripts/workflow_actions.py")
 GOVERNANCE_CLI_REQUIRED_COMMANDS = (
     "init",
     "verify",
@@ -876,6 +877,27 @@ CONTINUATION_RUNTIME_SCRIPT_PATHS = (
 CONTINUATION_RUNTIME_REQUIRED_CALLS = (
     "target_local_commands_payload",
     "next_actions_payload",
+)
+WORKFLOW_ACTION_SOURCE_REQUIRED_KEYS = (
+    "id",
+    "kind",
+    "phase",
+    "workflow",
+    "skills",
+    "command",
+    "argv",
+    "writes_state",
+    "requires",
+    "description",
+)
+WORKFLOW_ACTION_PAYLOAD_REQUIRED_KEYS = (
+    "cwd",
+    *WORKFLOW_ACTION_SOURCE_REQUIRED_KEYS,
+)
+WORKFLOW_ACTION_PHASE_METADATA_REQUIRED_KEYS = (
+    "workflow",
+    "skills",
+    "description",
 )
 RUNTIME_FILE_LIST_MODULES = {
     "scripts/bootstrap_tree.py": {
@@ -1056,6 +1078,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_runtime_file_list_alignment(root, findings)
     _check_governance_cli_commands(root, findings)
     _check_runtime_continuation_calls(root, findings)
+    _check_workflow_action_schema(root, findings)
     _check_runtime_executable_bits(root, findings)
     _check_runtime_wrapper_commands(root, findings)
     _check_readme_package_layout(root, findings)
@@ -1472,6 +1495,141 @@ def _check_runtime_continuation_calls(root: Path, findings: list[PackFinding]) -
             )
 
 
+def _check_workflow_action_schema(root: Path, findings: list[PackFinding]) -> None:
+    rel = WORKFLOW_ACTIONS_PATH.as_posix()
+    path = root / WORKFLOW_ACTIONS_PATH
+    if not path.is_file():
+        return
+    try:
+        source = path.read_text(encoding="utf-8")
+        tree = ast.parse(source, filename=rel)
+    except (SyntaxError, UnicodeDecodeError, OSError):
+        return
+
+    product_import = _top_level_assignment_value(tree, "PRODUCT_IMPORT_ACTIONS")
+    product_actions = _sequence_dict_literals(product_import)
+    if not product_actions:
+        findings.append(
+            PackFinding(
+                "pack_workflow_action_schema_missing",
+                "scripts/workflow_actions.py PRODUCT_IMPORT_ACTIONS must contain action dicts",
+                rel,
+            )
+        )
+    else:
+        _check_action_dicts_have_keys(
+            product_actions,
+            WORKFLOW_ACTION_SOURCE_REQUIRED_KEYS,
+            "PRODUCT_IMPORT_ACTIONS",
+            rel,
+            findings,
+        )
+        _check_action_pair_contract(product_actions, "PRODUCT_IMPORT_ACTIONS", rel, findings)
+
+    phase_actions = _top_level_assignment_value(tree, "PHASE_ACTIONS")
+    phase_metadata = _dict_literal_values(phase_actions)
+    if not phase_metadata:
+        findings.append(
+            PackFinding(
+                "pack_workflow_action_schema_missing",
+                "scripts/workflow_actions.py PHASE_ACTIONS must contain phase metadata dicts",
+                rel,
+            )
+        )
+    else:
+        _check_action_dicts_have_keys(
+            phase_metadata,
+            WORKFLOW_ACTION_PHASE_METADATA_REQUIRED_KEYS,
+            "PHASE_ACTIONS",
+            rel,
+            findings,
+        )
+
+    advance_actions = _return_list_dict_literals(_find_function_def(tree, "_advance_actions"))
+    if not advance_actions:
+        findings.append(
+            PackFinding(
+                "pack_workflow_action_schema_missing",
+                "scripts/workflow_actions.py _advance_actions() must return preflight/apply action dicts",
+                rel,
+            )
+        )
+    else:
+        _check_action_dicts_have_keys(
+            advance_actions,
+            WORKFLOW_ACTION_PAYLOAD_REQUIRED_KEYS,
+            "_advance_actions() return",
+            rel,
+            findings,
+        )
+        _check_action_pair_contract(advance_actions, "_advance_actions() return", rel, findings)
+
+    copy_actions = _find_function_def(tree, "_copy_actions")
+    if copy_actions is None or not _function_assigns_subscript_key(copy_actions, "action", "cwd"):
+        findings.append(
+            PackFinding(
+                "pack_workflow_action_schema_missing",
+                "scripts/workflow_actions.py _copy_actions() must add cwd to copied product import actions",
+                rel,
+            )
+        )
+
+
+def _check_action_dicts_have_keys(
+    actions: list[ast.Dict],
+    required_keys: tuple[str, ...],
+    label: str,
+    rel: str,
+    findings: list[PackFinding],
+) -> None:
+    for index, action in enumerate(actions):
+        keys = _dict_literal_keys(action)
+        missing = [key for key in required_keys if key not in keys]
+        if not missing:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_workflow_action_schema_missing",
+                f"scripts/workflow_actions.py {label} action {index} missing key(s): {', '.join(missing)}",
+                rel,
+            )
+        )
+
+
+def _check_action_pair_contract(
+    actions: list[ast.Dict],
+    label: str,
+    rel: str,
+    findings: list[PackFinding],
+) -> None:
+    if len(actions) < 2:
+        findings.append(
+            PackFinding(
+                "pack_workflow_action_schema_missing",
+                f"scripts/workflow_actions.py {label} must contain preflight and apply actions",
+                rel,
+            )
+        )
+        return
+    expected = (
+        (0, "preflight", False),
+        (1, "apply", True),
+    )
+    for index, expected_kind, expected_writes_state in expected:
+        action = actions[index]
+        kind = _dict_literal_string_value(action, "kind")
+        writes_state = _dict_literal_bool_value(action, "writes_state")
+        if kind == expected_kind and writes_state is expected_writes_state:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_workflow_action_schema_missing",
+                f"scripts/workflow_actions.py {label} action {index} must be {expected_kind} with writes_state {expected_writes_state}",
+                rel,
+            )
+        )
+
+
 def _script_calls_function(tree: ast.AST, name: str) -> bool:
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
@@ -1486,6 +1644,78 @@ def _find_function_def(tree: ast.AST, name: str) -> ast.FunctionDef | None:
         if isinstance(node, ast.FunctionDef) and node.name == name:
             return node
     return None
+
+
+def _top_level_assignment_value(tree: ast.AST, name: str) -> ast.AST | None:
+    if not isinstance(tree, ast.Module):
+        return None
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            if any(isinstance(target, ast.Name) and target.id == name for target in node.targets):
+                return node.value
+        elif isinstance(node, ast.AnnAssign):
+            if isinstance(node.target, ast.Name) and node.target.id == name:
+                return node.value
+    return None
+
+
+def _sequence_dict_literals(node: ast.AST | None) -> list[ast.Dict]:
+    if not isinstance(node, ast.Tuple | ast.List):
+        return []
+    return [element for element in node.elts if isinstance(element, ast.Dict)]
+
+
+def _dict_literal_values(node: ast.AST | None) -> list[ast.Dict]:
+    if not isinstance(node, ast.Dict):
+        return []
+    return [value for value in node.values if isinstance(value, ast.Dict)]
+
+
+def _return_list_dict_literals(function: ast.FunctionDef | None) -> list[ast.Dict]:
+    if function is None:
+        return []
+    for node in ast.walk(function):
+        if not isinstance(node, ast.Return):
+            continue
+        actions = _sequence_dict_literals(node.value)
+        if actions:
+            return actions
+    return []
+
+
+def _dict_literal_keys(node: ast.Dict) -> set[str]:
+    return {key.value for key in node.keys if isinstance(key, ast.Constant) and isinstance(key.value, str)}
+
+
+def _dict_literal_string_value(node: ast.Dict, key_name: str) -> str | None:
+    for key, value in zip(node.keys, node.values):
+        if not isinstance(key, ast.Constant) or key.value != key_name:
+            continue
+        return _ast_string_literal(value)
+    return None
+
+
+def _dict_literal_bool_value(node: ast.Dict, key_name: str) -> bool | None:
+    for key, value in zip(node.keys, node.values):
+        if not isinstance(key, ast.Constant) or key.value != key_name:
+            continue
+        if isinstance(value, ast.Constant) and isinstance(value.value, bool):
+            return value.value
+    return None
+
+
+def _function_assigns_subscript_key(function: ast.FunctionDef, name: str, key_name: str) -> bool:
+    for node in ast.walk(function):
+        if not isinstance(node, ast.Assign):
+            continue
+        for target in node.targets:
+            if not isinstance(target, ast.Subscript):
+                continue
+            if not isinstance(target.value, ast.Name) or target.value.id != name:
+                continue
+            if _ast_string_literal(target.slice) == key_name:
+                return True
+    return False
 
 
 def _governance_cli_parser_calls(function: ast.FunctionDef) -> dict[str, set[str]]:
