@@ -801,7 +801,74 @@ DESIGN_REFERENCE_DOC_REQUIREMENTS = (
         ),
     ),
 )
+PRODUCT_REFERENCE_DOC_REQUIREMENTS = (
+    (
+        "references/product-requirements-checklist.md",
+        (
+            "workflows/03-product-structuring.md",
+            "skills/structuring-product-requirements/SKILL.md",
+        ),
+    ),
+)
 METHOD_REFERENCE_BASELINES = {
+    "references/product-requirements-checklist.md": (
+        (
+            "Source Fidelity",
+            (
+                "## Source Fidelity",
+                "without invented actors, workflows, constraints, or success targets",
+                "https://www.iso.org/standard/72089.html",
+            ),
+        ),
+        (
+            "Requirement Quality",
+            (
+                "## Requirement Quality",
+                "clear, necessary, feasible, unambiguous, verifiable, and traceable",
+                "https://www.iso.org/standard/72089.html",
+            ),
+        ),
+        (
+            "Scope and Story Slicing",
+            (
+                "## Scope and Story Slicing",
+                "independent, negotiable, valuable, estimable, small, and testable",
+                "https://xp123.com/articles/invest-in-good-stories-and-smart-tasks/",
+            ),
+        ),
+        (
+            "Acceptance Criteria",
+            (
+                "## Acceptance Criteria",
+                "stable product-defined `A-NNN` ID",
+                "Given/When/Then",
+                "https://cucumber.io/docs/gherkin/reference/",
+            ),
+        ),
+        (
+            "Glossary and Domain Language",
+            (
+                "## Glossary and Domain Language",
+                "unique `Term`, filled `Meaning`, and local Markdown `Source`",
+            ),
+        ),
+        (
+            "Unresolved Questions",
+            (
+                "## Unresolved Questions",
+                "unique `U-NNN` ID",
+                "`Blocking Scope`",
+            ),
+        ),
+        (
+            "Design Readiness",
+            (
+                "## Design Readiness",
+                "no blocking unresolved rows",
+                "docs/unresolved.md",
+            ),
+        ),
+    ),
     "references/architecture-methods.md": (
         ("C4 Model", ("## C4 Model", "https://c4model.com/")),
         ("arc42", ("## arc42", "https://docs.arc42.org/home/")),
@@ -1422,6 +1489,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_design_scaffold_docs(root, findings)
     _check_scaffold_continuation_docs(root, findings)
     _check_implementation_handoff_docs(root, findings)
+    _check_product_reference_docs(root, findings)
     _check_design_reference_docs(root, findings)
     _check_method_reference_baselines(root, findings)
     _check_phase_order_docs(root, findings)
@@ -2749,6 +2817,21 @@ def _check_design_reference_docs(root: Path, findings: list[PackFinding]) -> Non
                 PackFinding(
                     "pack_design_reference_doc_missing",
                     f"{rel} must route design work through reference document: {reference}",
+                    rel,
+                )
+            )
+
+
+def _check_product_reference_docs(root: Path, findings: list[PackFinding]) -> None:
+    for reference, consumers in PRODUCT_REFERENCE_DOC_REQUIREMENTS:
+        for rel in consumers:
+            text = _read_utf8_text_or_none(root / rel)
+            if text is None or reference in text:
+                continue
+            findings.append(
+                PackFinding(
+                    "pack_product_reference_doc_missing",
+                    f"{rel} must route product structuring through reference document: {reference}",
                     rel,
                 )
             )
