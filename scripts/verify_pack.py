@@ -486,6 +486,20 @@ ENV_REPAIR_REQUIRED_FIELDS = (
     "manual_repairs",
     "needs_escalation",
 )
+PRODUCT_ARCHIVE_DOC_PATHS = (
+    "workflows/02-product-document-archiving.md",
+    "skills/archiving-product-document/SKILL.md",
+)
+PRODUCT_ARCHIVE_REQUIRED_PHRASES = (
+    "source-manifest.json",
+    "SHA-256",
+    "can_derive_design",
+    "product mark-ready",
+    "manual-reviewed-markdown",
+    "would_update",
+    "local_commands",
+    "next_actions",
+)
 DESIGN_REFERENCE_DOC_REQUIREMENTS = (
     (
         "references/architecture-methods.md",
@@ -787,6 +801,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_readme_quick_start(root, findings)
     _check_target_makefile_command_docs(root, findings)
     _check_env_repair_docs(root, findings)
+    _check_product_archive_docs(root, findings)
     _check_design_reference_docs(root, findings)
     _check_method_reference_baselines(root, findings)
     _check_phase_order_docs(root, findings)
@@ -1381,6 +1396,23 @@ def _check_env_repair_docs(root: Path, findings: list[PackFinding]) -> None:
             PackFinding(
                 "pack_env_repair_doc_field_missing",
                 f"{rel} must document environment repair JSON field(s): {', '.join(missing)}",
+                rel,
+            )
+        )
+
+
+def _check_product_archive_docs(root: Path, findings: list[PackFinding]) -> None:
+    for rel in PRODUCT_ARCHIVE_DOC_PATHS:
+        text = _read_utf8_text_or_none(root / rel)
+        if text is None:
+            continue
+        missing = [phrase for phrase in PRODUCT_ARCHIVE_REQUIRED_PHRASES if phrase not in text]
+        if not missing:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_product_archive_doc_missing",
+                f"{rel} must document product archive closeout phrase(s): {', '.join(missing)}",
                 rel,
             )
         )

@@ -15,7 +15,7 @@ Archive first, interpret second.
 4. Record source, conversion method, hash evidence, and review status in `product-meta.md`.
 5. Preserve tables, acceptance rules, diagrams, and field names.
 6. Register conversion losses in `docs/unresolved.md`.
-7. After manual review, run `bin/governance product mark-ready <target> --reviewed --method manual-reviewed-markdown --check --json`, then run the same command without `--check` when `ok` is true. Use the write command's `local_commands` for target-local checks and `next_actions` for the next transition, running each `argv` from its `cwd`; do not infer the next phase manually.
+7. After manual review, run `bin/governance product mark-ready <target> --reviewed --method manual-reviewed-markdown --check --json`, inspect `would_update`, then run the same command without `--check` when `ok` is true. Use the write command's `local_commands` for target-local checks and `next_actions` for the next transition, running each `argv` from its `cwd`; do not infer the next phase manually.
 8. Run `bin/governance verify <target> --check --json`, then record with `bin/governance verify <target> --json` and run `bin/governance gate product-structuring <target> --json`.
 
 ## Conversion Rules
