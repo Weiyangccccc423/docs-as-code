@@ -439,6 +439,8 @@ TASK_HANDOFF_REQUIRED_SECTIONS = {
     "task goal": "Task Goal",
     "related specs": "Related Specs",
     "definition of done": "Definition of Done",
+    "verification record": "Verification Record",
+    "handoff notes": "Handoff Notes",
 }
 TASK_HANDOFF_RELATED_SPEC_GUARDRAILS = (
     "product:",
@@ -450,6 +452,15 @@ TASK_HANDOFF_DOD_GUARDRAILS = (
     "code and tests are complete",
     "documentation is synchronized",
     "verification commands pass and output is recorded",
+)
+TASK_HANDOFF_VERIFICATION_GUARDRAILS = (
+    "command",
+    "result",
+    "evidence",
+)
+TASK_HANDOFF_NOTES_GUARDRAILS = (
+    "open follow-ups:",
+    "risks:",
 )
 MARKDOWN_LINK_RE = re.compile(r"(?<!!)\[[^\]]*]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 MARKDOWN_REFERENCE_DEFINITION_RE = re.compile(r"^\s{0,3}\[[^\]]+]:\s*(\S+)", re.MULTILINE)
@@ -1210,6 +1221,20 @@ def _check_task_handoff(root: Path, report: VerificationReport) -> None:
         "Definition of Done",
         sections["definition of done"],
         TASK_HANDOFF_DOD_GUARDRAILS,
+        report,
+    )
+    _check_task_handoff_section_guardrails(
+        rel,
+        "Verification Record",
+        sections["verification record"],
+        TASK_HANDOFF_VERIFICATION_GUARDRAILS,
+        report,
+    )
+    _check_task_handoff_section_guardrails(
+        rel,
+        "Handoff Notes",
+        sections["handoff notes"],
+        TASK_HANDOFF_NOTES_GUARDRAILS,
         report,
     )
 

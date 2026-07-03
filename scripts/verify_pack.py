@@ -73,6 +73,9 @@ TEMPLATE_REQUIRED_GUARDRAILS = {
         "- Code and tests are complete.",
         "- Documentation is synchronized.",
         "- Verification commands pass and output is recorded.",
+        "| Command | Result | Evidence |",
+        "- Open follow-ups:",
+        "- Risks:",
     ),
     "templates/docs/api/00-conventions.md": (
         "# API Conventions",
@@ -294,6 +297,8 @@ TEMPLATE_REQUIRED_SECTIONS = {
         "Task Goal",
         "Related Specs",
         "Definition of Done",
+        "Verification Record",
+        "Handoff Notes",
     ),
     "templates/docs/api/00-conventions.md": (
         "Product Links",

@@ -2129,6 +2129,36 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_task_handoff_template_verification_record_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            template = target / "templates/docs/agent-workflow/task-handoff.md"
+            template.write_text(
+                template.read_text(encoding="utf-8").replace(
+                    "| Command | Result | Evidence |\n",
+                    "| Command | Result |\n",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_template_guardrail_missing"
+                    and finding.path == "templates/docs/agent-workflow/task-handoff.md"
+                    and "Evidence" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_verification_log_template_section_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"

@@ -1481,7 +1481,14 @@ def _task_handoff() -> str:
         "## Definition of Done\n\n"
         "- Code and tests are complete.\n"
         "- Documentation is synchronized.\n"
-        "- Verification commands pass and output is recorded.\n"
+        "- Verification commands pass and output is recorded.\n\n"
+        "## Verification Record\n\n"
+        "| Command | Result | Evidence |\n"
+        "| --- | --- | --- |\n"
+        "| - | - | - |\n\n"
+        "## Handoff Notes\n\n"
+        "- Open follow-ups:\n"
+        "- Risks:\n"
     )
 
 
