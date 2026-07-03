@@ -1535,6 +1535,7 @@ def _check_workflow_action_schema(root: Path, findings: list[PackFinding]) -> No
             findings,
         )
         _check_action_pair_contract(product_actions, "PRODUCT_IMPORT_ACTIONS", rel, findings)
+        _check_action_command_contract(product_actions, "PRODUCT_IMPORT_ACTIONS", rel, findings)
         for action in product_actions:
             _check_workflow_action_metadata_alignment(root, action, constants, rel, findings)
 
@@ -1577,6 +1578,7 @@ def _check_workflow_action_schema(root: Path, findings: list[PackFinding]) -> No
             findings,
         )
         _check_action_pair_contract(advance_actions, "_advance_actions() return", rel, findings)
+        _check_action_command_contract(advance_actions, "_advance_actions() return", rel, findings)
 
     copy_actions = _find_function_def(tree, "_copy_actions")
     if copy_actions is None or not _function_assigns_subscript_key(copy_actions, "action", "cwd"):
@@ -1642,6 +1644,44 @@ def _check_action_pair_contract(
                 rel,
             )
         )
+
+
+def _check_action_command_contract(
+    actions: list[ast.Dict],
+    label: str,
+    rel: str,
+    findings: list[PackFinding],
+) -> None:
+    for index, action in enumerate(actions):
+        if _action_command_matches_argv(action):
+            continue
+        findings.append(
+            PackFinding(
+                "pack_workflow_action_command_mismatch",
+                f"scripts/workflow_actions.py {label} action {index} command must match argv",
+                rel,
+            )
+        )
+
+
+def _action_command_matches_argv(action: ast.Dict) -> bool:
+    command = _dict_literal_value(action, "command")
+    argv = _dict_literal_value(action, "argv")
+    if command is None or argv is None:
+        return True
+
+    command_text = _ast_static_string(command, {})
+    argv_sequence = _ast_string_sequence(argv)
+    if command_text is not None and argv_sequence is not None:
+        return command_text == " ".join(argv_sequence)
+
+    if not isinstance(command, ast.Call):
+        return False
+    if not isinstance(command.func, ast.Name) or command.func.id != "_command_text":
+        return False
+    if len(command.args) != 1:
+        return False
+    return _ast_name_id(command.args[0]) == _ast_name_id(argv)
 
 
 def _check_workflow_action_metadata_alignment(
@@ -1815,6 +1855,13 @@ def _dict_literal_keys(node: ast.Dict) -> set[str]:
     return {key.value for key in node.keys if isinstance(key, ast.Constant) and isinstance(key.value, str)}
 
 
+def _dict_literal_value(node: ast.Dict, key_name: str) -> ast.AST | None:
+    for key, value in zip(node.keys, node.values):
+        if isinstance(key, ast.Constant) and key.value == key_name:
+            return value
+    return None
+
+
 def _dict_literal_string_value(node: ast.Dict, key_name: str) -> str | None:
     for key, value in zip(node.keys, node.values):
         if not isinstance(key, ast.Constant) or key.value != key_name:
@@ -1865,6 +1912,12 @@ def _function_assigns_subscript_key(function: ast.FunctionDef, name: str, key_na
             if _ast_string_literal(target.slice) == key_name:
                 return True
     return False
+
+
+def _ast_name_id(node: ast.AST) -> str | None:
+    if isinstance(node, ast.Name):
+        return node.id
+    return None
 
 
 def _ast_static_string(node: ast.AST, constants: dict[str, str]) -> str | None:

@@ -474,6 +474,66 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_product_import_action_command_argv_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/workflow_actions.py"
+            script.write_text(
+                script.read_text(encoding="utf-8").replace(
+                    '"command": "bin/governance product mark-ready . --reviewed --method manual-reviewed-markdown --check --json",',
+                    '"command": "bin/governance status . --json",',
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_workflow_action_command_mismatch"
+                    and finding.path == "scripts/workflow_actions.py"
+                    and "PRODUCT_IMPORT_ACTIONS action 0" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_advance_action_command_argv_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/workflow_actions.py"
+            script.write_text(
+                script.read_text(encoding="utf-8").replace(
+                    '"command": _command_text(preflight_argv),',
+                    '"command": "bin/governance status . --json",',
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_workflow_action_command_mismatch"
+                    and finding.path == "scripts/workflow_actions.py"
+                    and "_advance_actions() return action 0" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_missing_target_makefile_command_doc(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
