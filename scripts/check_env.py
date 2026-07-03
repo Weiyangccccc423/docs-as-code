@@ -494,6 +494,7 @@ def write_repair_plan(
     system: SystemStatus | None = None,
     package_manager: PackageManager | None = None,
     install_plan: list[InstallPlanItem] | None = None,
+    strict: bool = False,
     needs_escalation: bool = False,
 ) -> Path:
     error = repair_target_error(target)
@@ -503,6 +504,7 @@ def write_repair_plan(
     system = system or collect_system_status()
     package_manager = package_manager or detect_package_manager(system)
     install_plan = install_plan or []
+    manual_repairs = manual_repair_items(statuses, strict, package_manager, install_plan)
     path = target / ".governance/env-repair.md"
     path.parent.mkdir(parents=True, exist_ok=True)
     lines = [
@@ -552,6 +554,19 @@ def write_repair_plan(
         [
             "",
             "## Manual Repairs",
+            "",
+        ]
+    )
+    if manual_repairs:
+        for item in manual_repairs:
+            package = f"; package `{item.install_package}`" if item.install_package else ""
+            lines.append(f"- `{item.tool}` ({item.level}): {item.reason}{package}. {item.note}")
+    else:
+        lines.append("- None")
+    lines.extend(
+        [
+            "",
+            "## Manual Guidance",
             "",
             "- Install system tools with your OS package manager when required.",
             "- Install `node` and `corepack` with the target project's selected JavaScript runtime policy.",
@@ -735,6 +750,7 @@ def main() -> int:
                 system=system,
                 package_manager=package_manager,
                 install_plan=install_plan,
+                strict=args.strict,
                 needs_escalation=needs_escalation,
             )
         except (OSError, ValueError) as error:

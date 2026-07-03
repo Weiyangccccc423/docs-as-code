@@ -2744,6 +2744,74 @@ class GovernanceScriptsTest(unittest.TestCase):
         self.assertEqual("unsupported package manager: brew", manual[0].reason)
         self.assertEqual("git", manual[0].install_package)
 
+    def test_write_repair_plan_lists_manual_repairs_in_strict_scope(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            target.mkdir()
+            statuses = [
+                check_env_module.ToolStatus(
+                    "node",
+                    False,
+                    "",
+                    "Recommended for frontend projects and markdown tooling.",
+                    "recommended",
+                    None,
+                ),
+                check_env_module.ToolStatus(
+                    "pandoc",
+                    False,
+                    "",
+                    "Recommended for converting product documents.",
+                    "recommended",
+                    "pandoc",
+                ),
+            ]
+            system = check_env_module.SystemStatus("linux", "ubuntu", "debian", "Ubuntu", False)
+            package_manager = check_env_module.PackageManager("apt", "/usr/bin/apt-get", True)
+            install_plan = check_env_module.build_install_plan(statuses, True, package_manager)
+
+            path = write_repair_plan(
+                target,
+                statuses,
+                system=system,
+                package_manager=package_manager,
+                install_plan=install_plan,
+                strict=True,
+                needs_escalation=True,
+            )
+
+            text = path.read_text(encoding="utf-8")
+            manual_repairs = text.split("## Manual Repairs", 1)[1].split("## Manual Guidance", 1)[0]
+            self.assertIn("## Manual Repairs", text)
+            self.assertIn(
+                "- `node` (recommended): no supported package mapping. "
+                "Recommended for frontend projects and markdown tooling.",
+                manual_repairs,
+            )
+            self.assertNotIn("`pandoc` (recommended):", manual_repairs)
+            self.assertIn("## Manual Guidance", text)
+
+    def test_write_repair_plan_omits_non_strict_recommended_manual_repairs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            target.mkdir()
+            statuses = [
+                check_env_module.ToolStatus(
+                    "node",
+                    False,
+                    "",
+                    "Recommended for frontend projects and markdown tooling.",
+                    "recommended",
+                    None,
+                ),
+            ]
+
+            path = write_repair_plan(target, statuses, strict=False)
+
+            text = path.read_text(encoding="utf-8")
+            self.assertIn("## Manual Repairs\n\n- None\n", text)
+            self.assertIn("## Manual Guidance", text)
+
     def test_check_env_payload_isolates_repair_inputs(self) -> None:
         statuses = [
             check_env_module.ToolStatus(

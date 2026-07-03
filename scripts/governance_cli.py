@@ -336,6 +336,7 @@ def _cmd_env(args: argparse.Namespace) -> int:
                 system=system,
                 package_manager=package_manager,
                 install_plan=install_plan,
+                strict=args.strict,
                 needs_escalation=needs_escalation,
             )
         except (OSError, ValueError) as error:
