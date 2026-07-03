@@ -57,6 +57,7 @@ Create reliable project governance before implementation starts:
 
 - `references/community-practices.md`: external practice calibration.
 - `references/architecture-methods.md`: C4, arc42, ADR, and OpenAPI method notes.
+- `references/architecture-quality-checklist.md`: architecture-description, quality-model, scenario, runtime, tradeoff, and implementation-readiness checklist.
 - `references/api-design-checklist.md`: API contract, HTTP semantics, error, idempotency, collection, compatibility, and traceability checklist.
 - `references/backend-design-checklist.md`: backend and data-design completion checklist.
 - `references/security-design-checklist.md`: security, abuse-case, and supply-chain design checklist.

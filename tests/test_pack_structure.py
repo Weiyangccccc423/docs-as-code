@@ -965,8 +965,8 @@ class PackStructureTest(unittest.TestCase):
             workflow = target / "workflows/04-design-derivation.md"
             workflow.write_text(
                 workflow.read_text(encoding="utf-8").replace(
-                    "3. Read `references/architecture-methods.md`, then create or complete `docs/architecture/` views:",
-                    "3. Create or complete `docs/architecture/` views:",
+                    "3. Read `references/architecture-methods.md` and `references/architecture-quality-checklist.md`, then create or complete `docs/architecture/` views:",
+                    "3. Read `references/architecture-quality-checklist.md`, then create or complete `docs/architecture/` views:",
                     1,
                 ),
                 encoding="utf-8",
@@ -1038,6 +1038,35 @@ class PackStructureTest(unittest.TestCase):
                     finding.code == "pack_design_reference_doc_missing"
                     and finding.path == "skills/designing-api-contracts/SKILL.md"
                     and "references/api-design-checklist.md" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_missing_architecture_quality_checklist_doc_routing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            skill = target / "skills/designing-system-architecture/SKILL.md"
+            skill.write_text(
+                skill.read_text(encoding="utf-8").replace(
+                    "`references/architecture-quality-checklist.md`",
+                    "the architecture quality checklist",
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_design_reference_doc_missing"
+                    and finding.path == "skills/designing-system-architecture/SKILL.md"
+                    and "references/architecture-quality-checklist.md" in finding.message
                     for finding in report.findings
                 )
             )
@@ -1129,6 +1158,37 @@ class PackStructureTest(unittest.TestCase):
                     and finding.path == "references/api-design-checklist.md"
                     and "Error Responses" in finding.message
                     and "https://www.rfc-editor.org/rfc/rfc9457.html" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_missing_architecture_quality_reference_baseline(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            reference = target / "references/architecture-quality-checklist.md"
+            reference.write_text(
+                reference.read_text(encoding="utf-8").replace(
+                    "source, stimulus, environment, affected artifact, response, and response measure",
+                    "source and response",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_method_reference_baseline_missing"
+                    and finding.path == "references/architecture-quality-checklist.md"
+                    and "Quality Scenarios" in finding.message
+                    and "affected artifact" in finding.message
                     for finding in report.findings
                 )
             )

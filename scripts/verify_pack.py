@@ -738,6 +738,13 @@ DESIGN_REFERENCE_DOC_REQUIREMENTS = (
         ),
     ),
     (
+        "references/architecture-quality-checklist.md",
+        (
+            "workflows/04-design-derivation.md",
+            "skills/designing-system-architecture/SKILL.md",
+        ),
+    ),
+    (
         "references/backend-design-checklist.md",
         (
             "workflows/04-design-derivation.md",
@@ -806,6 +813,48 @@ METHOD_REFERENCE_BASELINES = {
             (
                 "## Compatibility and Change Control",
                 "backward-compatible additions, deprecations, and breaking changes",
+            ),
+        ),
+    ),
+    "references/architecture-quality-checklist.md": (
+        (
+            "Architecture Description",
+            (
+                "## Architecture Description",
+                "stakeholders, concerns, system boundary, views, decisions, rationale",
+                "https://www.iso.org/standard/74393.html",
+            ),
+        ),
+        (
+            "Quality Model Coverage",
+            (
+                "## Quality Model Coverage",
+                "availability, performance efficiency, compatibility, usability, reliability, security",
+                "https://www.iso.org/standard/78176.html",
+            ),
+        ),
+        (
+            "Quality Scenarios",
+            (
+                "## Quality Scenarios",
+                "source, stimulus, environment, affected artifact, response, and response measure",
+                "https://docs.arc42.org/section-10/",
+            ),
+        ),
+        (
+            "Tradeoff Review",
+            (
+                "## Tradeoff Review",
+                "sensitivity points, tradeoffs, risks, and non-risks",
+                "https://resources.sei.cmu.edu/asset_files/TechnicalReport/2000_005_001_13706.pdf",
+            ),
+        ),
+        (
+            "Implementation Readiness",
+            (
+                "## Implementation Readiness",
+                "without inventing architecture meaning",
+                "verification hooks",
             ),
         ),
     ),

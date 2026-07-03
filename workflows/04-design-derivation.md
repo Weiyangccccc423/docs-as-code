@@ -42,7 +42,7 @@ Load according to the design track:
 
    `--check` reports `would_create`, `would_skip`, and `would_index` without writing placeholders. The write command returns `local_commands`, `next_actions`, and `scaffold_phase` when gate state is readable; when scaffold placeholders remain, it also returns `next_actions_blocked_by`. If `scaffold_phase.matches` is false, use returned `next_actions` to advance recorded phases in order before treating the scaffold as current phase work. Use the returned check commands, keep the next actions for later, and do not run downstream phase actions until every blocker listed in `next_actions_blocked_by` is resolved. The scaffold includes a starter endpoint contract at `docs/api/endpoints/01-endpoint-contract.md` only when no endpoint contract already exists, and standard table skeletons for the acceptance matrix, roadmap, task board, and verification log; replace or rename scaffolds with product-derived content before implementation handoff. Replace all `governance:scaffold-placeholder` markers before implementation handoff.
 
-3. Read `references/architecture-methods.md`, then create or complete `docs/architecture/` views:
+3. Read `references/architecture-methods.md` and `references/architecture-quality-checklist.md`, then create or complete `docs/architecture/` views:
    - system context
    - containers
    - major quality attributes
@@ -88,6 +88,7 @@ Design documents sufficient for creating a task board without guessing product m
 ## Verification
 
 - API endpoints have request, response, error code, auth, and idempotency notes.
+- Architecture documents are checked against `references/architecture-quality-checklist.md` for architecture-description coverage, quality model coverage, measurable quality scenarios, runtime/failure flow, tradeoffs, and implementation readiness.
 - API contracts are checked against `references/api-design-checklist.md` for contract shape, HTTP semantics, error responses, idempotency, collection operations, compatibility, and traceability.
 - Security-sensitive API, backend, frontend, and test design decisions are checked against `references/security-design-checklist.md`.
 - `docs/api/00-conventions.md` has non-placeholder Product Links, HTTP Conventions, Authentication, Idempotency, Compatibility, and Open Decisions sections, and links to product scope plus product acceptance criteria.
