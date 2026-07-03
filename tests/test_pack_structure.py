@@ -412,6 +412,68 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_workflow_action_missing_primary_skill(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/workflow_actions.py"
+            script.write_text(
+                script.read_text(encoding="utf-8").replace(
+                    '            "designing-api-contracts",\n',
+                    "",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_workflow_action_skill_mismatch"
+                    and finding.path == "scripts/workflow_actions.py"
+                    and "design-derivation" in finding.message
+                    and "designing-api-contracts" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_workflow_action_path_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/workflow_actions.py"
+            script.write_text(
+                script.read_text(encoding="utf-8").replace(
+                    'f"{TARGET_WORKFLOW_ROOT}/workflows/04-design-derivation.md"',
+                    'f"{TARGET_WORKFLOW_ROOT}/workflows/05-verification-and-drift-control.md"',
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_workflow_action_workflow_mismatch"
+                    and finding.path == "scripts/workflow_actions.py"
+                    and "design-derivation" in finding.message
+                    and "workflows/04-design-derivation.md" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_missing_target_makefile_command_doc(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"

@@ -899,6 +899,15 @@ WORKFLOW_ACTION_PHASE_METADATA_REQUIRED_KEYS = (
     "skills",
     "description",
 )
+WORKFLOW_ACTION_PHASE_WORKFLOWS = {
+    "product-document-archiving": "workflows/02-product-document-archiving.md",
+    "product-structuring": "workflows/03-product-structuring.md",
+    "design-derivation": "workflows/04-design-derivation.md",
+    "implementation": "workflows/05-verification-and-drift-control.md",
+}
+WORKFLOW_ACTION_REQUIRED_SUPPORT_SKILLS = (
+    "verifying-governance-docs",
+)
 RUNTIME_FILE_LIST_MODULES = {
     "scripts/bootstrap_tree.py": {
         "bin": "RUNTIME_BIN_FILES",
@@ -1506,6 +1515,7 @@ def _check_workflow_action_schema(root: Path, findings: list[PackFinding]) -> No
     except (SyntaxError, UnicodeDecodeError, OSError):
         return
 
+    constants = _top_level_string_constants(tree)
     product_import = _top_level_assignment_value(tree, "PRODUCT_IMPORT_ACTIONS")
     product_actions = _sequence_dict_literals(product_import)
     if not product_actions:
@@ -1525,6 +1535,8 @@ def _check_workflow_action_schema(root: Path, findings: list[PackFinding]) -> No
             findings,
         )
         _check_action_pair_contract(product_actions, "PRODUCT_IMPORT_ACTIONS", rel, findings)
+        for action in product_actions:
+            _check_workflow_action_metadata_alignment(root, action, constants, rel, findings)
 
     phase_actions = _top_level_assignment_value(tree, "PHASE_ACTIONS")
     phase_metadata = _dict_literal_values(phase_actions)
@@ -1544,6 +1556,8 @@ def _check_workflow_action_schema(root: Path, findings: list[PackFinding]) -> No
             rel,
             findings,
         )
+        for phase, metadata in _dict_literal_string_items(phase_actions):
+            _check_workflow_phase_action_metadata_alignment(root, phase, metadata, constants, rel, findings)
 
     advance_actions = _return_list_dict_literals(_find_function_def(tree, "_advance_actions"))
     if not advance_actions:
@@ -1630,6 +1644,91 @@ def _check_action_pair_contract(
         )
 
 
+def _check_workflow_action_metadata_alignment(
+    root: Path,
+    action: ast.Dict,
+    constants: dict[str, str],
+    rel: str,
+    findings: list[PackFinding],
+) -> None:
+    phase = _dict_literal_string_value(action, "phase")
+    if phase is None:
+        return
+    _check_workflow_action_alignment(root, phase, action, constants, rel, findings)
+
+
+def _check_workflow_phase_action_metadata_alignment(
+    root: Path,
+    phase: str,
+    metadata: ast.Dict,
+    constants: dict[str, str],
+    rel: str,
+    findings: list[PackFinding],
+) -> None:
+    _check_workflow_action_alignment(root, phase, metadata, constants, rel, findings)
+
+
+def _check_workflow_action_alignment(
+    root: Path,
+    phase: str,
+    metadata: ast.Dict,
+    constants: dict[str, str],
+    rel: str,
+    findings: list[PackFinding],
+) -> None:
+    expected_workflow = WORKFLOW_ACTION_PHASE_WORKFLOWS.get(phase)
+    if expected_workflow is None:
+        return
+    workflow = _workflow_action_rel(_dict_literal_static_string_value(metadata, "workflow", constants), constants)
+    if workflow != expected_workflow:
+        findings.append(
+            PackFinding(
+                "pack_workflow_action_workflow_mismatch",
+                f"scripts/workflow_actions.py action phase {phase} must reference {expected_workflow}",
+                rel,
+            )
+        )
+
+    expected_skills = _workflow_action_expected_skills(root, expected_workflow)
+    if not expected_skills:
+        return
+    skills = _dict_literal_string_sequence_value(metadata, "skills")
+    missing = [skill for skill in expected_skills if skill not in skills]
+    if not missing:
+        return
+    findings.append(
+        PackFinding(
+            "pack_workflow_action_skill_mismatch",
+            f"scripts/workflow_actions.py action phase {phase} must include skill(s): {', '.join(missing)}",
+            rel,
+        )
+    )
+
+
+def _workflow_action_expected_skills(root: Path, expected_workflow: str) -> list[str]:
+    try:
+        overview_text = (root / "workflows/00-overview.md").read_text(encoding="utf-8")
+    except (UnicodeDecodeError, OSError):
+        return []
+    phase_map = _phase_map_primary_skills(_markdown_section(overview_text, "Phase Map") or "")
+    phase_number = Path(expected_workflow).name.split("-", 1)[0]
+    skills = list(phase_map.get(phase_number, []))
+    for skill in WORKFLOW_ACTION_REQUIRED_SUPPORT_SKILLS:
+        if skill not in skills:
+            skills.append(skill)
+    return skills
+
+
+def _workflow_action_rel(value: str | None, constants: dict[str, str]) -> str:
+    if value is None:
+        return ""
+    target_root = constants.get("TARGET_WORKFLOW_ROOT", "docs/agent-workflow/workflow-pack")
+    prefix = f"{target_root}/"
+    if value.startswith(prefix):
+        return value[len(prefix) :]
+    return value
+
+
 def _script_calls_function(tree: ast.AST, name: str) -> bool:
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
@@ -1659,6 +1758,25 @@ def _top_level_assignment_value(tree: ast.AST, name: str) -> ast.AST | None:
     return None
 
 
+def _top_level_string_constants(tree: ast.AST) -> dict[str, str]:
+    constants: dict[str, str] = {}
+    if not isinstance(tree, ast.Module):
+        return constants
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            value = _ast_string_literal(node.value)
+            if value is None:
+                continue
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    constants[target.id] = value
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            value = _ast_string_literal(node.value)
+            if value is not None:
+                constants[node.target.id] = value
+    return constants
+
+
 def _sequence_dict_literals(node: ast.AST | None) -> list[ast.Dict]:
     if not isinstance(node, ast.Tuple | ast.List):
         return []
@@ -1669,6 +1787,16 @@ def _dict_literal_values(node: ast.AST | None) -> list[ast.Dict]:
     if not isinstance(node, ast.Dict):
         return []
     return [value for value in node.values if isinstance(value, ast.Dict)]
+
+
+def _dict_literal_string_items(node: ast.AST | None) -> list[tuple[str, ast.Dict]]:
+    if not isinstance(node, ast.Dict):
+        return []
+    items: list[tuple[str, ast.Dict]] = []
+    for key, value in zip(node.keys, node.values):
+        if isinstance(key, ast.Constant) and isinstance(key.value, str) and isinstance(value, ast.Dict):
+            items.append((key.value, value))
+    return items
 
 
 def _return_list_dict_literals(function: ast.FunctionDef | None) -> list[ast.Dict]:
@@ -1695,6 +1823,27 @@ def _dict_literal_string_value(node: ast.Dict, key_name: str) -> str | None:
     return None
 
 
+def _dict_literal_static_string_value(
+    node: ast.Dict,
+    key_name: str,
+    constants: dict[str, str],
+) -> str | None:
+    for key, value in zip(node.keys, node.values):
+        if not isinstance(key, ast.Constant) or key.value != key_name:
+            continue
+        return _ast_static_string(value, constants)
+    return None
+
+
+def _dict_literal_string_sequence_value(node: ast.Dict, key_name: str) -> tuple[str, ...]:
+    for key, value in zip(node.keys, node.values):
+        if not isinstance(key, ast.Constant) or key.value != key_name:
+            continue
+        sequence = _ast_string_sequence(value)
+        return sequence if sequence is not None else ()
+    return ()
+
+
 def _dict_literal_bool_value(node: ast.Dict, key_name: str) -> bool | None:
     for key, value in zip(node.keys, node.values):
         if not isinstance(key, ast.Constant) or key.value != key_name:
@@ -1716,6 +1865,26 @@ def _function_assigns_subscript_key(function: ast.FunctionDef, name: str, key_na
             if _ast_string_literal(target.slice) == key_name:
                 return True
     return False
+
+
+def _ast_static_string(node: ast.AST, constants: dict[str, str]) -> str | None:
+    literal = _ast_string_literal(node)
+    if literal is not None:
+        return literal
+    if not isinstance(node, ast.JoinedStr):
+        return None
+    parts: list[str] = []
+    for value in node.values:
+        if isinstance(value, ast.Constant) and isinstance(value.value, str):
+            parts.append(value.value)
+        elif isinstance(value, ast.FormattedValue) and isinstance(value.value, ast.Name):
+            resolved = constants.get(value.value.id)
+            if resolved is None:
+                return None
+            parts.append(resolved)
+        else:
+            return None
+    return "".join(parts)
 
 
 def _governance_cli_parser_calls(function: ast.FunctionDef) -> dict[str, set[str]]:
