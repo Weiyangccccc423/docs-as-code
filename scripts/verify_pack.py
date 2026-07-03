@@ -522,6 +522,26 @@ PRODUCT_STRUCTURE_REQUIRED_PHRASES = (
     "local_commands",
     "next_actions",
 )
+DESIGN_SCAFFOLD_DOC_PATHS = (
+    "README.md",
+    "workflows/00-overview.md",
+    "workflows/04-design-derivation.md",
+    "skills/using-governance-workflow/SKILL.md",
+)
+DESIGN_SCAFFOLD_REQUIRED_PHRASES = (
+    "scaffold design",
+    "would_create",
+    "would_skip",
+    "would_index",
+    "governance:scaffold-placeholder",
+    "docs/api/endpoints/01-endpoint-contract.md",
+    "acceptance matrix",
+    "roadmap",
+    "task board",
+    "verification log",
+    "local_commands",
+    "next_actions",
+)
 DESIGN_REFERENCE_DOC_REQUIREMENTS = (
     (
         "references/architecture-methods.md",
@@ -825,6 +845,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_env_repair_docs(root, findings)
     _check_product_archive_docs(root, findings)
     _check_product_structure_docs(root, findings)
+    _check_design_scaffold_docs(root, findings)
     _check_design_reference_docs(root, findings)
     _check_method_reference_baselines(root, findings)
     _check_phase_order_docs(root, findings)
@@ -1453,6 +1474,23 @@ def _check_product_structure_docs(root: Path, findings: list[PackFinding]) -> No
             PackFinding(
                 "pack_product_structure_doc_missing",
                 f"{rel} must document product scaffold phrase(s): {', '.join(missing)}",
+                rel,
+            )
+        )
+
+
+def _check_design_scaffold_docs(root: Path, findings: list[PackFinding]) -> None:
+    for rel in DESIGN_SCAFFOLD_DOC_PATHS:
+        text = _read_utf8_text_or_none(root / rel)
+        if text is None:
+            continue
+        missing = [phrase for phrase in DESIGN_SCAFFOLD_REQUIRED_PHRASES if phrase not in text]
+        if not missing:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_design_scaffold_doc_missing",
+                f"{rel} must document design scaffold phrase(s): {', '.join(missing)}",
                 rel,
             )
         )

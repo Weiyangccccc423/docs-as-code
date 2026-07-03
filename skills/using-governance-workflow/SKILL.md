@@ -42,7 +42,7 @@ When `gate --json` can read governance state, use returned `local_commands[].arg
 When actually changing phase, run `bin/governance advance <phase> <target> --check --json`, then run it without `--check` so `.governance/state.json` records `phase_history`. `advance` records adjacent transitions one phase at a time and cannot skip phases; use `gate` for repeated checks or earlier-phase audits.
 After a state-writing `product mark-ready --json` or `advance --json` succeeds, prefer the returned `local_commands` and `next_actions` instead of reconstructing commands or rerunning `status`.
 
-After `design-derivation` passes, run `bin/governance scaffold design <target> --check --json` if standard design files are missing, then run it without `--check` when the plan is correct. Use successful scaffold `local_commands` for checks and keep `next_actions` for later; do not enter implementation while any `governance:scaffold-placeholder` marker remains.
+After `design-derivation` passes, run `bin/governance scaffold design <target> --check --json` if standard design files are missing, inspect `would_create`, `would_skip`, and `would_index`, then run it without `--check` when the plan is correct. Expect the starter endpoint contract at `docs/api/endpoints/01-endpoint-contract.md` and table skeletons for the acceptance matrix, roadmap, task board, and verification log. Use successful scaffold `local_commands` for checks and keep `next_actions` for later; do not enter implementation while any `governance:scaffold-placeholder` marker remains.
 
 When working inside a generated target without the source workflow-pack repository open, use `docs/agent-workflow/workflow-pack/` as the local copy of workflows, skills, references, and templates.
 

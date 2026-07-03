@@ -120,7 +120,7 @@ bin/governance scaffold product /path/to/new-project --chapter goals-and-require
 bin/governance scaffold product /path/to/new-project --chapter goals-and-requirements --chapter acceptance-criteria --json
 ```
 
-Use `scaffold design --check --json` after the design-derivation gate to inspect the standard architecture, API, UI, backend, frontend, test, and development document shells before writing them, including the task board and verification log. Scaffolded files contain `governance:scaffold-placeholder`; verification fails until the placeholders are replaced with product-derived content.
+Use `scaffold design --check --json` after the design-derivation gate to inspect `would_create`, `would_skip`, and `would_index` for the standard architecture, API, UI, backend, frontend, test, and development document shells before writing them. The scaffold includes the starter endpoint contract at `docs/api/endpoints/01-endpoint-contract.md` and table skeletons for the acceptance matrix, roadmap, task board, and verification log. Scaffolded files contain `governance:scaffold-placeholder`; verification fails until the placeholders are replaced with product-derived content.
 
 ```bash
 bin/governance advance design-derivation /path/to/new-project --check --json

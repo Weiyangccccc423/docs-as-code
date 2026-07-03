@@ -97,7 +97,7 @@ bin/governance scaffold design <target> --check --json
 bin/governance scaffold design <target> --json
 ```
 
-Use `--check` to inspect `would_create`, `would_skip`, and `would_index` before writing scaffold placeholders. Scaffold placeholders block verification until replaced with product-derived content.
+Use `--check` to inspect `would_create`, `would_skip`, and `would_index` before writing `governance:scaffold-placeholder` markers. The design scaffold includes the starter endpoint contract at `docs/api/endpoints/01-endpoint-contract.md` and standard table skeletons for the acceptance matrix, roadmap, task board, and verification log. Scaffold placeholders block verification until replaced with product-derived content.
 After successful write-mode scaffold commands, use returned `local_commands[].argv` for checks and keep `next_actions[].argv` for the next transition, but do not run downstream state-writing actions while scaffold placeholders remain.
 
 ## Source-of-Truth Flow
