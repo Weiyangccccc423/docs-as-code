@@ -808,6 +808,15 @@ DESIGN_REFERENCE_DOC_REQUIREMENTS = (
         ),
     ),
 )
+INITIALIZATION_REFERENCE_DOC_REQUIREMENTS = (
+    (
+        "references/repository-initialization-checklist.md",
+        (
+            "workflows/01-empty-repo-initialization.md",
+            "skills/initializing-governance-repo/SKILL.md",
+        ),
+    ),
+)
 PRODUCT_REFERENCE_DOC_REQUIREMENTS = (
     (
         "references/product-archive-checklist.md",
@@ -825,6 +834,84 @@ PRODUCT_REFERENCE_DOC_REQUIREMENTS = (
     ),
 )
 METHOD_REFERENCE_BASELINES = {
+    "references/repository-initialization-checklist.md": (
+        (
+            "Target Safety",
+            (
+                "## Target Safety",
+                "bin/governance init --check --target <target> --product <product-doc> --json",
+                "`--force`",
+                "https://git-scm.com/book/en/v2/Git-Basics-Getting-a-Git-Repository",
+            ),
+        ),
+        (
+            "Environment and Repair",
+            (
+                "## Environment and Repair",
+                "`would_repair`, `install_commands`, `manual_repairs`, and `needs_escalation`",
+                "POSIX shell plus Python standard-library runtime",
+            ),
+        ),
+        (
+            "Governance Entry Points",
+            (
+                "## Governance Entry Points",
+                "README.md`, `AGENTS.md`, `SPEC.md`, `CONTRIBUTING.md`, `GOVERNANCE.md`, `SECURITY.md`, and `Makefile",
+                "https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-readmes",
+            ),
+        ),
+        (
+            "Runtime and Snapshot Integrity",
+            (
+                "## Runtime and Snapshot Integrity",
+                "docs/agent-workflow/runtime-manifest.json",
+                "docs/agent-workflow/workflow-pack/manifest.json",
+                "make verify-governance",
+            ),
+        ),
+        (
+            "Product Seed",
+            (
+                "## Product Seed",
+                "docs/product/core/PRD.md",
+                "docs/product/core/source/source-manifest.json",
+                ".governance/state.json",
+            ),
+        ),
+        (
+            "Git Readiness",
+            (
+                "## Git Readiness",
+                "default branch, remote, and author identity",
+                "https://git-scm.com/book/en/v2/Git-Basics-Getting-a-Git-Repository",
+            ),
+        ),
+        (
+            "Baseline Security Posture",
+            (
+                "## Baseline Security Posture",
+                "SECURITY.md",
+                "branch protection or code scanning",
+                "https://scorecard.dev/",
+            ),
+        ),
+        (
+            "Editor and Tooling Consistency",
+            (
+                "## Editor and Tooling Consistency",
+                "formatting, line ending, and editor expectations",
+                "https://editorconfig.org/",
+            ),
+        ),
+        (
+            "Handoff Readiness",
+            (
+                "## Handoff Readiness",
+                "bin/governance verify <target> --check --json",
+                "bin/governance advance product-structuring <target> --check --json",
+            ),
+        ),
+    ),
     "references/product-archive-checklist.md": (
         (
             "Source Preservation",
@@ -1628,6 +1715,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_design_scaffold_docs(root, findings)
     _check_scaffold_continuation_docs(root, findings)
     _check_implementation_handoff_docs(root, findings)
+    _check_initialization_reference_docs(root, findings)
     _check_product_reference_docs(root, findings)
     _check_design_reference_docs(root, findings)
     _check_method_reference_baselines(root, findings)
@@ -2956,6 +3044,21 @@ def _check_design_reference_docs(root: Path, findings: list[PackFinding]) -> Non
                 PackFinding(
                     "pack_design_reference_doc_missing",
                     f"{rel} must route design work through reference document: {reference}",
+                    rel,
+                )
+            )
+
+
+def _check_initialization_reference_docs(root: Path, findings: list[PackFinding]) -> None:
+    for reference, consumers in INITIALIZATION_REFERENCE_DOC_REQUIREMENTS:
+        for rel in consumers:
+            text = _read_utf8_text_or_none(root / rel)
+            if text is None or reference in text:
+                continue
+            findings.append(
+                PackFinding(
+                    "pack_initialization_reference_doc_missing",
+                    f"{rel} must route repository initialization through reference document: {reference}",
                     rel,
                 )
             )

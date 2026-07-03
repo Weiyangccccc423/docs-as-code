@@ -16,7 +16,9 @@ Load:
 
 ## Procedure
 
-1. Check environment:
+1. Read `references/repository-initialization-checklist.md` and use it as the rubric for target safety, environment repair, generated entry points, runtime snapshot integrity, product seed, Git readiness, baseline security, tooling consistency, and handoff readiness.
+
+2. Check environment:
 
    ```bash
    bin/governance env --repair --check --target <target> --json
@@ -31,7 +33,7 @@ Load:
    bin/governance env --repair --target <target> --json
    ```
 
-2. Run initialization preflight:
+3. Run initialization preflight:
 
    ```bash
    bin/governance init --check --target <target> --product <product-doc> --profile <profile> --project-name "<name>" --json
@@ -39,7 +41,7 @@ Load:
 
    Stop when `ok` is false. Existing generated governance files must be reviewed before using `--force`.
 
-3. Initialize the target folder:
+4. Initialize the target folder:
 
    ```bash
    bin/governance init --target <target> --product <product-doc> --profile <profile> --project-name "<name>"
@@ -47,7 +49,7 @@ Load:
 
    When `--json` is used, the success payload includes `local_commands` with target-local `make` entries plus `next_actions` with the next preflight/apply workflow commands. Both payloads include `cwd` and `argv` for direct agent execution; `local_commands` also marks state-writing commands with `writes_state`. Follow `next_actions` instead of assuming product structuring is immediately available.
 
-4. Inspect generated root files:
+5. Inspect generated root files:
 
    - `README.md`
    - `AGENTS.md`
@@ -60,7 +62,7 @@ Load:
    - `scripts/governance_cli.py`
    - `docs/agent-workflow/workflow-pack/manifest.json`
 
-5. Inspect generated docs domains:
+6. Inspect generated docs domains:
 
    - `docs/product/`
    - `docs/architecture/`
@@ -73,7 +75,7 @@ Load:
    - `docs/development/`
    - `docs/agent-workflow/`
 
-6. Verify:
+7. Verify:
 
    ```bash
    bin/governance verify <target>
@@ -114,6 +116,8 @@ bin/governance status <target>
 ```
 
 Use `bin/governance verify <target> --check --json` first when automation needs findings without updating `.governance/state.json`.
+
+Target safety, environment repair, generated entry points, runtime snapshot integrity, product seed, Git readiness, baseline security, tooling consistency, and handoff readiness must satisfy `references/repository-initialization-checklist.md`.
 
 ## Stop Conditions
 

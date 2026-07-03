@@ -1972,6 +1972,67 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_missing_repository_initialization_reference_doc_routing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            skill = target / "skills/initializing-governance-repo/SKILL.md"
+            skill.write_text(
+                skill.read_text(encoding="utf-8").replace(
+                    "`references/repository-initialization-checklist.md`",
+                    "the repository initialization checklist",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_initialization_reference_doc_missing"
+                    and finding.path == "skills/initializing-governance-repo/SKILL.md"
+                    and "references/repository-initialization-checklist.md" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_missing_repository_initialization_reference_baseline(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            reference = target / "references/repository-initialization-checklist.md"
+            reference.write_text(
+                reference.read_text(encoding="utf-8").replace(
+                    "bin/governance init --check --target <target> --product <product-doc> --json",
+                    "bin/governance init --check",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_method_reference_baseline_missing"
+                    and finding.path == "references/repository-initialization-checklist.md"
+                    and "Target Safety" in finding.message
+                    and "--product <product-doc>" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_phase_workflow_heading_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
