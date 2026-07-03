@@ -3610,6 +3610,14 @@ class GovernanceCliTest(unittest.TestCase):
             )
             self.assertEqual("advance-product-structuring-check", payload["next_actions"][0]["id"])
             self.assertEqual(str(target.resolve()), payload["next_actions"][0]["cwd"])
+            blockers = {
+                blocker["path"]: blocker
+                for blocker in payload["next_actions_blocked_by"]
+            }
+            self.assertIn("docs/product/03-goals-and-requirements.md", blockers)
+            self.assertIn("docs/product/08-acceptance-criteria.md", blockers)
+            self.assertEqual("governance_scaffold_placeholder", blockers["docs/product/03-goals-and-requirements.md"]["code"])
+            self.assertIn("before running next_actions", blockers["docs/product/03-goals-and-requirements.md"]["message"])
             goals = (target / "docs/product/03-goals-and-requirements.md").read_text(encoding="utf-8")
             acceptance = (target / "docs/product/08-acceptance-criteria.md").read_text(encoding="utf-8")
             product_readme = (target / "docs/product/README.md").read_text(encoding="utf-8")
@@ -4297,6 +4305,17 @@ class GovernanceCliTest(unittest.TestCase):
             )
             self.assertEqual("advance-product-structuring-check", payload["next_actions"][0]["id"])
             self.assertEqual(str(target.resolve()), payload["next_actions"][0]["cwd"])
+            blockers = {
+                blocker["path"]: blocker
+                for blocker in payload["next_actions_blocked_by"]
+            }
+            self.assertIn("docs/api/endpoints/01-endpoint-contract.md", blockers)
+            self.assertIn("docs/development/03-verification-log.md", blockers)
+            self.assertEqual(
+                "governance_scaffold_placeholder",
+                blockers["docs/api/endpoints/01-endpoint-contract.md"]["code"],
+            )
+            self.assertIn("before running next_actions", blockers["docs/api/endpoints/01-endpoint-contract.md"]["message"])
             self.assertIn("01-system-context.md", (target / "docs/architecture/README.md").read_text(encoding="utf-8"))
             self.assertIn("00-conventions.md", (target / "docs/api/README.md").read_text(encoding="utf-8"))
             self.assertIn("03-verification-log.md", (target / "docs/development/README.md").read_text(encoding="utf-8"))

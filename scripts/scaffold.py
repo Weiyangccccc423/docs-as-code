@@ -126,10 +126,38 @@ def scaffold_continuation_payload(result: ScaffoldResult) -> dict[str, object]:
     state = result.gate.get("state")
     if not isinstance(state, dict) or not state:
         return {}
-    return {
+    payload: dict[str, object] = {
         "local_commands": target_local_commands_payload(cwd=result.target),
         "next_actions": next_actions_payload(state, cwd=result.target),
     }
+    blockers = _scaffold_next_action_blockers(result)
+    if blockers:
+        payload["next_actions_blocked_by"] = blockers
+    return payload
+
+
+def _scaffold_next_action_blockers(result: ScaffoldResult) -> list[dict[str, str]]:
+    root = Path(result.target)
+    blockers: list[dict[str, str]] = []
+    for rel in sorted(set(result.created) | set(result.skipped)):
+        path = root / rel
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        if SCAFFOLD_PLACEHOLDER not in text:
+            continue
+        blockers.append(
+            {
+                "code": "governance_scaffold_placeholder",
+                "path": rel,
+                "message": (
+                    f"{rel} still contains a governance scaffold placeholder; "
+                    "replace it with source-backed content before running next_actions."
+                ),
+            }
+        )
+    return blockers
 
 
 def _validate_scaffold_path_list(field_name: str, paths: object) -> None:

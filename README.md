@@ -115,6 +115,7 @@ bin/governance gate product-structuring /path/to/new-project --json
 ```
 
 After the product-structuring gate passes, scaffold only the product chapters supported by the PRD. Scaffolded product chapters contain `governance:scaffold-placeholder` and block verification until replaced with source-backed content.
+Successful scaffold write payloads include `next_actions_blocked_by` while placeholders remain; keep returned `next_actions` for later, but do not run them until every listed blocker is resolved.
 
 ```bash
 bin/governance scaffold product /path/to/new-project --chapter goals-and-requirements --chapter acceptance-criteria --check --json
@@ -122,6 +123,7 @@ bin/governance scaffold product /path/to/new-project --chapter goals-and-require
 ```
 
 Use `scaffold design --check --json` after the design-derivation gate to inspect `would_create`, `would_skip`, and `would_index` for the standard architecture, API, UI, backend, frontend, test, and development document shells before writing them. The scaffold includes the starter endpoint contract at `docs/api/endpoints/01-endpoint-contract.md` and table skeletons for the acceptance matrix, roadmap, task board, and verification log. Scaffolded files contain `governance:scaffold-placeholder`; verification fails until the placeholders are replaced with product-derived content.
+Successful scaffold write payloads include `next_actions_blocked_by` while placeholders remain; keep returned `next_actions` for later, but do not run them until every listed blocker is resolved.
 
 ```bash
 bin/governance advance design-derivation /path/to/new-project --check --json
