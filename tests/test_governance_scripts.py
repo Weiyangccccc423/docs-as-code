@@ -2565,6 +2565,26 @@ class GovernanceScriptsTest(unittest.TestCase):
             install_item.to_dict(),
         )
 
+        manual_item = check_env_module.ManualRepairItem(
+            "node",
+            "recommended",
+            "Recommended for frontend projects.",
+            "no supported package mapping",
+            "apt",
+            None,
+        )
+        self.assertEqual(
+            {
+                "tool": "node",
+                "level": "recommended",
+                "note": "Recommended for frontend projects.",
+                "reason": "no supported package mapping",
+                "package_manager": "apt",
+                "install_package": None,
+            },
+            manual_item.to_dict(),
+        )
+
         git = check_env_module.GitStatus(
             installed=True,
             is_repo=True,
@@ -2641,6 +2661,30 @@ class GovernanceScriptsTest(unittest.TestCase):
                 "install plan item manager must be a non-empty string",
             ),
             (
+                lambda: check_env_module.ManualRepairItem("", "required", "note", "reason", "apt"),
+                "manual repair item tool must be a non-empty string",
+            ),
+            (
+                lambda: check_env_module.ManualRepairItem("node", "optional", "note", "reason", "apt"),
+                "manual repair item level must be required or recommended",
+            ),
+            (
+                lambda: check_env_module.ManualRepairItem("node", "recommended", "", "reason", "apt"),
+                "manual repair item note must be a non-empty string",
+            ),
+            (
+                lambda: check_env_module.ManualRepairItem("node", "recommended", "note", "", "apt"),
+                "manual repair item reason must be a non-empty string",
+            ),
+            (
+                lambda: check_env_module.ManualRepairItem("node", "recommended", "note", "reason", ""),
+                "manual repair item package_manager must be a non-empty string",
+            ),
+            (
+                lambda: check_env_module.ManualRepairItem("node", "recommended", "note", "reason", "apt", ""),
+                "manual repair item install_package must be a non-empty string or null",
+            ),
+            (
                 lambda: check_env_module.GitStatus("true", True, "main", "Example", "example@example.com"),
                 "git status installed must be a boolean",
             ),
@@ -2657,6 +2701,48 @@ class GovernanceScriptsTest(unittest.TestCase):
             with self.subTest(message=message):
                 with self.assertRaisesRegex(ValueError, message):
                     factory()
+
+    def test_check_env_manual_repairs_cover_unautomated_repair_scope(self) -> None:
+        statuses = [
+            check_env_module.ToolStatus("git", False, "", "Required for version control.", "required", "git"),
+            check_env_module.ToolStatus("node", False, "", "Recommended for frontend projects.", "recommended", None),
+            check_env_module.ToolStatus("pandoc", False, "", "Recommended for conversion.", "recommended", "pandoc"),
+        ]
+        apt = check_env_module.PackageManager("apt", "/usr/bin/apt-get", True)
+        non_strict_plan = check_env_module.build_install_plan(statuses, strict=False, package_manager=apt)
+        self.assertEqual(["git"], [item.tool for item in non_strict_plan])
+        self.assertEqual([], check_env_module.manual_repair_items(statuses, False, apt, non_strict_plan))
+
+        strict_plan = check_env_module.build_install_plan(statuses, strict=True, package_manager=apt)
+        manual = check_env_module.manual_repair_items(statuses, True, apt, strict_plan)
+
+        self.assertEqual(["git", "pandoc"], [item.tool for item in strict_plan])
+        self.assertEqual(
+            [
+                {
+                    "tool": "node",
+                    "level": "recommended",
+                    "note": "Recommended for frontend projects.",
+                    "reason": "no supported package mapping",
+                    "package_manager": "apt",
+                    "install_package": None,
+                }
+            ],
+            [item.to_dict() for item in manual],
+        )
+
+    def test_check_env_manual_repairs_report_unsupported_package_manager(self) -> None:
+        statuses = [
+            check_env_module.ToolStatus("git", False, "", "Required for version control.", "required", "git"),
+        ]
+        package_manager = check_env_module.PackageManager("brew", "/opt/homebrew/bin/brew", False)
+        install_plan = check_env_module.build_install_plan(statuses, strict=False, package_manager=package_manager)
+
+        manual = check_env_module.manual_repair_items(statuses, False, package_manager, install_plan)
+
+        self.assertEqual([], install_plan)
+        self.assertEqual("unsupported package manager: brew", manual[0].reason)
+        self.assertEqual("git", manual[0].install_package)
 
     def test_check_env_payload_isolates_repair_inputs(self) -> None:
         statuses = [
@@ -2713,6 +2799,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             [{"kind": "directory", "path": "/tmp/project/.governance", "status": "would_ensure"}],
             payload["would_repair"],
         )
+        self.assertEqual([], payload["manual_repairs"])
         self.assertEqual(["environment repair failed: permission denied"], payload["errors"])
 
         payload["install_results"][0]["meta"]["attempt"] = 3
@@ -2746,6 +2833,7 @@ class GovernanceScriptsTest(unittest.TestCase):
 
         self.assertTrue(payload["ok"])
         self.assertEqual([], payload["errors"])
+        self.assertEqual([], payload["manual_repairs"])
 
     def test_phases_main_json_advances_product_structuring(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

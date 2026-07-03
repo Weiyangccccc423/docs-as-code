@@ -15,7 +15,7 @@ Create the minimum structure needed for reliable docs-as-code work.
    bin/governance env --repair --check --target <target> --json
    ```
 
-   Stop on `ok: false`. Inspect `would_repair`, `install_commands`, and `needs_escalation` before running `bin/governance env --repair --target <target> --json`. If the target is already initialized and env JSON returns `local_commands` or `next_actions`, use them to resume instead of guessing.
+   Stop on `ok: false`. Inspect `would_repair`, `install_commands`, `manual_repairs`, and `needs_escalation` before running `bin/governance env --repair --target <target> --json`. If the target is already initialized and env JSON returns `local_commands` or `next_actions`, use them to resume instead of guessing.
 
 2. Run preflight without writing files:
 

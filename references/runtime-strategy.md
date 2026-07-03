@@ -61,9 +61,9 @@ Use `runtime refresh --check --json` before repair when an agent needs a no-writ
 
 After successful write-mode `runtime refresh --json`, JSON includes `local_commands` and `next_actions` when the refreshed target state is readable. Agents should run each returned `argv` from its `cwd` instead of reconstructing commands or rerunning `status`.
 
-Append `--json` when an agent needs stable output for branching or repair planning. JSON payloads must include an `ok` field whose value matches the command's success semantics: missing required tools always make `ok: false`, and missing recommended tools make `ok: false` only under `--strict`. When supported packages can repair the environment, JSON includes `install_commands` as argv arrays and `install_command` as the equivalent human-readable command string.
+Append `--json` when an agent needs stable output for branching or repair planning. JSON payloads must include an `ok` field whose value matches the command's success semantics: missing required tools always make `ok: false`, and missing recommended tools make `ok: false` only under `--strict`. When supported packages can repair the environment, JSON includes `install_commands` as argv arrays and `install_command` as the equivalent human-readable command string. Missing tools in repair scope that cannot be covered by supported install commands are reported in `manual_repairs`.
 
-Use `env --repair --check --json` before environment repair when an agent needs a no-write preflight. It reports `would_repair`, `install_commands`, and `needs_escalation` while leaving `.governance/env-repair.md` absent or unchanged and without executing package-manager commands.
+Use `env --repair --check --json` before environment repair when an agent needs a no-write preflight. It reports `would_repair`, `install_commands`, `manual_repairs`, and `needs_escalation` while leaving `.governance/env-repair.md` absent or unchanged and without executing package-manager commands.
 When the target is an initialized governance repository and the env payload is `ok: true`, env JSON also includes `local_commands` and `next_actions` from the readable workflow state. `ok: false` remains a stop condition and does not advertise continuation commands.
 
 ## Node.js Layer

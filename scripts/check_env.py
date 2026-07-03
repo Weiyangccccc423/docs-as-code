@@ -143,6 +143,35 @@ class InstallPlanItem:
 
 
 @dataclass
+class ManualRepairItem:
+    tool: str
+    level: str
+    note: str
+    reason: str
+    package_manager: str
+    install_package: str | None = None
+
+    def __post_init__(self) -> None:
+        _require_non_empty_string(self.tool, "manual repair item tool")
+        if self.level not in TOOL_LEVELS:
+            raise ValueError("manual repair item level must be required or recommended")
+        _require_non_empty_string(self.note, "manual repair item note")
+        _require_non_empty_string(self.reason, "manual repair item reason")
+        _require_non_empty_string(self.package_manager, "manual repair item package_manager")
+        _require_nullable_non_empty_string(self.install_package, "manual repair item install_package")
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "tool": self.tool,
+            "level": self.level,
+            "note": self.note,
+            "reason": self.reason,
+            "package_manager": self.package_manager,
+            "install_package": self.install_package,
+        }
+
+
+@dataclass
 class GitStatus:
     installed: bool
     is_repo: bool
@@ -284,6 +313,42 @@ def install_command_text(commands: list[list[str]]) -> str:
     return " && ".join(" ".join(command) for command in commands)
 
 
+def manual_repair_items(
+    statuses: list[ToolStatus],
+    strict: bool,
+    package_manager: PackageManager,
+    install_plan: list[InstallPlanItem],
+) -> list[ManualRepairItem]:
+    planned_tools = {item.tool for item in install_plan}
+    items: list[ManualRepairItem] = []
+    for status in statuses:
+        if status.present or status.name in planned_tools:
+            continue
+        if status.level == "recommended" and not strict:
+            continue
+        items.append(
+            ManualRepairItem(
+                status.name,
+                status.level,
+                status.note,
+                _manual_repair_reason(status, package_manager),
+                package_manager.name,
+                status.install_package,
+            )
+        )
+    return items
+
+
+def _manual_repair_reason(status: ToolStatus, package_manager: PackageManager) -> str:
+    if not status.install_package:
+        return "no supported package mapping"
+    if not package_manager.supported:
+        return f"unsupported package manager: {package_manager.name}"
+    if package_manager.name != "apt":
+        return f"unsupported package manager: {package_manager.name}"
+    return "not included in automatic install plan"
+
+
 def apply_install_plan(
     plan: list[InstallPlanItem],
     package_manager: PackageManager,
@@ -347,6 +412,7 @@ def _env_payload(
     errors: list[str] | None = None,
 ) -> dict[str, object]:
     commands = install_commands(install_plan, package_manager)
+    manual_repairs = manual_repair_items(statuses, strict, package_manager, install_plan)
     payload: dict[str, object] = {
         "ok": environment_ok(statuses, strict) and not errors,
         "target": str(target),
@@ -362,6 +428,7 @@ def _env_payload(
         "install_plan": [item.to_dict() for item in install_plan],
         "install_commands": commands,
         "install_command": install_command_text(commands),
+        "manual_repairs": [item.to_dict() for item in manual_repairs],
         "needs_escalation": needs_escalation,
         "install_results": copy.deepcopy(install_results),
         "repairs": copy.deepcopy(repairs),
