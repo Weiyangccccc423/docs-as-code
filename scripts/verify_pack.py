@@ -731,6 +731,13 @@ DESIGN_REFERENCE_DOC_REQUIREMENTS = (
         ),
     ),
     (
+        "references/api-design-checklist.md",
+        (
+            "workflows/04-design-derivation.md",
+            "skills/designing-api-contracts/SKILL.md",
+        ),
+    ),
+    (
         "references/backend-design-checklist.md",
         (
             "workflows/04-design-derivation.md",
@@ -760,6 +767,47 @@ METHOD_REFERENCE_BASELINES = {
             ),
         ),
         ("OpenAPI", ("## OpenAPI", "https://spec.openapis.org/oas/latest.html")),
+    ),
+    "references/api-design-checklist.md": (
+        (
+            "Contract Shape",
+            (
+                "## Contract Shape",
+                "OpenAPI",
+                "https://spec.openapis.org/oas/latest.html",
+            ),
+        ),
+        (
+            "HTTP Semantics",
+            (
+                "## HTTP Semantics",
+                "safe, idempotent, and cacheable methods",
+                "https://www.rfc-editor.org/rfc/rfc9110.html",
+            ),
+        ),
+        (
+            "Error Responses",
+            (
+                "## Error Responses",
+                "machine-readable problem details",
+                "https://www.rfc-editor.org/rfc/rfc9457.html",
+            ),
+        ),
+        (
+            "Idempotency and Concurrency",
+            (
+                "## Idempotency and Concurrency",
+                "Idempotency-Key",
+                "duplicate submission",
+            ),
+        ),
+        (
+            "Compatibility and Change Control",
+            (
+                "## Compatibility and Change Control",
+                "backward-compatible additions, deprecations, and breaking changes",
+            ),
+        ),
     ),
     "references/backend-design-checklist.md": (
         ("Module Boundary", ("## Module Boundary", "one primary responsibility")),

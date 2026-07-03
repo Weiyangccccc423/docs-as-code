@@ -73,6 +73,7 @@ GOVERNANCE_STATE_REL = Path(".governance/state.json")
 WORKFLOW_PHASE_ORDER = ("initialized", "product-structuring", "design-derivation", "implementation")
 WORKFLOW_PACK_REQUIRED_PATHS = (
     "README.md",
+    "references/api-design-checklist.md",
     "references/architecture-methods.md",
     "references/backend-design-checklist.md",
     "references/community-practices.md",

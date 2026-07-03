@@ -48,7 +48,7 @@ Load according to the design track:
    - major quality attributes
    - external dependencies
    - deployment assumptions
-4. Create or complete `docs/api/`:
+4. Read `references/api-design-checklist.md`, then create or complete `docs/api/`:
    - `00-conventions.md`
    - `endpoints/README.md`
    - endpoint files
@@ -88,6 +88,7 @@ Design documents sufficient for creating a task board without guessing product m
 ## Verification
 
 - API endpoints have request, response, error code, auth, and idempotency notes.
+- API contracts are checked against `references/api-design-checklist.md` for contract shape, HTTP semantics, error responses, idempotency, collection operations, compatibility, and traceability.
 - Security-sensitive API, backend, frontend, and test design decisions are checked against `references/security-design-checklist.md`.
 - `docs/api/00-conventions.md` has non-placeholder Product Links, HTTP Conventions, Authentication, Idempotency, Compatibility, and Open Decisions sections, and links to product scope plus product acceptance criteria.
 - `docs/api/error-codes.md` has non-placeholder Product Links, Error Taxonomy, Error Codes, Retry Semantics, and Frontend Handling sections, and links to product scope plus product acceptance criteria.
