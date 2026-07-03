@@ -7037,6 +7037,32 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertEqual(str(root.resolve()), verify_check_payload["next_actions"][0]["cwd"])
             self.assertEqual(state_before, state_path.read_text(encoding="utf-8"))
 
+            gate_result = subprocess.run(
+                ["bin/governance", "gate", "product-structuring", ".", "--json"],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, gate_result.returncode, gate_result.stderr)
+            gate_payload = json.loads(gate_result.stdout)
+            self.assertTrue(gate_payload["ok"])
+            self.assertEqual("product-structuring", gate_payload["gate"])
+            self.assertIn(
+                {
+                    "make_target": "verify-check",
+                    "cwd": str(root.resolve()),
+                    "command": "make verify-check",
+                    "argv": ["make", "verify-check"],
+                    "recipe": "bin/governance verify . --check --json",
+                    "writes_state": False,
+                    "description": "run read-only JSON verification without updating state",
+                },
+                gate_payload["local_commands"],
+            )
+            self.assertEqual("advance-product-structuring-check", gate_payload["next_actions"][0]["id"])
+            self.assertEqual(str(root.resolve()), gate_payload["next_actions"][0]["cwd"])
+
             status_result = subprocess.run(
                 ["make", "governance-status"],
                 cwd=root,

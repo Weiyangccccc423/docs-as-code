@@ -424,7 +424,12 @@ def _cmd_gate(args: argparse.Namespace) -> int:
     target = Path(args.target)
     result = evaluate_gate(target, args.gate)
     if args.json:
-        _print_json(result.to_dict())
+        payload = result.to_dict()
+        if result.state:
+            payload["local_commands"] = target_local_commands_payload(cwd=result.target)
+            if result.ok:
+                payload["next_actions"] = next_actions_payload(result.state, cwd=result.target)
+        _print_json(payload)
         return 0 if result.ok else 1
     if result.ok:
         print(f"Gate passed: {args.gate}")

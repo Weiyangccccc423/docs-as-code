@@ -2300,6 +2300,34 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual("product-structuring", payload["gate"])
             requirements = {item["code"]: item for item in payload["requirements"]}
             self.assertTrue(requirements["product_import_ready"]["ok"])
+            self.assertIn(
+                {
+                    "make_target": "verify-check",
+                    "cwd": str(target.resolve()),
+                    "command": "make verify-check",
+                    "argv": ["make", "verify-check"],
+                    "recipe": "bin/governance verify . --check --json",
+                    "writes_state": False,
+                    "description": "run read-only JSON verification without updating state",
+                },
+                payload["local_commands"],
+            )
+            self.assertIn(
+                {
+                    "id": "advance-product-structuring-check",
+                    "kind": "preflight",
+                    "cwd": str(target.resolve()),
+                    "phase": "product-structuring",
+                    "workflow": "docs/agent-workflow/workflow-pack/workflows/03-product-structuring.md",
+                    "skills": ["structuring-product-requirements", "verifying-governance-docs"],
+                    "command": "bin/governance advance product-structuring . --check --json",
+                    "argv": ["bin/governance", "advance", "product-structuring", ".", "--check", "--json"],
+                    "writes_state": False,
+                    "requires": "current phase is the previous workflow phase and the gate can pass",
+                    "description": "preflight advance from initialization into product structuring",
+                },
+                payload["next_actions"],
+            )
 
     def test_gate_json_reports_invalid_state_with_gate_shape(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -2332,6 +2360,8 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual(str(target.resolve()), payload["target"])
             self.assertEqual({}, payload["state"])
             self.assertEqual({}, payload["verification"])
+            self.assertNotIn("local_commands", payload)
+            self.assertNotIn("next_actions", payload)
             requirements = {item["code"]: item for item in payload["requirements"]}
             self.assertFalse(requirements["state_readable"]["ok"])
             self.assertEqual(".governance/state.json", requirements["state_readable"]["path"])
@@ -3221,6 +3251,19 @@ class GovernanceCliTest(unittest.TestCase):
             blocked_payload = json.loads(blocked.stdout)
             blocked_requirements = {item["code"]: item for item in blocked_payload["requirements"]}
             self.assertFalse(blocked_requirements["product_chapters_present"]["ok"])
+            self.assertIn(
+                {
+                    "make_target": "governance-status",
+                    "cwd": str(target.resolve()),
+                    "command": "make governance-status",
+                    "argv": ["make", "governance-status"],
+                    "recipe": "bin/governance status . --json",
+                    "writes_state": False,
+                    "description": "print workflow state as JSON",
+                },
+                blocked_payload["local_commands"],
+            )
+            self.assertNotIn("next_actions", blocked_payload)
 
             (target / "docs/product/01-goals.md").write_text("# Goals\n\nSource: [PRD](core/PRD.md).\n", encoding="utf-8")
             _append_index(target / "docs/product/README.md", "01-goals.md")
