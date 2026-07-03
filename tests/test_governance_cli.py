@@ -465,6 +465,8 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn("missing_recommended", payload)
             self.assertIn("repairs", payload)
             self.assertEqual([], payload["errors"])
+            self.assertNotIn("local_commands", payload)
+            self.assertNotIn("next_actions", payload)
             self.assertTrue(any(tool["name"] == "python3" for tool in payload["tools"]))
             self.assertEqual(str(target / ".governance/env-repair.md"), payload["repair_plan"])
 
@@ -504,6 +506,8 @@ class GovernanceCliTest(unittest.TestCase):
                     for item in payload["would_repair"]
                 )
             )
+            self.assertNotIn("local_commands", payload)
+            self.assertNotIn("next_actions", payload)
             self.assertFalse(repair_plan.exists())
 
     def test_env_repair_json_rejects_file_target(self) -> None:

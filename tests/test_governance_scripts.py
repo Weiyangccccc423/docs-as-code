@@ -7137,6 +7137,20 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertTrue(repair_check_payload["check"])
             self.assertEqual([], repair_check_payload["repairs"])
             self.assertIsNone(repair_check_payload["repair_plan"])
+            self.assertIn(
+                {
+                    "make_target": "repair-env-check",
+                    "cwd": str(root.resolve()),
+                    "command": "make repair-env-check",
+                    "argv": ["make", "repair-env-check"],
+                    "recipe": "bin/governance env --repair --check --target . --json",
+                    "writes_state": False,
+                    "description": "preview environment repair without writing files",
+                },
+                repair_check_payload["local_commands"],
+            )
+            self.assertEqual("advance-product-structuring-check", repair_check_payload["next_actions"][0]["id"])
+            self.assertEqual(str(root.resolve()), repair_check_payload["next_actions"][0]["cwd"])
             self.assertFalse((root / ".governance/env-repair.md").exists())
 
             cli_result = subprocess.run(
@@ -7297,6 +7311,20 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertIn("missing_required", env_payload)
             self.assertIn("missing_recommended", env_payload)
             self.assertIn("needs_escalation", env_payload)
+            self.assertIn(
+                {
+                    "make_target": "check-env",
+                    "cwd": str(root.resolve()),
+                    "command": "make check-env",
+                    "argv": ["make", "check-env"],
+                    "recipe": "bin/governance env --target .",
+                    "writes_state": False,
+                    "description": "inventory local governance tools",
+                },
+                env_payload["local_commands"],
+            )
+            self.assertEqual("product-mark-ready-check", env_payload["next_actions"][0]["id"])
+            self.assertEqual(str(root.resolve()), env_payload["next_actions"][0]["cwd"])
 
             env_check_result, env_check_payload = run_direct("check_env.py", "--repair", "--check", "--target", ".", "--json")
             self.assertEqual(0, env_check_result.returncode)
@@ -7305,6 +7333,20 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertEqual([], env_check_payload["repairs"])
             self.assertIsNone(env_check_payload["repair_plan"])
             self.assertTrue(any(item["kind"] == "repair_plan" for item in env_check_payload["would_repair"]))
+            self.assertIn(
+                {
+                    "make_target": "repair-env-check",
+                    "cwd": str(root.resolve()),
+                    "command": "make repair-env-check",
+                    "argv": ["make", "repair-env-check"],
+                    "recipe": "bin/governance env --repair --check --target . --json",
+                    "writes_state": False,
+                    "description": "preview environment repair without writing files",
+                },
+                env_check_payload["local_commands"],
+            )
+            self.assertEqual("product-mark-ready-check", env_check_payload["next_actions"][0]["id"])
+            self.assertEqual(str(root.resolve()), env_check_payload["next_actions"][0]["cwd"])
             self.assertFalse((root / ".governance/env-repair.md").exists())
 
             mark_ready_check, mark_ready_check_payload = run_direct(
@@ -13084,6 +13126,8 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertEqual("", payload["install_command"])
             self.assertFalse(payload["needs_escalation"])
             self.assertEqual([], payload["errors"])
+            self.assertNotIn("local_commands", payload)
+            self.assertNotIn("next_actions", payload)
             self.assertEqual(str(target / ".governance/env-repair.md"), payload["repair_plan"])
             self.assertTrue(any(item["kind"] == "repair_plan" for item in payload["repairs"]))
 
@@ -13158,6 +13202,8 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertEqual([], payload["repairs"])
             self.assertIsNone(payload["repair_plan"])
             self.assertTrue(any(item["kind"] == "repair_plan" for item in payload["would_repair"]))
+            self.assertNotIn("local_commands", payload)
+            self.assertNotIn("next_actions", payload)
             self.assertFalse((target / ".governance/env-repair.md").exists())
 
     def test_check_env_main_json_rejects_file_repair_target(self) -> None:

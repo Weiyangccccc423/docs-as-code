@@ -10,6 +10,15 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+try:
+    from .bootstrap_tree import target_local_commands_payload
+    from .state import StateFileError, load_state
+    from .workflow_actions import next_actions_payload
+except ImportError:  # pragma: no cover - direct script execution
+    from bootstrap_tree import target_local_commands_payload
+    from state import StateFileError, load_state
+    from workflow_actions import next_actions_payload
+
 
 @dataclass(frozen=True)
 class ToolSpec:
@@ -360,7 +369,24 @@ def _env_payload(
         "would_repair": copy.deepcopy(would_repair or []),
         "errors": list(errors or []),
     }
+    payload.update(env_continuation_payload(target, payload))
     return payload
+
+
+def env_continuation_payload(target: Path, payload: dict[str, object]) -> dict[str, object]:
+    if payload.get("ok") is not True:
+        return {}
+    try:
+        state = load_state(target)
+    except (OSError, StateFileError):
+        return {}
+    if not state:
+        return {}
+    cwd = str(target.resolve())
+    return {
+        "local_commands": target_local_commands_payload(cwd=cwd),
+        "next_actions": next_actions_payload(state, cwd=cwd),
+    }
 
 
 def planned_repair_actions(target: Path) -> list[dict[str, object]]:
