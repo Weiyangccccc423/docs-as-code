@@ -7,6 +7,8 @@ description: Use when creating or changing HTTP API contracts, endpoint document
 
 API contracts are shared truth between frontend, backend, tests, and agents.
 
+Read `references/architecture-methods.md` before writing API contracts. Use its OpenAPI note to keep Markdown endpoint files aligned with a future machine-readable contract.
+
 ## Required Files
 
 - `docs/api/00-conventions.md`

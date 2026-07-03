@@ -1,6 +1,6 @@
 # Architecture Methods Reference
 
-Use this file when architecture or backend design needs a recognized external method.
+Use this file when architecture, API, or backend design needs a recognized external method.
 
 ## C4 Model
 
