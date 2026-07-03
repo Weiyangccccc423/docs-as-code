@@ -500,6 +500,28 @@ PRODUCT_ARCHIVE_REQUIRED_PHRASES = (
     "local_commands",
     "next_actions",
 )
+PRODUCT_STRUCTURE_DOC_PATHS = (
+    "workflows/03-product-structuring.md",
+    "skills/structuring-product-requirements/SKILL.md",
+)
+PRODUCT_STRUCTURE_REQUIRED_PHRASES = (
+    "scaffold product",
+    "would_create",
+    "would_skip",
+    "would_index",
+    "governance:scaffold-placeholder",
+    "background-and-problems",
+    "change-log",
+    "goals-and-requirements",
+    "functional-spec",
+    "acceptance-criteria",
+    "success-metrics",
+    "NN-<slug>.md",
+    "A-NNN",
+    "product-meta.md",
+    "local_commands",
+    "next_actions",
+)
 DESIGN_REFERENCE_DOC_REQUIREMENTS = (
     (
         "references/architecture-methods.md",
@@ -802,6 +824,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_target_makefile_command_docs(root, findings)
     _check_env_repair_docs(root, findings)
     _check_product_archive_docs(root, findings)
+    _check_product_structure_docs(root, findings)
     _check_design_reference_docs(root, findings)
     _check_method_reference_baselines(root, findings)
     _check_phase_order_docs(root, findings)
@@ -1413,6 +1436,23 @@ def _check_product_archive_docs(root: Path, findings: list[PackFinding]) -> None
             PackFinding(
                 "pack_product_archive_doc_missing",
                 f"{rel} must document product archive closeout phrase(s): {', '.join(missing)}",
+                rel,
+            )
+        )
+
+
+def _check_product_structure_docs(root: Path, findings: list[PackFinding]) -> None:
+    for rel in PRODUCT_STRUCTURE_DOC_PATHS:
+        text = _read_utf8_text_or_none(root / rel)
+        if text is None:
+            continue
+        missing = [phrase for phrase in PRODUCT_STRUCTURE_REQUIRED_PHRASES if phrase not in text]
+        if not missing:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_product_structure_doc_missing",
+                f"{rel} must document product scaffold phrase(s): {', '.join(missing)}",
                 rel,
             )
         )
