@@ -534,6 +534,65 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_missing_target_local_command_schema_key(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/bootstrap_tree.py"
+            script.write_text(
+                script.read_text(encoding="utf-8").replace(
+                    '            "writes_state": writes_state,\n',
+                    "",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_target_local_command_schema_missing"
+                    and finding.path == "scripts/bootstrap_tree.py"
+                    and "writes_state" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_target_local_command_make_argv_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/bootstrap_tree.py"
+            script.write_text(
+                script.read_text(encoding="utf-8").replace(
+                    '            "command": f"make {target}",\n',
+                    '            "command": "make verify-governance",\n',
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_target_local_command_command_mismatch"
+                    and finding.path == "scripts/bootstrap_tree.py"
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_missing_target_makefile_command_doc(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"

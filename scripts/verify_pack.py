@@ -837,6 +837,7 @@ RUNTIME_WRAPPER_REQUIRED_COMMANDS = {
     "bin/governance-init": 'python3 "$ROOT_DIR/scripts/governance_cli.py" init "$@"',
     "bin/governance-verify": 'python3 "$ROOT_DIR/scripts/governance_cli.py" verify "$@"',
 }
+BOOTSTRAP_TREE_PATH = Path("scripts/bootstrap_tree.py")
 GOVERNANCE_CLI_PATH = Path("scripts/governance_cli.py")
 WORKFLOW_ACTIONS_PATH = Path("scripts/workflow_actions.py")
 GOVERNANCE_CLI_REQUIRED_COMMANDS = (
@@ -877,6 +878,15 @@ CONTINUATION_RUNTIME_SCRIPT_PATHS = (
 CONTINUATION_RUNTIME_REQUIRED_CALLS = (
     "target_local_commands_payload",
     "next_actions_payload",
+)
+TARGET_LOCAL_COMMAND_PAYLOAD_REQUIRED_KEYS = (
+    "make_target",
+    "cwd",
+    "command",
+    "argv",
+    "recipe",
+    "writes_state",
+    "description",
 )
 WORKFLOW_ACTION_SOURCE_REQUIRED_KEYS = (
     "id",
@@ -1087,6 +1097,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_runtime_file_list_alignment(root, findings)
     _check_governance_cli_commands(root, findings)
     _check_runtime_continuation_calls(root, findings)
+    _check_target_local_command_schema(root, findings)
     _check_workflow_action_schema(root, findings)
     _check_runtime_executable_bits(root, findings)
     _check_runtime_wrapper_commands(root, findings)
@@ -1504,6 +1515,78 @@ def _check_runtime_continuation_calls(root: Path, findings: list[PackFinding]) -
             )
 
 
+def _check_target_local_command_schema(root: Path, findings: list[PackFinding]) -> None:
+    rel = BOOTSTRAP_TREE_PATH.as_posix()
+    path = root / BOOTSTRAP_TREE_PATH
+    if not path.is_file():
+        return
+    try:
+        source = path.read_text(encoding="utf-8")
+        tree = ast.parse(source, filename=rel)
+    except (SyntaxError, UnicodeDecodeError, OSError):
+        return
+
+    payload_items = _return_list_dict_literals(_find_function_def(tree, "target_local_commands_payload"))
+    if not payload_items:
+        findings.append(
+            PackFinding(
+                "pack_target_local_command_schema_missing",
+                "scripts/bootstrap_tree.py target_local_commands_payload() must return command dicts",
+                rel,
+            )
+        )
+        return
+    _check_target_local_command_dicts_have_keys(payload_items, rel, findings)
+    _check_target_local_command_make_contract(payload_items, rel, findings)
+
+
+def _check_target_local_command_dicts_have_keys(
+    actions: list[ast.Dict],
+    rel: str,
+    findings: list[PackFinding],
+) -> None:
+    for index, action in enumerate(actions):
+        keys = _dict_literal_keys(action)
+        missing = [key for key in TARGET_LOCAL_COMMAND_PAYLOAD_REQUIRED_KEYS if key not in keys]
+        if not missing:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_target_local_command_schema_missing",
+                f"scripts/bootstrap_tree.py target_local_commands_payload() item {index} missing key(s): {', '.join(missing)}",
+                rel,
+            )
+        )
+
+
+def _check_target_local_command_make_contract(
+    actions: list[ast.Dict],
+    rel: str,
+    findings: list[PackFinding],
+) -> None:
+    for index, action in enumerate(actions):
+        if _target_local_command_matches_make_target(action):
+            continue
+        findings.append(
+            PackFinding(
+                "pack_target_local_command_command_mismatch",
+                f"scripts/bootstrap_tree.py target_local_commands_payload() item {index} command and argv must match make_target",
+                rel,
+            )
+        )
+
+
+def _target_local_command_matches_make_target(action: ast.Dict) -> bool:
+    make_target = _ast_name_id(_dict_literal_value(action, "make_target"))
+    command = _dict_literal_value(action, "command")
+    argv = _dict_literal_value(action, "argv")
+    if make_target is None or command is None or argv is None:
+        return True
+    if not _ast_make_command_matches(command, make_target):
+        return False
+    return _ast_make_argv_matches(argv, make_target)
+
+
 def _check_workflow_action_schema(root: Path, findings: list[PackFinding]) -> None:
     rel = WORKFLOW_ACTIONS_PATH.as_posix()
     path = root / WORKFLOW_ACTIONS_PATH
@@ -1845,6 +1928,8 @@ def _return_list_dict_literals(function: ast.FunctionDef | None) -> list[ast.Dic
     for node in ast.walk(function):
         if not isinstance(node, ast.Return):
             continue
+        if isinstance(node.value, ast.ListComp) and isinstance(node.value.elt, ast.Dict):
+            return [node.value.elt]
         actions = _sequence_dict_literals(node.value)
         if actions:
             return actions
@@ -1918,6 +2003,26 @@ def _ast_name_id(node: ast.AST) -> str | None:
     if isinstance(node, ast.Name):
         return node.id
     return None
+
+
+def _ast_make_command_matches(node: ast.AST, target_name: str) -> bool:
+    if not isinstance(node, ast.JoinedStr) or len(node.values) != 2:
+        return False
+    prefix, formatted = node.values
+    if not isinstance(prefix, ast.Constant) or prefix.value != "make ":
+        return False
+    if not isinstance(formatted, ast.FormattedValue):
+        return False
+    return _ast_name_id(formatted.value) == target_name
+
+
+def _ast_make_argv_matches(node: ast.AST, target_name: str) -> bool:
+    if not isinstance(node, ast.List | ast.Tuple) or len(node.elts) != 2:
+        return False
+    command, target = node.elts
+    if not isinstance(command, ast.Constant) or command.value != "make":
+        return False
+    return _ast_name_id(target) == target_name
 
 
 def _ast_static_string(node: ast.AST, constants: dict[str, str]) -> str | None:
