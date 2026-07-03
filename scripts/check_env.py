@@ -349,6 +349,15 @@ def _manual_repair_reason(status: ToolStatus, package_manager: PackageManager) -
     return "not included in automatic install plan"
 
 
+def manual_repair_lines(items: list[ManualRepairItem]) -> list[str]:
+    return [
+        f"- `{item.tool}` ({item.level}): {item.reason}"
+        + (f"; package `{item.install_package}`" if item.install_package else "")
+        + f". {item.note}"
+        for item in items
+    ]
+
+
 def apply_install_plan(
     plan: list[InstallPlanItem],
     package_manager: PackageManager,
@@ -558,9 +567,7 @@ def write_repair_plan(
         ]
     )
     if manual_repairs:
-        for item in manual_repairs:
-            package = f"; package `{item.install_package}`" if item.install_package else ""
-            lines.append(f"- `{item.tool}` ({item.level}): {item.reason}{package}. {item.note}")
+        lines.extend(manual_repair_lines(manual_repairs))
     else:
         lines.append("- None")
     lines.extend(
@@ -658,6 +665,7 @@ def main() -> int:
     package_manager = detect_package_manager(system)
     git = collect_git_status(target)
     install_plan = build_install_plan(statuses, args.strict, package_manager)
+    manual_repairs = manual_repair_items(statuses, args.strict, package_manager, install_plan)
     needs_escalation = bool(args.repair and install_plan and not system.is_root)
     install_results: list[dict[str, object]] = []
     repair_plan = None
@@ -738,11 +746,16 @@ def main() -> int:
                         "Installation requires root approval: "
                         f"{install_command_text(install_commands(install_plan, package_manager))}"
                     )
+                if manual_repairs:
+                    print("Manual repairs required:")
+                    for line in manual_repair_lines(manual_repairs):
+                        print(line)
             return 0 if environment_ok(statuses, args.strict) else 1
         install_results = apply_install_plan(install_plan, package_manager, system)
         if install_results and all(result["returncode"] == 0 for result in install_results):
             statuses = collect_status()
             missing = [status.name for status in statuses if not status.present]
+            manual_repairs = manual_repair_items(statuses, args.strict, package_manager, install_plan)
         try:
             path = write_repair_plan(
                 target,
@@ -792,6 +805,10 @@ def main() -> int:
                     "Installation requires root approval: "
                     f"{install_command_text(install_commands(install_plan, package_manager))}"
                 )
+            if manual_repairs:
+                print("Manual repairs required:")
+                for line in manual_repair_lines(manual_repairs):
+                    print(line)
             for result in install_results:
                 print(f"Install command exited {result['returncode']}: {result['command']}")
     if args.json:

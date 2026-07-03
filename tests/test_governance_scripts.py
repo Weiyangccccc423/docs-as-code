@@ -13418,6 +13418,56 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertNotIn("next_actions", payload)
             self.assertFalse((target / ".governance/env-repair.md").exists())
 
+    def test_check_env_main_repair_check_text_reports_manual_repairs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            target.mkdir()
+            statuses = [
+                ToolStatus(
+                    name="node",
+                    present=False,
+                    version="",
+                    note="Recommended for frontend projects.",
+                    level="recommended",
+                    install_package=None,
+                ),
+            ]
+            system = check_env_module.SystemStatus(
+                platform="linux",
+                os_id="ubuntu",
+                os_like="debian",
+                pretty_name="Ubuntu",
+                is_root=False,
+            )
+            package_manager = PackageManager("apt", "/usr/bin/apt-get", True)
+            git = check_env_module.GitStatus(False, False, "", "", "")
+            original_argv = sys.argv
+            original_collect_status = check_env_module.collect_status
+            original_collect_system_status = check_env_module.collect_system_status
+            original_detect_package_manager = check_env_module.detect_package_manager
+            original_collect_git_status = check_env_module.collect_git_status
+            sys.argv = ["check_env.py", "--strict", "--repair", "--check", "--target", str(target)]
+            check_env_module.collect_status = lambda: statuses
+            check_env_module.collect_system_status = lambda: system
+            check_env_module.detect_package_manager = lambda _system=None: package_manager
+            check_env_module.collect_git_status = lambda _target: git
+            stdout = io.StringIO()
+            try:
+                with contextlib.redirect_stdout(stdout):
+                    returncode = check_env_module.main()
+            finally:
+                sys.argv = original_argv
+                check_env_module.collect_status = original_collect_status
+                check_env_module.collect_system_status = original_collect_system_status
+                check_env_module.detect_package_manager = original_detect_package_manager
+                check_env_module.collect_git_status = original_collect_git_status
+
+            output = stdout.getvalue()
+            self.assertEqual(1, returncode)
+            self.assertIn("Manual repairs required:", output)
+            self.assertIn("- `node` (recommended): no supported package mapping. Recommended for frontend projects.", output)
+            self.assertFalse((target / ".governance/env-repair.md").exists())
+
     def test_check_env_main_json_rejects_file_repair_target(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "target"
