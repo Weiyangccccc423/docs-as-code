@@ -32,7 +32,7 @@ Read `references/architecture-methods.md` before producing architecture document
    Stop on `ok: false` and repair by `requirements[].code`.
 
 2. Read product scope and acceptance criteria.
-3. Run `bin/governance scaffold design <target> --check --json` when standard design files are missing, then run it without `--check` when the plan is correct; use returned `local_commands` for checks and keep returned `next_actions` for later.
+3. Run `bin/governance scaffold design <target> --check --json` when standard design files are missing, then run it without `--check` when the plan is correct; use returned `local_commands` for checks and inspect `scaffold_phase`. If `scaffold_phase.matches` is false, follow returned `next_actions` to advance recorded phases in order before treating the scaffold as current-phase work. If `next_actions_blocked_by` is present, keep `next_actions` for later and do not run downstream state-writing actions until blockers are resolved.
 4. Replace scaffold placeholders in architecture files with product-derived content.
 5. Identify actors, systems, and external services.
 6. Define containers without committing to unnecessary internal classes.

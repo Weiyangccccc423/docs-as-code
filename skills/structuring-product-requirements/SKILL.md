@@ -32,7 +32,7 @@ Turn a preserved PRD into navigable product truth without changing its meaning.
 3. Stop if `can_derive_design` is not true or the manifest hash does not verify.
 4. Build the chapter map in `product-meta.md`.
 5. Preview and create only PRD-supported chapter scaffolds with `bin/governance scaffold product <target> --chapter <chapter-key> --check --json`, inspect `would_create`, `would_skip`, and `would_index`, then run the same command without `--check` when the plan is correct; available chapter keys are `background-and-problems`, `change-log`, `goals-and-requirements`, `functional-spec`, `acceptance-criteria`, and `success-metrics`.
-6. Use returned `local_commands` for checks, keep returned `next_actions` for later, and keep `NN-<slug>.md` filenames with unique `NN` prefixes.
+6. Use returned `local_commands` for checks and inspect `scaffold_phase`; if `scaffold_phase.matches` is false, follow returned `next_actions` to advance recorded phases in order before treating the scaffold as current-phase work. If `next_actions_blocked_by` is present, keep `next_actions` for later and do not run downstream state-writing actions until blockers are resolved. Keep `NN-<slug>.md` filenames with unique `NN` prefixes.
 7. Replace every `governance:scaffold-placeholder` with PRD-derived content before leaving this phase.
 8. Link every chapter back to `core/PRD.md`.
 9. Link every `NN-*.md` chapter from `core/product-meta.md`.

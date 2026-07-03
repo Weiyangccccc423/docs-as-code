@@ -26,7 +26,7 @@ UI interaction design turns product behavior into user-visible flows and states 
 
    Stop on `ok: false` and repair by `requirements[].code`.
 
-2. Run `bin/governance scaffold design <target> --check --json` when `docs/ui/01-interaction-model.md` is missing, then run it without `--check` when the plan is correct; use returned `local_commands` for checks and keep returned `next_actions` for later.
+2. Run `bin/governance scaffold design <target> --check --json` when `docs/ui/01-interaction-model.md` is missing, then run it without `--check` when the plan is correct; use returned `local_commands` for checks and inspect `scaffold_phase`. If `scaffold_phase.matches` is false, follow returned `next_actions` to advance recorded phases in order before treating the scaffold as current-phase work. If `next_actions_blocked_by` is present, keep `next_actions` for later and do not run downstream state-writing actions until blockers are resolved.
 3. Replace scaffold placeholders in `docs/ui/01-interaction-model.md` with product-derived content.
 4. Derive primary flows from actors, goals, triggers, success paths, and acceptance criteria.
 5. Define screens for each flow, including entry points, exits, permissions, and empty states.

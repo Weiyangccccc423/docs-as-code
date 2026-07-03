@@ -614,6 +614,29 @@ DESIGN_SCAFFOLD_REQUIRED_PHRASES = (
     "local_commands",
     "next_actions",
 )
+SCAFFOLD_CONTINUATION_DOC_PATHS = (
+    "README.md",
+    "workflows/00-overview.md",
+    "workflows/03-product-structuring.md",
+    "workflows/04-design-derivation.md",
+    "skills/using-governance-workflow/SKILL.md",
+    "skills/structuring-product-requirements/SKILL.md",
+    "skills/designing-system-architecture/SKILL.md",
+    "skills/designing-ui-interactions/SKILL.md",
+    "skills/designing-api-contracts/SKILL.md",
+    "skills/designing-backend-modules/SKILL.md",
+    "skills/designing-data-models/SKILL.md",
+    "skills/designing-frontend-modules/SKILL.md",
+    "skills/designing-test-strategy/SKILL.md",
+    "skills/planning-implementation-work/SKILL.md",
+    "skills/verifying-governance-docs/SKILL.md",
+)
+SCAFFOLD_CONTINUATION_REQUIRED_PHRASES = (
+    "scaffold_phase",
+    "scaffold_phase.matches",
+    "next_actions_blocked_by",
+    "next_actions",
+)
 IMPLEMENTATION_HANDOFF_DOC_REQUIREMENTS = {
     "README.md": (
         "implementation",
@@ -1043,6 +1066,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_product_archive_docs(root, findings)
     _check_product_structure_docs(root, findings)
     _check_design_scaffold_docs(root, findings)
+    _check_scaffold_continuation_docs(root, findings)
     _check_implementation_handoff_docs(root, findings)
     _check_design_reference_docs(root, findings)
     _check_method_reference_baselines(root, findings)
@@ -1706,6 +1730,23 @@ def _check_design_scaffold_docs(root: Path, findings: list[PackFinding]) -> None
             PackFinding(
                 "pack_design_scaffold_doc_missing",
                 f"{rel} must document design scaffold phrase(s): {', '.join(missing)}",
+                rel,
+            )
+        )
+
+
+def _check_scaffold_continuation_docs(root: Path, findings: list[PackFinding]) -> None:
+    for rel in SCAFFOLD_CONTINUATION_DOC_PATHS:
+        text = _read_utf8_text_or_none(root / rel)
+        if text is None:
+            continue
+        missing = [phrase for phrase in SCAFFOLD_CONTINUATION_REQUIRED_PHRASES if phrase not in text]
+        if not missing:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_scaffold_continuation_doc_missing",
+                f"{rel} must document scaffold continuation phrase(s): {', '.join(missing)}",
                 rel,
             )
         )
