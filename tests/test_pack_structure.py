@@ -410,6 +410,36 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_missing_environment_repair_doc_field(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            router = target / "skills/using-governance-workflow/SKILL.md"
+            router.write_text(
+                router.read_text(encoding="utf-8").replace(
+                    "`would_repair`, `install_commands`, `manual_repairs`, and `needs_escalation`",
+                    "`would_repair`, `install_commands`, and `needs_escalation`",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_env_repair_doc_field_missing"
+                    and finding.path == "skills/using-governance-workflow/SKILL.md"
+                    and "manual_repairs" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_missing_documented_verification_command(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"

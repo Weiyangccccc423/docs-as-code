@@ -471,6 +471,21 @@ TARGET_MAKEFILE_DOC_PATHS = (
 TARGET_MAKEFILE_REQUIRED_COMMANDS = tuple(
     f"make {target}" for target, _recipe, _description, _writes_state in TARGET_LOCAL_COMMANDS
 )
+ENV_REPAIR_DOC_PATHS = (
+    "README.md",
+    "references/runtime-strategy.md",
+    "workflows/01-empty-repo-initialization.md",
+    "workflows/05-verification-and-drift-control.md",
+    "skills/initializing-governance-repo/SKILL.md",
+    "skills/using-governance-workflow/SKILL.md",
+    "skills/verifying-governance-docs/SKILL.md",
+)
+ENV_REPAIR_REQUIRED_FIELDS = (
+    "would_repair",
+    "install_commands",
+    "manual_repairs",
+    "needs_escalation",
+)
 PHASE_ADVANCE_DOC_PATHS = (
     "README.md",
     "workflows/00-overview.md",
@@ -730,6 +745,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_readme_package_layout(root, findings)
     _check_readme_quick_start(root, findings)
     _check_target_makefile_command_docs(root, findings)
+    _check_env_repair_docs(root, findings)
     _check_phase_order_docs(root, findings)
     _check_phase_advance_docs(root, findings)
     _check_phase_primary_skill_alignment(root, findings)
@@ -1308,6 +1324,23 @@ def _check_target_makefile_command_docs(root: Path, findings: list[PackFinding])
                     rel,
                 )
             )
+
+
+def _check_env_repair_docs(root: Path, findings: list[PackFinding]) -> None:
+    for rel in ENV_REPAIR_DOC_PATHS:
+        text = _read_utf8_text_or_none(root / rel)
+        if text is None:
+            continue
+        missing = [field for field in ENV_REPAIR_REQUIRED_FIELDS if field not in text]
+        if not missing:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_env_repair_doc_field_missing",
+                f"{rel} must document environment repair JSON field(s): {', '.join(missing)}",
+                rel,
+            )
+        )
 
 
 def _check_phase_order_docs(root: Path, findings: list[PackFinding]) -> None:
