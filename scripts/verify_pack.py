@@ -486,6 +486,22 @@ ENV_REPAIR_REQUIRED_FIELDS = (
     "manual_repairs",
     "needs_escalation",
 )
+DESIGN_REFERENCE_DOC_REQUIREMENTS = (
+    (
+        "references/architecture-methods.md",
+        (
+            "workflows/04-design-derivation.md",
+            "skills/designing-system-architecture/SKILL.md",
+        ),
+    ),
+    (
+        "references/backend-design-checklist.md",
+        (
+            "workflows/04-design-derivation.md",
+            "skills/designing-backend-modules/SKILL.md",
+        ),
+    ),
+)
 PHASE_ADVANCE_DOC_PATHS = (
     "README.md",
     "workflows/00-overview.md",
@@ -746,6 +762,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_readme_quick_start(root, findings)
     _check_target_makefile_command_docs(root, findings)
     _check_env_repair_docs(root, findings)
+    _check_design_reference_docs(root, findings)
     _check_phase_order_docs(root, findings)
     _check_phase_advance_docs(root, findings)
     _check_phase_primary_skill_alignment(root, findings)
@@ -1341,6 +1358,21 @@ def _check_env_repair_docs(root: Path, findings: list[PackFinding]) -> None:
                 rel,
             )
         )
+
+
+def _check_design_reference_docs(root: Path, findings: list[PackFinding]) -> None:
+    for reference, consumers in DESIGN_REFERENCE_DOC_REQUIREMENTS:
+        for rel in consumers:
+            text = _read_utf8_text_or_none(root / rel)
+            if text is None or reference in text:
+                continue
+            findings.append(
+                PackFinding(
+                    "pack_design_reference_doc_missing",
+                    f"{rel} must route design work through reference document: {reference}",
+                    rel,
+                )
+            )
 
 
 def _check_phase_order_docs(root: Path, findings: list[PackFinding]) -> None:

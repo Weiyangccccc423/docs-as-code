@@ -42,7 +42,7 @@ Load according to the design track:
 
    `--check` reports `would_create`, `would_skip`, and `would_index` without writing placeholders. The write command returns `local_commands` and `next_actions` when gate state is readable; use the returned check commands, but do not run downstream phase actions while design scaffold placeholders remain. The scaffold includes a starter endpoint contract at `docs/api/endpoints/01-endpoint-contract.md` only when no endpoint contract already exists, and standard table skeletons for the acceptance matrix, roadmap, task board, and verification log; replace or rename scaffolds with product-derived content before implementation handoff. Replace all `governance:scaffold-placeholder` markers before implementation handoff.
 
-3. Create or complete `docs/architecture/` views:
+3. Read `references/architecture-methods.md`, then create or complete `docs/architecture/` views:
    - system context
    - containers
    - major quality attributes
@@ -55,7 +55,7 @@ Load according to the design track:
    - `error-codes.md`
    - `changelog.md`
 5. Create or complete `docs/ui/` from product interaction needs or imported design assets.
-6. Create or complete `docs/backend/` implementation design:
+6. Read `references/backend-design-checklist.md`, then create or complete `docs/backend/` implementation design:
    - architecture overview
    - module documents
    - database schema
