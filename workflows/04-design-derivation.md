@@ -55,7 +55,7 @@ Load according to the design track:
    - `error-codes.md`
    - `changelog.md`
 5. Read `references/security-design-checklist.md`, then document authentication, authorization, abuse limits, sensitive data, dependency trust, and security verification expectations in API, backend, frontend, and test design.
-6. Create or complete `docs/ui/` from product interaction needs or imported design assets.
+6. Read `references/frontend-interaction-checklist.md`, then create or complete `docs/ui/` from product interaction needs or imported design assets.
 7. Read `references/backend-design-checklist.md` and `references/backend-operability-checklist.md`, then create or complete `docs/backend/` implementation design:
    - architecture overview
    - module documents
@@ -68,7 +68,7 @@ Load according to the design track:
    - state machines
    - idempotency constraints
    - indexes and migration order
-9. Create or complete `docs/frontend/` implementation design:
+9. Read `references/frontend-interaction-checklist.md`, then create or complete `docs/frontend/` implementation design:
    - architecture overview
    - module documents
    - API consumption map
@@ -101,6 +101,7 @@ Design documents sufficient for creating a task board without guessing product m
 - API endpoint `Error Codes` sections reference `docs/api/error-codes.md`.
 - API endpoint `Upstream Links` sections reference existing local source Markdown.
 - API endpoint `Frontend Consumers` sections reference existing local UI or frontend API-consumption Markdown.
+- UI and frontend interaction design is checked against `references/frontend-interaction-checklist.md` for interaction model, accessibility and semantics, component behavior, API consumption and error UX, state/routing, performance, and handoff evidence.
 - `docs/ui/01-interaction-model.md` has non-placeholder Product Links, Primary Flows, Screens, States, Errors, and Accessibility sections, and links to product scope plus product acceptance criteria.
 - `docs/architecture/01-system-context.md` has non-placeholder Product Links, Actors, External Systems, Trust Boundaries, and Open Decisions sections, and links to product scope plus product acceptance criteria.
 - `docs/architecture/02-containers.md` has non-placeholder Product Links, Containers, Runtime Responsibilities, Data Ownership, and Open Decisions sections, and links to `docs/architecture/01-system-context.md` plus product acceptance criteria.

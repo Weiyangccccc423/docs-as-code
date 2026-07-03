@@ -770,6 +770,14 @@ DESIGN_REFERENCE_DOC_REQUIREMENTS = (
         ),
     ),
     (
+        "references/frontend-interaction-checklist.md",
+        (
+            "workflows/04-design-derivation.md",
+            "skills/designing-frontend-modules/SKILL.md",
+            "skills/designing-ui-interactions/SKILL.md",
+        ),
+    ),
+    (
         "references/implementation-readiness-checklist.md",
         (
             "workflows/04-design-derivation.md",
@@ -949,6 +957,47 @@ METHOD_REFERENCE_BASELINES = {
                 "## Operational Logs",
                 "logs treated as event streams",
                 "https://12factor.net/logs",
+            ),
+        ),
+    ),
+    "references/frontend-interaction-checklist.md": (
+        (
+            "Accessibility and Semantics",
+            (
+                "## Accessibility and Semantics",
+                "keyboard operation, focus order, visible focus, labels",
+                "https://www.w3.org/TR/WCAG22/",
+                "https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA",
+            ),
+        ),
+        (
+            "Component Behavior",
+            (
+                "## Component Behavior",
+                "role, state, property, keyboard interaction, and focus-management behavior",
+                "https://www.w3.org/WAI/ARIA/apg/",
+            ),
+        ),
+        (
+            "API Consumption and Error UX",
+            (
+                "## API Consumption and Error UX",
+                "user-visible copy, recovery action, retry behavior, telemetry",
+            ),
+        ),
+        (
+            "State and Routing",
+            (
+                "## State and Routing",
+                "local, shared, server-derived, cached, optimistic, persisted, and URL/route state",
+            ),
+        ),
+        (
+            "Performance and Responsiveness",
+            (
+                "## Performance and Responsiveness",
+                "Core Web Vitals",
+                "https://web.dev/articles/vitals",
             ),
         ),
     ),

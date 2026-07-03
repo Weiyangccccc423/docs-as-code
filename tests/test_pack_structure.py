@@ -1398,6 +1398,35 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_missing_frontend_interaction_reference_doc_routing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            skill = target / "skills/designing-frontend-modules/SKILL.md"
+            skill.write_text(
+                skill.read_text(encoding="utf-8").replace(
+                    "`references/frontend-interaction-checklist.md`",
+                    "the frontend interaction checklist",
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_design_reference_doc_missing"
+                    and finding.path == "skills/designing-frontend-modules/SKILL.md"
+                    and "references/frontend-interaction-checklist.md" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_missing_backend_operability_reference_baseline(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
@@ -1425,6 +1454,37 @@ class PackStructureTest(unittest.TestCase):
                     and finding.path == "references/backend-operability-checklist.md"
                     and "Observability Signals" in finding.message
                     and "traces" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_missing_frontend_interaction_reference_baseline(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            reference = target / "references/frontend-interaction-checklist.md"
+            reference.write_text(
+                reference.read_text(encoding="utf-8").replace(
+                    "role, state, property, keyboard interaction, and focus-management behavior",
+                    "role and state",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_method_reference_baseline_missing"
+                    and finding.path == "references/frontend-interaction-checklist.md"
+                    and "Component Behavior" in finding.message
+                    and "focus-management" in finding.message
                     for finding in report.findings
                 )
             )
