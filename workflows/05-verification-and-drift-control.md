@@ -14,7 +14,9 @@ Load:
 
 ## Procedure
 
-1. Run structural verification:
+1. Read `references/governance-verification-checklist.md` and use it as the rubric for command discipline, environment repair control, drift refresh, phase gates, repair ordering, traceability evidence, security and supply-chain sanity, and completion gates.
+
+2. Run structural verification:
 
    ```bash
    bin/governance verify <target>
@@ -35,7 +37,7 @@ Load:
    bin/governance verify .
    ```
 
-2. Run environment check:
+3. Run environment check:
 
    ```bash
    bin/governance env --strict --repair --check --target <target> --json
@@ -44,7 +46,7 @@ Load:
    Agents must treat `ok: false` as a stop condition. `--check` reports `would_repair` and `manual_repairs` without writing `.governance/env-repair.md` or installing packages. If `needs_escalation` is true, do not run `install_commands` or `install_command` without explicit approval.
    When governance state is readable and the environment result is `ok: true`, JSON includes `local_commands` and `next_actions` for continuing from the checked target state.
 
-3. If the target project has a Makefile, run its verification entry:
+4. If the target project has a Makefile, run its verification entry:
 
    ```bash
    make verify-governance
@@ -56,7 +58,7 @@ Load:
 
    `governance-status` runs `bin/governance status . --json`; on success, its payload includes `local_commands` with `cwd`, `argv`, and `writes_state` so resumed agents can rediscover and execute the target-local `make` command contract without re-running initialization. Readable-state `gate --json` payloads include the same `local_commands` contract, and passing gates also include `next_actions`. Successful state-writing `product mark-ready --json` and `advance --json` payloads include both fields for the next state transition.
 
-4. If verification reports target-local runtime or workflow-pack snapshot drift, inspect the refresh plan from a trusted source workflow-pack checkout before writing repairs:
+5. If verification reports target-local runtime or workflow-pack snapshot drift, inspect the refresh plan from a trusted source workflow-pack checkout before writing repairs:
 
    ```bash
    bin/governance runtime refresh <target> --check --json
@@ -65,7 +67,7 @@ Load:
 
    Treat the `--check` form as the no-write repair plan. After the write-mode refresh succeeds, use returned `local_commands[].argv` for target-local checks and `next_actions[].argv` for the next workflow transition.
 
-5. Before implementation starts, run the implementation gate:
+6. Before implementation starts, run the implementation gate:
 
    ```bash
    bin/governance advance implementation <target> --check --json
@@ -74,7 +76,7 @@ Load:
 
    `advance` records adjacent transitions one phase at a time and cannot skip phases; use `gate implementation <target> --json` for repeated checks. The implementation gate requires the standard handoff files from Phase 04, including the API endpoint index, at least one endpoint contract, task board, and verification log; arbitrary Markdown in a docs domain is not enough.
 
-6. Before implementation starts, confirm:
+7. Before implementation starts, confirm:
    - no unregistered docs directories
    - no stale reserved markers
    - no `governance:scaffold-placeholder` markers
@@ -134,6 +136,8 @@ Verification is complete when the relevant checks in the procedure pass and any 
 ```bash
 make verify-pack
 ```
+
+Command discipline, environment repair control, drift refresh, phase gates, repair ordering, traceability evidence, security and supply-chain sanity, and completion gates must satisfy `references/governance-verification-checklist.md`.
 
 ## Stop Conditions
 

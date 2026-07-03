@@ -81,6 +81,7 @@ WORKFLOW_PACK_REQUIRED_PATHS = (
     "references/community-practices.md",
     "references/data-model-design-checklist.md",
     "references/frontend-interaction-checklist.md",
+    "references/governance-verification-checklist.md",
     "references/implementation-readiness-checklist.md",
     "references/product-archive-checklist.md",
     "references/product-requirements-checklist.md",

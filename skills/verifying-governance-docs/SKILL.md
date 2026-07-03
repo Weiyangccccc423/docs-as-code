@@ -7,6 +7,8 @@ description: Use when checking whether generated or edited governance documents 
 
 Prefer deterministic checks before manual review.
 
+Read `references/governance-verification-checklist.md` before declaring a phase complete, repairing drift, or approving implementation handoff.
+
 ## Commands
 
 ```bash

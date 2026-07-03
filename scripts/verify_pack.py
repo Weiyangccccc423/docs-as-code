@@ -817,6 +817,15 @@ INITIALIZATION_REFERENCE_DOC_REQUIREMENTS = (
         ),
     ),
 )
+VERIFICATION_REFERENCE_DOC_REQUIREMENTS = (
+    (
+        "references/governance-verification-checklist.md",
+        (
+            "workflows/05-verification-and-drift-control.md",
+            "skills/verifying-governance-docs/SKILL.md",
+        ),
+    ),
+)
 PRODUCT_REFERENCE_DOC_REQUIREMENTS = (
     (
         "references/product-archive-checklist.md",
@@ -834,6 +843,76 @@ PRODUCT_REFERENCE_DOC_REQUIREMENTS = (
     ),
 )
 METHOD_REFERENCE_BASELINES = {
+    "references/governance-verification-checklist.md": (
+        (
+            "Command Discipline",
+            (
+                "## Command Discipline",
+                "matching `--check --json` preflight",
+                "`findings[].code`, `findings[].path`, and `requirements[].code`",
+                "https://dora.dev/capabilities/test-automation/",
+            ),
+        ),
+        (
+            "Environment Repair Control",
+            (
+                "## Environment Repair Control",
+                "bin/governance env --strict --repair --check --target <target> --json",
+                "`would_repair`, `install_commands`, `manual_repairs`, and `needs_escalation`",
+            ),
+        ),
+        (
+            "Drift and Refresh",
+            (
+                "## Drift and Refresh",
+                "runtime_manifest_*",
+                "workflow_pack_manifest_*",
+                "bin/governance runtime refresh <target> --check --json",
+                "https://slsa.dev/spec/v1.2/about",
+            ),
+        ),
+        (
+            "Phase Gates and State",
+            (
+                "## Phase Gates and State",
+                "recording adjacent phase transitions",
+                ".governance/state.json",
+            ),
+        ),
+        (
+            "Repair Ordering",
+            (
+                "## Repair Ordering",
+                "document-integrity findings",
+                "missing acceptance IDs, unresolved IDs, links, and evidence",
+            ),
+        ),
+        (
+            "Traceability and Evidence",
+            (
+                "## Traceability and Evidence",
+                "existing local Markdown sources",
+                "verification commands and results",
+            ),
+        ),
+        (
+            "Security and Supply Chain Sanity",
+            (
+                "## Security and Supply Chain Sanity",
+                "SECURITY.md",
+                "https://csrc.nist.gov/pubs/sp/800/218/final",
+                "https://github.com/ossf/scorecard",
+            ),
+        ),
+        (
+            "Completion Gate",
+            (
+                "## Completion Gate",
+                "bin/governance verify <target> --check --json",
+                "bin/governance advance implementation <target> --check --json",
+            ),
+        ),
+    ),
     "references/repository-initialization-checklist.md": (
         (
             "Target Safety",
@@ -1716,6 +1795,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_scaffold_continuation_docs(root, findings)
     _check_implementation_handoff_docs(root, findings)
     _check_initialization_reference_docs(root, findings)
+    _check_verification_reference_docs(root, findings)
     _check_product_reference_docs(root, findings)
     _check_design_reference_docs(root, findings)
     _check_method_reference_baselines(root, findings)
@@ -3059,6 +3139,21 @@ def _check_initialization_reference_docs(root: Path, findings: list[PackFinding]
                 PackFinding(
                     "pack_initialization_reference_doc_missing",
                     f"{rel} must route repository initialization through reference document: {reference}",
+                    rel,
+                )
+            )
+
+
+def _check_verification_reference_docs(root: Path, findings: list[PackFinding]) -> None:
+    for reference, consumers in VERIFICATION_REFERENCE_DOC_REQUIREMENTS:
+        for rel in consumers:
+            text = _read_utf8_text_or_none(root / rel)
+            if text is None or reference in text:
+                continue
+            findings.append(
+                PackFinding(
+                    "pack_verification_reference_doc_missing",
+                    f"{rel} must route governance verification through reference document: {reference}",
                     rel,
                 )
             )
