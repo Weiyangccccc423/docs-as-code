@@ -15,8 +15,9 @@ Load:
 
 ## Procedure
 
-1. Preserve the original under `docs/product/core/source/`.
-2. Record source evidence in `docs/product/core/source/source-manifest.json`:
+1. Read `references/product-archive-checklist.md` and use it as the rubric for source preservation, manifest evidence, conversion fidelity, review closeout, unresolved import limits, and handoff readiness.
+2. Preserve the original under `docs/product/core/source/`.
+3. Record source evidence in `docs/product/core/source/source-manifest.json`:
    - source filename
    - archived path
    - source and archive SHA-256
@@ -24,11 +25,11 @@ Load:
    - conversion method
    - import status
    - whether design derivation is allowed
-3. Convert or copy the readable product text into `docs/product/core/PRD.md`.
-4. Record navigational metadata in `docs/product/core/product-meta.md`.
-5. Do not edit product meaning during archiving.
-6. If conversion is incomplete, register the limitation in `docs/unresolved.md` and stop before design derivation. Bootstrap registers `U-001` automatically for conversion-required sources.
-7. After the readable Markdown PRD has been manually reviewed against the archived source, use the deterministic closeout command instead of editing manifest metadata by hand:
+4. Convert or copy the readable product text into `docs/product/core/PRD.md`.
+5. Record navigational metadata in `docs/product/core/product-meta.md`.
+6. Do not edit product meaning during archiving.
+7. If conversion is incomplete, register the limitation in `docs/unresolved.md` and stop before design derivation. Bootstrap registers `U-001` automatically for conversion-required sources.
+8. After the readable Markdown PRD has been manually reviewed against the archived source, use the deterministic closeout command instead of editing manifest metadata by hand:
 
    ```bash
    bin/governance product mark-ready <target> --reviewed --method manual-reviewed-markdown --check --json
@@ -62,6 +63,8 @@ bin/governance gate product-structuring <target> --json
 ```
 
 Verification checks that the archived source still matches the manifest hash and byte size, and that `can_derive_design` is true. Manual review must confirm that `PRD.md` preserves the original meaning before `product mark-ready --reviewed` is run.
+
+Source preservation, manifest evidence, conversion fidelity, review closeout, unresolved import limits, and handoff readiness must satisfy `references/product-archive-checklist.md`.
 
 ## Stop Conditions
 

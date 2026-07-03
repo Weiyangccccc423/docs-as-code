@@ -810,6 +810,13 @@ DESIGN_REFERENCE_DOC_REQUIREMENTS = (
 )
 PRODUCT_REFERENCE_DOC_REQUIREMENTS = (
     (
+        "references/product-archive-checklist.md",
+        (
+            "workflows/02-product-document-archiving.md",
+            "skills/archiving-product-document/SKILL.md",
+        ),
+    ),
+    (
         "references/product-requirements-checklist.md",
         (
             "workflows/03-product-structuring.md",
@@ -818,6 +825,65 @@ PRODUCT_REFERENCE_DOC_REQUIREMENTS = (
     ),
 )
 METHOD_REFERENCE_BASELINES = {
+    "references/product-archive-checklist.md": (
+        (
+            "Source Preservation",
+            (
+                "## Source Preservation",
+                "untouched original copied under `docs/product/core/source/`",
+                "https://www.w3.org/TR/prov-overview/",
+            ),
+        ),
+        (
+            "Manifest Evidence",
+            (
+                "## Manifest Evidence",
+                "source path, archived path, byte size, SHA-256, conversion method, import status, and `can_derive_design`",
+                "https://csrc.nist.gov/pubs/fips/180-4/upd1/final",
+            ),
+        ),
+        (
+            "Conversion Fidelity",
+            (
+                "## Conversion Fidelity",
+                "not a summary",
+                "tables, acceptance rules, field names, constraints, diagrams",
+                "https://pandoc.org/MANUAL.html",
+            ),
+        ),
+        (
+            "Markdown Portability",
+            (
+                "## Markdown Portability",
+                "valid UTF-8 Markdown",
+                "https://spec.commonmark.org/0.31.2/",
+            ),
+        ),
+        (
+            "Review Closeout",
+            (
+                "## Review Closeout",
+                "`would_update`",
+                "instead of hand-editing manifest readiness fields",
+            ),
+        ),
+        (
+            "Unresolved Import Limits",
+            (
+                "## Unresolved Import Limits",
+                "docs/unresolved.md",
+                "`U-001`",
+            ),
+        ),
+        (
+            "Handoff Readiness",
+            (
+                "## Handoff Readiness",
+                "bin/governance verify <target> --check --json",
+                "bin/governance gate product-structuring <target> --json",
+            ),
+        ),
+    ),
     "references/product-requirements-checklist.md": (
         (
             "Source Fidelity",
@@ -2904,7 +2970,7 @@ def _check_product_reference_docs(root: Path, findings: list[PackFinding]) -> No
             findings.append(
                 PackFinding(
                     "pack_product_reference_doc_missing",
-                    f"{rel} must route product structuring through reference document: {reference}",
+                    f"{rel} must route product workflow through reference document: {reference}",
                     rel,
                 )
             )

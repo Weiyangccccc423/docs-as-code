@@ -64,6 +64,7 @@ Create reliable project governance before implementation starts:
 - `references/data-model-design-checklist.md`: data ownership, identity, constraints, concurrency, indexing, migration, retention, and verification checklist.
 - `references/frontend-interaction-checklist.md`: frontend interaction, accessibility, component behavior, state, routing, performance, and handoff checklist.
 - `references/implementation-readiness-checklist.md`: Ready task, Definition of Done, verification, integration, agent handoff, and supply-chain evidence checklist.
+- `references/product-archive-checklist.md`: product source preservation, manifest evidence, conversion fidelity, Markdown portability, review closeout, unresolved import, and handoff-readiness checklist.
 - `references/product-requirements-checklist.md`: product source fidelity, requirement quality, acceptance criteria, glossary, unresolved question, and design-readiness checklist.
 - `references/security-design-checklist.md`: security, abuse-case, and supply-chain design checklist.
 - `references/test-strategy-checklist.md`: acceptance traceability, test portfolio, automation, test data, non-functional verification, and evidence checklist.
