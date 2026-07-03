@@ -542,6 +542,82 @@ DESIGN_SCAFFOLD_REQUIRED_PHRASES = (
     "local_commands",
     "next_actions",
 )
+IMPLEMENTATION_HANDOFF_DOC_REQUIREMENTS = {
+    "README.md": (
+        "implementation",
+        "Ready",
+        "docs/development/03-verification-log.md",
+        "task board",
+    ),
+    "workflows/04-design-derivation.md": (
+        "docs/tests/02-acceptance-matrix.md",
+        "docs/development/01-roadmap.md",
+        "docs/development/02-task-board.md",
+        "docs/development/03-verification-log.md",
+        "TASK-NNN",
+        "A-NNN",
+        "Product",
+        "Design",
+        "API",
+        "Acceptance",
+        "local Markdown",
+        "implementation handoff",
+    ),
+    "workflows/05-verification-and-drift-control.md": (
+        "advance implementation",
+        "gate implementation",
+        "implementation gate",
+        "docs/development/01-roadmap.md",
+        "docs/development/02-task-board.md",
+        "docs/development/03-verification-log.md",
+        "Task",
+        "Product",
+        "Design",
+        "API",
+        "Acceptance",
+        "Verification",
+        "Ready",
+        "Blocked",
+        "Done",
+        "TASK-NNN",
+        "A-NNN",
+        "docs/unresolved.md",
+        "docs/tests/02-acceptance-matrix.md",
+    ),
+    "skills/planning-implementation-work/SKILL.md": (
+        "advance implementation",
+        "docs/development/01-roadmap.md",
+        "docs/development/02-task-board.md",
+        "docs/development/03-verification-log.md",
+        "TASK-NNN",
+        "Product",
+        "Design",
+        "API",
+        "Acceptance",
+        "Verification",
+        "Ready",
+        "Done",
+        "A-NNN",
+        "docs/tests/02-acceptance-matrix.md",
+        "mapped in `docs/tests/02-acceptance-matrix.md`",
+        "docs/unresolved.md",
+    ),
+    "skills/verifying-governance-docs/SKILL.md": (
+        "gate implementation",
+        "advance implementation",
+        "roadmap",
+        "task board",
+        "verification evidence",
+        "TASK-NNN",
+        "A-NNN",
+        "Ready",
+        "Blocked",
+        "Done",
+        "docs/unresolved.md",
+        "docs/tests/02-acceptance-matrix.md",
+        "local Markdown",
+    ),
+}
 DESIGN_REFERENCE_DOC_REQUIREMENTS = (
     (
         "references/architecture-methods.md",
@@ -846,6 +922,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_product_archive_docs(root, findings)
     _check_product_structure_docs(root, findings)
     _check_design_scaffold_docs(root, findings)
+    _check_implementation_handoff_docs(root, findings)
     _check_design_reference_docs(root, findings)
     _check_method_reference_baselines(root, findings)
     _check_phase_order_docs(root, findings)
@@ -1491,6 +1568,23 @@ def _check_design_scaffold_docs(root: Path, findings: list[PackFinding]) -> None
             PackFinding(
                 "pack_design_scaffold_doc_missing",
                 f"{rel} must document design scaffold phrase(s): {', '.join(missing)}",
+                rel,
+            )
+        )
+
+
+def _check_implementation_handoff_docs(root: Path, findings: list[PackFinding]) -> None:
+    for rel, required_phrases in IMPLEMENTATION_HANDOFF_DOC_REQUIREMENTS.items():
+        text = _read_utf8_text_or_none(root / rel)
+        if text is None:
+            continue
+        missing = [phrase for phrase in required_phrases if phrase not in text]
+        if not missing:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_implementation_handoff_doc_missing",
+                f"{rel} must document implementation handoff phrase(s): {', '.join(missing)}",
                 rel,
             )
         )

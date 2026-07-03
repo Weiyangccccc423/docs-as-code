@@ -530,6 +530,36 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_missing_implementation_handoff_doc_phrase(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            skill = target / "skills/planning-implementation-work/SKILL.md"
+            skill.write_text(
+                skill.read_text(encoding="utf-8").replace(
+                    " and its `A-NNN` ID is mapped in `docs/tests/02-acceptance-matrix.md`",
+                    "",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_implementation_handoff_doc_missing"
+                    and finding.path == "skills/planning-implementation-work/SKILL.md"
+                    and "docs/tests/02-acceptance-matrix.md" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_missing_design_reference_doc_routing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
