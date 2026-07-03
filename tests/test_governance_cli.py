@@ -3319,6 +3319,89 @@ class GovernanceCliTest(unittest.TestCase):
             )
             self.assertEqual(0, gate_result.returncode, gate_result.stderr)
 
+    def test_product_mark_ready_next_actions_execute_from_reported_cwd(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.docx"
+            product.write_bytes(b"fake docx bytes")
+
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            init_payload = json.loads(init_result.stdout)
+            mark_ready_check, mark_ready_apply = init_payload["next_actions"]
+            self.assertEqual("product-mark-ready-check", mark_ready_check["id"])
+            self.assertEqual("product-mark-ready", mark_ready_apply["id"])
+
+            (target / "docs/product/core/PRD.md").write_text(
+                "# Converted Product\n\n"
+                "## Goal\n\n"
+                "Ship governed projects from reviewed product input.\n",
+                encoding="utf-8",
+            )
+
+            preflight = subprocess.run(
+                mark_ready_check["argv"],
+                cwd=mark_ready_check["cwd"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, preflight.returncode, preflight.stderr)
+            preflight_payload = json.loads(preflight.stdout)
+            self.assertTrue(preflight_payload["ok"])
+            self.assertTrue(preflight_payload["check"])
+            self.assertIn("docs/product/core/source/source-manifest.json", preflight_payload["would_update"])
+            self.assertTrue(preflight_payload["would_resolve_conversion_blocker"])
+
+            applied = subprocess.run(
+                mark_ready_apply["argv"],
+                cwd=mark_ready_apply["cwd"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, applied.returncode, applied.stderr)
+            applied_payload = json.loads(applied.stdout)
+            self.assertTrue(applied_payload["ok"])
+            self.assertFalse(applied_payload["check"])
+            self.assertTrue(applied_payload["conversion_blocker_resolved"])
+            self.assertEqual("ready_for_structuring", applied_payload["state"]["product_import_status"])
+
+            advance_check, advance_apply = applied_payload["next_actions"]
+            self.assertEqual("advance-product-structuring-check", advance_check["id"])
+            self.assertEqual("advance-product-structuring", advance_apply["id"])
+
+            advance_preflight = subprocess.run(
+                advance_check["argv"],
+                cwd=advance_check["cwd"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, advance_preflight.returncode, advance_preflight.stderr)
+            advance_preflight_payload = json.loads(advance_preflight.stdout)
+            self.assertTrue(advance_preflight_payload["ok"])
+            self.assertTrue(advance_preflight_payload["check"])
+            self.assertTrue(advance_preflight_payload["would_advance"])
+
+            advanced = subprocess.run(
+                advance_apply["argv"],
+                cwd=advance_apply["cwd"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, advanced.returncode, advanced.stderr)
+            advanced_payload = json.loads(advanced.stdout)
+            self.assertTrue(advanced_payload["ok"])
+            self.assertTrue(advanced_payload["advanced"])
+            self.assertEqual("product-structuring", advanced_payload["state"]["phase"])
+
     def test_product_mark_ready_check_json_reports_plan_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "target"
