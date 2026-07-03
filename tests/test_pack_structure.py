@@ -440,6 +440,36 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_missing_runtime_refresh_doc_phrase(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            strategy = target / "references/runtime-strategy.md"
+            strategy.write_text(
+                strategy.read_text(encoding="utf-8").replace(
+                    " and `would_remove`",
+                    "",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_runtime_refresh_doc_missing"
+                    and finding.path == "references/runtime-strategy.md"
+                    and "would_remove" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_missing_product_archive_doc_phrase(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"

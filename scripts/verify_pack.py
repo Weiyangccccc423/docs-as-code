@@ -486,6 +486,71 @@ ENV_REPAIR_REQUIRED_FIELDS = (
     "manual_repairs",
     "needs_escalation",
 )
+RUNTIME_REFRESH_DOC_REQUIREMENTS = {
+    "README.md": (
+        "bin/governance runtime refresh <target> --check --json",
+        "bin/governance runtime refresh <target> --json",
+        "docs/agent-workflow/runtime-manifest.json",
+        "docs/agent-workflow/workflow-pack/",
+        "would_refresh",
+        "would_remove",
+        "without rewriting product, design, planning, or implementation documents",
+    ),
+    "workflows/00-overview.md": (
+        "bin/governance runtime refresh <target> --check --json",
+        "bin/governance runtime refresh <target> --json",
+        "without rewriting product or design documents",
+        "no-write plan",
+        "local_commands",
+        "next_actions",
+        "docs/agent-workflow/workflow-pack/",
+    ),
+    "workflows/01-empty-repo-initialization.md": (
+        "docs/agent-workflow/runtime-manifest.json",
+        "docs/agent-workflow/workflow-pack/",
+        "trusted source workflow-pack checkout",
+        "bin/governance runtime refresh <target> --check --json",
+        "bin/governance runtime refresh <target> --json",
+    ),
+    "workflows/05-verification-and-drift-control.md": (
+        "target-local runtime or workflow-pack snapshot drift",
+        "trusted source workflow-pack checkout",
+        "bin/governance runtime refresh <target> --check --json",
+        "bin/governance runtime refresh <target> --json",
+        "no-write repair plan",
+        "local_commands",
+        "next_actions",
+    ),
+    "references/runtime-strategy.md": (
+        "bin/governance runtime refresh <target> --check --json",
+        "bin/governance runtime refresh <target> --json",
+        "docs/agent-workflow/runtime-manifest.json",
+        "docs/agent-workflow/workflow-pack/",
+        "does not rewrite product, design, planning, or implementation documents",
+        "would_refresh",
+        "would_remove",
+        "leaving target files and `.governance/state.json` unchanged",
+        "local_commands",
+        "next_actions",
+    ),
+    "skills/initializing-governance-repo/SKILL.md": (
+        "trusted source workflow-pack checkout",
+        "bin/governance runtime refresh <target> --check --json",
+        "bin/governance runtime refresh <target> --json",
+        "docs/agent-workflow/workflow-pack/manifest.json",
+        "local workflow-pack snapshot",
+    ),
+    "skills/verifying-governance-docs/SKILL.md": (
+        "bin/governance runtime refresh <target> --check --json",
+        "bin/governance runtime refresh <target> --json",
+        "runtime_manifest_*",
+        "workflow_pack_manifest_*",
+        "trusted source workflow-pack checkout",
+        "no-write plan",
+        "local_commands",
+        "next_actions",
+    ),
+}
 PRODUCT_ARCHIVE_DOC_PATHS = (
     "workflows/02-product-document-archiving.md",
     "skills/archiving-product-document/SKILL.md",
@@ -919,6 +984,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_readme_quick_start(root, findings)
     _check_target_makefile_command_docs(root, findings)
     _check_env_repair_docs(root, findings)
+    _check_runtime_refresh_docs(root, findings)
     _check_product_archive_docs(root, findings)
     _check_product_structure_docs(root, findings)
     _check_design_scaffold_docs(root, findings)
@@ -1517,6 +1583,23 @@ def _check_env_repair_docs(root: Path, findings: list[PackFinding]) -> None:
             PackFinding(
                 "pack_env_repair_doc_field_missing",
                 f"{rel} must document environment repair JSON field(s): {', '.join(missing)}",
+                rel,
+            )
+        )
+
+
+def _check_runtime_refresh_docs(root: Path, findings: list[PackFinding]) -> None:
+    for rel, required_phrases in RUNTIME_REFRESH_DOC_REQUIREMENTS.items():
+        text = _read_utf8_text_or_none(root / rel)
+        if text is None:
+            continue
+        missing = [phrase for phrase in required_phrases if phrase not in text]
+        if not missing:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_runtime_refresh_doc_missing",
+                f"{rel} must document runtime refresh phrase(s): {', '.join(missing)}",
                 rel,
             )
         )
