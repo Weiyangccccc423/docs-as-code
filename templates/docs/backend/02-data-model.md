@@ -27,7 +27,7 @@
 
 ## Constraints
 
-- Document uniqueness, idempotency keys, cross-user isolation, retention, soft-delete, and audit constraints.
+- Document uniqueness, idempotency keys, cross-user isolation, transaction boundaries, consistency expectations, concurrency conflicts, retention, soft-delete, and audit constraints.
 
 ## Indexes
 

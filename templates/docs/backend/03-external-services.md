@@ -13,6 +13,8 @@
 | --- | --- | --- | --- | --- |
 | ExampleService | External or internal owner | Product-derived dependency purpose | Critical or optional | Data classification and fields |
 
+- Document dependency trust boundary, update path, version-drift risk, and ADR link for high-risk dependencies.
+
 ## Contracts
 
 - Link service API, event, file, queue, or manual contract source.
@@ -28,7 +30,7 @@
 
 ## Authentication
 
-- Document credential owner, auth mechanism, secret storage, rotation, and access boundary.
+- Document credential owner, auth mechanism, secret storage, rotation, least-privilege access, and access boundary.
 
 ## Observability
 

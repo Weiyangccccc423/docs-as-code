@@ -26,7 +26,8 @@
 
 ## Failure Modes
 
-- Document success path, failure path, retry, timeout, compensation, observability, and security behavior.
+- Document success path, failure path, retry, timeout, compensation, transaction boundaries, consistency expectations, concurrency conflicts, duplicate-submission handling, observability, and security behavior.
+- Document sensitive data, authorization, audit, abuse-limit, and least-privilege dependency behavior where the module is security-sensitive.
 
 ## Open Decisions
 

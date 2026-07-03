@@ -2665,6 +2665,37 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_backend_modules_consistency_template_guardrail_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            template = target / "templates/docs/backend/01-modules.md"
+            template.write_text(
+                template.read_text(encoding="utf-8").replace(
+                    "- Document success path, failure path, retry, timeout, compensation, transaction boundaries, consistency expectations, concurrency conflicts, duplicate-submission handling, observability, and security behavior.\n",
+                    "",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_template_guardrail_missing"
+                    and finding.path == "templates/docs/backend/01-modules.md"
+                    and "transaction boundaries, consistency expectations, concurrency conflicts" in finding.message
+                    and "duplicate-submission" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_backend_data_model_template_guardrail_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
@@ -2676,7 +2707,7 @@ class PackStructureTest(unittest.TestCase):
             template = target / "templates/docs/backend/02-data-model.md"
             template.write_text(
                 template.read_text(encoding="utf-8").replace(
-                    "- Document uniqueness, idempotency keys, cross-user isolation, retention, soft-delete, and audit constraints.\n",
+                    "- Document uniqueness, idempotency keys, cross-user isolation, transaction boundaries, consistency expectations, concurrency conflicts, retention, soft-delete, and audit constraints.\n",
                     "",
                     1,
                 ),
@@ -2691,6 +2722,7 @@ class PackStructureTest(unittest.TestCase):
                     finding.code == "pack_template_guardrail_missing"
                     and finding.path == "templates/docs/backend/02-data-model.md"
                     and "idempotency keys" in finding.message
+                    and "transaction boundaries, consistency expectations, concurrency conflicts" in finding.message
                     for finding in report.findings
                 )
             )
@@ -2721,6 +2753,36 @@ class PackStructureTest(unittest.TestCase):
                     finding.code == "pack_template_guardrail_missing"
                     and finding.path == "templates/docs/backend/03-external-services.md"
                     and "retryable failures" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_backend_external_services_security_template_guardrail_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            template = target / "templates/docs/backend/03-external-services.md"
+            template.write_text(
+                template.read_text(encoding="utf-8").replace(
+                    "- Document credential owner, auth mechanism, secret storage, rotation, least-privilege access, and access boundary.\n",
+                    "",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_template_guardrail_missing"
+                    and finding.path == "templates/docs/backend/03-external-services.md"
+                    and "least-privilege access" in finding.message
                     for finding in report.findings
                 )
             )
