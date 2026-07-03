@@ -518,6 +518,14 @@ METHOD_REFERENCE_BASELINES = {
         ),
         ("OpenAPI", ("## OpenAPI", "https://spec.openapis.org/oas/latest.html")),
     ),
+    "references/backend-design-checklist.md": (
+        ("Module Boundary", ("## Module Boundary", "one primary responsibility")),
+        ("Data Model", ("## Data Model", "idempotency keys and uniqueness constraints")),
+        ("API Contract", ("## API Contract", "request fields, response fields, auth")),
+        ("Runtime Flow", ("## Runtime Flow", "retries, timeouts, and compensation behavior")),
+        ("Observability and Security", ("## Observability and Security", "auth boundaries")),
+        ("Acceptance and Tests", ("## Acceptance and Tests", "unit, integration, and contract tests")),
+    ),
 }
 PHASE_ADVANCE_DOC_PATHS = (
     "README.md",
