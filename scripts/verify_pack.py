@@ -763,6 +763,13 @@ DESIGN_REFERENCE_DOC_REQUIREMENTS = (
         ),
     ),
     (
+        "references/data-model-design-checklist.md",
+        (
+            "workflows/04-design-derivation.md",
+            "skills/designing-data-models/SKILL.md",
+        ),
+    ),
+    (
         "references/backend-operability-checklist.md",
         (
             "workflows/04-design-derivation.md",
@@ -985,6 +992,72 @@ METHOD_REFERENCE_BASELINES = {
         ),
         ("Observability and Security", ("## Observability and Security", "auth boundaries")),
         ("Acceptance and Tests", ("## Acceptance and Tests", "unit, integration, and contract tests")),
+    ),
+    "references/data-model-design-checklist.md": (
+        (
+            "Product Traceability and Ownership",
+            (
+                "## Product Traceability and Ownership",
+                "owning backend module",
+                "docs/unresolved.md",
+            ),
+        ),
+        (
+            "Identity and Relationships",
+            (
+                "## Identity and Relationships",
+                "primary key, external identifier, and tenant or user isolation boundary",
+                "https://www.postgresql.org/docs/current/ddl-constraints.html",
+            ),
+        ),
+        (
+            "Constraints and Invariants",
+            (
+                "## Constraints and Invariants",
+                "idempotency keys, duplicate-submission behavior, and cross-user isolation",
+                "https://www.postgresql.org/docs/current/ddl-constraints.html",
+            ),
+        ),
+        (
+            "State and Concurrency",
+            (
+                "## State and Concurrency",
+                "transaction boundaries, isolation expectations, lock or version strategy, and conflict outcomes",
+                "https://www.postgresql.org/docs/current/transaction-iso.html",
+            ),
+        ),
+        (
+            "Query Paths and Indexes",
+            (
+                "## Query Paths and Indexes",
+                "filter, sort, uniqueness rule, or foreign-key access pattern",
+                "https://www.postgresql.org/docs/current/indexes.html",
+            ),
+        ),
+        (
+            "Migration and Backfill",
+            (
+                "## Migration and Backfill",
+                "forward migration, compatibility, backfill, validation",
+                "https://martinfowler.com/articles/evodb.html",
+            ),
+        ),
+        (
+            "Retention, Deletion, and Audit",
+            (
+                "## Retention, Deletion, and Audit",
+                "retention, archival, soft-delete, restore, legal hold, and hard-delete",
+                "references/security-design-checklist.md",
+            ),
+        ),
+        (
+            "Verification",
+            (
+                "## Verification",
+                "constraint tests, migration tests, concurrency tests, query-performance checks",
+                "docs/unresolved.md",
+            ),
+        ),
     ),
     "references/backend-operability-checklist.md": (
         (

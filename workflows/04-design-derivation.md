@@ -56,18 +56,20 @@ Load according to the design track:
    - `changelog.md`
 5. Read `references/security-design-checklist.md`, then document authentication, authorization, abuse limits, sensitive data, dependency trust, and security verification expectations in API, backend, frontend, and test design.
 6. Read `references/frontend-interaction-checklist.md`, then create or complete `docs/ui/` from product interaction needs or imported design assets.
-7. Read `references/backend-design-checklist.md` and `references/backend-operability-checklist.md`, then create or complete `docs/backend/` implementation design:
+7. Read `references/backend-design-checklist.md`, `references/data-model-design-checklist.md`, and `references/backend-operability-checklist.md`, then create or complete `docs/backend/` implementation design:
    - architecture overview
    - module documents
    - database schema
    - external service contracts
    - `references/backend-design-checklist.md` checklist coverage
+   - `references/data-model-design-checklist.md` checklist coverage
    - `references/backend-operability-checklist.md` checklist coverage
 8. Create database and lifecycle design:
    - entity ownership
    - state machines
    - idempotency constraints
    - indexes and migration order
+   - `references/data-model-design-checklist.md` checklist coverage
 9. Read `references/frontend-interaction-checklist.md`, then create or complete `docs/frontend/` implementation design:
    - architecture overview
    - module documents
@@ -107,6 +109,7 @@ Design documents sufficient for creating a task board without guessing product m
 - `docs/architecture/02-containers.md` has non-placeholder Product Links, Containers, Runtime Responsibilities, Data Ownership, and Open Decisions sections, and links to `docs/architecture/01-system-context.md` plus product acceptance criteria.
 - `docs/architecture/03-quality-attributes.md` has non-placeholder Product Links, Availability, Performance, Security, Observability, and Tradeoffs sections, and links to containers plus product acceptance criteria.
 - Backend modules link to API, schema, external services, and acceptance criteria.
+- Data model design is checked against `references/data-model-design-checklist.md` for product traceability, identity, constraints, state/concurrency, query paths/indexes, migration/backfill, retention/audit, and verification coverage.
 - Backend operability is checked against `references/backend-operability-checklist.md` for service levels, observability signals, configuration and secrets, runtime controls, operational logs, and runbooks.
 - `docs/backend/01-modules.md` has non-placeholder Product Links, Architecture Links, Modules, API Ownership, Failure Modes, and Open Decisions sections, and links to architecture docs, API docs, `docs/backend/02-data-model.md`, `docs/backend/03-external-services.md`, and product acceptance criteria.
 - `docs/backend/02-data-model.md` has non-placeholder Product Links, Owners, Entities, State Machines, Constraints, Indexes, and Migrations sections, and links to backend modules, API docs, and product acceptance criteria.
