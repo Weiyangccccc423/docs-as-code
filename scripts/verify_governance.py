@@ -77,6 +77,7 @@ WORKFLOW_PACK_REQUIRED_PATHS = (
     "references/backend-design-checklist.md",
     "references/community-practices.md",
     "references/runtime-strategy.md",
+    "references/security-design-checklist.md",
     "skills/archiving-product-document/SKILL.md",
     "skills/capturing-architecture-decisions/SKILL.md",
     "skills/designing-api-contracts/SKILL.md",

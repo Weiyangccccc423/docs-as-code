@@ -12,3 +12,5 @@ Use these as calibration sources, not rigid templates.
 | arc42 | architecture completeness checklist; see `references/architecture-methods.md` |
 | ADR / MADR | decision records |
 | OpenSSF Best Practices | quality and security baseline thinking |
+| OWASP ASVS | application security verification calibration |
+| OWASP API Security Top 10 | API abuse-case and authorization calibration |

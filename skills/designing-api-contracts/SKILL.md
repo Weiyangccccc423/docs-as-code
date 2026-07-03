@@ -8,6 +8,7 @@ description: Use when creating or changing HTTP API contracts, endpoint document
 API contracts are shared truth between frontend, backend, tests, and agents.
 
 Read `references/architecture-methods.md` before writing API contracts. Use its OpenAPI note to keep Markdown endpoint files aligned with a future machine-readable contract.
+Read `references/security-design-checklist.md` before writing auth, authorization, abuse-limit, sensitive-data, or dependency-trust contract decisions.
 
 ## Required Files
 
@@ -88,11 +89,13 @@ Link `Frontend Consumers` to existing local UI or frontend API-consumption Markd
 4. Derive endpoints from structured product chapters and architecture docs.
 5. Name endpoint files with the next unique `NN-<slug>.md` prefix.
 6. Keep field names, auth rules, idempotency, upstream links, frontend consumers, and error behavior traceable.
-7. Update `docs/api/README.md` and endpoint indexes for every new Markdown file.
+7. Check object-level authorization, function-level authorization, mass-assignment, rate-limit, sensitive-field, and logging expectations against `references/security-design-checklist.md`.
+8. Update `docs/api/README.md` and endpoint indexes for every new Markdown file.
 
 ## Stop Conditions
 
 - A field cannot be traced to product, UI, backend design, or an explicit decision.
 - Error behavior is unclear.
 - Auth boundary is unclear.
+- Authorization or abuse-limit behavior is unclear.
 - The endpoint requires a DB schema that has not been designed.

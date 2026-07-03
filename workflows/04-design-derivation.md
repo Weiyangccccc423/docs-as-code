@@ -54,31 +54,32 @@ Load according to the design track:
    - endpoint files
    - `error-codes.md`
    - `changelog.md`
-5. Create or complete `docs/ui/` from product interaction needs or imported design assets.
-6. Read `references/backend-design-checklist.md`, then create or complete `docs/backend/` implementation design:
+5. Read `references/security-design-checklist.md`, then document authentication, authorization, abuse limits, sensitive data, dependency trust, and security verification expectations in API, backend, frontend, and test design.
+6. Create or complete `docs/ui/` from product interaction needs or imported design assets.
+7. Read `references/backend-design-checklist.md`, then create or complete `docs/backend/` implementation design:
    - architecture overview
    - module documents
    - database schema
    - external service contracts
    - `references/backend-design-checklist.md` checklist coverage
-7. Create database and lifecycle design:
+8. Create database and lifecycle design:
    - entity ownership
    - state machines
    - idempotency constraints
    - indexes and migration order
-8. Create or complete `docs/frontend/` implementation design:
+9. Create or complete `docs/frontend/` implementation design:
    - architecture overview
    - module documents
    - API consumption map
    - error action map
-9. Create or complete `docs/tests/01-strategy.md` from product acceptance, API contracts, and architecture/backend/frontend design risks.
-10. Create or complete `docs/tests/02-acceptance-matrix.md` with Matrix and Uncovered Criteria sections, and `Acceptance`, `Design`, `API`, and `Test` columns; every `Acceptance` row must include a unique product-defined `A-NNN` ID, the `API` column must link a concrete `docs/api/endpoints/NN-<slug>.md` endpoint contract, link fragments must match row IDs when present, and every product-defined `A-NNN` must be mapped or listed under Uncovered Criteria using product-defined IDs only.
-11. Create or complete `docs/development/01-roadmap.md` with product links, a Milestones table using `TASK-NNN` `ID`, `Status`, and `Milestone`, sequencing, risks, and deferred scope.
-12. Create or complete `docs/development/02-task-board.md` with Task Table, Status Policy, and Traceability Rules sections; task IDs must use `TASK-NNN`, match roadmap milestone IDs, `Product`, `Design`, and `API` fields must link to matching source domains, and `Acceptance` fields must include `A-NNN` IDs defined in referenced product acceptance chapters, mapped in `docs/tests/02-acceptance-matrix.md`, with matching link fragments when present.
-13. Create or initialize `docs/development/03-verification-log.md` so Done task evidence has a stable local Markdown target.
-14. Create ADRs in `docs/decisions/` for cross-module or high-cost decisions, named as unique `NNN-<slug>.md` files.
-15. Keep all design and planning documents linked to product and acceptance sources.
-16. Update the same-directory `README.md` for every new Markdown document, except underscore-prefixed templates such as `_template.md`.
+10. Create or complete `docs/tests/01-strategy.md` from product acceptance, API contracts, and architecture/backend/frontend design risks.
+11. Create or complete `docs/tests/02-acceptance-matrix.md` with Matrix and Uncovered Criteria sections, and `Acceptance`, `Design`, `API`, and `Test` columns; every `Acceptance` row must include a unique product-defined `A-NNN` ID, the `API` column must link a concrete `docs/api/endpoints/NN-<slug>.md` endpoint contract, link fragments must match row IDs when present, and every product-defined `A-NNN` must be mapped or listed under Uncovered Criteria using product-defined IDs only.
+12. Create or complete `docs/development/01-roadmap.md` with product links, a Milestones table using `TASK-NNN` `ID`, `Status`, and `Milestone`, sequencing, risks, and deferred scope.
+13. Create or complete `docs/development/02-task-board.md` with Task Table, Status Policy, and Traceability Rules sections; task IDs must use `TASK-NNN`, match roadmap milestone IDs, `Product`, `Design`, and `API` fields must link to matching source domains, and `Acceptance` fields must include `A-NNN` IDs defined in referenced product acceptance chapters, mapped in `docs/tests/02-acceptance-matrix.md`, with matching link fragments when present.
+14. Create or initialize `docs/development/03-verification-log.md` so Done task evidence has a stable local Markdown target.
+15. Create ADRs in `docs/decisions/` for cross-module or high-cost decisions, named as unique `NNN-<slug>.md` files.
+16. Keep all design and planning documents linked to product and acceptance sources.
+17. Update the same-directory `README.md` for every new Markdown document, except underscore-prefixed templates such as `_template.md`.
 
 ## Output
 
@@ -87,6 +88,7 @@ Design documents sufficient for creating a task board without guessing product m
 ## Verification
 
 - API endpoints have request, response, error code, auth, and idempotency notes.
+- Security-sensitive API, backend, frontend, and test design decisions are checked against `references/security-design-checklist.md`.
 - `docs/api/00-conventions.md` has non-placeholder Product Links, HTTP Conventions, Authentication, Idempotency, Compatibility, and Open Decisions sections, and links to product scope plus product acceptance criteria.
 - `docs/api/error-codes.md` has non-placeholder Product Links, Error Taxonomy, Error Codes, Retry Semantics, and Frontend Handling sections, and links to product scope plus product acceptance criteria.
 - `docs/api/changelog.md` has non-placeholder Change Log and Compatibility Notes sections.

@@ -706,6 +706,15 @@ DESIGN_REFERENCE_DOC_REQUIREMENTS = (
             "skills/designing-data-models/SKILL.md",
         ),
     ),
+    (
+        "references/security-design-checklist.md",
+        (
+            "workflows/04-design-derivation.md",
+            "skills/designing-api-contracts/SKILL.md",
+            "skills/designing-backend-modules/SKILL.md",
+            "skills/designing-test-strategy/SKILL.md",
+        ),
+    ),
 )
 METHOD_REFERENCE_BASELINES = {
     "references/architecture-methods.md": (
@@ -741,6 +750,31 @@ METHOD_REFERENCE_BASELINES = {
         ),
         ("Observability and Security", ("## Observability and Security", "auth boundaries")),
         ("Acceptance and Tests", ("## Acceptance and Tests", "unit, integration, and contract tests")),
+    ),
+    "references/security-design-checklist.md": (
+        (
+            "Identity and Access",
+            ("## Identity and Access", "authentication boundaries", "authorization checks"),
+        ),
+        (
+            "API Abuse and Input",
+            ("## API Abuse and Input", "object-level authorization", "mass-assignment", "rate limits"),
+        ),
+        (
+            "Data Protection",
+            ("## Data Protection", "sensitive fields", "logging", "retention"),
+        ),
+        (
+            "Dependency and Supply Chain",
+            ("## Dependency and Supply Chain", "secret storage", "least-privilege access"),
+        ),
+        (
+            "Security Verification",
+            ("## Verification", "manual review", "docs/unresolved.md"),
+        ),
+        ("OWASP ASVS", ("OWASP ASVS", "https://owasp.org/www-project-application-security-verification-standard/")),
+        ("OWASP API Security Top 10", ("OWASP API Security Top 10 2023", "https://owasp.org/API-Security/editions/2023/en/0x11-t10/")),
+        ("OpenSSF Best Practices", ("OpenSSF Best Practices", "https://bestpractices.coreinfrastructure.org/en")),
     ),
 }
 PHASE_ADVANCE_DOC_PATHS = (

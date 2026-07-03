@@ -7,6 +7,8 @@ description: Use when deriving test strategy, acceptance traceability matrices, 
 
 Test design turns acceptance criteria and design risks into implementation-ready verification scope.
 
+Read `references/security-design-checklist.md` before assigning security, abuse-case, sensitive-data, dependency, or manual-review verification layers.
+
 ## Required Context
 
 - `docs/product/NN-*acceptance*.md`
@@ -32,11 +34,12 @@ Test design turns acceptance criteria and design risks into implementation-ready
 3. Replace scaffold placeholders in `docs/tests/01-strategy.md` and `docs/tests/02-acceptance-matrix.md` with source-backed content.
 4. Build `docs/tests/01-strategy.md` from acceptance criteria, endpoint contracts, architecture quality attributes, backend failure modes, frontend states, and UI accessibility expectations.
 5. Assign test layers for each risk: unit, integration, contract, end-to-end, accessibility, performance, security, observability, or manual review.
-6. Build `docs/tests/02-acceptance-matrix.md` with `Acceptance`, `Design`, `API`, and `Test` columns.
-7. Map every product-defined `A-NNN` acceptance ID to design, API endpoint contract, and test evidence, or list it under Uncovered Criteria with a product-backed reason.
-8. Use only product-defined `A-NNN` IDs; do not invent acceptance criteria in the matrix.
-9. Link every row to existing local Markdown sources.
-10. Register blocking verification gaps in `docs/unresolved.md` before implementation handoff.
+6. Map auth, authorization, abuse limits, sensitive logging, and dependency-failure checks from `references/security-design-checklist.md` into test strategy or explicit manual review.
+7. Build `docs/tests/02-acceptance-matrix.md` with `Acceptance`, `Design`, `API`, and `Test` columns.
+8. Map every product-defined `A-NNN` acceptance ID to design, API endpoint contract, and test evidence, or list it under Uncovered Criteria with a product-backed reason.
+9. Use only product-defined `A-NNN` IDs; do not invent acceptance criteria in the matrix.
+10. Link every row to existing local Markdown sources.
+11. Register blocking verification gaps in `docs/unresolved.md` before implementation handoff.
 
 ## Stop Conditions
 
@@ -44,4 +47,5 @@ Test design turns acceptance criteria and design risks into implementation-ready
 - A matrix row needs an API endpoint that is not documented.
 - A design risk has no feasible verification layer.
 - A non-functional expectation is implied but not measurable.
+- A security-sensitive behavior has no test or manual-review path.
 - Uncovered acceptance criteria lack an explicit product-backed reason.
