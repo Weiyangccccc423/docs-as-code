@@ -399,6 +399,9 @@ def _cmd_runtime_refresh(args: argparse.Namespace) -> int:
     target = Path(args.target)
     result = check_runtime_refresh(target) if args.check else refresh_runtime(target)
     payload = result.to_dict()
+    if result.ok and not args.check and result.state:
+        payload["local_commands"] = target_local_commands_payload(cwd=result.target)
+        payload["next_actions"] = next_actions_payload(result.state, cwd=result.target)
     if args.json:
         _print_json(payload)
         return 0 if result.ok else 1

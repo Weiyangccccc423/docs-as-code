@@ -62,6 +62,8 @@ Load:
    bin/governance runtime refresh <target> --json
    ```
 
+   Treat the `--check` form as the no-write repair plan. After the write-mode refresh succeeds, use returned `local_commands[].argv` for target-local checks and `next_actions[].argv` for the next workflow transition.
+
 5. Before implementation starts, run the implementation gate:
 
    ```bash

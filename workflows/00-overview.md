@@ -39,7 +39,7 @@ make repair-env-check
 
 Machine-readable `local_commands` entries include `cwd`, a human-readable `command`, structured `argv`, and `writes_state`; agents should run `argv` from `cwd` instead of reparsing `command`, and prefer `writes_state: false` entries for read-only inspection.
 
-Machine-readable `init --json` and `status --json` success payloads include `local_commands` and `next_actions`. `verify --check --json` and `verify --json` payloads include both fields when governance state is readable. `gate --json` payloads include `local_commands` when governance state is readable, and include `next_actions` only when the gate passes. Successful state-writing `product mark-ready --json` and `advance --json` commands also return both fields so agents can continue without rerunning `status`. Each action includes `cwd`, a human-readable `command`, structured `argv`, and `writes_state`; agents should run `argv` from `cwd` instead of reparsing `command`. Agents should execute `preflight` actions first and run state-writing `apply` actions only after the referenced preflight returns `ok: true`.
+Machine-readable `init --json` and `status --json` success payloads include `local_commands` and `next_actions`. `verify --check --json` and `verify --json` payloads include both fields when governance state is readable. `gate --json` payloads include `local_commands` when governance state is readable, and include `next_actions` only when the gate passes. Successful state-writing `product mark-ready --json`, `advance --json`, and `runtime refresh --json` commands also return both fields so agents can continue without rerunning `status`. Each action includes `cwd`, a human-readable `command`, structured `argv`, and `writes_state`; agents should run `argv` from `cwd` instead of reparsing `command`. Agents should execute `preflight` actions first and run state-writing `apply` actions only after the referenced preflight returns `ok: true`.
 
 From a trusted source workflow-pack checkout, refresh generated target runtime and workflow-pack snapshot files without rewriting product or design documents:
 
@@ -47,6 +47,8 @@ From a trusted source workflow-pack checkout, refresh generated target runtime a
 bin/governance runtime refresh <target> --check --json
 bin/governance runtime refresh <target> --json
 ```
+
+Use `runtime refresh --check --json` as a no-write plan. After successful write-mode `runtime refresh --json`, follow returned `local_commands[].argv` and `next_actions[].argv` from their reported `cwd`.
 
 Generated targets also receive `docs/agent-workflow/workflow-pack/`, a hash-manifested snapshot of this pack's workflows, skills, references, and templates. Use it as the target-local operating manual when the source pack repository is not open.
 

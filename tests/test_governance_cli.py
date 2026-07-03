@@ -1305,6 +1305,34 @@ class GovernanceCliTest(unittest.TestCase):
                 payload["state"]["workflow_pack_manifest"],
             )
             self.assertIn("runtime_refreshed_at", payload["state"])
+            self.assertIn(
+                {
+                    "make_target": "verify-check",
+                    "cwd": str(target.resolve()),
+                    "command": "make verify-check",
+                    "argv": ["make", "verify-check"],
+                    "recipe": "bin/governance verify . --check --json",
+                    "writes_state": False,
+                    "description": "run read-only JSON verification without updating state",
+                },
+                payload["local_commands"],
+            )
+            self.assertIn(
+                {
+                    "id": "advance-product-structuring-check",
+                    "kind": "preflight",
+                    "cwd": str(target.resolve()),
+                    "phase": "product-structuring",
+                    "workflow": "docs/agent-workflow/workflow-pack/workflows/03-product-structuring.md",
+                    "skills": ["structuring-product-requirements", "verifying-governance-docs"],
+                    "command": "bin/governance advance product-structuring . --check --json",
+                    "argv": ["bin/governance", "advance", "product-structuring", ".", "--check", "--json"],
+                    "writes_state": False,
+                    "requires": "current phase is the previous workflow phase and the gate can pass",
+                    "description": "preflight advance from initialization into product structuring",
+                },
+                payload["next_actions"],
+            )
             self.assertIn("Keep this content.", prd.read_text(encoding="utf-8"))
             self.assertTrue(wrapper.stat().st_mode & 0o100)
             self.assertFalse(stale_workflow.exists())
@@ -1367,6 +1395,8 @@ class GovernanceCliTest(unittest.TestCase):
                 "docs/agent-workflow/workflow-pack/workflows/99-stale.md",
                 payload["would_remove"],
             )
+            self.assertNotIn("local_commands", payload)
+            self.assertNotIn("next_actions", payload)
             self.assertEqual(state_before, state_path.read_text(encoding="utf-8"))
             self.assertIn("# tampered", runtime.read_text(encoding="utf-8"))
             self.assertIn("Tampered.", workflow.read_text(encoding="utf-8"))
@@ -1391,6 +1421,8 @@ class GovernanceCliTest(unittest.TestCase):
                 "target is not an initialized governance repository: .governance/state.json is missing",
                 payload["errors"],
             )
+            self.assertNotIn("local_commands", payload)
+            self.assertNotIn("next_actions", payload)
             self.assertFalse((target / "docs/agent-workflow/runtime-manifest.json").exists())
 
     def test_runtime_refresh_rejects_invalid_state_without_partial_refresh(self) -> None:
@@ -1426,6 +1458,8 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual(str(target.resolve()), payload["target"])
             self.assertIn("target governance state is invalid", payload["errors"][0])
             self.assertIn("invalid JSON", payload["errors"][0])
+            self.assertNotIn("local_commands", payload)
+            self.assertNotIn("next_actions", payload)
             self.assertIn("# tampered", runtime.read_text(encoding="utf-8"))
 
     def test_runtime_refresh_rejects_blocked_workflow_pack_path_without_partial_refresh(self) -> None:

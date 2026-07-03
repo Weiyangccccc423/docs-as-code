@@ -41,6 +41,7 @@ Use `verify --check --json` `findings[].code` and `findings[].path` for determin
 Use `gate --json` `requirements[].code` for phase-transition repair routing; `verification.findings[]` contains the embedded structural verification result. When governance state is readable, use returned `local_commands[].argv`; when the gate passes, use returned `next_actions[].argv` for the next advance preflight/apply sequence.
 Use `advance --check --json` to inspect `would_state`; use `advance --json` when the next phase should be recorded in `.governance/state.json`. `advance` records adjacent transitions one phase at a time and cannot skip phases.
 After successful state-writing `product mark-ready --json` or `advance --json`, use returned `local_commands[].argv` for target-local checks and `next_actions[].argv` for the next preflight/apply sequence.
+After successful write-mode `runtime refresh --json`, use returned `local_commands[].argv` before trusting target-local checks and `next_actions[].argv` for the next workflow transition. Keep `runtime refresh --check --json` as a no-write plan only.
 
 ## Repair Order
 
