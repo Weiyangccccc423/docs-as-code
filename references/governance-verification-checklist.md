@@ -17,7 +17,7 @@ Reference: `https://dora.dev/capabilities/test-automation/`
 ## Environment Repair Control
 
 - Does strict environment verification use `bin/governance env --strict --repair --check --target <target> --json` before any repair write?
-- Are `would_repair`, `install_commands`, `manual_repairs`, and `needs_escalation` inspected before running repair mode?
+- Are `would_repair`, `install_commands`, `repair_commands`, `manual_repairs`, and `needs_escalation` inspected before running repair mode?
 - Are package-manager commands blocked until explicit approval when `needs_escalation` is true?
 - Are missing recommended tools reported without hiding required-tool failures?
 

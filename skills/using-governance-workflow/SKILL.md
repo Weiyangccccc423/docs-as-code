@@ -28,7 +28,7 @@ Before repair or strict verification, preview environment changes without writin
 bin/governance env --repair --check --target <target> --json
 ```
 
-Stop on `ok: false` when missing required tools block the current phase. Inspect `would_repair`, `install_commands`, `manual_repairs`, and `needs_escalation`; run `bin/governance env --repair --target <target> --json` only when the repair plan should be written or approved package installation should proceed. When an initialized target returns `local_commands` or `next_actions`, use them to resume from the readable state.
+Stop on `ok: false` when missing required tools block the current phase. Inspect `would_repair`, `install_commands`, `repair_commands`, `manual_repairs`, and `needs_escalation`; run `repair_commands[].argv` from `repair_commands[].cwd` only when `approval_required` is false or approval is explicit. Run `bin/governance env --repair --target <target> --json` only when the repair plan should be written or approved package installation should proceed. When an initialized target returns `local_commands` or `next_actions`, use them to resume from the readable state.
 
 ## Phase Gates
 

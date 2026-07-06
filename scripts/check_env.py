@@ -313,6 +313,43 @@ def install_command_text(commands: list[list[str]]) -> str:
     return " && ".join(" ".join(command) for command in commands)
 
 
+def repair_commands(
+    target: Path,
+    install_plan: list[InstallPlanItem],
+    package_manager: PackageManager,
+    *,
+    needs_escalation: bool,
+) -> list[dict[str, object]]:
+    commands = install_commands(install_plan, package_manager)
+    if not commands:
+        return []
+    cwd = str(target.resolve())
+    items: list[dict[str, object]] = []
+    for command in commands:
+        command_id = "env-repair-package-manager"
+        description = "run governance environment package-manager repair command"
+        if package_manager.name == "apt" and command[1:] == ["update"]:
+            command_id = "env-repair-apt-update"
+            description = "refresh apt package indexes for governance environment repair"
+        elif package_manager.name == "apt" and len(command) >= 4 and command[1:3] == ["install", "-y"]:
+            packages = " ".join(command[3:])
+            command_id = "env-repair-apt-install"
+            description = f"install supported governance environment packages: {packages}"
+        items.append(
+            {
+                "id": command_id,
+                "kind": "package-manager",
+                "cwd": cwd,
+                "command": " ".join(command),
+                "argv": list(command),
+                "writes_state": True,
+                "approval_required": needs_escalation,
+                "description": description,
+            }
+        )
+    return items
+
+
 def manual_repair_items(
     statuses: list[ToolStatus],
     strict: bool,
@@ -437,6 +474,12 @@ def _env_payload(
         "install_plan": [item.to_dict() for item in install_plan],
         "install_commands": commands,
         "install_command": install_command_text(commands),
+        "repair_commands": repair_commands(
+            target,
+            install_plan,
+            package_manager,
+            needs_escalation=needs_escalation,
+        ),
         "manual_repairs": [item.to_dict() for item in manual_repairs],
         "needs_escalation": needs_escalation,
         "install_results": copy.deepcopy(install_results),

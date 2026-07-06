@@ -2998,6 +2998,31 @@ class GovernanceScriptsTest(unittest.TestCase):
             [{"kind": "directory", "path": "/tmp/project/.governance", "status": "would_ensure"}],
             payload["would_repair"],
         )
+        self.assertEqual(
+            [
+                {
+                    "id": "env-repair-apt-update",
+                    "kind": "package-manager",
+                    "cwd": "/tmp/project",
+                    "command": "/usr/bin/apt-get update",
+                    "argv": ["/usr/bin/apt-get", "update"],
+                    "writes_state": True,
+                    "approval_required": True,
+                    "description": "refresh apt package indexes for governance environment repair",
+                },
+                {
+                    "id": "env-repair-apt-install",
+                    "kind": "package-manager",
+                    "cwd": "/tmp/project",
+                    "command": "/usr/bin/apt-get install -y pandoc",
+                    "argv": ["/usr/bin/apt-get", "install", "-y", "pandoc"],
+                    "writes_state": True,
+                    "approval_required": True,
+                    "description": "install supported governance environment packages: pandoc",
+                },
+            ],
+            payload["repair_commands"],
+        )
         self.assertEqual([], payload["manual_repairs"])
         self.assertEqual(["environment repair failed: permission denied"], payload["errors"])
 

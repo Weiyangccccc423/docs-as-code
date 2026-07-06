@@ -531,6 +531,7 @@ ENV_REPAIR_DOC_PATHS = (
 ENV_REPAIR_REQUIRED_FIELDS = (
     "would_repair",
     "install_commands",
+    "repair_commands",
     "manual_repairs",
     "needs_escalation",
 )
@@ -1028,7 +1029,7 @@ METHOD_REFERENCE_BASELINES = {
             (
                 "## Environment Repair Control",
                 "bin/governance env --strict --repair --check --target <target> --json",
-                "`would_repair`, `install_commands`, `manual_repairs`, and `needs_escalation`",
+                "`would_repair`, `install_commands`, `repair_commands`, `manual_repairs`, and `needs_escalation`",
             ),
         ),
         (
@@ -1097,7 +1098,7 @@ METHOD_REFERENCE_BASELINES = {
             "Environment and Repair",
             (
                 "## Environment and Repair",
-                "`would_repair`, `install_commands`, `manual_repairs`, and `needs_escalation`",
+                "`would_repair`, `install_commands`, `repair_commands`, `manual_repairs`, and `needs_escalation`",
                 "POSIX shell plus Python standard-library runtime",
             ),
         ),

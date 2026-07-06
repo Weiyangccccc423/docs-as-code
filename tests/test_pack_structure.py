@@ -785,11 +785,7 @@ class PackStructureTest(unittest.TestCase):
             )
             router = target / "skills/using-governance-workflow/SKILL.md"
             router.write_text(
-                router.read_text(encoding="utf-8").replace(
-                    "`would_repair`, `install_commands`, `manual_repairs`, and `needs_escalation`",
-                    "`would_repair`, `install_commands`, and `needs_escalation`",
-                    1,
-                ),
+                router.read_text(encoding="utf-8").replace("repair_commands", "package_repair_actions"),
                 encoding="utf-8",
             )
 
@@ -800,7 +796,7 @@ class PackStructureTest(unittest.TestCase):
                 any(
                     finding.code == "pack_env_repair_doc_field_missing"
                     and finding.path == "skills/using-governance-workflow/SKILL.md"
-                    and "manual_repairs" in finding.message
+                    and "repair_commands" in finding.message
                     for finding in report.findings
                 )
             )

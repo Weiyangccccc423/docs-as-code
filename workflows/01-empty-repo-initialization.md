@@ -24,8 +24,8 @@ Load:
    bin/governance env --repair --check --target <target> --json
    ```
 
-   Stop when `ok` is false. Missing required tools block initialization; inspect `would_repair`, `install_commands`, and `manual_repairs`, then rerun after repair.
-   If `needs_escalation` is true, show `install_commands` or `install_command` to the user and get approval before running package-manager commands.
+   Stop when `ok` is false. Missing required tools block initialization; inspect `would_repair`, `install_commands`, `repair_commands`, `manual_repairs`, and `needs_escalation`, then rerun after repair.
+   If any `repair_commands[].approval_required` value or `needs_escalation` is true, show the structured `repair_commands` or `install_command` to the user and get approval before running package-manager commands.
    Empty or uninitialized targets do not return workflow continuation commands. When the target is already initialized and governance state is readable, successful env JSON includes `local_commands` and `next_actions` for resuming from the current state.
    When a repair artifact or approved root package install is needed, run:
 
