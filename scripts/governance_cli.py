@@ -29,6 +29,7 @@ from check_env import (
     repair_target_error,
     write_repair_plan,
 )
+from design_plan import build_design_plan
 from gates import GATE_NAMES, evaluate_gate
 from phases import PHASE_NAMES, advance_phase, check_advance_phase
 from product_import import check_product_import_ready, mark_product_import_ready
@@ -609,6 +610,23 @@ def _cmd_product_structure(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_design_plan(args: argparse.Namespace) -> int:
+    target = Path(args.target)
+    payload = build_design_plan(target)
+    if args.json:
+        _print_json(payload)
+        return 0 if payload["ok"] else 1
+    if not payload["ok"]:
+        print("Design plan failed:")
+        for error in payload["errors"]:
+            print(f"- ERROR: {error}")
+        return 1
+    print(f"Design plan: {payload['phase']}")
+    for track in payload["tracks"]:
+        print(f"- {track['id']}: {track['status']}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="docs-as-code governance workflow CLI")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -708,6 +726,16 @@ def build_parser() -> argparse.ArgumentParser:
     structure.add_argument("--check", action="store_true", help="Preview chapter updates without writing files.")
     structure.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     structure.set_defaults(func=_cmd_product_structure)
+
+    design = sub.add_parser("design", help="Plan design-derivation authoring work.")
+    design_sub = design.add_subparsers(dest="design_command", required=True)
+    design_plan = design_sub.add_parser(
+        "plan",
+        help="Show the ordered design tracks, skills, references, documents, and current blockers.",
+    )
+    design_plan.add_argument("target", nargs="?", default=".")
+    design_plan.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    design_plan.set_defaults(func=_cmd_design_plan)
 
     return parser
 

@@ -557,6 +557,12 @@ FRESH_TARGET_SMOKE_TEST_REQUIRED_PHRASES = (
     "advance-implementation-check",
     "design_scaffold_check",
     "design_scaffold",
+    "design_plan",
+    '"design"',
+    '"plan"',
+    "tracks",
+    "api-contracts",
+    "designing-api-contracts",
     "design_blocked_verify",
     "docs/architecture/01-system-context.md",
     "docs/api/endpoints/README.md",
@@ -708,6 +714,23 @@ DESIGN_SCAFFOLD_REQUIRED_PHRASES = (
     "roadmap",
     "task board",
     "verification log",
+    "local_commands",
+    "next_actions",
+)
+DESIGN_PLAN_DOC_PATHS = (
+    "README.md",
+    "workflows/00-overview.md",
+    "workflows/04-design-derivation.md",
+    "skills/using-governance-workflow/SKILL.md",
+    "skills/verifying-governance-docs/SKILL.md",
+)
+DESIGN_PLAN_REQUIRED_PHRASES = (
+    "design plan",
+    "tracks",
+    "skills",
+    "references",
+    "documents",
+    "blockers",
     "local_commands",
     "next_actions",
 )
@@ -1797,15 +1820,18 @@ GOVERNANCE_CLI_REQUIRED_COMMANDS = (
     "scaffold",
     "advance",
     "product",
+    "design",
 )
 GOVERNANCE_CLI_REQUIRED_SUBCOMMANDS = {
     "runtime": ("refresh",),
     "product": ("mark-ready", "structure"),
+    "design": ("plan",),
 }
 GOVERNANCE_CLI_PARSER_VARIABLES = {
     "top-level": "sub",
     "runtime": "runtime_sub",
     "product": "product_sub",
+    "design": "design_sub",
 }
 RUNTIME_WRAPPER_REQUIRED_GUARDS = (
     "#!/usr/bin/env bash",
@@ -1815,6 +1841,7 @@ RUNTIME_WRAPPER_ROOT_DIR_LINE = 'ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/
 CONTINUATION_RUNTIME_SCRIPT_PATHS = (
     "scripts/bootstrap_tree.py",
     "scripts/check_env.py",
+    "scripts/design_plan.py",
     "scripts/gates.py",
     "scripts/governance_cli.py",
     "scripts/phases.py",
@@ -2063,6 +2090,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_product_archive_docs(root, findings)
     _check_product_structure_docs(root, findings)
     _check_design_scaffold_docs(root, findings)
+    _check_design_plan_docs(root, findings)
     _check_scaffold_continuation_docs(root, findings)
     _check_implementation_handoff_docs(root, findings)
     _check_initialization_reference_docs(root, findings)
@@ -3378,6 +3406,23 @@ def _check_design_scaffold_docs(root: Path, findings: list[PackFinding]) -> None
             PackFinding(
                 "pack_design_scaffold_doc_missing",
                 f"{rel} must document design scaffold phrase(s): {', '.join(missing)}",
+                rel,
+            )
+        )
+
+
+def _check_design_plan_docs(root: Path, findings: list[PackFinding]) -> None:
+    for rel in DESIGN_PLAN_DOC_PATHS:
+        text = _read_utf8_text_or_none(root / rel)
+        if text is None:
+            continue
+        missing = [phrase for phrase in DESIGN_PLAN_REQUIRED_PHRASES if phrase not in text]
+        if not missing:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_design_plan_doc_missing",
+                f"{rel} must document design plan phrase(s): {', '.join(missing)}",
                 rel,
             )
         )

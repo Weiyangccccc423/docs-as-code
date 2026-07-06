@@ -453,3 +453,45 @@ class FreshTargetWorkflowTest(unittest.TestCase):
                     for finding in design_blocked_verify["findings"]
                 )
             )
+
+            design_plan = _run_json(
+                self,
+                ["bin/governance", "design", "plan", ".", "--json"],
+                cwd=target,
+            )
+            self.assertTrue(design_plan["ok"])
+            self.assertEqual("design-derivation", design_plan["phase"])
+            self.assertEqual(
+                [
+                    "architecture",
+                    "ui-interaction",
+                    "api-contracts",
+                    "backend-modules",
+                    "data-model",
+                    "frontend-modules",
+                    "test-strategy",
+                    "implementation-planning",
+                    "architecture-decisions",
+                ],
+                [track["id"] for track in design_plan["tracks"]],
+            )
+            tracks = {track["id"]: track for track in design_plan["tracks"]}
+            self.assertIn("designing-system-architecture", tracks["architecture"]["skills"])
+            self.assertIn("references/architecture-methods.md", tracks["architecture"]["references"])
+            self.assertIn("docs/architecture/01-system-context.md", tracks["architecture"]["documents"])
+            self.assertIn("designing-api-contracts", tracks["api-contracts"]["skills"])
+            self.assertIn("references/api-design-checklist.md", tracks["api-contracts"]["references"])
+            self.assertIn("references/security-design-checklist.md", tracks["api-contracts"]["references"])
+            self.assertIn("docs/api/endpoints/01-endpoint-contract.md", tracks["api-contracts"]["documents"])
+            self.assertIn("designing-backend-modules", tracks["backend-modules"]["skills"])
+            self.assertIn("references/backend-design-checklist.md", tracks["backend-modules"]["references"])
+            self.assertIn("designing-data-models", tracks["data-model"]["skills"])
+            self.assertIn("references/data-model-design-checklist.md", tracks["data-model"]["references"])
+            self.assertTrue(
+                any(
+                    blocker["path"] == "docs/api/endpoints/01-endpoint-contract.md"
+                    and blocker["code"] == "governance_scaffold_placeholder"
+                    for blocker in tracks["api-contracts"]["blockers"]
+                )
+            )
+            self.assertEqual("advance-implementation-check", design_plan["next_actions"][0]["id"])

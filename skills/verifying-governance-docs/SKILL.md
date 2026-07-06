@@ -20,6 +20,7 @@ bin/governance gate design-derivation <target>
 bin/governance gate implementation <target>
 bin/governance advance implementation <target> --check
 bin/governance advance implementation <target>
+bin/governance design plan <target>
 bin/governance runtime refresh <target> --check
 bin/governance runtime refresh <target>
 ```
@@ -35,6 +36,7 @@ bin/governance product mark-ready <target> --reviewed --method manual-reviewed-m
 bin/governance gate implementation <target> --json
 bin/governance advance implementation <target> --check --json
 bin/governance advance implementation <target> --json
+bin/governance design plan <target> --json
 bin/governance runtime refresh <target> --check --json
 bin/governance runtime refresh <target> --json
 ```
@@ -45,6 +47,7 @@ Use `gate --json` `requirements[].code` for phase-transition repair routing; `ve
 Use `advance --check --json` to inspect `would_state`; use `advance --json` when the next phase should be recorded in `.governance/state.json`. `advance` records adjacent transitions one phase at a time and cannot skip phases.
 After successful state-writing `product mark-ready --json` or `advance --json`, use returned `local_commands[].argv` for target-local checks and `next_actions[].argv` for the next preflight/apply sequence.
 After successful write-mode `scaffold product --json` or `scaffold design --json`, use returned `local_commands[].argv` for checks and inspect `scaffold_phase`; if `scaffold_phase.matches` is false, follow returned `next_actions[].argv` to advance recorded phases in order before treating the scaffold as current-phase work. If `next_actions_blocked_by` is present, keep `next_actions` for later and do not run downstream state-writing actions until each blocker is resolved.
+After successful `design plan --json`, use returned `tracks[].skills`, `tracks[].references`, `tracks[].documents`, and `tracks[].blockers` to route authoring work to the correct design skill without guessing from raw verification output. Treat `authoring_blocked` tracks as the active repair queue until every listed blocker is replaced with source-backed content.
 After successful write-mode `runtime refresh --json`, use returned `local_commands[].argv` before trusting target-local checks and `next_actions[].argv` for the next workflow transition. Keep `runtime refresh --check --json` as a no-write plan only.
 
 ## Repair Order

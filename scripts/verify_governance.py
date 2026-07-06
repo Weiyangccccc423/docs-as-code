@@ -164,6 +164,7 @@ RUNTIME_REQUIRED_SCRIPT_FILES = (
     "__init__.py",
     "bootstrap_tree.py",
     "check_env.py",
+    "design_plan.py",
     "gates.py",
     "governance_cli.py",
     "phases.py",

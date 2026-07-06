@@ -5276,6 +5276,97 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertFalse(requirements["api_contracts_ready"]["ok"])
             self.assertFalse(requirements["delivery_plan_ready"]["ok"])
 
+    def test_design_plan_routes_scaffold_blockers_to_authoritative_skills(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            (target / "docs/product/01-goals.md").write_text("# Goals\n\nSource: [PRD](core/PRD.md).\n", encoding="utf-8")
+            _append_index(target / "docs/product/README.md", "01-goals.md")
+            _append_product_meta_chapter(target, "01-goals.md")
+            (target / "docs/product/08-acceptance-criteria.md").write_text(
+                _acceptance_doc(),
+                encoding="utf-8",
+            )
+            _append_index(target / "docs/product/README.md", "08-acceptance-criteria.md")
+            _append_product_meta_chapter(target, "08-acceptance-criteria.md")
+            advance_product = subprocess.run(
+                [sys.executable, str(CLI), "advance", "product-structuring", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, advance_product.returncode, advance_product.stderr)
+            advance_design = subprocess.run(
+                [sys.executable, str(CLI), "advance", "design-derivation", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, advance_design.returncode, advance_design.stderr)
+            scaffold = subprocess.run(
+                [sys.executable, str(CLI), "scaffold", "design", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, scaffold.returncode, scaffold.stderr)
+
+            plan = subprocess.run(
+                [sys.executable, str(CLI), "design", "plan", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, plan.returncode, plan.stderr)
+            payload = json.loads(plan.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertEqual(str(target.resolve()), payload["target"])
+            self.assertEqual("design-derivation", payload["phase"])
+            self.assertEqual("workflows/04-design-derivation.md", payload["workflow"])
+            self.assertIn("local_commands", payload)
+            self.assertEqual("advance-implementation-check", payload["next_actions"][0]["id"])
+            track_ids = [track["id"] for track in payload["tracks"]]
+            self.assertEqual(
+                [
+                    "architecture",
+                    "ui-interaction",
+                    "api-contracts",
+                    "backend-modules",
+                    "data-model",
+                    "frontend-modules",
+                    "test-strategy",
+                    "implementation-planning",
+                    "architecture-decisions",
+                ],
+                track_ids,
+            )
+            tracks = {track["id"]: track for track in payload["tracks"]}
+            self.assertEqual("authoring_blocked", tracks["api-contracts"]["status"])
+            self.assertIn("designing-api-contracts", tracks["api-contracts"]["skills"])
+            self.assertIn("references/api-design-checklist.md", tracks["api-contracts"]["references"])
+            self.assertIn("references/security-design-checklist.md", tracks["api-contracts"]["references"])
+            self.assertIn("docs/api/endpoints/01-endpoint-contract.md", tracks["api-contracts"]["documents"])
+            self.assertTrue(
+                any(
+                    blocker["path"] == "docs/api/endpoints/01-endpoint-contract.md"
+                    and blocker["code"] == "governance_scaffold_placeholder"
+                    for blocker in tracks["api-contracts"]["blockers"]
+                )
+            )
+            self.assertIn("designing-backend-modules", tracks["backend-modules"]["skills"])
+            self.assertIn("references/backend-operability-checklist.md", tracks["backend-modules"]["references"])
+            self.assertIn("designing-data-models", tracks["data-model"]["skills"])
+            self.assertIn("references/data-model-design-checklist.md", tracks["data-model"]["references"])
+
     def test_scaffold_design_check_json_reports_plan_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "target"

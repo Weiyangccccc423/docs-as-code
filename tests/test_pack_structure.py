@@ -1121,6 +1121,36 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_missing_design_plan_doc_phrase(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            skill = target / "skills/using-governance-workflow/SKILL.md"
+            skill.write_text(
+                skill.read_text(encoding="utf-8").replace(
+                    "run `bin/governance design plan <target> --json`",
+                    "inspect design authoring manually",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_design_plan_doc_missing"
+                    and finding.path == "skills/using-governance-workflow/SKILL.md"
+                    and "design plan" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_missing_product_scaffold_continuation_doc_phrase(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
@@ -3017,6 +3047,34 @@ class PackStructureTest(unittest.TestCase):
                     and finding.path == "scripts/governance_cli.py"
                     and "product" in finding.message
                     and "structure" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_missing_design_plan_subcommand(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/governance_cli.py"
+            original = 'design_plan = design_sub.add_parser(\n        "plan",'
+            replacement = 'design_plan = design_sub.add_parser(\n        "queue",'
+            text = script.read_text(encoding="utf-8")
+            self.assertIn(original, text)
+            script.write_text(text.replace(original, replacement, 1), encoding="utf-8")
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_governance_cli_subcommand_missing"
+                    and finding.path == "scripts/governance_cli.py"
+                    and "design" in finding.message
+                    and "plan" in finding.message
                     for finding in report.findings
                 )
             )
