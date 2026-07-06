@@ -3456,6 +3456,10 @@ def _product_acceptance_ids(root: Path, report: VerificationReport | None = None
     return acceptance_ids
 
 
+def product_acceptance_ids(root: Path) -> set[str]:
+    return _product_acceptance_ids(root)
+
+
 def _check_acceptance_matrix_acceptance_id_source(
     root: Path,
     matrix_path: Path,

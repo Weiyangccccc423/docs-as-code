@@ -55,6 +55,7 @@ Do not invent missing acceptance IDs, unresolved IDs, links, or evidence just to
 
 Treat gate requirement `product_import_ready` as a product-archiving blocker: finish product conversion, run `bin/governance product mark-ready <target> --reviewed --method manual-reviewed-markdown --check --json`, then run it without `--check`, or repair `docs/product/core/source/source-manifest.json` by the embedded verification findings.
 Treat gate requirement `product_acceptance_chapter_present` as a product-structuring blocker: create a sourced `NN-*acceptance*.md` product chapter or register the missing acceptance criteria as unresolved.
+Treat gate requirement `product_acceptance_ids_present` as a product-structuring blocker: assign stable product-defined `A-NNN` IDs inside the sourced acceptance chapter before design derivation.
 Treat gate requirement `acceptance_matrix_present` as an implementation-readiness blocker: create and index `docs/tests/02-acceptance-matrix.md` before marking tasks Ready for implementation.
 Treat gate requirements `ui_docs_present` and `frontend_docs_present` as design-derivation blockers: complete and index `docs/ui/` and `docs/frontend/` design documents before implementation handoff.
 Treat standard handoff `*_present` gate requirements as implementation-readiness blockers: create and index the exact reported `path` before implementation handoff.

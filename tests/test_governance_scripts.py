@@ -649,6 +649,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertTrue(requirements["verification_passed"]["ok"])
             self.assertFalse(requirements["product_chapters_present"]["ok"])
             self.assertFalse(requirements["product_acceptance_chapter_present"]["ok"])
+            self.assertFalse(requirements["product_acceptance_ids_present"]["ok"])
             self.assertTrue(payload["verification"]["ok"])
             self.assertIn(
                 {

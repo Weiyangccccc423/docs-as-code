@@ -11,12 +11,12 @@ from typing import Any
 try:
     from .bootstrap_tree import target_local_commands_payload
     from .state import STATE_REL, StateFileError, load_state
-    from .verify_governance import task_board_ready_tasks, verify
+    from .verify_governance import product_acceptance_ids, task_board_ready_tasks, verify
     from .workflow_actions import next_actions_payload
 except ImportError:  # pragma: no cover - direct script execution
     from bootstrap_tree import target_local_commands_payload
     from state import STATE_REL, StateFileError, load_state
-    from verify_governance import task_board_ready_tasks, verify
+    from verify_governance import product_acceptance_ids, task_board_ready_tasks, verify
     from workflow_actions import next_actions_payload
 
 
@@ -173,6 +173,13 @@ def evaluate_gate(root: Path, gate: str) -> GateResult:
             _has_acceptance_chapter(root),
             "docs/product",
             "product acceptance criteria chapter exists",
+        )
+        _add(
+            requirements,
+            "product_acceptance_ids_present",
+            bool(product_acceptance_ids(root)),
+            "docs/product",
+            "product acceptance criteria expose stable A-NNN IDs",
         )
     if gate == "implementation":
         _add_implementation_requirements(requirements, root)

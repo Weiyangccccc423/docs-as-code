@@ -4131,13 +4131,33 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual(1, missing_acceptance.returncode)
             missing_acceptance_requirements = {item["code"]: item for item in json.loads(missing_acceptance.stdout)["requirements"]}
             self.assertFalse(missing_acceptance_requirements["product_acceptance_chapter_present"]["ok"])
+            self.assertFalse(missing_acceptance_requirements["product_acceptance_ids_present"]["ok"])
+
+            (target / "docs/product/08-acceptance-criteria.md").write_text(
+                "# Acceptance Criteria\n\nSource: [PRD](core/PRD.md).\n",
+                encoding="utf-8",
+            )
+            _append_index(target / "docs/product/README.md", "08-acceptance-criteria.md")
+            _append_product_meta_chapter(target, "08-acceptance-criteria.md")
+
+            missing_acceptance_ids = subprocess.run(
+                [sys.executable, str(CLI), "gate", "design-derivation", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(1, missing_acceptance_ids.returncode)
+            missing_acceptance_ids_payload = json.loads(missing_acceptance_ids.stdout)
+            missing_acceptance_ids_requirements = {
+                item["code"]: item for item in missing_acceptance_ids_payload["requirements"]
+            }
+            self.assertTrue(missing_acceptance_ids_requirements["product_acceptance_chapter_present"]["ok"])
+            self.assertFalse(missing_acceptance_ids_requirements["product_acceptance_ids_present"]["ok"])
 
             (target / "docs/product/08-acceptance-criteria.md").write_text(
                 _acceptance_doc(),
                 encoding="utf-8",
             )
-            _append_index(target / "docs/product/README.md", "08-acceptance-criteria.md")
-            _append_product_meta_chapter(target, "08-acceptance-criteria.md")
 
             allowed = subprocess.run(
                 [sys.executable, str(CLI), "gate", "design-derivation", str(target), "--json"],
@@ -4146,7 +4166,10 @@ class GovernanceCliTest(unittest.TestCase):
                 check=False,
             )
             self.assertEqual(0, allowed.returncode, allowed.stderr)
-            self.assertTrue(json.loads(allowed.stdout)["ok"])
+            allowed_payload = json.loads(allowed.stdout)
+            allowed_requirements = {item["code"]: item for item in allowed_payload["requirements"]}
+            self.assertTrue(allowed_payload["ok"])
+            self.assertTrue(allowed_requirements["product_acceptance_ids_present"]["ok"])
 
     def test_scaffold_product_requires_selected_chapter(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
