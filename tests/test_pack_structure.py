@@ -3549,6 +3549,69 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_command_contract_template_missing_default_command(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            template = target / "templates/docs/agent-workflow/command-contract.md"
+            template.write_text(
+                template.read_text(encoding="utf-8").replace(
+                    "| governance-status | Print workflow state as JSON. | `.` | `"
+                    '["bin/governance", "status", ".", "--json"]'
+                    "` | false | false | `docs/development/03-verification-log.md` | Core governance runtime |\n",
+                    "",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_command_contract_template_command_drift"
+                    and finding.path == "templates/docs/agent-workflow/command-contract.md"
+                    and "governance-status" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_command_contract_template_default_argv_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            template = target / "templates/docs/agent-workflow/command-contract.md"
+            template.write_text(
+                template.read_text(encoding="utf-8").replace(
+                    '| check-env | Inventory local governance tools. | `.` | `["bin/governance", "env", "--target", "."]`',
+                    '| check-env | Inventory local governance tools. | `.` | `["bin/governance", "env", "--repair", "--check", "--target", ".", "--json"]`',
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_command_contract_template_command_drift"
+                    and finding.path == "templates/docs/agent-workflow/command-contract.md"
+                    and "check-env" in finding.message
+                    and "Argv" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_task_handoff_execution_guardrail_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"

@@ -4,6 +4,7 @@ import argparse
 import ast
 import json
 import re
+import shlex
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -2025,6 +2026,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_template_entry_points(root, findings)
     _check_template_index_docs(root, findings)
     _check_template_guardrails(root, findings)
+    _check_command_contract_template_defaults(root, findings)
     _check_workflow_pack_file_list(root, findings)
     return PackReport(str(root), findings)
 
@@ -3886,6 +3888,140 @@ def _check_template_guardrails(root: Path, findings: list[PackFinding]) -> None:
                     rel,
                 )
             )
+
+
+def _check_command_contract_template_defaults(root: Path, findings: list[PackFinding]) -> None:
+    rel = "templates/docs/agent-workflow/command-contract.md"
+    path = root / rel
+    if not path.is_file():
+        return
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (UnicodeDecodeError, OSError):
+        return
+    section = _markdown_section(text, "Command Table")
+    if section is None:
+        return
+    rows = _markdown_table_records(section)
+    rows_by_name: dict[str, list[dict[str, str]]] = {}
+    for row in rows:
+        name = row.get("Name", "").strip()
+        if name:
+            rows_by_name.setdefault(name, []).append(row)
+    for target, recipe, description, writes_state in TARGET_LOCAL_COMMANDS:
+        matching_rows = rows_by_name.get(target, [])
+        if not matching_rows:
+            findings.append(
+                PackFinding(
+                    "pack_command_contract_template_command_drift",
+                    f"{rel} Command Table missing default command row: {target}",
+                    rel,
+                )
+            )
+            continue
+        if len(matching_rows) > 1:
+            findings.append(
+                PackFinding(
+                    "pack_command_contract_template_command_drift",
+                    f"{rel} Command Table default command row must be unique: {target}",
+                    rel,
+                )
+            )
+        _check_command_contract_template_row(
+            rel,
+            target,
+            matching_rows[0],
+            recipe,
+            description,
+            writes_state,
+            findings,
+        )
+
+
+def _check_command_contract_template_row(
+    rel: str,
+    target: str,
+    row: dict[str, str],
+    recipe: str,
+    description: str,
+    writes_state: bool,
+    findings: list[PackFinding],
+) -> None:
+    expected_cells = {
+        "Purpose": _sentence_case(description),
+        "Cwd": "`.`",
+        "Writes State": str(writes_state).lower(),
+        "Approval Required": "false",
+        "Evidence": _command_contract_evidence(target),
+        "Environment": "Core governance runtime",
+    }
+    for column, expected in expected_cells.items():
+        actual = row.get(column, "").strip()
+        if actual == expected:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_command_contract_template_command_drift",
+                f"{rel} Command Table row {target} has {column}={actual!r}; expected {expected!r}",
+                rel,
+            )
+        )
+    expected_argv = shlex.split(recipe)
+    actual_argv_text = _strip_markdown_code_span(row.get("Argv", ""))
+    try:
+        actual_argv = json.loads(actual_argv_text)
+    except json.JSONDecodeError:
+        actual_argv = None
+    if actual_argv != expected_argv:
+        findings.append(
+            PackFinding(
+                "pack_command_contract_template_command_drift",
+                f"{rel} Command Table row {target} has Argv={actual_argv_text!r}; expected {json.dumps(expected_argv)!r}",
+                rel,
+            )
+        )
+
+
+def _markdown_table_records(text: str) -> list[dict[str, str]]:
+    table_lines = [
+        line.strip()
+        for line in text.splitlines()
+        if line.strip().startswith("|") and line.strip().endswith("|")
+    ]
+    if len(table_lines) < 2:
+        return []
+    header = _markdown_table_cells(table_lines[0])
+    if not header:
+        return []
+    records: list[dict[str, str]] = []
+    for line in table_lines[2:]:
+        cells = _markdown_table_cells(line)
+        if len(cells) != len(header):
+            continue
+        records.append(dict(zip(header, cells, strict=True)))
+    return records
+
+
+def _markdown_table_cells(line: str) -> list[str]:
+    return [cell.strip() for cell in line.strip().strip("|").split("|")]
+
+
+def _strip_markdown_code_span(value: str) -> str:
+    value = value.strip()
+    if len(value) >= 2 and value.startswith("`") and value.endswith("`"):
+        return value[1:-1].strip()
+    return value
+
+
+def _sentence_case(text: str) -> str:
+    text = text.strip().rstrip(".")
+    return f"{text[:1].upper()}{text[1:]}." if text else ""
+
+
+def _command_contract_evidence(target: str) -> str:
+    if target == "repair-env-check":
+        return "`.governance/env-repair.md` when repair is written"
+    return "`docs/development/03-verification-log.md`"
 
 
 def _check_skill_frontmatter(root: Path, findings: list[PackFinding]) -> None:
