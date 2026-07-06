@@ -1991,6 +1991,18 @@ def _check_product_source_manifest(root: Path, report: VerificationReport) -> No
             "invalid product source manifest: import.reviewed_at must be an ISO timestamp with timezone",
             "docs/product/core/source/source-manifest.json",
         )
+    if (
+        status == "ready_for_structuring"
+        and isinstance(conversion_method, str)
+        and conversion_method.strip()
+        and conversion_method != "markdown-copy"
+        and not isinstance(reviewed_at, str)
+    ):
+        report.add_error(
+            "product_source_manifest_import_reviewed_at_missing",
+            "product import status ready_for_structuring with reviewed conversion requires import.reviewed_at",
+            "docs/product/core/source/source-manifest.json",
+        )
     if status == "no_source":
         report.add_error(
             "product_source_missing",

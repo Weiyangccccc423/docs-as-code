@@ -416,6 +416,14 @@ def _load_manifest(root: Path, errors: list[str]) -> dict[str, Any]:
             not isinstance(reviewed_at, str) or not _is_iso_timestamp_with_timezone(reviewed_at)
         ):
             errors.append("invalid product source manifest: import.reviewed_at must be an ISO timestamp with timezone")
+        if (
+            status == "ready_for_structuring"
+            and isinstance(conversion_method, str)
+            and conversion_method.strip()
+            and conversion_method != "markdown-copy"
+            and not isinstance(reviewed_at, str)
+        ):
+            errors.append("product import status ready_for_structuring with reviewed conversion requires import.reviewed_at")
         can_derive_design = imported.get("can_derive_design")
         if not isinstance(can_derive_design, bool):
             errors.append("invalid product source manifest: import.can_derive_design must be a boolean")
