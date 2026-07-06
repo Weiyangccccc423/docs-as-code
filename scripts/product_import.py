@@ -453,6 +453,12 @@ def _check_archived_source(root: Path, manifest: dict[str, Any], errors: list[st
             return
         if actual_size != expected_size:
             errors.append(f"archived product source size mismatch: {archived_rel}")
+    if isinstance(source, dict):
+        source_size = source.get("size_bytes")
+        if not _is_valid_manifest_size(source_size):
+            errors.append("invalid product source manifest: source.size_bytes is missing or invalid")
+        elif _is_valid_manifest_size(expected_size) and source_size != expected_size:
+            errors.append("invalid product source manifest: source.size_bytes does not match archive.size_bytes")
     expected_hash = archive.get("sha256")
     if not isinstance(expected_hash, str) or not expected_hash:
         errors.append("invalid product source manifest: archive.sha256 is missing")
@@ -464,6 +470,12 @@ def _check_archived_source(root: Path, manifest: dict[str, Any], errors: list[st
         return
     if actual_hash != expected_hash:
         errors.append(f"archived product source hash mismatch: {archived_rel}")
+    if isinstance(source, dict):
+        source_hash = source.get("sha256")
+        if not isinstance(source_hash, str) or not source_hash:
+            errors.append("invalid product source manifest: source.sha256 is missing")
+        elif source_hash != expected_hash:
+            errors.append("invalid product source manifest: source.sha256 does not match archive.sha256")
 
 
 def _check_conversion_blocker_registry(root: Path, errors: list[str]) -> None:

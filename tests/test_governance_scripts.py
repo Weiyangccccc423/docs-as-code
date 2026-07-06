@@ -8719,6 +8719,56 @@ class GovernanceScriptsTest(unittest.TestCase):
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             self.assertEqual("conversion_required", manifest["import"]["status"])
 
+    def test_product_mark_ready_rejects_source_size_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.docx"
+            product.write_bytes(b"fake docx bytes")
+            bootstrap(root, product)
+            (root / "docs/product/core/PRD.md").write_text("# Converted Product\n", encoding="utf-8")
+            manifest_path = root / "docs/product/core/source/source-manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["source"]["size_bytes"] = manifest["archive"]["size_bytes"] + 1
+            manifest_path.write_text(
+                json.dumps(manifest, indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
+
+            result = product_import_module.mark_product_import_ready(root, reviewed=True)
+
+            self.assertFalse(result.ok)
+            self.assertIn(
+                "invalid product source manifest: source.size_bytes does not match archive.size_bytes",
+                result.errors,
+            )
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual("conversion_required", manifest["import"]["status"])
+
+    def test_product_mark_ready_rejects_source_hash_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.docx"
+            product.write_bytes(b"fake docx bytes")
+            bootstrap(root, product)
+            (root / "docs/product/core/PRD.md").write_text("# Converted Product\n", encoding="utf-8")
+            manifest_path = root / "docs/product/core/source/source-manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["source"]["sha256"] = "0" * 64
+            manifest_path.write_text(
+                json.dumps(manifest, indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
+
+            result = product_import_module.mark_product_import_ready(root, reviewed=True)
+
+            self.assertFalse(result.ok)
+            self.assertIn(
+                "invalid product source manifest: source.sha256 does not match archive.sha256",
+                result.errors,
+            )
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual("conversion_required", manifest["import"]["status"])
+
     def test_product_mark_ready_rejects_source_filename_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
