@@ -839,6 +839,8 @@ IMPLEMENTATION_REFERENCE_DOC_REQUIREMENTS = (
         "references/implementation-execution-checklist.md",
         (
             "workflows/05-verification-and-drift-control.md",
+            "workflows/06-implementation-execution.md",
+            "skills/executing-implementation-task/SKILL.md",
             "skills/planning-implementation-work/SKILL.md",
         ),
     ),
@@ -1849,6 +1851,7 @@ PHASE_WORKFLOW_PATHS = (
     "workflows/03-product-structuring.md",
     "workflows/04-design-derivation.md",
     "workflows/05-verification-and-drift-control.md",
+    "workflows/06-implementation-execution.md",
 )
 PHASE_WORKFLOW_TITLES = {
     "workflows/01-empty-repo-initialization.md": "Empty Repository Initialization",
@@ -1856,6 +1859,7 @@ PHASE_WORKFLOW_TITLES = {
     "workflows/03-product-structuring.md": "Product Structuring",
     "workflows/04-design-derivation.md": "Design Derivation",
     "workflows/05-verification-and-drift-control.md": "Verification and Drift Control",
+    "workflows/06-implementation-execution.md": "Implementation Execution",
 }
 PHASE_WORKFLOW_REQUIRED_SECTIONS = (
     "Input",

@@ -101,6 +101,7 @@ WORKFLOW_PACK_REQUIRED_PATHS = (
     "skills/designing-system-architecture/SKILL.md",
     "skills/designing-test-strategy/SKILL.md",
     "skills/designing-ui-interactions/SKILL.md",
+    "skills/executing-implementation-task/SKILL.md",
     "skills/initializing-governance-repo/SKILL.md",
     "skills/planning-implementation-work/SKILL.md",
     "skills/structuring-product-requirements/SKILL.md",
@@ -135,6 +136,7 @@ WORKFLOW_PACK_REQUIRED_PATHS = (
     "workflows/03-product-structuring.md",
     "workflows/04-design-derivation.md",
     "workflows/05-verification-and-drift-control.md",
+    "workflows/06-implementation-execution.md",
 )
 RUNTIME_MANIFEST_REL = Path("docs/agent-workflow/runtime-manifest.json")
 PRODUCT_SOURCE_ARCHIVE_ROOT = Path("docs/product/core/source")

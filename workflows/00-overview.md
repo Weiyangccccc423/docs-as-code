@@ -63,6 +63,7 @@ Node.js tooling is an optional project-specific enhancement layer. Rust is reser
 | 03 | Product structuring | `structuring-product-requirements` |
 | 04 | Design derivation | `designing-system-architecture`, `designing-ui-interactions`, `designing-api-contracts`, `designing-backend-modules`, `designing-data-models`, `capturing-architecture-decisions`, `designing-frontend-modules`, `designing-test-strategy`, `planning-implementation-work` |
 | 05 | Verification and drift control | `verifying-governance-docs` |
+| 06 | Implementation execution | `executing-implementation-task` |
 
 Before moving between phases, run the matching gate:
 
@@ -111,6 +112,7 @@ original product document
   -> docs/backend + docs/frontend + docs/tests
   -> docs/development task board
   -> code implementation
+  -> docs/development verification evidence
 ```
 
 ## Minimal Success Criteria
@@ -121,3 +123,4 @@ original product document
 - Every non-empty docs domain has `README.md` and `AGENTS.md`.
 - Implementation tasks link back to existing local Markdown product, design, API, and acceptance sources.
 - Governance verification passes before implementation starts.
+- Implementation execution changes exactly one Ready task at a time unless the task board explicitly groups the work.

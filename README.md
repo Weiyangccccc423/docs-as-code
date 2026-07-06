@@ -4,7 +4,7 @@ This repository contains a reusable workflow pack for turning an empty folder pl
 
 ## Goal
 
-Create reliable project governance before implementation starts:
+Create reliable project governance before and during implementation:
 
 - archive the original product document
 - record product archive manifest metadata and SHA-256 evidence
@@ -13,6 +13,7 @@ Create reliable project governance before implementation starts:
 - keep unresolved decisions explicit
 - verify documentation structure and drift
 - hand implementation tasks to agents with traceable specs and acceptance criteria
+- execute Ready tasks with scoped code changes and local verification evidence
 
 ## Package Layout
 
@@ -91,6 +92,7 @@ Create reliable project governance before implementation starts:
 - `skills/capturing-architecture-decisions/SKILL.md`: ADR capture.
 - `skills/planning-implementation-work/SKILL.md`: roadmap, task board, Ready task, and verification evidence planning.
 - `skills/verifying-governance-docs/SKILL.md`: governance verification and repair routing.
+- `skills/executing-implementation-task/SKILL.md`: scoped implementation, verification, evidence, and task status execution.
 
 ## Quick Start
 
@@ -153,6 +155,7 @@ bin/governance scaffold design /path/to/new-project --json
 3. `workflows/03-product-structuring.md`
 4. `workflows/04-design-derivation.md`
 5. `workflows/05-verification-and-drift-control.md`
+6. `workflows/06-implementation-execution.md`
 
 Read `workflows/00-overview.md` before running a phase.
 

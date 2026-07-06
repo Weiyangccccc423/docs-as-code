@@ -17,6 +17,7 @@ Read `references/workflow-routing-checklist.md` before selecting a phase, resumi
 | Source product document needs import | `archiving-product-document` |
 | PRD exists but product chapters are missing | `structuring-product-requirements` |
 | Product is structured and design is needed | `designing-system-architecture`, then `designing-ui-interactions`, then `designing-api-contracts`, then `designing-backend-modules`, then `designing-data-models`, then `capturing-architecture-decisions`, then `designing-frontend-modules` when frontend docs are in scope, then `designing-test-strategy`, then `planning-implementation-work` |
+| Implementation gate passes and one Ready task should be coded | `executing-implementation-task` |
 | Any phase claims completion | `verifying-governance-docs` |
 
 ## Environment Preflight

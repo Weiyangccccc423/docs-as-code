@@ -1792,6 +1792,35 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_missing_implementation_execution_skill_routing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            skill = target / "skills/executing-implementation-task/SKILL.md"
+            skill.write_text(
+                skill.read_text(encoding="utf-8").replace(
+                    "`references/implementation-execution-checklist.md`",
+                    "the implementation execution checklist",
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_implementation_reference_doc_missing"
+                    and finding.path == "skills/executing-implementation-task/SKILL.md"
+                    and "references/implementation-execution-checklist.md" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_missing_implementation_execution_reference_baseline(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
@@ -4161,9 +4190,11 @@ class PackStructureTest(unittest.TestCase):
             "workflows/03-product-structuring.md",
             "workflows/04-design-derivation.md",
             "workflows/05-verification-and-drift-control.md",
+            "workflows/06-implementation-execution.md",
             "references/architecture-methods.md",
             "references/backend-design-checklist.md",
             "references/runtime-strategy.md",
+            "skills/executing-implementation-task/SKILL.md",
             "templates/root/README.md",
             "templates/docs/product/core/PRD.md",
             "templates/docs/agent-workflow/task-handoff.md",
@@ -4207,6 +4238,7 @@ class PackStructureTest(unittest.TestCase):
             "capturing-architecture-decisions",
             "planning-implementation-work",
             "verifying-governance-docs",
+            "executing-implementation-task",
         ]
         for skill in skill_dirs:
             skill_file = ROOT / "skills" / skill / "SKILL.md"
