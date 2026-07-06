@@ -1491,6 +1491,7 @@ def _command_contract() -> str:
         "## Project Commands\n\n"
         "- Add project-specific build, lint, typecheck, unit, integration, contract, end-to-end, migration, "
         "and security commands after the implementation stack is selected.\n"
+        "- Keep `Cwd` as `.` or a normalized relative POSIX path inside the repository.\n"
         "- Prefer structured `Argv` arrays over shell strings.\n"
         "- Mark `Writes State` as `true` when the command changes files, databases, caches, generated artifacts, "
         "external services, or governance state.\n"

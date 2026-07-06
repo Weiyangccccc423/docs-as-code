@@ -69,6 +69,7 @@ TEMPLATE_REQUIRED_GUARDRAILS = {
         "| Name | Purpose | Cwd | Argv | Writes State | Approval Required | Evidence | Environment |",
         '`["bin/governance", "verify", ".", "--check", "--json"]`',
         "Add project-specific build, lint, typecheck, unit, integration, contract, end-to-end, migration, and security commands",
+        "Keep `Cwd` as `.` or a normalized relative POSIX path inside the repository.",
         "Prefer structured `Argv` arrays over shell strings.",
         "Mark `Approval Required` as `true`",
         "Do not run commands with `Approval Required` set to `true` unless the task explicitly authorizes them.",

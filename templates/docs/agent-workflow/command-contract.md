@@ -11,6 +11,7 @@
 ## Project Commands
 
 - Add project-specific build, lint, typecheck, unit, integration, contract, end-to-end, migration, and security commands after the implementation stack is selected.
+- Keep `Cwd` as `.` or a normalized relative POSIX path inside the repository.
 - Prefer structured `Argv` arrays over shell strings.
 - Mark `Writes State` as `true` when the command changes files, databases, caches, generated artifacts, external services, or governance state.
 - Mark `Approval Required` as `true` for dependency installation, credential access, production access, publishing, release, destructive migration, or external state mutation commands.

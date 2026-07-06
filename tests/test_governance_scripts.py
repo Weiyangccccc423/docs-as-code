@@ -5193,6 +5193,72 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_command_contract_absolute_cwd(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            contract = root / "docs/agent-workflow/command-contract.md"
+            contract.write_text(
+                contract.read_text(encoding="utf-8").replace(
+                    "| verify-check | Read-only governance verification before or after task work. | `.` | ",
+                    "| verify-check | Read-only governance verification before or after task work. | `/tmp` | ",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "command contract row verify-check Cwd must be `.` or a normalized relative POSIX path inside the repository",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "target_command_contract_cwd_invalid",
+                    "severity": "error",
+                    "path": "docs/agent-workflow/command-contract.md",
+                    "message": "command contract row verify-check Cwd must be `.` or a normalized relative POSIX path inside the repository",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_command_contract_escaping_cwd(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            contract = root / "docs/agent-workflow/command-contract.md"
+            contract.write_text(
+                contract.read_text(encoding="utf-8").replace(
+                    "| verify-check | Read-only governance verification before or after task work. | `.` | ",
+                    "| verify-check | Read-only governance verification before or after task work. | `../outside` | ",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "command contract row verify-check Cwd must be `.` or a normalized relative POSIX path inside the repository",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "target_command_contract_cwd_invalid",
+                    "severity": "error",
+                    "path": "docs/agent-workflow/command-contract.md",
+                    "message": "command contract row verify-check Cwd must be `.` or a normalized relative POSIX path inside the repository",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_command_contract_invalid_name(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

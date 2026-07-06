@@ -1377,6 +1377,12 @@ def _check_command_contract(root: Path, report: VerificationReport) -> None:
                 rel,
             )
         seen_names.add(command_name)
+        if not _command_contract_cwd_valid(row["cwd"]):
+            report.add_error(
+                "target_command_contract_cwd_invalid",
+                f"command contract row {command_name} Cwd must be `.` or a normalized relative POSIX path inside the repository",
+                rel,
+            )
         try:
             argv = json.loads(row["argv"].strip().strip("`"))
         except json.JSONDecodeError:
@@ -1410,6 +1416,21 @@ def _check_command_contract(root: Path, report: VerificationReport) -> None:
                 f"command contract row {command_name} Approval Required must be true or false",
                 rel,
             )
+
+
+def _command_contract_cwd_valid(value: str) -> bool:
+    cwd = value.strip().strip("`").strip()
+    if cwd == ".":
+        return True
+    if not cwd or "\\" in cwd or cwd.startswith("~"):
+        return False
+    windows = PureWindowsPath(cwd)
+    if windows.is_absolute() or windows.drive:
+        return False
+    posix = PurePosixPath(cwd)
+    if posix.is_absolute() or posix.as_posix() != cwd:
+        return False
+    return bool(posix.parts) and all(part not in {"", ".", ".."} for part in posix.parts)
 
 
 def _check_task_handoff_section_guardrails(
