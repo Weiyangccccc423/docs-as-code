@@ -5090,6 +5090,24 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_bootstrap_command_contract_lists_target_local_commands(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            contract = (root / "docs/agent-workflow/command-contract.md").read_text(encoding="utf-8")
+
+            for target, _recipe, _description, _writes_state in bootstrap_module.TARGET_LOCAL_COMMANDS:
+                self.assertIn(f"| {target} |", contract)
+            self.assertIn('`["bin/governance", "env", "--target", "."]`', contract)
+            self.assertIn(
+                '| repair-env-check | Preview core environment repairs without installing packages. | `.` | '
+                '`["bin/governance", "env", "--repair", "--check", "--target", ".", "--json"]` |',
+                contract,
+            )
+
     def test_verify_reports_command_contract_invalid_argv(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

@@ -1485,7 +1485,13 @@ def _command_contract() -> str:
         "| verify-governance | Record governance verification state after evidence is ready. | `.` | "
         '`["bin/governance", "verify", "."]` | true | false | '
         "`docs/development/03-verification-log.md` | Core governance runtime |\n"
-        "| check-env | Preview core environment repairs without installing packages. | `.` | "
+        "| governance-status | Print workflow state as JSON. | `.` | "
+        '`["bin/governance", "status", ".", "--json"]` | false | false | '
+        "`docs/development/03-verification-log.md` | Core governance runtime |\n"
+        "| check-env | Inventory local governance tools. | `.` | "
+        '`["bin/governance", "env", "--target", "."]` | false | false | '
+        "`docs/development/03-verification-log.md` | Core governance runtime |\n"
+        "| repair-env-check | Preview core environment repairs without installing packages. | `.` | "
         '`["bin/governance", "env", "--repair", "--check", "--target", ".", "--json"]` | false | false | '
         "`.governance/env-repair.md` when repair is written | Core governance runtime |\n\n"
         "## Project Commands\n\n"
