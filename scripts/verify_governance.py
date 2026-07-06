@@ -471,6 +471,31 @@ COMMAND_CONTRACT_REQUIRED_COLUMNS = {
 }
 COMMAND_CONTRACT_BOOLEAN_VALUES = {"true", "false"}
 COMMAND_CONTRACT_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+COMMAND_CONTRACT_SHELL_EVAL_FLAGS = {"-c", "/c", "-command"}
+COMMAND_CONTRACT_HIGH_RISK_COMMANDS: dict[str, set[str]] = {
+    "apt": {"install", "remove", "update", "upgrade"},
+    "apt-get": {"install", "remove", "update", "upgrade"},
+    "apk": {"add", "del", "update", "upgrade"},
+    "brew": {"install", "uninstall", "update", "upgrade"},
+    "bun": {"add", "install", "publish", "remove", "update"},
+    "cargo": {"add", "install", "login", "owner", "publish", "remove", "update"},
+    "docker": {"login", "push"},
+    "dnf": {"install", "remove", "update", "upgrade"},
+    "gem": {"install", "push", "uninstall", "update"},
+    "gh": {"release"},
+    "git": {"push"},
+    "helm": {"install", "rollback", "uninstall", "upgrade"},
+    "kubectl": {"apply", "create", "delete", "patch", "replace", "rollout", "scale", "set"},
+    "npm": {"add", "deploy", "i", "install", "publish", "remove", "uninstall", "update", "upgrade", "version"},
+    "pip": {"install", "uninstall"},
+    "pip3": {"install", "uninstall"},
+    "pnpm": {"add", "deploy", "dlx", "i", "install", "publish", "remove", "uninstall", "update", "upgrade"},
+    "poetry": {"add", "build", "install", "lock", "publish", "remove", "update"},
+    "terraform": {"apply", "destroy", "import", "taint", "untaint"},
+    "uv": {"add", "lock", "remove", "sync"},
+    "yarn": {"add", "dlx", "install", "publish", "remove", "upgrade"},
+    "yum": {"install", "remove", "update", "upgrade"},
+}
 TASK_HANDOFF_REQUIRED_SECTIONS = {
     "task goal": "Task Goal",
     "related specs": "Related Specs",
@@ -1422,6 +1447,12 @@ def _check_command_contract(root: Path, report: VerificationReport) -> None:
                 f"command contract row {command_name} Approval Required must be true or false",
                 rel,
             )
+        elif approval_required == "false" and _command_contract_argv_requires_approval(argv):
+            report.add_error(
+                "target_command_contract_approval_required_false",
+                f"command contract row {command_name} Approval Required must be true for high-risk Argv",
+                rel,
+            )
 
 
 def _command_contract_cwd_valid(value: str) -> bool:
@@ -1469,6 +1500,38 @@ def _command_contract_markdown_path_valid(value: str) -> bool:
     if posix.is_absolute() or posix.as_posix() != target:
         return False
     return bool(posix.parts) and all(part not in {"", ".", ".."} for part in posix.parts)
+
+
+def _command_contract_argv_requires_approval(argv: object) -> bool:
+    if not isinstance(argv, list) or not argv or any(not isinstance(item, str) for item in argv):
+        return False
+    command, args = _command_contract_normalized_command(argv)
+    if command in {"sudo", "su"}:
+        return True
+    if command in {"bash", "cmd", "cmd.exe", "fish", "powershell", "pwsh", "sh", "zsh"}:
+        return any(arg.lower() in COMMAND_CONTRACT_SHELL_EVAL_FLAGS for arg in args)
+    if command == "go" and len(args) >= 2 and args[0] == "mod" and args[1] in {"edit", "tidy"}:
+        return True
+    if command == "docker" and args[:2] == ["compose", "up"]:
+        return True
+    return any(arg in COMMAND_CONTRACT_HIGH_RISK_COMMANDS.get(command, set()) for arg in args)
+
+
+def _command_contract_normalized_command(argv: list[str]) -> tuple[str, list[str]]:
+    command = _command_contract_basename(argv[0])
+    args = [arg.lower() for arg in argv[1:]]
+    if command == "corepack" and args:
+        return _command_contract_basename(args[0]), args[1:]
+    if command in {"py", "python", "python3"} or re.fullmatch(r"python[0-9]+(?:\.[0-9]+)?", command):
+        if len(args) >= 2 and args[0] == "-m" and args[1] == "pip":
+            return "pip", args[2:]
+    if command == "uv" and args[:1] == ["pip"]:
+        return "pip", args[1:]
+    return command, args
+
+
+def _command_contract_basename(value: str) -> str:
+    return value.replace("\\", "/").rsplit("/", 1)[-1].lower()
 
 
 def _check_task_handoff_section_guardrails(

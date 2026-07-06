@@ -5193,6 +5193,72 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_command_contract_dependency_install_without_approval(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            contract = root / "docs/agent-workflow/command-contract.md"
+            contract.write_text(
+                contract.read_text(encoding="utf-8").replace(
+                    '`["bin/governance", "verify", ".", "--check", "--json"]`',
+                    '`["npm", "install"]`',
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "command contract row verify-check Approval Required must be true for high-risk Argv",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "target_command_contract_approval_required_false",
+                    "severity": "error",
+                    "path": "docs/agent-workflow/command-contract.md",
+                    "message": "command contract row verify-check Approval Required must be true for high-risk Argv",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_command_contract_shell_eval_without_approval(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            contract = root / "docs/agent-workflow/command-contract.md"
+            contract.write_text(
+                contract.read_text(encoding="utf-8").replace(
+                    '`["bin/governance", "verify", ".", "--check", "--json"]`',
+                    '`["bash", "-c", "npm install"]`',
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "command contract row verify-check Approval Required must be true for high-risk Argv",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "target_command_contract_approval_required_false",
+                    "severity": "error",
+                    "path": "docs/agent-workflow/command-contract.md",
+                    "message": "command contract row verify-check Approval Required must be true for high-risk Argv",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_command_contract_absolute_cwd(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
