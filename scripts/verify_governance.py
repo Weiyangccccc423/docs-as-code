@@ -469,6 +469,7 @@ COMMAND_CONTRACT_REQUIRED_COLUMNS = {
     "environment": "Environment",
 }
 COMMAND_CONTRACT_WRITES_STATE_VALUES = {"true", "false"}
+COMMAND_CONTRACT_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 TASK_HANDOFF_REQUIRED_SECTIONS = {
     "task goal": "Task Goal",
     "related specs": "Related Specs",
@@ -1347,6 +1348,7 @@ def _check_command_contract(root: Path, report: VerificationReport) -> None:
     if not rows:
         report.add_error("target_command_contract_no_commands", f"{rel} Command Table must list at least one command", rel)
         return
+    seen_names: set[str] = set()
     for row in rows:
         command_name = row["name"].strip() or "(missing name)"
         missing_fields = [
@@ -1361,6 +1363,19 @@ def _check_command_contract(root: Path, report: VerificationReport) -> None:
                 rel,
             )
             continue
+        if not COMMAND_CONTRACT_NAME_RE.fullmatch(command_name):
+            report.add_error(
+                "target_command_contract_name_invalid",
+                f"command contract row {command_name} Name must be a lowercase slug using letters, numbers, and hyphens",
+                rel,
+            )
+        if command_name in seen_names:
+            report.add_error(
+                "target_command_contract_name_duplicate",
+                f"command contract row {command_name} Name must be unique",
+                rel,
+            )
+        seen_names.add(command_name)
         try:
             argv = json.loads(row["argv"].strip().strip("`"))
         except json.JSONDecodeError:

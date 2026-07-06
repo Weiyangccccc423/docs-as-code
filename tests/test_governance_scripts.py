@@ -5150,6 +5150,69 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_command_contract_invalid_name(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            contract = root / "docs/agent-workflow/command-contract.md"
+            contract.write_text(
+                contract.read_text(encoding="utf-8").replace(
+                    "| verify-check | Read-only governance verification before or after task work. | `.` | ",
+                    "| Verify Check | Read-only governance verification before or after task work. | `.` | ",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "command contract row Verify Check Name must be a lowercase slug using letters, numbers, and hyphens",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "target_command_contract_name_invalid",
+                    "severity": "error",
+                    "path": "docs/agent-workflow/command-contract.md",
+                    "message": "command contract row Verify Check Name must be a lowercase slug using letters, numbers, and hyphens",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_command_contract_duplicate_name(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            contract = root / "docs/agent-workflow/command-contract.md"
+            contract.write_text(
+                contract.read_text(encoding="utf-8").replace(
+                    "| verify-governance | Record governance verification state after evidence is ready. | `.` | ",
+                    "| verify-check | Record governance verification state after evidence is ready. | `.` | ",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn("command contract row verify-check Name must be unique", report.errors)
+            self.assertIn(
+                {
+                    "code": "target_command_contract_name_duplicate",
+                    "severity": "error",
+                    "path": "docs/agent-workflow/command-contract.md",
+                    "message": "command contract row verify-check Name must be unique",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_task_handoff_guardrail_drift(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
