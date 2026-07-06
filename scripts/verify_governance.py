@@ -2002,11 +2002,11 @@ def _check_product_source_manifest(root: Path, report: VerificationReport) -> No
             "invalid product source manifest: source.provided must be true when product source is archived",
             "docs/product/core/source/source-manifest.json",
         )
-    original_path = source.get("original_path")
-    if not isinstance(original_path, str) or not original_path.strip():
+    original_path_error = _product_source_original_path_error(source.get("original_path"), source.get("filename"))
+    if original_path_error is not None:
         report.add_error(
-            "product_source_manifest_source_original_path_invalid",
-            "invalid product source manifest: source.original_path must be a non-empty string",
+            original_path_error[0],
+            original_path_error[1],
             "docs/product/core/source/source-manifest.json",
         )
     source_filename_error = _product_source_filename_error(source.get("filename"), archived_rel)
@@ -2207,6 +2207,25 @@ def _product_source_suffix_error(value: object, filename: object) -> tuple[str, 
             "invalid product source manifest: source.suffix must match source.filename suffix",
         )
     return None
+
+
+def _product_source_original_path_error(value: object, filename: object) -> tuple[str, str] | None:
+    if not isinstance(value, str) or not value.strip():
+        return (
+            "product_source_manifest_source_original_path_invalid",
+            "invalid product source manifest: source.original_path must be a non-empty string",
+        )
+    if isinstance(filename, str) and _is_safe_basename(filename) and not _path_leaf_matches_filename(value, filename):
+        return (
+            "product_source_manifest_source_original_path_mismatch",
+            "invalid product source manifest: source.original_path filename must match source.filename",
+        )
+    return None
+
+
+def _path_leaf_matches_filename(path_value: str, filename: str) -> bool:
+    leaf_names = {PurePosixPath(path_value).name, PureWindowsPath(path_value).name}
+    return filename in leaf_names
 
 
 def _is_safe_basename(value: str) -> bool:

@@ -390,9 +390,9 @@ def _load_manifest(root: Path, errors: list[str]) -> dict[str, Any]:
     elif source.get("provided") is not True:
         errors.append("invalid product source manifest: source.provided must be true when product source is archived")
     else:
-        original_path = source.get("original_path")
-        if not isinstance(original_path, str) or not original_path.strip():
-            errors.append("invalid product source manifest: source.original_path must be a non-empty string")
+        original_path_error = _product_source_original_path_error(source.get("original_path"), source.get("filename"))
+        if original_path_error is not None:
+            errors.append(original_path_error)
     imported = payload.get("import")
     if not isinstance(imported, dict):
         errors.append("invalid product source manifest: missing import object")
@@ -594,6 +594,19 @@ def _product_source_suffix_error(value: object, filename: object) -> str | None:
     if isinstance(filename, str) and _is_safe_basename(filename) and value != PurePosixPath(filename).suffix.lower():
         return "invalid product source manifest: source.suffix must match source.filename suffix"
     return None
+
+
+def _product_source_original_path_error(value: object, filename: object) -> str | None:
+    if not isinstance(value, str) or not value.strip():
+        return "invalid product source manifest: source.original_path must be a non-empty string"
+    if isinstance(filename, str) and _is_safe_basename(filename) and not _path_leaf_matches_filename(value, filename):
+        return "invalid product source manifest: source.original_path filename must match source.filename"
+    return None
+
+
+def _path_leaf_matches_filename(path_value: str, filename: str) -> bool:
+    leaf_names = {PurePosixPath(path_value).name, PureWindowsPath(path_value).name}
+    return filename in leaf_names
 
 
 def _is_safe_basename(value: str) -> bool:
