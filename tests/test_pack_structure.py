@@ -3458,6 +3458,36 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_command_contract_template_guardrail_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            template = target / "templates/docs/agent-workflow/command-contract.md"
+            template.write_text(
+                template.read_text(encoding="utf-8").replace(
+                    "| Name | Purpose | Cwd | Argv | Writes State | Evidence | Environment |\n",
+                    "| Name | Purpose | Cwd | Command | Writes State | Evidence | Environment |\n",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_template_guardrail_missing"
+                    and finding.path == "templates/docs/agent-workflow/command-contract.md"
+                    and "Argv" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_task_handoff_execution_guardrail_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
@@ -4197,6 +4227,7 @@ class PackStructureTest(unittest.TestCase):
             "skills/executing-implementation-task/SKILL.md",
             "templates/root/README.md",
             "templates/docs/product/core/PRD.md",
+            "templates/docs/agent-workflow/command-contract.md",
             "templates/docs/agent-workflow/task-handoff.md",
             "templates/docs/api/00-conventions.md",
             "templates/docs/api/changelog.md",

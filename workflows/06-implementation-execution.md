@@ -5,6 +5,7 @@
 - Generated governance repository whose implementation gate has passed
 - One `Ready` `TASK-NNN` row in `docs/development/02-task-board.md`
 - Local product, design, API, acceptance, and verification sources linked from the task
+- Target-local command contract at `docs/agent-workflow/command-contract.md`
 - Optional `docs/agent-workflow/task-handoff.md`
 
 ## Skills
@@ -36,7 +37,7 @@ Load:
 
 3. Select exactly one `Ready` `TASK-NNN` from `docs/development/02-task-board.md`. Do not start multiple task rows in one implementation pass unless the task board explicitly groups them and their verification evidence is shared.
 
-4. Read every local Markdown source linked from the task's `Product`, `Design`, `API`, `Acceptance`, and `Verification` cells, plus `docs/agent-workflow/task-handoff.md` when it exists.
+4. Read every local Markdown source linked from the task's `Product`, `Design`, `API`, `Acceptance`, and `Verification` cells, plus `docs/agent-workflow/command-contract.md` and `docs/agent-workflow/task-handoff.md` when it exists.
 
 5. Inspect existing code, tests, build files, generated artifacts, and local conventions before editing. Use the task's allowed modules, linked source docs, and repository `AGENTS.md` files to constrain the change surface.
 
@@ -46,7 +47,7 @@ Load:
    - update generated clients, schemas, migrations, fixtures, snapshots, or lockfiles only when task scope and repository tooling require them
    - register missing or conflicting requirements in `docs/unresolved.md` instead of guessing
 
-7. Run the exact task verification commands. Prefer target-local `local_commands[].argv` and task-board or handoff commands over reconstructed shell strings. Record unavailable, flaky, skipped, failed, and passing checks in `docs/development/03-verification-log.md`.
+7. Run the exact task verification commands. Prefer target-local `local_commands[].argv`, `docs/agent-workflow/command-contract.md` `Argv` rows, and task-board or handoff commands over reconstructed shell strings. Record unavailable, flaky, skipped, failed, and passing checks in `docs/development/03-verification-log.md`.
 
 8. Re-run governance verification when docs, task status, or handoff evidence changes:
 
@@ -75,6 +76,7 @@ Implementation execution is complete when:
 
 - `bin/governance verify <target> --check --json` reports `ok: true`
 - task-specific verification commands have been run or honestly recorded as unavailable
+- project-specific verification commands are documented in `docs/agent-workflow/command-contract.md` before agents rely on them
 - `docs/development/03-verification-log.md` contains matching `TASK-NNN` evidence
 - any `Done` task links local Markdown evidence from its task-board `Verification` field
 - the task satisfies `references/implementation-execution-checklist.md`
@@ -85,5 +87,6 @@ Implementation execution is complete when:
 - The implementation gate or governance verification fails.
 - Required product, design, API, acceptance, or verification links are missing.
 - The task requires behavior that is not present in local Markdown sources.
+- The required project command is not documented in `docs/agent-workflow/command-contract.md`.
 - Dependency installation, credential access, production access, package publishing, or release artifact creation needs approval that has not been granted.
 - Verification fails and no blocker or follow-up is recorded.

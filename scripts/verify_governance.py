@@ -107,6 +107,7 @@ WORKFLOW_PACK_REQUIRED_PATHS = (
     "skills/structuring-product-requirements/SKILL.md",
     "skills/using-governance-workflow/SKILL.md",
     "skills/verifying-governance-docs/SKILL.md",
+    "templates/docs/agent-workflow/command-contract.md",
     "templates/docs/agent-workflow/task-handoff.md",
     "templates/docs/api/00-conventions.md",
     "templates/docs/api/changelog.md",
@@ -452,6 +453,21 @@ TARGET_GITIGNORE_REQUIRED_PATTERNS = (
     ".venv/",
 )
 TASK_HANDOFF_REL = Path("docs/agent-workflow/task-handoff.md")
+COMMAND_CONTRACT_REL = Path("docs/agent-workflow/command-contract.md")
+COMMAND_CONTRACT_REQUIRED_SECTIONS = {
+    "command table": "Command Table",
+    "project commands": "Project Commands",
+    "usage rules": "Usage Rules",
+}
+COMMAND_CONTRACT_REQUIRED_COLUMNS = {
+    "name": "Name",
+    "purpose": "Purpose",
+    "cwd": "Cwd",
+    "argv": "Argv",
+    "writes state": "Writes State",
+    "evidence": "Evidence",
+    "environment": "Environment",
+}
 TASK_HANDOFF_REQUIRED_SECTIONS = {
     "task goal": "Task Goal",
     "related specs": "Related Specs",
@@ -645,6 +661,7 @@ def verify(root: Path) -> VerificationReport:
     _check_target_support_files(root, report)
     _check_target_gitignore(root, report)
     _check_target_makefile(root, report)
+    _check_command_contract(root, report)
     _check_task_handoff(root, report)
     _check_root_agents_guardrails(root, report)
     _check_docs_readme_guardrails(root, report)
@@ -1273,6 +1290,48 @@ def _check_task_handoff(root: Path, report: VerificationReport) -> None:
         TASK_HANDOFF_NOTES_GUARDRAILS,
         report,
     )
+
+
+def _check_command_contract(root: Path, report: VerificationReport) -> None:
+    rel = COMMAND_CONTRACT_REL.as_posix()
+    path = root / COMMAND_CONTRACT_REL
+    if not path.exists():
+        report.add_error("target_command_contract_missing", f"missing required agent command contract file: {rel}", rel)
+        return
+    text = _read_markdown_text(root, path, report)
+    if text is None:
+        return
+    sections = _markdown_sections(text, min_level=2)
+    missing_sections = [
+        title
+        for key, title in COMMAND_CONTRACT_REQUIRED_SECTIONS.items()
+        if key not in sections
+    ]
+    if missing_sections:
+        report.add_error(
+            "target_command_contract_section_missing",
+            f"{rel} is missing required sections: {', '.join(missing_sections)}",
+            rel,
+        )
+        return
+    table = _markdown_table(sections["command table"])
+    if not table:
+        missing = ", ".join(COMMAND_CONTRACT_REQUIRED_COLUMNS.values())
+        report.add_error(
+            "target_command_contract_columns_missing",
+            f"{rel} Command Table is missing required columns: {missing}",
+            rel,
+        )
+        return
+    header = [_normalize_cell(cell) for cell in table[0]]
+    missing_columns = [column for column in COMMAND_CONTRACT_REQUIRED_COLUMNS if column not in header]
+    if missing_columns:
+        report.add_error(
+            "target_command_contract_columns_missing",
+            f"{rel} Command Table is missing required columns: "
+            f"{', '.join(COMMAND_CONTRACT_REQUIRED_COLUMNS[column] for column in missing_columns)}",
+            rel,
+        )
 
 
 def _check_task_handoff_section_guardrails(

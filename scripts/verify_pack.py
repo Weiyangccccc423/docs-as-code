@@ -64,6 +64,15 @@ TEMPLATE_REQUIRED_GUARDRAILS = {
         "- Conversion method:",
         "- Review status:",
     ),
+    "templates/docs/agent-workflow/command-contract.md": (
+        "# Agent Command Contract",
+        "| Name | Purpose | Cwd | Argv | Writes State | Evidence | Environment |",
+        '`["bin/governance", "verify", ".", "--check", "--json"]`',
+        "Add project-specific build, lint, typecheck, unit, integration, contract, end-to-end, migration, and security commands",
+        "Prefer structured `Argv` arrays over shell strings.",
+        "Do not run dependency installation, credential access, production access, publishing, or release commands",
+        "docs/development/03-verification-log.md",
+    ),
     "templates/docs/agent-workflow/task-handoff.md": (
         "# Agent Task Handoff",
         "- Product:",
@@ -312,6 +321,11 @@ TEMPLATE_REQUIRED_SECTIONS = {
         "Definition of Done",
         "Verification Record",
         "Handoff Notes",
+    ),
+    "templates/docs/agent-workflow/command-contract.md": (
+        "Command Table",
+        "Project Commands",
+        "Usage Rules",
     ),
     "templates/docs/api/00-conventions.md": (
         "Product Links",

@@ -5024,6 +5024,64 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_missing_command_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            (root / "docs/agent-workflow/command-contract.md").unlink()
+
+            report = verify(root)
+
+            self.assertIn(
+                "missing required agent command contract file: docs/agent-workflow/command-contract.md",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "target_command_contract_missing",
+                    "severity": "error",
+                    "path": "docs/agent-workflow/command-contract.md",
+                    "message": "missing required agent command contract file: docs/agent-workflow/command-contract.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_command_contract_column_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            contract = root / "docs/agent-workflow/command-contract.md"
+            contract.write_text(
+                contract.read_text(encoding="utf-8").replace(
+                    "| Name | Purpose | Cwd | Argv | Writes State | Evidence | Environment |\n",
+                    "| Name | Purpose | Cwd | Command | Writes State | Evidence | Environment |\n",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/agent-workflow/command-contract.md Command Table is missing required columns: Argv",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "target_command_contract_columns_missing",
+                    "severity": "error",
+                    "path": "docs/agent-workflow/command-contract.md",
+                    "message": "docs/agent-workflow/command-contract.md Command Table is missing required columns: Argv",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_task_handoff_guardrail_drift(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

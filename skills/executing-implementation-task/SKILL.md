@@ -13,6 +13,7 @@ Read `references/implementation-execution-checklist.md` before editing code, cha
 
 - `docs/development/02-task-board.md`
 - `docs/development/03-verification-log.md`
+- `docs/agent-workflow/command-contract.md`
 - linked Product, Design, API, Acceptance, and Verification sources for the selected `TASK-NNN`
 - `docs/tests/02-acceptance-matrix.md`
 - `docs/agent-workflow/task-handoff.md` when present
@@ -34,7 +35,7 @@ Read `references/implementation-execution-checklist.md` before editing code, cha
 4. Inspect existing code, tests, generated files, build scripts, and local conventions around the changed surface.
 5. Keep edits limited to the selected task. Register missing requirements, conflicting docs, missing credentials, or unsafe dependency changes in `docs/unresolved.md` instead of guessing.
 6. Implement in small coherent steps and add or update tests next to the changed behavior.
-7. Run the task's verification commands. Prefer `local_commands[].argv` and task-provided commands over reconstructed shell strings.
+7. Run the task's verification commands. Prefer `local_commands[].argv`, `docs/agent-workflow/command-contract.md` `Argv` rows, and task-provided commands over reconstructed shell strings.
 8. Record command, result, date, notes, and evidence path in `docs/development/03-verification-log.md`.
 9. Synchronize `docs/development/02-task-board.md` and `docs/development/01-roadmap.md` statuses.
 10. Mark `Done` only when code, tests, synchronized docs, local evidence, `references/implementation-readiness-checklist.md`, and `references/implementation-execution-checklist.md` are satisfied.
@@ -45,5 +46,6 @@ Read `references/implementation-execution-checklist.md` before editing code, cha
 - The task is not `Ready`.
 - Required local Markdown sources are missing or contradictory.
 - The acceptance ID is not mapped in `docs/tests/02-acceptance-matrix.md`.
+- A required project command is missing from `docs/agent-workflow/command-contract.md`.
 - A dependency, credential, production access, release, or publishing action needs unapproved escalation.
 - Verification cannot pass and no `Blocked`, `Deferred`, or unresolved follow-up is recorded.

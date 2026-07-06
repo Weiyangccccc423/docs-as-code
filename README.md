@@ -32,6 +32,7 @@ Create reliable project governance before and during implementation:
 
 - `templates/root/README.md`: generated target root README shape.
 - `templates/docs/product/core/PRD.md`: PRD placeholder shape before product source conversion is reviewed.
+- `templates/docs/agent-workflow/command-contract.md`: target-local command contract and project verification command registry shape.
 - `templates/docs/agent-workflow/task-handoff.md`: agent task handoff and completion criteria shape.
 - `templates/docs/api/00-conventions.md`: shared API conventions shape.
 - `templates/docs/api/changelog.md`: API contract changelog shape.

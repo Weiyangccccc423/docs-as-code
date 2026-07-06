@@ -538,6 +538,7 @@ def generated_file_paths(product_doc: Path | None = None) -> list[str]:
             "docs/product/core/PRD.md",
             "docs/product/core/source/source-manifest.json",
             "docs/decisions/_template.md",
+            "docs/agent-workflow/command-contract.md",
             "docs/agent-workflow/task-handoff.md",
             f"{WORKFLOW_PACK_SNAPSHOT_ROOT}/manifest.json",
             ".governance/state.json",
@@ -1269,6 +1270,7 @@ def _write_bootstrap_outputs(
         _safe_write(root / f"docs/{doc_dir}/AGENTS.md", _domain_agents(doc_dir), force)
 
     _safe_write(root / "docs/decisions/_template.md", _adr_template(), force)
+    _safe_write(root / "docs/agent-workflow/command-contract.md", _command_contract(), force)
     _safe_write(root / "docs/agent-workflow/task-handoff.md", _task_handoff(), force)
     workflow_pack_manifest = _install_workflow_pack_snapshot(root, force)
 
@@ -1385,6 +1387,7 @@ def _domain_readme(name: str, title: str) -> str:
             f"{title}。\n\n"
             "> Governance: `AGENTS.md`.\n\n"
             "## Index\n\n"
+            "- `command-contract.md` - target-local command contract and project verification command registry\n"
             "- `task-handoff.md` - agent task handoff and completion criteria\n"
             "- `workflow-pack/` - local workflow, skill, reference, and template snapshot\n"
         )
@@ -1466,6 +1469,37 @@ def _adr_template() -> str:
         "## Decision\n\n"
         "## Consequences\n\n"
         "## References\n"
+    )
+
+
+def _command_contract() -> str:
+    return (
+        "# Agent Command Contract\n\n"
+        "## Command Table\n\n"
+        "| Name | Purpose | Cwd | Argv | Writes State | Evidence | Environment |\n"
+        "| --- | --- | --- | --- | --- | --- | --- |\n"
+        "| verify-check | Read-only governance verification before or after task work. | `.` | "
+        '`["bin/governance", "verify", ".", "--check", "--json"]` | false | '
+        "`docs/development/03-verification-log.md` | Core governance runtime |\n"
+        "| verify-governance | Record governance verification state after evidence is ready. | `.` | "
+        '`["bin/governance", "verify", "."]` | true | '
+        "`docs/development/03-verification-log.md` | Core governance runtime |\n"
+        "| check-env | Preview core environment repairs without installing packages. | `.` | "
+        '`["bin/governance", "env", "--repair", "--check", "--target", ".", "--json"]` | false | '
+        "`.governance/env-repair.md` when repair is written | Core governance runtime |\n\n"
+        "## Project Commands\n\n"
+        "- Add project-specific build, lint, typecheck, unit, integration, contract, end-to-end, migration, "
+        "and security commands after the implementation stack is selected.\n"
+        "- Prefer structured `Argv` arrays over shell strings.\n"
+        "- Mark `Writes State` as `true` when the command changes files, databases, caches, generated artifacts, "
+        "external services, or governance state.\n"
+        "- Link command evidence to `docs/development/03-verification-log.md` or another local Markdown evidence file.\n\n"
+        "## Usage Rules\n\n"
+        "- Prefer command rows from this file before reconstructing commands from prose.\n"
+        "- Run read-only commands before state-writing commands when both exist.\n"
+        "- Do not run dependency installation, credential access, production access, publishing, or release commands "
+        "unless the task explicitly authorizes them.\n"
+        "- Record skipped, unavailable, failed, flaky, and passing commands in `docs/development/03-verification-log.md`.\n"
     )
 
 
