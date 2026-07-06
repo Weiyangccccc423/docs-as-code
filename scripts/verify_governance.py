@@ -1962,6 +1962,12 @@ def _check_product_source_manifest(root: Path, report: VerificationReport) -> No
             f"invalid product import status: {status}; expected one of {', '.join(PRODUCT_IMPORT_STATUSES)}",
             "docs/product/core/source/source-manifest.json",
         )
+    if imported.get("prd_path") != "docs/product/core/PRD.md":
+        report.add_error(
+            "product_source_manifest_import_prd_path_invalid",
+            "invalid product source manifest: import.prd_path must be docs/product/core/PRD.md",
+            "docs/product/core/source/source-manifest.json",
+        )
     if status == "no_source":
         report.add_error(
             "product_source_missing",

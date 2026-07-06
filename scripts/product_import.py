@@ -398,6 +398,8 @@ def _load_manifest(root: Path, errors: list[str]) -> dict[str, Any]:
             errors.append(
                 f"invalid product import status: {status}; expected one of {', '.join(PRODUCT_IMPORT_STATUSES)}"
             )
+        if imported.get("prd_path") != PRD_REL.as_posix():
+            errors.append(f"invalid product source manifest: import.prd_path must be {PRD_REL.as_posix()}")
         can_derive_design = imported.get("can_derive_design")
         if not isinstance(can_derive_design, bool):
             errors.append("invalid product source manifest: import.can_derive_design must be a boolean")

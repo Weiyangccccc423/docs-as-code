@@ -7866,6 +7866,34 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_rejects_product_import_prd_path_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            manifest_path = root / "docs/product/core/source/source-manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["import"]["prd_path"] = "docs/product/core/other.md"
+            manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+            report = verify(root)
+
+            self.assertIn(
+                "invalid product source manifest: import.prd_path must be docs/product/core/PRD.md",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "product_source_manifest_import_prd_path_invalid",
+                    "severity": "error",
+                    "path": "docs/product/core/source/source-manifest.json",
+                    "message": "invalid product source manifest: import.prd_path must be docs/product/core/PRD.md",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_bootstrap_rejects_existing_governance_file_without_force(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -8857,6 +8885,32 @@ class GovernanceScriptsTest(unittest.TestCase):
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             self.assertEqual("conversion_required", manifest["import"]["status"])
             self.assertEqual("false", manifest["import"]["can_derive_design"])
+
+    def test_product_mark_ready_rejects_prd_path_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.docx"
+            product.write_bytes(b"fake docx bytes")
+            bootstrap(root, product)
+            (root / "docs/product/core/PRD.md").write_text("# Converted Product\n", encoding="utf-8")
+            manifest_path = root / "docs/product/core/source/source-manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["import"]["prd_path"] = "docs/product/core/other.md"
+            manifest_path.write_text(
+                json.dumps(manifest, indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
+
+            result = product_import_module.mark_product_import_ready(root, reviewed=True)
+
+            self.assertFalse(result.ok)
+            self.assertIn(
+                "invalid product source manifest: import.prd_path must be docs/product/core/PRD.md",
+                result.errors,
+            )
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual("conversion_required", manifest["import"]["status"])
+            self.assertEqual("docs/product/core/other.md", manifest["import"]["prd_path"])
 
     def test_product_mark_ready_rejects_missing_source_object(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
