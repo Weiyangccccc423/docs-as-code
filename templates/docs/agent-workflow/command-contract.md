@@ -4,11 +4,11 @@
 
 | Name | Purpose | Cwd | Argv | Writes State | Approval Required | Evidence | Environment |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| verify-check | Read-only governance verification before or after task work. | `.` | `["bin/governance", "verify", ".", "--check", "--json"]` | false | false | `docs/development/03-verification-log.md` | Core governance runtime |
-| verify-governance | Record governance verification state after evidence is ready. | `.` | `["bin/governance", "verify", "."]` | true | false | `docs/development/03-verification-log.md` | Core governance runtime |
+| verify-governance | Run governance verification and update verification state. | `.` | `["bin/governance", "verify", "."]` | true | false | `docs/development/03-verification-log.md` | Core governance runtime |
+| verify-check | Run read-only JSON verification without updating state. | `.` | `["bin/governance", "verify", ".", "--check", "--json"]` | false | false | `docs/development/03-verification-log.md` | Core governance runtime |
 | governance-status | Print workflow state as JSON. | `.` | `["bin/governance", "status", ".", "--json"]` | false | false | `docs/development/03-verification-log.md` | Core governance runtime |
 | check-env | Inventory local governance tools. | `.` | `["bin/governance", "env", "--target", "."]` | false | false | `docs/development/03-verification-log.md` | Core governance runtime |
-| repair-env-check | Preview core environment repairs without installing packages. | `.` | `["bin/governance", "env", "--repair", "--check", "--target", ".", "--json"]` | false | false | `.governance/env-repair.md` when repair is written | Core governance runtime |
+| repair-env-check | Preview environment repair without writing files. | `.` | `["bin/governance", "env", "--repair", "--check", "--target", ".", "--json"]` | false | false | `.governance/env-repair.md` when repair is written | Core governance runtime |
 
 ## Project Commands
 

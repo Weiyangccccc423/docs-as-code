@@ -5099,11 +5099,13 @@ class GovernanceScriptsTest(unittest.TestCase):
 
             contract = (root / "docs/agent-workflow/command-contract.md").read_text(encoding="utf-8")
 
-            for target, _recipe, _description, _writes_state in bootstrap_module.TARGET_LOCAL_COMMANDS:
+            for target, recipe, _description, writes_state in bootstrap_module.TARGET_LOCAL_COMMANDS:
+                argv = json.dumps(bootstrap_module._target_local_command_argv(recipe))
                 self.assertIn(f"| {target} |", contract)
+                self.assertIn(f"`{argv}` | {str(writes_state).lower()} | false |", contract)
             self.assertIn('`["bin/governance", "env", "--target", "."]`', contract)
             self.assertIn(
-                '| repair-env-check | Preview core environment repairs without installing packages. | `.` | '
+                '| repair-env-check | Preview environment repair without writing files. | `.` | '
                 '`["bin/governance", "env", "--repair", "--check", "--target", ".", "--json"]` |',
                 contract,
             )
@@ -5151,9 +5153,9 @@ class GovernanceScriptsTest(unittest.TestCase):
             contract = root / "docs/agent-workflow/command-contract.md"
             contract.write_text(
                 contract.read_text(encoding="utf-8").replace(
-                    "| verify-check | Read-only governance verification before or after task work. | `.` | "
+                    "| verify-check | Run read-only JSON verification without updating state. | `.` | "
                     '`["bin/governance", "verify", ".", "--check", "--json"]` | false |',
-                    "| verify-check | Read-only governance verification before or after task work. | `.` | "
+                    "| verify-check | Run read-only JSON verification without updating state. | `.` | "
                     '`["bin/governance", "verify", ".", "--check", "--json"]` | maybe |',
                     1,
                 ),
@@ -5186,9 +5188,9 @@ class GovernanceScriptsTest(unittest.TestCase):
             contract = root / "docs/agent-workflow/command-contract.md"
             contract.write_text(
                 contract.read_text(encoding="utf-8").replace(
-                    "| verify-check | Read-only governance verification before or after task work. | `.` | "
+                    "| verify-check | Run read-only JSON verification without updating state. | `.` | "
                     '`["bin/governance", "verify", ".", "--check", "--json"]` | false | false |',
-                    "| verify-check | Read-only governance verification before or after task work. | `.` | "
+                    "| verify-check | Run read-only JSON verification without updating state. | `.` | "
                     '`["bin/governance", "verify", ".", "--check", "--json"]` | false | maybe |',
                     1,
                 ),
@@ -5287,8 +5289,8 @@ class GovernanceScriptsTest(unittest.TestCase):
             contract = root / "docs/agent-workflow/command-contract.md"
             contract.write_text(
                 contract.read_text(encoding="utf-8").replace(
-                    "| verify-check | Read-only governance verification before or after task work. | `.` | ",
-                    "| verify-check | Read-only governance verification before or after task work. | `/tmp` | ",
+                    "| verify-check | Run read-only JSON verification without updating state. | `.` | ",
+                    "| verify-check | Run read-only JSON verification without updating state. | `/tmp` | ",
                     1,
                 ),
                 encoding="utf-8",
@@ -5320,8 +5322,8 @@ class GovernanceScriptsTest(unittest.TestCase):
             contract = root / "docs/agent-workflow/command-contract.md"
             contract.write_text(
                 contract.read_text(encoding="utf-8").replace(
-                    "| verify-check | Read-only governance verification before or after task work. | `.` | ",
-                    "| verify-check | Read-only governance verification before or after task work. | `../outside` | ",
+                    "| verify-check | Run read-only JSON verification without updating state. | `.` | ",
+                    "| verify-check | Run read-only JSON verification without updating state. | `../outside` | ",
                     1,
                 ),
                 encoding="utf-8",
@@ -5363,7 +5365,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             report = verify(root)
 
             self.assertIn(
-                "command contract row verify-check Evidence must include a normalized local Markdown path inside the repository",
+                "command contract row verify-governance Evidence must include a normalized local Markdown path inside the repository",
                 report.errors,
             )
             self.assertIn(
@@ -5371,7 +5373,7 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "code": "target_command_contract_evidence_invalid",
                     "severity": "error",
                     "path": "docs/agent-workflow/command-contract.md",
-                    "message": "command contract row verify-check Evidence must include a normalized local Markdown path inside the repository",
+                    "message": "command contract row verify-governance Evidence must include a normalized local Markdown path inside the repository",
                 },
                 [finding.to_dict() for finding in report.findings],
             )
@@ -5396,7 +5398,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             report = verify(root)
 
             self.assertIn(
-                "command contract row verify-check Evidence must include a normalized local Markdown path inside the repository",
+                "command contract row verify-governance Evidence must include a normalized local Markdown path inside the repository",
                 report.errors,
             )
             self.assertIn(
@@ -5404,7 +5406,7 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "code": "target_command_contract_evidence_invalid",
                     "severity": "error",
                     "path": "docs/agent-workflow/command-contract.md",
-                    "message": "command contract row verify-check Evidence must include a normalized local Markdown path inside the repository",
+                    "message": "command contract row verify-governance Evidence must include a normalized local Markdown path inside the repository",
                 },
                 [finding.to_dict() for finding in report.findings],
             )
@@ -5419,8 +5421,8 @@ class GovernanceScriptsTest(unittest.TestCase):
             contract = root / "docs/agent-workflow/command-contract.md"
             contract.write_text(
                 contract.read_text(encoding="utf-8").replace(
-                    "| verify-check | Read-only governance verification before or after task work. | `.` | ",
-                    "| Verify Check | Read-only governance verification before or after task work. | `.` | ",
+                    "| verify-check | Run read-only JSON verification without updating state. | `.` | ",
+                    "| Verify Check | Run read-only JSON verification without updating state. | `.` | ",
                     1,
                 ),
                 encoding="utf-8",
@@ -5452,8 +5454,8 @@ class GovernanceScriptsTest(unittest.TestCase):
             contract = root / "docs/agent-workflow/command-contract.md"
             contract.write_text(
                 contract.read_text(encoding="utf-8").replace(
-                    "| verify-governance | Record governance verification state after evidence is ready. | `.` | ",
-                    "| verify-check | Record governance verification state after evidence is ready. | `.` | ",
+                    "| verify-governance | Run governance verification and update verification state. | `.` | ",
+                    "| verify-check | Run governance verification and update verification state. | `.` | ",
                     1,
                 ),
                 encoding="utf-8",

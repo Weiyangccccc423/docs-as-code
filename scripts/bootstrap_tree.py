@@ -4,6 +4,7 @@ import argparse
 import copy
 import hashlib
 import json
+import shlex
 import shutil
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -120,6 +121,10 @@ def _target_makefile() -> str:
         for target, recipe, _description, _writes_state in TARGET_LOCAL_COMMANDS
     )
     return f".PHONY: {' '.join(targets)}\n\n{rules}\n"
+
+
+def _target_local_command_argv(recipe: str) -> list[str]:
+    return shlex.split(recipe)
 
 
 def target_local_commands_payload(cwd: str = ".") -> list[dict[str, object]]:
@@ -1479,21 +1484,8 @@ def _command_contract() -> str:
         "## Command Table\n\n"
         "| Name | Purpose | Cwd | Argv | Writes State | Approval Required | Evidence | Environment |\n"
         "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
-        "| verify-check | Read-only governance verification before or after task work. | `.` | "
-        '`["bin/governance", "verify", ".", "--check", "--json"]` | false | false | '
-        "`docs/development/03-verification-log.md` | Core governance runtime |\n"
-        "| verify-governance | Record governance verification state after evidence is ready. | `.` | "
-        '`["bin/governance", "verify", "."]` | true | false | '
-        "`docs/development/03-verification-log.md` | Core governance runtime |\n"
-        "| governance-status | Print workflow state as JSON. | `.` | "
-        '`["bin/governance", "status", ".", "--json"]` | false | false | '
-        "`docs/development/03-verification-log.md` | Core governance runtime |\n"
-        "| check-env | Inventory local governance tools. | `.` | "
-        '`["bin/governance", "env", "--target", "."]` | false | false | '
-        "`docs/development/03-verification-log.md` | Core governance runtime |\n"
-        "| repair-env-check | Preview core environment repairs without installing packages. | `.` | "
-        '`["bin/governance", "env", "--repair", "--check", "--target", ".", "--json"]` | false | false | '
-        "`.governance/env-repair.md` when repair is written | Core governance runtime |\n\n"
+        + _command_contract_rows()
+        + "\n"
         "## Project Commands\n\n"
         "- Add project-specific build, lint, typecheck, unit, integration, contract, end-to-end, migration, "
         "and security commands after the implementation stack is selected.\n"
@@ -1510,6 +1502,33 @@ def _command_contract() -> str:
         "- Do not run commands with `Approval Required` set to `true` unless the task explicitly authorizes them.\n"
         "- Record skipped, unavailable, failed, flaky, and passing commands in `docs/development/03-verification-log.md`.\n"
     )
+
+
+def _command_contract_rows() -> str:
+    return "".join(
+        _command_contract_row(target, recipe, description, writes_state)
+        for target, recipe, description, writes_state in TARGET_LOCAL_COMMANDS
+    )
+
+
+def _command_contract_row(target: str, recipe: str, description: str, writes_state: bool) -> str:
+    argv = json.dumps(_target_local_command_argv(recipe))
+    return (
+        f"| {target} | {_sentence_case(description)} | `.` | "
+        f"`{argv}` | {str(writes_state).lower()} | false | "
+        f"{_command_contract_evidence(target)} | Core governance runtime |\n"
+    )
+
+
+def _sentence_case(text: str) -> str:
+    text = text.strip().rstrip(".")
+    return f"{text[:1].upper()}{text[1:]}." if text else ""
+
+
+def _command_contract_evidence(target: str) -> str:
+    if target == "repair-env-check":
+        return "`.governance/env-repair.md` when repair is written"
+    return "`docs/development/03-verification-log.md`"
 
 
 def _task_handoff() -> str:
