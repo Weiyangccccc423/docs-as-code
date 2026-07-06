@@ -650,6 +650,10 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertFalse(requirements["product_chapters_present"]["ok"])
             self.assertFalse(requirements["product_acceptance_chapter_present"]["ok"])
             self.assertFalse(requirements["product_acceptance_ids_present"]["ok"])
+            self.assertTrue(requirements["product_chapters_traceable"]["ok"])
+            self.assertTrue(requirements["product_acceptance_ids_unique"]["ok"])
+            self.assertTrue(requirements["product_glossary_traceable"]["ok"])
+            self.assertTrue(requirements["product_unresolved_clear"]["ok"])
             self.assertTrue(payload["verification"]["ok"])
             self.assertIn(
                 {
@@ -665,6 +669,59 @@ class GovernanceScriptsTest(unittest.TestCase):
                 payload["local_commands"],
             )
             self.assertNotIn("next_actions", payload)
+
+    def test_gate_design_derivation_reports_product_structuring_blockers(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(root, "docs/product/01-goals.md", "# Goals\n\nDerived goals.\n")
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(
+                root,
+                "docs/product/09-secondary-acceptance.md",
+                "# Secondary Acceptance\n\n"
+                "Source: [PRD](core/PRD.md).\n\n"
+                "## A-001 Secondary Flow\n\n"
+                "- This repeats an existing acceptance ID.\n",
+            )
+            _append_product_meta_chapter(root, "09-secondary-acceptance.md")
+            (root / "docs/glossary.md").write_text(
+                "# Glossary\n\n"
+                "| Term | Meaning | Source |\n"
+                "| --- | --- | --- |\n"
+                "| Account |  | docs/product/core/PRD.md |\n",
+                encoding="utf-8",
+            )
+            (root / "docs/unresolved.md").write_text(
+                "# Unresolved Questions\n\n"
+                "| ID | Domain | Description | Blocking Scope | Owner | Date |\n"
+                "| --- | --- | --- | --- | --- | --- |\n"
+                "| U-001 | Product | Confirm scope | design derivation | TBD | 2026-06-26 |\n",
+                encoding="utf-8",
+            )
+
+            result = evaluate_gate(root, "design-derivation")
+            requirements = {item.code: item for item in result.requirements}
+
+            self.assertFalse(result.ok)
+            self.assertTrue(requirements["product_chapters_present"].ok)
+            self.assertTrue(requirements["product_acceptance_chapter_present"].ok)
+            self.assertTrue(requirements["product_acceptance_ids_present"].ok)
+            self.assertFalse(requirements["product_chapters_traceable"].ok)
+            self.assertFalse(requirements["product_acceptance_ids_unique"].ok)
+            self.assertFalse(requirements["product_glossary_traceable"].ok)
+            self.assertFalse(requirements["product_unresolved_clear"].ok)
+            self.assertIn(
+                {
+                    "code": "product_chapters_traceable",
+                    "ok": False,
+                    "path": "docs/product",
+                    "message": "product chapters are indexed, named, and linked to source",
+                },
+                [item.to_dict() for item in result.requirements],
+            )
 
     def test_verification_report_objects_reject_unstable_output_shape(self) -> None:
         error = verify_governance_module.VerificationFinding(

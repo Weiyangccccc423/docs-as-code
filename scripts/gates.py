@@ -22,6 +22,28 @@ except ImportError:  # pragma: no cover - direct script execution
 
 GATE_NAMES = ("product-structuring", "design-derivation", "implementation")
 REQUIREMENT_CODE_RE = re.compile(r"^[a-z][a-z0-9_]*$")
+PRODUCT_CHAPTER_TRACE_FINDING_CODES = {
+    "product_chapter_invalid_filename",
+    "product_chapter_duplicate_prefix",
+    "product_chapter_missing_prd_link",
+    "product_meta_missing_chapter_link",
+}
+PRODUCT_ACCEPTANCE_ID_UNIQUENESS_FINDING_CODES = {
+    "product_acceptance_duplicate_id",
+}
+PRODUCT_GLOSSARY_FINDING_CODES = {
+    "glossary_table_missing_columns",
+    "glossary_row_missing_fields",
+    "glossary_duplicate_term",
+    "glossary_source_reference_missing",
+}
+PRODUCT_UNRESOLVED_FINDING_CODES = {
+    "unresolved_table_missing_columns",
+    "unresolved_row_missing_fields",
+    "unresolved_invalid_id",
+    "unresolved_duplicate_id",
+    "unresolved_blocking_item",
+}
 IMPLEMENTATION_REQUIRED_FILES = (
     ("architecture_system_context_present", "docs/architecture/01-system-context.md", "system context architecture doc exists"),
     ("architecture_containers_present", "docs/architecture/02-containers.md", "containers architecture doc exists"),
@@ -181,6 +203,34 @@ def evaluate_gate(root: Path, gate: str) -> GateResult:
             "docs/product",
             "product acceptance criteria expose stable A-NNN IDs",
         )
+        _add(
+            requirements,
+            "product_chapters_traceable",
+            _product_chapter_trace_ok(report),
+            "docs/product",
+            "product chapters are indexed, named, and linked to source",
+        )
+        _add(
+            requirements,
+            "product_acceptance_ids_unique",
+            _report_has_no_error_finding_codes(report, PRODUCT_ACCEPTANCE_ID_UNIQUENESS_FINDING_CODES),
+            "docs/product",
+            "product acceptance IDs are unique",
+        )
+        _add(
+            requirements,
+            "product_glossary_traceable",
+            _report_has_no_error_finding_codes(report, PRODUCT_GLOSSARY_FINDING_CODES),
+            "docs/glossary.md",
+            "glossary terms are complete, unique, and source-linked",
+        )
+        _add(
+            requirements,
+            "product_unresolved_clear",
+            _report_has_no_error_finding_codes(report, PRODUCT_UNRESOLVED_FINDING_CODES),
+            "docs/unresolved.md",
+            "unresolved items are complete and non-blocking",
+        )
     if gate == "implementation":
         _add_implementation_requirements(requirements, root)
 
@@ -217,6 +267,37 @@ def _add_product_import_requirements(requirements: list[GateRequirement], root: 
         "docs/product/core/source/source-manifest.json",
         "product import is ready for downstream derivation",
     )
+
+
+def _report_has_no_error_finding_codes(report: Any, codes: set[str]) -> bool:
+    for finding in getattr(report, "findings", []):
+        if getattr(finding, "severity", "") != "error":
+            continue
+        if getattr(finding, "code", "") in codes:
+            return False
+    return True
+
+
+def _product_chapter_trace_ok(report: Any) -> bool:
+    for finding in getattr(report, "findings", []):
+        if getattr(finding, "severity", "") != "error":
+            continue
+        code = getattr(finding, "code", "")
+        path = getattr(finding, "path", "")
+        if code in PRODUCT_CHAPTER_TRACE_FINDING_CODES:
+            return False
+        if code == "docs_readme_unindexed_file" and _is_product_chapter_path(path):
+            return False
+        if code == "docs_local_markdown_link_missing" and path.startswith("docs/product/"):
+            return False
+    return True
+
+
+def _is_product_chapter_path(path: object) -> bool:
+    if not isinstance(path, str):
+        return False
+    posix_path = PurePosixPath(path)
+    return len(posix_path.parts) == 3 and posix_path.parts[:2] == ("docs", "product")
 
 
 def _load_product_source_manifest(root: Path) -> dict[str, Any]:

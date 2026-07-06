@@ -4103,6 +4103,7 @@ class GovernanceCliTest(unittest.TestCase):
             blocked_payload = json.loads(blocked.stdout)
             blocked_requirements = {item["code"]: item for item in blocked_payload["requirements"]}
             self.assertFalse(blocked_requirements["product_chapters_present"]["ok"])
+            self.assertTrue(blocked_requirements["product_chapters_traceable"]["ok"])
             self.assertIn(
                 {
                     "make_target": "governance-status",
@@ -4130,6 +4131,7 @@ class GovernanceCliTest(unittest.TestCase):
             )
             self.assertEqual(1, missing_acceptance.returncode)
             missing_acceptance_requirements = {item["code"]: item for item in json.loads(missing_acceptance.stdout)["requirements"]}
+            self.assertTrue(missing_acceptance_requirements["product_chapters_traceable"]["ok"])
             self.assertFalse(missing_acceptance_requirements["product_acceptance_chapter_present"]["ok"])
             self.assertFalse(missing_acceptance_requirements["product_acceptance_ids_present"]["ok"])
 
@@ -4153,6 +4155,7 @@ class GovernanceCliTest(unittest.TestCase):
             }
             self.assertTrue(missing_acceptance_ids_requirements["product_acceptance_chapter_present"]["ok"])
             self.assertFalse(missing_acceptance_ids_requirements["product_acceptance_ids_present"]["ok"])
+            self.assertTrue(missing_acceptance_ids_requirements["product_acceptance_ids_unique"]["ok"])
 
             (target / "docs/product/08-acceptance-criteria.md").write_text(
                 _acceptance_doc(),
@@ -4170,6 +4173,51 @@ class GovernanceCliTest(unittest.TestCase):
             allowed_requirements = {item["code"]: item for item in allowed_payload["requirements"]}
             self.assertTrue(allowed_payload["ok"])
             self.assertTrue(allowed_requirements["product_acceptance_ids_present"]["ok"])
+            self.assertTrue(allowed_requirements["product_acceptance_ids_unique"]["ok"])
+            self.assertTrue(allowed_requirements["product_chapters_traceable"]["ok"])
+            self.assertTrue(allowed_requirements["product_glossary_traceable"]["ok"])
+            self.assertTrue(allowed_requirements["product_unresolved_clear"]["ok"])
+
+    def test_gate_design_derivation_routes_untraceable_product_chapter(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            (target / "docs/product/01-goals.md").write_text("# Goals\n\nDerived goals.\n", encoding="utf-8")
+            _append_index(target / "docs/product/README.md", "01-goals.md")
+            (target / "docs/product/08-acceptance-criteria.md").write_text(_acceptance_doc(), encoding="utf-8")
+            _append_index(target / "docs/product/README.md", "08-acceptance-criteria.md")
+            _append_product_meta_chapter(target, "08-acceptance-criteria.md")
+
+            result = subprocess.run(
+                [sys.executable, str(CLI), "gate", "design-derivation", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, result.returncode)
+            payload = json.loads(result.stdout)
+            requirements = {item["code"]: item for item in payload["requirements"]}
+            self.assertTrue(requirements["product_chapters_present"]["ok"])
+            self.assertFalse(requirements["product_chapters_traceable"]["ok"])
+            self.assertTrue(requirements["product_acceptance_ids_present"]["ok"])
+            self.assertIn(
+                {
+                    "code": "product_chapter_missing_prd_link",
+                    "severity": "error",
+                    "path": "docs/product/01-goals.md",
+                    "message": "docs/product/01-goals.md must link back to docs/product/core/PRD.md",
+                },
+                payload["verification"]["findings"],
+            )
 
     def test_scaffold_product_requires_selected_chapter(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
