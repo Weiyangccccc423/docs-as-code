@@ -399,6 +399,8 @@ def _load_manifest(root: Path, errors: list[str]) -> dict[str, Any]:
                 f"invalid product import status: {status}; expected one of {', '.join(PRODUCT_IMPORT_STATUSES)}"
             )
         can_derive_design = imported.get("can_derive_design")
+        if not isinstance(can_derive_design, bool):
+            errors.append("invalid product source manifest: import.can_derive_design must be a boolean")
         if status == "ready_for_structuring" and can_derive_design is not True:
             errors.append("product import status ready_for_structuring requires can_derive_design: true")
         if status == "conversion_required" and can_derive_design is True:

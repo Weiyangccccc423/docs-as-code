@@ -2065,6 +2065,12 @@ def _check_product_source_manifest(root: Path, report: VerificationReport) -> No
         )
 
     can_derive_design = imported.get("can_derive_design")
+    if not isinstance(can_derive_design, bool):
+        report.add_error(
+            "product_source_manifest_import_can_derive_design_invalid",
+            "invalid product source manifest: import.can_derive_design must be a boolean",
+            "docs/product/core/source/source-manifest.json",
+        )
     if status == "ready_for_structuring" and can_derive_design is not True:
         report.add_error(
             "product_source_import_inconsistent",
