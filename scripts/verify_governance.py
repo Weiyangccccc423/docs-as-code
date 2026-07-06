@@ -1968,6 +1968,13 @@ def _check_product_source_manifest(root: Path, report: VerificationReport) -> No
             "docs/product/core/source/source-manifest.json",
         )
         return
+    source_filename_error = _product_source_filename_error(source.get("filename"), archived_rel)
+    if source_filename_error is not None:
+        report.add_error(
+            source_filename_error[0],
+            source_filename_error[1],
+            "docs/product/core/source/source-manifest.json",
+        )
 
     archived_path = root / archived_rel
     if not archived_path.exists():
@@ -2093,6 +2100,35 @@ def _manifest_bool_text(value: object) -> str | None:
     if isinstance(value, bool):
         return str(value).lower()
     return None
+
+
+def _product_source_filename_error(value: object, archived_rel: str) -> tuple[str, str] | None:
+    if not isinstance(value, str) or not value.strip():
+        return (
+            "product_source_manifest_source_filename_missing",
+            "invalid product source manifest: source.filename is missing",
+        )
+    if not _is_safe_basename(value):
+        return (
+            "product_source_manifest_source_filename_invalid",
+            "invalid product source manifest: source.filename must be a plain filename",
+        )
+    if value != PurePosixPath(archived_rel).name:
+        return (
+            "product_source_manifest_source_filename_mismatch",
+            "invalid product source manifest: source.filename must match archive.path filename",
+        )
+    return None
+
+
+def _is_safe_basename(value: str) -> bool:
+    if "/" in value or "\\" in value or value.startswith("~"):
+        return False
+    windows = PureWindowsPath(value)
+    if windows.is_absolute() or windows.drive:
+        return False
+    posix = PurePosixPath(value)
+    return bool(posix.name) and posix.name == value and posix.as_posix() == value
 
 
 def _check_product_chapter_links(root: Path, report: VerificationReport) -> None:

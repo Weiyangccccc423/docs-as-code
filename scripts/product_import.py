@@ -421,6 +421,11 @@ def _check_archived_source(root: Path, manifest: dict[str, Any], errors: list[st
     if not _is_valid_product_source_archive_path(archived_rel):
         errors.append("invalid product source manifest: archive.path must be a relative path under docs/product/core/source")
         return
+    source = manifest.get("source")
+    if isinstance(source, dict):
+        filename_error = _product_source_filename_error(source.get("filename"), archived_rel)
+        if filename_error is not None:
+            errors.append(filename_error)
     archived_path = root / archived_rel
     if not archived_path.exists():
         errors.append(f"archived product source is missing: {archived_rel}")
@@ -518,6 +523,26 @@ def _is_valid_product_source_archive_path(value: str) -> bool:
     except ValueError:
         return False
     return path not in {PRODUCT_SOURCE_ARCHIVE_ROOT, MANIFEST_REL, _atomic_temp_path(MANIFEST_REL)}
+
+
+def _product_source_filename_error(value: object, archived_rel: str) -> str | None:
+    if not isinstance(value, str) or not value.strip():
+        return "invalid product source manifest: source.filename is missing"
+    if not _is_safe_basename(value):
+        return "invalid product source manifest: source.filename must be a plain filename"
+    if value != PurePosixPath(archived_rel).name:
+        return "invalid product source manifest: source.filename must match archive.path filename"
+    return None
+
+
+def _is_safe_basename(value: str) -> bool:
+    if "/" in value or "\\" in value or value.startswith("~"):
+        return False
+    windows = PureWindowsPath(value)
+    if windows.is_absolute() or windows.drive:
+        return False
+    posix = PurePosixPath(value)
+    return bool(posix.name) and posix.name == value and posix.as_posix() == value
 
 
 def _is_valid_manifest_size(value: object) -> bool:
