@@ -1982,6 +1982,13 @@ def _check_product_source_manifest(root: Path, report: VerificationReport) -> No
             source_filename_error[1],
             "docs/product/core/source/source-manifest.json",
         )
+    source_suffix_error = _product_source_suffix_error(source.get("suffix"), source.get("filename"))
+    if source_suffix_error is not None:
+        report.add_error(
+            source_suffix_error[0],
+            source_suffix_error[1],
+            "docs/product/core/source/source-manifest.json",
+        )
 
     archived_path = root / archived_rel
     if not archived_path.exists():
@@ -2124,6 +2131,25 @@ def _product_source_filename_error(value: object, archived_rel: str) -> tuple[st
         return (
             "product_source_manifest_source_filename_mismatch",
             "invalid product source manifest: source.filename must match archive.path filename",
+        )
+    return None
+
+
+def _product_source_suffix_error(value: object, filename: object) -> tuple[str, str] | None:
+    if not isinstance(value, str) or not value:
+        return (
+            "product_source_manifest_source_suffix_missing",
+            "invalid product source manifest: source.suffix is missing",
+        )
+    if not value.startswith(".") or "/" in value or "\\" in value or value != value.lower():
+        return (
+            "product_source_manifest_source_suffix_invalid",
+            "invalid product source manifest: source.suffix must be a lowercase file suffix",
+        )
+    if isinstance(filename, str) and _is_safe_basename(filename) and value != PurePosixPath(filename).suffix.lower():
+        return (
+            "product_source_manifest_source_suffix_mismatch",
+            "invalid product source manifest: source.suffix must match source.filename suffix",
         )
     return None
 

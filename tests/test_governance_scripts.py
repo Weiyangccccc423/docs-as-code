@@ -6698,6 +6698,37 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_rejects_source_suffix_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            manifest_path = root / "docs/product/core/source/source-manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["source"]["suffix"] = ".docx"
+            manifest_path.write_text(
+                json.dumps(manifest, indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "invalid product source manifest: source.suffix must match source.filename suffix",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "product_source_manifest_source_suffix_mismatch",
+                    "severity": "error",
+                    "path": "docs/product/core/source/source-manifest.json",
+                    "message": "invalid product source manifest: source.suffix must match source.filename suffix",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_rejects_missing_source_hash(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -8663,6 +8694,31 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertFalse(result.ok)
             self.assertIn(
                 "invalid product source manifest: source.filename must match archive.path filename",
+                result.errors,
+            )
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual("conversion_required", manifest["import"]["status"])
+
+    def test_product_mark_ready_rejects_source_suffix_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.docx"
+            product.write_bytes(b"fake docx bytes")
+            bootstrap(root, product)
+            (root / "docs/product/core/PRD.md").write_text("# Converted Product\n", encoding="utf-8")
+            manifest_path = root / "docs/product/core/source/source-manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["source"]["suffix"] = ".md"
+            manifest_path.write_text(
+                json.dumps(manifest, indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
+
+            result = product_import_module.mark_product_import_ready(root, reviewed=True)
+
+            self.assertFalse(result.ok)
+            self.assertIn(
+                "invalid product source manifest: source.suffix must match source.filename suffix",
                 result.errors,
             )
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
