@@ -1476,16 +1476,16 @@ def _command_contract() -> str:
     return (
         "# Agent Command Contract\n\n"
         "## Command Table\n\n"
-        "| Name | Purpose | Cwd | Argv | Writes State | Evidence | Environment |\n"
-        "| --- | --- | --- | --- | --- | --- | --- |\n"
+        "| Name | Purpose | Cwd | Argv | Writes State | Approval Required | Evidence | Environment |\n"
+        "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
         "| verify-check | Read-only governance verification before or after task work. | `.` | "
-        '`["bin/governance", "verify", ".", "--check", "--json"]` | false | '
+        '`["bin/governance", "verify", ".", "--check", "--json"]` | false | false | '
         "`docs/development/03-verification-log.md` | Core governance runtime |\n"
         "| verify-governance | Record governance verification state after evidence is ready. | `.` | "
-        '`["bin/governance", "verify", "."]` | true | '
+        '`["bin/governance", "verify", "."]` | true | false | '
         "`docs/development/03-verification-log.md` | Core governance runtime |\n"
         "| check-env | Preview core environment repairs without installing packages. | `.` | "
-        '`["bin/governance", "env", "--repair", "--check", "--target", ".", "--json"]` | false | '
+        '`["bin/governance", "env", "--repair", "--check", "--target", ".", "--json"]` | false | false | '
         "`.governance/env-repair.md` when repair is written | Core governance runtime |\n\n"
         "## Project Commands\n\n"
         "- Add project-specific build, lint, typecheck, unit, integration, contract, end-to-end, migration, "
@@ -1493,12 +1493,13 @@ def _command_contract() -> str:
         "- Prefer structured `Argv` arrays over shell strings.\n"
         "- Mark `Writes State` as `true` when the command changes files, databases, caches, generated artifacts, "
         "external services, or governance state.\n"
+        "- Mark `Approval Required` as `true` for dependency installation, credential access, production access, "
+        "publishing, release, destructive migration, or external state mutation commands.\n"
         "- Link command evidence to `docs/development/03-verification-log.md` or another local Markdown evidence file.\n\n"
         "## Usage Rules\n\n"
         "- Prefer command rows from this file before reconstructing commands from prose.\n"
         "- Run read-only commands before state-writing commands when both exist.\n"
-        "- Do not run dependency installation, credential access, production access, publishing, or release commands "
-        "unless the task explicitly authorizes them.\n"
+        "- Do not run commands with `Approval Required` set to `true` unless the task explicitly authorizes them.\n"
         "- Record skipped, unavailable, failed, flaky, and passing commands in `docs/development/03-verification-log.md`.\n"
     )
 

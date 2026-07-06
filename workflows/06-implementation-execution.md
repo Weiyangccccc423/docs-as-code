@@ -47,7 +47,7 @@ Load:
    - update generated clients, schemas, migrations, fixtures, snapshots, or lockfiles only when task scope and repository tooling require them
    - register missing or conflicting requirements in `docs/unresolved.md` instead of guessing
 
-7. Run the exact task verification commands. Prefer target-local `local_commands[].argv`, `docs/agent-workflow/command-contract.md` `Argv` rows, and task-board or handoff commands over reconstructed shell strings. Record unavailable, flaky, skipped, failed, and passing checks in `docs/development/03-verification-log.md`.
+7. Run the exact task verification commands. Prefer target-local `local_commands[].argv`, `docs/agent-workflow/command-contract.md` `Argv` rows, and task-board or handoff commands over reconstructed shell strings. Treat command-contract rows with `Approval Required` set to `true` as stop-and-ask actions until the task explicitly authorizes them. Record unavailable, flaky, skipped, failed, and passing checks in `docs/development/03-verification-log.md`.
 
 8. Re-run governance verification when docs, task status, or handoff evidence changes:
 
@@ -88,5 +88,5 @@ Implementation execution is complete when:
 - Required product, design, API, acceptance, or verification links are missing.
 - The task requires behavior that is not present in local Markdown sources.
 - The required project command is not documented in `docs/agent-workflow/command-contract.md`.
-- Dependency installation, credential access, production access, package publishing, or release artifact creation needs approval that has not been granted.
+- A command-contract row with `Approval Required` set to `true` needs approval that has not been granted.
 - Verification fails and no blocker or follow-up is recorded.

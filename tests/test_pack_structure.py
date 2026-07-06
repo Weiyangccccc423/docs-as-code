@@ -3469,8 +3469,8 @@ class PackStructureTest(unittest.TestCase):
             template = target / "templates/docs/agent-workflow/command-contract.md"
             template.write_text(
                 template.read_text(encoding="utf-8").replace(
-                    "| Name | Purpose | Cwd | Argv | Writes State | Evidence | Environment |\n",
-                    "| Name | Purpose | Cwd | Command | Writes State | Evidence | Environment |\n",
+                    "| Name | Purpose | Cwd | Argv | Writes State | Approval Required | Evidence | Environment |\n",
+                    "| Name | Purpose | Cwd | Command | Writes State | Approval Required | Evidence | Environment |\n",
                     1,
                 ),
                 encoding="utf-8",

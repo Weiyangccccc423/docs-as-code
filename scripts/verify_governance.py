@@ -465,10 +465,11 @@ COMMAND_CONTRACT_REQUIRED_COLUMNS = {
     "cwd": "Cwd",
     "argv": "Argv",
     "writes state": "Writes State",
+    "approval required": "Approval Required",
     "evidence": "Evidence",
     "environment": "Environment",
 }
-COMMAND_CONTRACT_WRITES_STATE_VALUES = {"true", "false"}
+COMMAND_CONTRACT_BOOLEAN_VALUES = {"true", "false"}
 COMMAND_CONTRACT_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 TASK_HANDOFF_REQUIRED_SECTIONS = {
     "task goal": "Task Goal",
@@ -1396,10 +1397,17 @@ def _check_command_contract(root: Path, report: VerificationReport) -> None:
                 rel,
             )
         writes_state = _normalize_cell(row["writes state"])
-        if writes_state not in COMMAND_CONTRACT_WRITES_STATE_VALUES:
+        if writes_state not in COMMAND_CONTRACT_BOOLEAN_VALUES:
             report.add_error(
                 "target_command_contract_writes_state_invalid",
                 f"command contract row {command_name} Writes State must be true or false",
+                rel,
+            )
+        approval_required = _normalize_cell(row["approval required"])
+        if approval_required not in COMMAND_CONTRACT_BOOLEAN_VALUES:
+            report.add_error(
+                "target_command_contract_approval_required_invalid",
+                f"command contract row {command_name} Approval Required must be true or false",
                 rel,
             )
 

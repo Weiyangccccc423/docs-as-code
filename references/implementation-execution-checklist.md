@@ -34,6 +34,7 @@ Reference: `https://dora.dev/capabilities/trunk-based-development/`
 ## Verification Execution
 
 - Are the exact task verification commands run, preferring target-local `local_commands[].argv` over reparsed command strings when JSON payloads provide them?
+- Are command-contract rows with `Approval Required` set to `true` skipped until explicit task authorization is granted?
 - Are unit, integration, contract, end-to-end, accessibility, performance, security, or manual checks selected from the acceptance matrix and risk-bearing design docs?
 - Are skipped, flaky, unavailable, or failed checks recorded honestly with command, result, date, and follow-up owner?
 - Is `bin/governance verify . --check --json` or the target-local equivalent rerun when docs, workflow state, or handoff evidence changes?
@@ -52,7 +53,7 @@ Reference: `https://scrumguides.org/scrum-guide.html`
 ## Security and Supply Chain
 
 - Are secrets, credentials, tokens, private keys, and production endpoints kept out of source, logs, test fixtures, and evidence files?
-- Are dependency additions, version bumps, generated artifacts, and package-manager changes explicit in the task scope or separately approved?
+- Are dependency additions, version bumps, generated artifacts, and package-manager changes explicit in the task scope or represented as `Approval Required` commands before execution?
 - Are build, release, provenance, integrity, or artifact-publishing steps recorded when the task creates deployable outputs?
 - Are dependency and repository-risk findings from available target-local tools treated as blockers when they affect the task's changed surface?
 

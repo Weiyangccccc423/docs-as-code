@@ -5059,8 +5059,8 @@ class GovernanceScriptsTest(unittest.TestCase):
             contract = root / "docs/agent-workflow/command-contract.md"
             contract.write_text(
                 contract.read_text(encoding="utf-8").replace(
-                    "| Name | Purpose | Cwd | Argv | Writes State | Evidence | Environment |\n",
-                    "| Name | Purpose | Cwd | Command | Writes State | Evidence | Environment |\n",
+                    "| Name | Purpose | Cwd | Argv | Writes State | Approval Required | Evidence | Environment |\n",
+                    "| Name | Purpose | Cwd | Command | Writes State | Approval Required | Evidence | Environment |\n",
                     1,
                 ),
                 encoding="utf-8",
@@ -5146,6 +5146,41 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "severity": "error",
                     "path": "docs/agent-workflow/command-contract.md",
                     "message": "command contract row verify-check Writes State must be true or false",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_command_contract_invalid_approval_required(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            contract = root / "docs/agent-workflow/command-contract.md"
+            contract.write_text(
+                contract.read_text(encoding="utf-8").replace(
+                    "| verify-check | Read-only governance verification before or after task work. | `.` | "
+                    '`["bin/governance", "verify", ".", "--check", "--json"]` | false | false |',
+                    "| verify-check | Read-only governance verification before or after task work. | `.` | "
+                    '`["bin/governance", "verify", ".", "--check", "--json"]` | false | maybe |',
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "command contract row verify-check Approval Required must be true or false",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "target_command_contract_approval_required_invalid",
+                    "severity": "error",
+                    "path": "docs/agent-workflow/command-contract.md",
+                    "message": "command contract row verify-check Approval Required must be true or false",
                 },
                 [finding.to_dict() for finding in report.findings],
             )

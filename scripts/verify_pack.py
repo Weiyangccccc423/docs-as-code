@@ -66,11 +66,12 @@ TEMPLATE_REQUIRED_GUARDRAILS = {
     ),
     "templates/docs/agent-workflow/command-contract.md": (
         "# Agent Command Contract",
-        "| Name | Purpose | Cwd | Argv | Writes State | Evidence | Environment |",
+        "| Name | Purpose | Cwd | Argv | Writes State | Approval Required | Evidence | Environment |",
         '`["bin/governance", "verify", ".", "--check", "--json"]`',
         "Add project-specific build, lint, typecheck, unit, integration, contract, end-to-end, migration, and security commands",
         "Prefer structured `Argv` arrays over shell strings.",
-        "Do not run dependency installation, credential access, production access, publishing, or release commands",
+        "Mark `Approval Required` as `true`",
+        "Do not run commands with `Approval Required` set to `true` unless the task explicitly authorizes them.",
         "docs/development/03-verification-log.md",
     ),
     "templates/docs/agent-workflow/task-handoff.md": (
