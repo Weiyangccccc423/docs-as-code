@@ -5,6 +5,7 @@ import copy
 import hashlib
 import json
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
@@ -384,6 +385,9 @@ def _load_manifest(root: Path, errors: list[str]) -> dict[str, Any]:
         return {}
     if payload.get("schema_version") != PRODUCT_SOURCE_MANIFEST_SCHEMA_VERSION:
         errors.append(f"product source manifest schema_version must be {PRODUCT_SOURCE_MANIFEST_SCHEMA_VERSION}")
+    created_at = payload.get("created_at")
+    if not isinstance(created_at, str) or not _is_iso_timestamp_with_timezone(created_at):
+        errors.append("invalid product source manifest: created_at must be an ISO timestamp with timezone")
     source = payload.get("source")
     if not isinstance(source, dict):
         errors.append("invalid product source manifest: missing source object")
@@ -625,6 +629,16 @@ def _is_valid_manifest_size(value: object) -> bool:
 
 def _is_valid_sha256_digest(value: object) -> bool:
     return isinstance(value, str) and len(value) == 64 and all(char in "0123456789abcdef" for char in value)
+
+
+def _is_iso_timestamp_with_timezone(value: str) -> bool:
+    if "T" not in value:
+        return False
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return False
+    return parsed.tzinfo is not None and parsed.utcoffset() is not None
 
 
 def _resolve_conversion_blocker(path: Path) -> bool:

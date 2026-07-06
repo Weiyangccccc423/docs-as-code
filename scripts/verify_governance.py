@@ -1942,6 +1942,13 @@ def _check_product_source_manifest(root: Path, report: VerificationReport) -> No
             f"product source manifest schema_version must be {MANIFEST_SCHEMA_VERSION}",
             "docs/product/core/source/source-manifest.json",
         )
+    created_at = manifest.get("created_at")
+    if not isinstance(created_at, str) or not _is_iso_timestamp_with_timezone(created_at):
+        report.add_error(
+            "product_source_manifest_created_at_invalid",
+            "invalid product source manifest: created_at must be an ISO timestamp with timezone",
+            "docs/product/core/source/source-manifest.json",
+        )
 
     source = manifest.get("source")
     archive = manifest.get("archive")

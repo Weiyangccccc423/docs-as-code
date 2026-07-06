@@ -3279,6 +3279,43 @@ class GovernanceCliTest(unittest.TestCase):
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             self.assertEqual("reviewed", manifest["import"]["status"])
 
+    def test_product_mark_ready_rejects_invalid_manifest_created_at_without_ready_state(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.docx"
+            product.write_bytes(b"fake docx bytes")
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            (target / "docs/product/core/PRD.md").write_text("# Converted Product\n", encoding="utf-8")
+            manifest_path = target / "docs/product/core/source/source-manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["created_at"] = "2026-01-01T00:00:00"
+            manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+
+            result = subprocess.run(
+                [sys.executable, str(CLI), "product", "mark-ready", str(target), "--reviewed", "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, result.returncode)
+            self.assertNotIn("Traceback", result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertIn(
+                "invalid product source manifest: created_at must be an ISO timestamp with timezone",
+                payload["errors"],
+            )
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual("conversion_required", manifest["import"]["status"])
+            self.assertEqual("2026-01-01T00:00:00", manifest["created_at"])
+
     def test_product_mark_ready_rejects_inconsistent_conversion_required_without_ready_state(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "target"
