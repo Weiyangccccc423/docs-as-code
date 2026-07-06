@@ -1928,6 +1928,13 @@ def _check_product_source_manifest(root: Path, report: VerificationReport) -> No
         )
         return
 
+    if manifest.get("schema_version") != MANIFEST_SCHEMA_VERSION:
+        report.add_error(
+            "product_source_manifest_schema_version_invalid",
+            f"product source manifest schema_version must be {MANIFEST_SCHEMA_VERSION}",
+            "docs/product/core/source/source-manifest.json",
+        )
+
     source = manifest.get("source")
     archive = manifest.get("archive")
     imported = manifest.get("import")

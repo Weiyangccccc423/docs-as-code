@@ -23,6 +23,7 @@ PRD_REL = Path("docs/product/core/PRD.md")
 PRODUCT_META_REL = Path("docs/product/core/product-meta.md")
 UNRESOLVED_REL = Path("docs/unresolved.md")
 PRODUCT_SOURCE_ARCHIVE_ROOT = Path("docs/product/core/source")
+PRODUCT_SOURCE_MANIFEST_SCHEMA_VERSION = 1
 CONVERSION_BLOCKER_ID = "U-001"
 CONVERSION_BLOCKER_DOMAIN = "Product Archiving"
 CONVERSION_PLACEHOLDER_MARKERS = (
@@ -380,6 +381,8 @@ def _load_manifest(root: Path, errors: list[str]) -> dict[str, Any]:
     if not isinstance(payload, dict):
         errors.append("invalid product source manifest: root must be an object")
         return {}
+    if payload.get("schema_version") != PRODUCT_SOURCE_MANIFEST_SCHEMA_VERSION:
+        errors.append(f"product source manifest schema_version must be {PRODUCT_SOURCE_MANIFEST_SCHEMA_VERSION}")
     imported = payload.get("import")
     if not isinstance(imported, dict):
         errors.append("invalid product source manifest: missing import object")
