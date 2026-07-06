@@ -519,6 +519,28 @@ TARGET_LOCAL_COMMAND_REQUIRED_TARGETS = (
     "check-env",
     "repair-env-check",
 )
+FRESH_TARGET_SMOKE_TEST_PATH = "tests/test_fresh_target_workflow.py"
+FRESH_TARGET_SMOKE_TEST_REQUIRED_PHRASES = (
+    "test_fresh_folder_initializes_and_uses_target_local_commands",
+    "TemporaryDirectory",
+    "product.md",
+    '"env"',
+    '"--repair"',
+    '"--check"',
+    '"init"',
+    '"verify"',
+    '"status"',
+    "would_repair",
+    "repair_commands",
+    "local_commands",
+    "next_actions",
+    "make_target",
+    "repair-env-check",
+    "bin/governance",
+    "runtime-manifest.json",
+    "workflow-pack/manifest.json",
+    "state_updated",
+)
 ENV_REPAIR_DOC_PATHS = (
     "README.md",
     "references/runtime-strategy.md",
@@ -1992,6 +2014,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_runtime_python_syntax(root, findings)
     _check_runtime_file_list_alignment(root, findings)
     _check_governance_cli_commands(root, findings)
+    _check_fresh_target_workflow_smoke_test(root, findings)
     _check_runtime_continuation_calls(root, findings)
     _check_target_local_command_source(root, findings)
     _check_target_local_command_schema(root, findings)
@@ -2052,6 +2075,35 @@ def _check_required_files(root: Path, findings: list[PackFinding]) -> None:
                     rel,
                 )
             )
+
+
+def _check_fresh_target_workflow_smoke_test(root: Path, findings: list[PackFinding]) -> None:
+    path = root / FRESH_TARGET_SMOKE_TEST_PATH
+    if not path.is_file():
+        findings.append(
+            PackFinding(
+                "pack_fresh_target_smoke_test_missing",
+                f"missing fresh target workflow smoke test: {FRESH_TARGET_SMOKE_TEST_PATH}",
+                FRESH_TARGET_SMOKE_TEST_PATH,
+            )
+        )
+        return
+    text = _read_utf8_text_or_none(path)
+    if text is None:
+        return
+    missing = [phrase for phrase in FRESH_TARGET_SMOKE_TEST_REQUIRED_PHRASES if phrase not in text]
+    if not missing:
+        return
+    findings.append(
+        PackFinding(
+            "pack_fresh_target_smoke_test_incomplete",
+            (
+                f"{FRESH_TARGET_SMOKE_TEST_PATH} must cover fresh-folder env, init, verify, status, "
+                f"next_actions, and target-local commands; missing phrase(s): {', '.join(missing)}"
+            ),
+            FRESH_TARGET_SMOKE_TEST_PATH,
+        )
+    )
 
 
 def _check_makefile_targets(root: Path, findings: list[PackFinding]) -> None:
