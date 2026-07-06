@@ -7,7 +7,7 @@ description: Use when recording cross-module, hard-to-reverse, high-cost, repeat
 
 Use ADRs for decision history, not general design notes.
 
-Read `references/architecture-methods.md` before creating ADRs. Use its ADR guidance as the minimum method baseline.
+Read `references/architecture-methods.md` and `references/architecture-decision-record-checklist.md` before creating ADRs. Use the methods reference for the baseline ADR pattern and the checklist for trigger, context, options, rationale, consequences, lifecycle, traceability, and indexing decisions.
 
 ## ADR Trigger
 

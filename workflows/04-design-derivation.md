@@ -80,7 +80,7 @@ Load according to the design track:
 12. Read `references/implementation-readiness-checklist.md`, then create or complete `docs/development/01-roadmap.md` with product links, a Milestones table using `TASK-NNN` `ID`, `Status`, and `Milestone`, sequencing, risks, and deferred scope.
 13. Create or complete `docs/development/02-task-board.md` with Task Table, Status Policy, and Traceability Rules sections; task IDs must use `TASK-NNN`, match roadmap milestone IDs, `Product`, `Design`, and `API` fields must link to matching source domains, `Acceptance` fields must include `A-NNN` IDs defined in referenced product acceptance chapters and mapped in `docs/tests/02-acceptance-matrix.md` with matching link fragments when present, and `Ready`/`Done` transitions must satisfy `references/implementation-readiness-checklist.md`.
 14. Create or initialize `docs/development/03-verification-log.md` so Done task evidence has a stable local Markdown target.
-15. Create ADRs in `docs/decisions/` for cross-module or high-cost decisions, named as unique `NNN-<slug>.md` files.
+15. Read `references/architecture-decision-record-checklist.md`, then create ADRs in `docs/decisions/` for cross-module or high-cost decisions, named as unique `NNN-<slug>.md` files.
 16. Keep all design and planning documents linked to product and acceptance sources.
 17. Update the same-directory `README.md` for every new Markdown document, except underscore-prefixed templates such as `_template.md`.
 
@@ -124,6 +124,7 @@ Design documents sufficient for creating a task board without guessing product m
 - `docs/development/01-roadmap.md` has non-placeholder Product Links, Milestones, Sequencing, Risks, and Deferred Scope sections, links to product scope plus product acceptance criteria, and uses a Milestones table with `TASK-NNN` `ID`, `Status`, and `Milestone`.
 - `docs/development/02-task-board.md` has non-placeholder Task Table, Status Policy, and Traceability Rules sections, uses `TASK-NNN` IDs matching roadmap milestones, links Product, Design, and API fields to matching source domains, and links tasks to product-defined `A-NNN` acceptance IDs mapped in `docs/tests/02-acceptance-matrix.md` with matching fragments when present.
 - ADR files under `docs/decisions/` use unique `NNN-<slug>.md` names.
+- ADR trigger, context, options, rationale, consequences, lifecycle, traceability, and indexing satisfy `references/architecture-decision-record-checklist.md`.
 - ADRs have context, decision, consequences, and references.
 - ADR `References` sections link to existing local Markdown source documents.
 - Each non-template Markdown document is indexed by the README in the same directory.

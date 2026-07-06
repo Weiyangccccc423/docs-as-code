@@ -741,6 +741,13 @@ DESIGN_REFERENCE_DOC_REQUIREMENTS = (
         ),
     ),
     (
+        "references/architecture-decision-record-checklist.md",
+        (
+            "workflows/04-design-derivation.md",
+            "skills/capturing-architecture-decisions/SKILL.md",
+        ),
+    ),
+    (
         "references/api-design-checklist.md",
         (
             "workflows/04-design-derivation.md",
@@ -843,6 +850,57 @@ PRODUCT_REFERENCE_DOC_REQUIREMENTS = (
     ),
 )
 METHOD_REFERENCE_BASELINES = {
+    "references/architecture-decision-record-checklist.md": (
+        (
+            "Decision Trigger",
+            (
+                "## Decision Trigger",
+                "multiple modules, runtime topology, state machines, external dependencies, security posture, data ownership, API compatibility",
+                "https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions",
+            ),
+        ),
+        (
+            "Context and Forces",
+            (
+                "## Context and Forces",
+                "decision drivers or forces",
+                "https://www.iso.org/standard/74393.html",
+            ),
+        ),
+        (
+            "Options and Rationale",
+            (
+                "## Options and Rationale",
+                "credible considered options",
+                "docs/unresolved.md",
+                "https://adr.github.io/madr/",
+            ),
+        ),
+        (
+            "Consequences and Verification",
+            (
+                "## Consequences and Verification",
+                "positive, negative, operational, security, performance, cost, migration, and maintenance consequences",
+                "https://docs.arc42.org/section-9/",
+            ),
+        ),
+        (
+            "Identity and Lifecycle",
+            (
+                "## Identity and Lifecycle",
+                "unique `NNN-<slug>.md`",
+                "proposed, accepted, rejected, deprecated, or superseded",
+            ),
+        ),
+        (
+            "Traceability and Indexing",
+            (
+                "## Traceability and Indexing",
+                "docs/decisions/README.md",
+                "local Markdown references",
+            ),
+        ),
+    ),
     "references/governance-verification-checklist.md": (
         (
             "Command Discipline",

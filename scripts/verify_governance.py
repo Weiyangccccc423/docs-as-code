@@ -74,6 +74,7 @@ WORKFLOW_PHASE_ORDER = ("initialized", "product-structuring", "design-derivation
 WORKFLOW_PACK_REQUIRED_PATHS = (
     "README.md",
     "references/api-design-checklist.md",
+    "references/architecture-decision-record-checklist.md",
     "references/architecture-methods.md",
     "references/architecture-quality-checklist.md",
     "references/backend-design-checklist.md",
