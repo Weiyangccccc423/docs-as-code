@@ -400,6 +400,9 @@ def _load_manifest(root: Path, errors: list[str]) -> dict[str, Any]:
             )
         if imported.get("prd_path") != PRD_REL.as_posix():
             errors.append(f"invalid product source manifest: import.prd_path must be {PRD_REL.as_posix()}")
+        conversion_method = imported.get("conversion_method")
+        if not isinstance(conversion_method, str) or not conversion_method.strip():
+            errors.append("invalid product source manifest: import.conversion_method must be a non-empty string")
         can_derive_design = imported.get("can_derive_design")
         if not isinstance(can_derive_design, bool):
             errors.append("invalid product source manifest: import.can_derive_design must be a boolean")

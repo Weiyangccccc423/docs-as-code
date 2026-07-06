@@ -1968,6 +1968,13 @@ def _check_product_source_manifest(root: Path, report: VerificationReport) -> No
             "invalid product source manifest: import.prd_path must be docs/product/core/PRD.md",
             "docs/product/core/source/source-manifest.json",
         )
+    conversion_method = imported.get("conversion_method")
+    if not isinstance(conversion_method, str) or not conversion_method.strip():
+        report.add_error(
+            "product_source_manifest_import_conversion_method_invalid",
+            "invalid product source manifest: import.conversion_method must be a non-empty string",
+            "docs/product/core/source/source-manifest.json",
+        )
     if status == "no_source":
         report.add_error(
             "product_source_missing",
