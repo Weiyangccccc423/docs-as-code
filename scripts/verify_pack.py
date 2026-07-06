@@ -798,6 +798,7 @@ DESIGN_REFERENCE_DOC_REQUIREMENTS = (
         "references/data-model-design-checklist.md",
         (
             "workflows/04-design-derivation.md",
+            "skills/designing-backend-modules/SKILL.md",
             "skills/designing-data-models/SKILL.md",
         ),
     ),
