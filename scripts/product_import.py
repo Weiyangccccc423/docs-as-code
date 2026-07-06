@@ -571,7 +571,7 @@ def _check_atomic_output_target(root: Path, rel: Path, label: str, errors: list[
 
 def _is_valid_product_source_archive_path(value: str) -> bool:
     path = Path(value)
-    if path.is_absolute() or ".." in path.parts:
+    if "\\" in value or path.as_posix() != value or path.is_absolute() or ".." in path.parts:
         return False
     try:
         path.relative_to(PRODUCT_SOURCE_ARCHIVE_ROOT)

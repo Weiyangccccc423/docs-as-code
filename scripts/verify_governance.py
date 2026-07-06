@@ -4091,7 +4091,7 @@ def _is_valid_manifest_relative_path(value: object) -> bool:
 
 def _is_valid_product_source_archive_path(value: str) -> bool:
     path = Path(value)
-    if path.is_absolute() or ".." in path.parts:
+    if "\\" in value or path.as_posix() != value or path.is_absolute() or ".." in path.parts:
         return False
     try:
         path.relative_to(PRODUCT_SOURCE_ARCHIVE_ROOT)
