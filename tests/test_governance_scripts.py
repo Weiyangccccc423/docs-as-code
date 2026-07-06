@@ -8725,6 +8725,31 @@ class GovernanceScriptsTest(unittest.TestCase):
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             self.assertEqual("conversion_required", manifest["import"]["status"])
 
+    def test_product_mark_ready_rejects_invalid_import_status(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.docx"
+            product.write_bytes(b"fake docx bytes")
+            bootstrap(root, product)
+            (root / "docs/product/core/PRD.md").write_text("# Converted Product\n", encoding="utf-8")
+            manifest_path = root / "docs/product/core/source/source-manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["import"]["status"] = "reviewed"
+            manifest_path.write_text(
+                json.dumps(manifest, indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
+
+            result = product_import_module.mark_product_import_ready(root, reviewed=True)
+
+            self.assertFalse(result.ok)
+            self.assertIn(
+                "invalid product import status: reviewed; expected one of conversion_required, no_source, ready_for_structuring",
+                result.errors,
+            )
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual("reviewed", manifest["import"]["status"])
+
     def test_product_mark_ready_rejects_missing_source_object(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

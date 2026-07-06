@@ -24,6 +24,7 @@ PRODUCT_META_REL = Path("docs/product/core/product-meta.md")
 UNRESOLVED_REL = Path("docs/unresolved.md")
 PRODUCT_SOURCE_ARCHIVE_ROOT = Path("docs/product/core/source")
 PRODUCT_SOURCE_MANIFEST_SCHEMA_VERSION = 1
+PRODUCT_IMPORT_STATUSES = ("conversion_required", "no_source", "ready_for_structuring")
 CONVERSION_BLOCKER_ID = "U-001"
 CONVERSION_BLOCKER_DOMAIN = "Product Archiving"
 CONVERSION_PLACEHOLDER_MARKERS = (
@@ -391,6 +392,12 @@ def _load_manifest(root: Path, errors: list[str]) -> dict[str, Any]:
     imported = payload.get("import")
     if not isinstance(imported, dict):
         errors.append("invalid product source manifest: missing import object")
+    else:
+        status = imported.get("status")
+        if not isinstance(status, str) or status not in PRODUCT_IMPORT_STATUSES:
+            errors.append(
+                f"invalid product import status: {status}; expected one of {', '.join(PRODUCT_IMPORT_STATUSES)}"
+            )
     return payload
 
 
