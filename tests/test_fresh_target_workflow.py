@@ -350,3 +350,106 @@ class FreshTargetWorkflowTest(unittest.TestCase):
             )
             self.assertTrue(design_preflight["ok"])
             self.assertTrue(design_preflight["would_advance"])
+            self.assertFalse(design_preflight["advanced"])
+
+            design_advanced = _run_json(
+                self,
+                ["bin/governance", "advance", "design-derivation", ".", "--json"],
+                cwd=target,
+            )
+            self.assertTrue(design_advanced["ok"])
+            self.assertTrue(design_advanced["advanced"])
+            self.assertEqual("design-derivation", design_advanced["state"]["phase"])
+            self.assertEqual("advance-implementation-check", design_advanced["next_actions"][0]["id"])
+
+            design_scaffold_check = _run_json(
+                self,
+                ["bin/governance", "scaffold", "design", ".", "--check", "--json"],
+                cwd=target,
+            )
+            self.assertTrue(design_scaffold_check["ok"])
+            self.assertTrue(design_scaffold_check["check"])
+            self.assertEqual([], design_scaffold_check["created"])
+            self.assertEqual([], design_scaffold_check["indexed"])
+            for path in (
+                "docs/architecture/01-system-context.md",
+                "docs/api/endpoints/README.md",
+                "docs/api/endpoints/01-endpoint-contract.md",
+                "docs/development/03-verification-log.md",
+            ):
+                self.assertIn(path, design_scaffold_check["would_create"])
+            for path in (
+                "docs/architecture/01-system-context.md",
+                "docs/api/endpoints/01-endpoint-contract.md",
+                "docs/development/03-verification-log.md",
+            ):
+                self.assertIn(path, design_scaffold_check["would_index"])
+            self.assertNotIn("local_commands", design_scaffold_check)
+            self.assertNotIn("next_actions", design_scaffold_check)
+            self.assertFalse((target / "docs/architecture/01-system-context.md").exists())
+            self.assertFalse((target / "docs/api/endpoints/01-endpoint-contract.md").exists())
+
+            design_scaffold = _run_json(
+                self,
+                ["bin/governance", "scaffold", "design", ".", "--json"],
+                cwd=target,
+            )
+            self.assertTrue(design_scaffold["ok"])
+            for path in (
+                "docs/architecture/01-system-context.md",
+                "docs/api/endpoints/README.md",
+                "docs/api/endpoints/01-endpoint-contract.md",
+                "docs/backend/02-data-model.md",
+                "docs/development/03-verification-log.md",
+            ):
+                self.assertIn(path, design_scaffold["created"])
+            self.assertEqual(
+                {
+                    "current": "design-derivation",
+                    "expected": "design-derivation",
+                    "matches": True,
+                    "message": "recorded phase matches scaffold phase",
+                },
+                design_scaffold["scaffold_phase"],
+            )
+            self.assertEqual("advance-implementation-check", design_scaffold["next_actions"][0]["id"])
+            design_blockers = {
+                blocker["path"]: blocker
+                for blocker in design_scaffold["next_actions_blocked_by"]
+            }
+            self.assertEqual(
+                "governance_scaffold_placeholder",
+                design_blockers["docs/architecture/01-system-context.md"]["code"],
+            )
+            self.assertEqual(
+                "governance_scaffold_placeholder",
+                design_blockers["docs/api/endpoints/01-endpoint-contract.md"]["code"],
+            )
+            self.assertEqual(
+                "governance_scaffold_placeholder",
+                design_blockers["docs/development/03-verification-log.md"]["code"],
+            )
+
+            endpoint_contract = (target / "docs/api/endpoints/01-endpoint-contract.md").read_text(encoding="utf-8")
+            acceptance_matrix = (target / "docs/tests/02-acceptance-matrix.md").read_text(encoding="utf-8")
+            roadmap = (target / "docs/development/01-roadmap.md").read_text(encoding="utf-8")
+            task_board = (target / "docs/development/02-task-board.md").read_text(encoding="utf-8")
+            self.assertIn("METHOD /product-derived-path", endpoint_contract)
+            self.assertIn("| Acceptance | Design | API | Test |", acceptance_matrix)
+            self.assertIn("| ID | Status | Milestone |", roadmap)
+            self.assertIn("| ID | Status | Task | Product | Design | API | Acceptance | Verification |", task_board)
+
+            design_blocked_verify = _run_json(
+                self,
+                ["bin/governance", "verify", ".", "--check", "--json"],
+                cwd=target,
+                expected_returncode=1,
+            )
+            self.assertFalse(design_blocked_verify["ok"])
+            self.assertTrue(
+                any(
+                    finding["code"] == "governance_scaffold_placeholder"
+                    and finding["path"] == "docs/api/endpoints/01-endpoint-contract.md"
+                    for finding in design_blocked_verify["findings"]
+                )
+            )
