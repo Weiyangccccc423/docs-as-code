@@ -3280,6 +3280,44 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual("conversion_required", manifest["import"]["status"])
             self.assertTrue(manifest["import"]["can_derive_design"])
 
+    def test_product_mark_ready_rejects_inconsistent_ready_without_ready_state(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.docx"
+            product.write_bytes(b"fake docx bytes")
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            (target / "docs/product/core/PRD.md").write_text("# Converted Product\n", encoding="utf-8")
+            manifest_path = target / "docs/product/core/source/source-manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["import"]["status"] = "ready_for_structuring"
+            manifest["import"]["can_derive_design"] = False
+            manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+
+            result = subprocess.run(
+                [sys.executable, str(CLI), "product", "mark-ready", str(target), "--reviewed", "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, result.returncode)
+            self.assertNotIn("Traceback", result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertIn(
+                "product import status ready_for_structuring requires can_derive_design: true",
+                payload["errors"],
+            )
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual("ready_for_structuring", manifest["import"]["status"])
+            self.assertFalse(manifest["import"]["can_derive_design"])
+
     def test_product_mark_ready_rejects_unresolved_directory_without_partial_ready_state(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "target"
