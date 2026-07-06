@@ -4343,6 +4343,139 @@ class GovernanceCliTest(unittest.TestCase):
                 verify_payload["errors"],
             )
 
+    def test_product_structure_fills_scaffolded_chapters_from_prd_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text(
+                "# Product\n\n"
+                "## Goals and Requirements\n\n"
+                "- Ship a governed project from one product document.\n"
+                "- Expose local governance checks after initialization.\n\n"
+                "## Acceptance Criteria\n\n"
+                "- The initialized repository exposes local governance checks.\n"
+                "- Product chapters remain traceable to the archived PRD.\n",
+                encoding="utf-8",
+            )
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            advance_result = subprocess.run(
+                [sys.executable, str(CLI), "advance", "product-structuring", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, advance_result.returncode, advance_result.stderr)
+            scaffold_result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "scaffold",
+                    "product",
+                    str(target),
+                    "--chapter",
+                    "goals-and-requirements",
+                    "--chapter",
+                    "acceptance-criteria",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, scaffold_result.returncode, scaffold_result.stderr)
+
+            check_result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "product",
+                    "structure",
+                    str(target),
+                    "--chapter",
+                    "goals-and-requirements=Goals and Requirements",
+                    "--chapter",
+                    "acceptance-criteria=Acceptance Criteria",
+                    "--check",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, check_result.returncode, check_result.stderr)
+            check_payload = json.loads(check_result.stdout)
+            self.assertTrue(check_payload["ok"])
+            self.assertTrue(check_payload["check"])
+            self.assertEqual([], check_payload["updated"])
+            self.assertIn("docs/product/03-goals-and-requirements.md", check_payload["would_update"])
+            self.assertIn("docs/product/08-acceptance-criteria.md", check_payload["would_update"])
+            self.assertNotIn("local_commands", check_payload)
+            self.assertIn(
+                "governance:scaffold-placeholder",
+                (target / "docs/product/03-goals-and-requirements.md").read_text(encoding="utf-8"),
+            )
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "product",
+                    "structure",
+                    str(target),
+                    "--chapter",
+                    "goals-and-requirements=Goals and Requirements",
+                    "--chapter",
+                    "acceptance-criteria=Acceptance Criteria",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, result.returncode, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertFalse(payload["check"])
+            self.assertIn("docs/product/03-goals-and-requirements.md", payload["updated"])
+            self.assertIn("docs/product/08-acceptance-criteria.md", payload["updated"])
+            self.assertIn("local_commands", payload)
+            self.assertIn("next_actions", payload)
+
+            goals = (target / "docs/product/03-goals-and-requirements.md").read_text(encoding="utf-8")
+            acceptance = (target / "docs/product/08-acceptance-criteria.md").read_text(encoding="utf-8")
+            self.assertNotIn("governance:scaffold-placeholder", goals)
+            self.assertIn("Source: [PRD](core/PRD.md).", goals)
+            self.assertIn("Ship a governed project from one product document.", goals)
+            self.assertIn("## A-001 Initialized Repository Exposes Local Governance Checks", acceptance)
+            self.assertIn("## A-002 Product Chapters Remain Traceable To The Archived PRD", acceptance)
+
+            verify_result = subprocess.run(
+                [sys.executable, str(CLI), "verify", str(target), "--check", "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, verify_result.returncode, verify_result.stderr)
+            verify_payload = json.loads(verify_result.stdout)
+            self.assertTrue(verify_payload["ok"])
+
+            design_check = subprocess.run(
+                [sys.executable, str(CLI), "advance", "design-derivation", str(target), "--check", "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, design_check.returncode, design_check.stderr)
+            design_payload = json.loads(design_check.stdout)
+            self.assertTrue(design_payload["ok"])
+            self.assertTrue(design_payload["would_advance"])
+
     def test_scaffold_product_check_json_reports_plan_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "target"

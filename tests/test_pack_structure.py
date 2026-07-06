@@ -1033,6 +1033,35 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_missing_product_structure_command_doc_phrase(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            workflow = target / "workflows/03-product-structuring.md"
+            workflow.write_text(
+                workflow.read_text(encoding="utf-8").replace(
+                    "product structure",
+                    "product fill",
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_product_structure_doc_missing"
+                    and finding.path == "workflows/03-product-structuring.md"
+                    and "product structure" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_missing_design_scaffold_doc_phrase(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
@@ -2931,6 +2960,34 @@ class PackStructureTest(unittest.TestCase):
                     and finding.path == "scripts/governance_cli.py"
                     and "runtime" in finding.message
                     and "refresh" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_missing_product_structure_subcommand(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/governance_cli.py"
+            original = 'structure = product_sub.add_parser("structure", help="Fill scaffolded product chapters from explicit PRD sections.")'
+            replacement = 'structure = product_sub.add_parser("fill", help="Fill scaffolded product chapters from explicit PRD sections.")'
+            text = script.read_text(encoding="utf-8")
+            self.assertIn(original, text)
+            script.write_text(text.replace(original, replacement, 1), encoding="utf-8")
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_governance_cli_subcommand_missing"
+                    and finding.path == "scripts/governance_cli.py"
+                    and "product" in finding.message
+                    and "structure" in finding.message
                     for finding in report.findings
                 )
             )

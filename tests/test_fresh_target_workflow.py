@@ -50,9 +50,10 @@ class FreshTargetWorkflowTest(unittest.TestCase):
             product = base / "product.md"
             product.write_text(
                 "# Product\n\n"
-                "## Goal\n\n"
-                "Ship a governed project from one product document.\n\n"
-                "## Acceptance\n\n"
+                "## Goals and Requirements\n\n"
+                "- Ship a governed project from one product document.\n"
+                "- Expose local governance checks after initialization.\n\n"
+                "## Acceptance Criteria\n\n"
                 "- The initialized repository exposes local governance checks.\n",
                 encoding="utf-8",
             )
@@ -285,3 +286,67 @@ class FreshTargetWorkflowTest(unittest.TestCase):
                     for finding in blocked_verify["findings"]
                 )
             )
+
+            structure_check = _run_json(
+                self,
+                [
+                    "bin/governance",
+                    "product",
+                    "structure",
+                    ".",
+                    "--chapter",
+                    "goals-and-requirements=Goals and Requirements",
+                    "--chapter",
+                    "acceptance-criteria=Acceptance Criteria",
+                    "--check",
+                    "--json",
+                ],
+                cwd=target,
+            )
+            self.assertTrue(structure_check["ok"])
+            self.assertTrue(structure_check["check"])
+            self.assertEqual([], structure_check["updated"])
+            self.assertIn("docs/product/03-goals-and-requirements.md", structure_check["would_update"])
+            self.assertIn("docs/product/08-acceptance-criteria.md", structure_check["would_update"])
+
+            structured = _run_json(
+                self,
+                [
+                    "bin/governance",
+                    "product",
+                    "structure",
+                    ".",
+                    "--chapter",
+                    "goals-and-requirements=Goals and Requirements",
+                    "--chapter",
+                    "acceptance-criteria=Acceptance Criteria",
+                    "--json",
+                ],
+                cwd=target,
+            )
+            self.assertTrue(structured["ok"])
+            self.assertIn("docs/product/03-goals-and-requirements.md", structured["updated"])
+            self.assertIn("docs/product/08-acceptance-criteria.md", structured["updated"])
+            self.assertEqual("advance-design-derivation-check", structured["next_actions"][0]["id"])
+
+            goals = (target / "docs/product/03-goals-and-requirements.md").read_text(encoding="utf-8")
+            acceptance = (target / "docs/product/08-acceptance-criteria.md").read_text(encoding="utf-8")
+            self.assertNotIn("governance:scaffold-placeholder", goals)
+            self.assertIn("Expose local governance checks after initialization.", goals)
+            self.assertIn("## A-001 Initialized Repository Exposes Local Governance Checks", acceptance)
+
+            clean_verify = _run_json(
+                self,
+                ["bin/governance", "verify", ".", "--check", "--json"],
+                cwd=target,
+            )
+            self.assertTrue(clean_verify["ok"])
+            self.assertEqual([], clean_verify["findings"])
+
+            design_preflight = _run_json(
+                self,
+                ["bin/governance", "advance", "design-derivation", ".", "--check", "--json"],
+                cwd=target,
+            )
+            self.assertTrue(design_preflight["ok"])
+            self.assertTrue(design_preflight["would_advance"])

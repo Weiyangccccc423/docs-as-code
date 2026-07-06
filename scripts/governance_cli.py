@@ -32,6 +32,7 @@ from check_env import (
 from gates import GATE_NAMES, evaluate_gate
 from phases import PHASE_NAMES, advance_phase, check_advance_phase
 from product_import import check_product_import_ready, mark_product_import_ready
+from product_structure import check_structure_product, structure_product
 from scaffold import (
     PRODUCT_CHAPTER_CHOICES,
     ScaffoldResult,
@@ -575,6 +576,39 @@ def _cmd_product_mark_ready(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_product_structure(args: argparse.Namespace) -> int:
+    target = Path(args.target)
+    result = check_structure_product(target, args.chapter) if args.check else structure_product(target, args.chapter)
+    payload = result.to_dict()
+    if result.ok and not args.check and result.state:
+        cwd = result.target
+        payload["local_commands"] = target_local_commands_payload(cwd=cwd)
+        payload["next_actions"] = next_actions_payload(result.state, cwd=cwd)
+    if args.json:
+        _print_json(payload)
+        return 0 if result.ok else 1
+    if not result.ok:
+        print("Product structure failed:")
+        for error in result.errors:
+            print(f"- ERROR: {error}")
+        for warning in result.warnings:
+            print(f"- WARN: {warning}")
+        return 1
+    if args.check:
+        print("Product structure preflight passed.")
+        for path in result.would_update:
+            print(f"- WOULD UPDATE: {path}")
+        for warning in result.warnings:
+            print(f"- WARN: {warning}")
+        return 0
+    print("Product structure updated.")
+    for path in result.updated:
+        print(f"- UPDATED: {path}")
+    for warning in result.warnings:
+        print(f"- WARN: {warning}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="docs-as-code governance workflow CLI")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -663,6 +697,17 @@ def build_parser() -> argparse.ArgumentParser:
     mark_ready.add_argument("--check", action="store_true", help="Run readiness preflight without writing files.")
     mark_ready.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     mark_ready.set_defaults(func=_cmd_product_mark_ready)
+    structure = product_sub.add_parser("structure", help="Fill scaffolded product chapters from explicit PRD sections.")
+    structure.add_argument("target", nargs="?", default=".")
+    structure.add_argument(
+        "--chapter",
+        action="append",
+        default=[],
+        help="Chapter mapping as product-chapter-key=PRD heading. Repeat for multiple chapters.",
+    )
+    structure.add_argument("--check", action="store_true", help="Preview chapter updates without writing files.")
+    structure.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    structure.set_defaults(func=_cmd_product_structure)
 
     return parser
 

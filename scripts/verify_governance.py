@@ -168,6 +168,7 @@ RUNTIME_REQUIRED_SCRIPT_FILES = (
     "governance_cli.py",
     "phases.py",
     "product_import.py",
+    "product_structure.py",
     "scaffold.py",
     "state.py",
     "verify_governance.py",

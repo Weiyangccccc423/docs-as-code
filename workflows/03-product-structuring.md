@@ -42,15 +42,30 @@ Load:
    ```
 
    `--check` reports `would_create`, `would_skip`, and `would_index` without writing placeholders. The write command returns `local_commands`, `next_actions`, and `scaffold_phase` when gate state is readable; when scaffold placeholders remain, it also returns `next_actions_blocked_by`. If `scaffold_phase.matches` is false, use returned `next_actions` to advance recorded phases in order before treating the scaffold as current phase work. Use the returned check commands, keep the next actions for later, and do not run downstream phase actions until every blocker listed in `next_actions_blocked_by` is resolved. Available chapter keys: `background-and-problems`, `change-log`, `goals-and-requirements`, `functional-spec`, `acceptance-criteria`, `success-metrics`.
-4. If PRD review reveals another supported chapter before placeholders are replaced, rerun `scaffold product` with the additional `--chapter`. The command may proceed while existing `docs/product/` scaffold placeholders remain, but any other verification error still blocks it.
-5. Replace every `governance:scaffold-placeholder` with PRD-derived content before leaving this phase.
-6. Build or refine the product chapter map in `product-meta.md`.
-7. Split stable sections into `docs/product/NN-<slug>.md`; use unique two-digit prefixes for ordering.
-8. Extract acceptance criteria into a dedicated `NN-*acceptance*.md` product chapter before design derivation; give each criterion a stable unique `A-NNN` ID.
-9. Extract success metrics into a dedicated product chapter when present.
-10. Add cross-domain terms to `docs/glossary.md` with filled `Term`, `Meaning`, and `Source`; `Source` must link to the local Markdown document that defines the term.
-11. Register unresolved product or interaction questions in `docs/unresolved.md` with unique `U-NNN` IDs.
-12. Update `docs/product/README.md` so every product chapter file is indexed.
+4. When PRD headings are explicit enough to copy without interpretation, use the deterministic `product structure` command to replace scaffold placeholders from explicit `key=PRD Heading` mappings:
+
+   ```bash
+   bin/governance product structure <target> \
+     --chapter "goals-and-requirements=Goals and Requirements" \
+     --chapter "acceptance-criteria=Acceptance Criteria" \
+     --check \
+     --json
+   bin/governance product structure <target> \
+     --chapter "goals-and-requirements=Goals and Requirements" \
+     --chapter "acceptance-criteria=Acceptance Criteria" \
+     --json
+   ```
+
+   `--check` reports `would_update` without writing files. The write command copies only the named PRD sections, creates stable `A-NNN` acceptance IDs from acceptance bullets, removes product scaffold placeholders, cleans product README structured placeholders, and returns `local_commands` plus `next_actions`. If a required PRD heading is missing, stop and author the chapter manually from the source instead of guessing.
+5. If PRD review reveals another supported chapter before placeholders are replaced, rerun `scaffold product` with the additional `--chapter`. The command may proceed while existing `docs/product/` scaffold placeholders remain, but any other verification error still blocks it.
+6. Replace every remaining `governance:scaffold-placeholder` with PRD-derived content before leaving this phase.
+7. Build or refine the product chapter map in `product-meta.md`.
+8. Split stable sections into `docs/product/NN-<slug>.md`; use unique two-digit prefixes for ordering.
+9. Extract acceptance criteria into a dedicated `NN-*acceptance*.md` product chapter before design derivation; give each criterion a stable unique `A-NNN` ID.
+10. Extract success metrics into a dedicated product chapter when present.
+11. Add cross-domain terms to `docs/glossary.md` with filled `Term`, `Meaning`, and `Source`; `Source` must link to the local Markdown document that defines the term.
+12. Register unresolved product or interaction questions in `docs/unresolved.md` with unique `U-NNN` IDs.
+13. Update `docs/product/README.md` so every product chapter file is indexed.
 
 Use `none`, `-`, `n/a`, `non-blocking`, or `resolved` in `Blocking Scope` only when the item does not block downstream work. Any other value blocks governance verification.
 

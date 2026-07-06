@@ -541,13 +541,19 @@ FRESH_TARGET_SMOKE_TEST_REQUIRED_PHRASES = (
     "bin/governance",
     '"scaffold"',
     '"product"',
+    '"structure"',
     "goals-and-requirements",
     "acceptance-criteria",
+    "goals-and-requirements=Goals and Requirements",
+    "acceptance-criteria=Acceptance Criteria",
     "would_create",
     "would_index",
+    "would_update",
     "scaffold_phase",
     "next_actions_blocked_by",
     "governance_scaffold_placeholder",
+    "advance-design-derivation-check",
+    '"design-derivation"',
     "runtime-manifest.json",
     "workflow-pack/manifest.json",
     "state_updated",
@@ -657,6 +663,9 @@ PRODUCT_STRUCTURE_REQUIRED_PHRASES = (
     "would_create",
     "would_skip",
     "would_index",
+    "product structure",
+    "key=PRD Heading",
+    "would_update",
     "governance:scaffold-placeholder",
     "background-and-problems",
     "change-log",
@@ -1779,7 +1788,7 @@ GOVERNANCE_CLI_REQUIRED_COMMANDS = (
 )
 GOVERNANCE_CLI_REQUIRED_SUBCOMMANDS = {
     "runtime": ("refresh",),
-    "product": ("mark-ready",),
+    "product": ("mark-ready", "structure"),
 }
 GOVERNANCE_CLI_PARSER_VARIABLES = {
     "top-level": "sub",
@@ -1798,6 +1807,7 @@ CONTINUATION_RUNTIME_SCRIPT_PATHS = (
     "scripts/governance_cli.py",
     "scripts/phases.py",
     "scripts/product_import.py",
+    "scripts/product_structure.py",
     "scripts/scaffold.py",
     "scripts/verify_governance.py",
 )
