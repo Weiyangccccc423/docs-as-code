@@ -2048,6 +2048,51 @@ def _check_product_source_manifest(root: Path, report: VerificationReport) -> No
             f"product source requires conversion before design derivation: {archived_rel}",
             archived_rel,
         )
+    _check_product_meta_manifest_evidence(root, manifest, report)
+
+
+def _check_product_meta_manifest_evidence(
+    root: Path,
+    manifest: dict[str, object],
+    report: VerificationReport,
+) -> None:
+    meta_rel = "docs/product/core/product-meta.md"
+    meta_path = root / meta_rel
+    if not meta_path.is_file():
+        return
+    meta_text = _read_markdown_text(root, meta_path, report)
+    if meta_text is None:
+        return
+    source = manifest.get("source")
+    archive = manifest.get("archive")
+    imported = manifest.get("import")
+    if not isinstance(source, dict) or not isinstance(archive, dict) or not isinstance(imported, dict):
+        return
+    expected_values = (
+        ("Source filename", source.get("filename")),
+        ("Archived path", archive.get("path")),
+        ("Source SHA-256", source.get("sha256")),
+        ("Archive SHA-256", archive.get("sha256")),
+        ("Conversion method", imported.get("conversion_method")),
+        ("Import status", imported.get("status")),
+        ("Can derive design", _manifest_bool_text(imported.get("can_derive_design"))),
+    )
+    for label, value in expected_values:
+        if not isinstance(value, str) or not value:
+            continue
+        if f"{label}: `{value}`" in meta_text:
+            continue
+        report.add_error(
+            "product_meta_manifest_evidence_missing",
+            f"{meta_rel} must preserve product manifest evidence: {label} `{value}`",
+            meta_rel,
+        )
+
+
+def _manifest_bool_text(value: object) -> str | None:
+    if isinstance(value, bool):
+        return str(value).lower()
+    return None
 
 
 def _check_product_chapter_links(root: Path, report: VerificationReport) -> None:

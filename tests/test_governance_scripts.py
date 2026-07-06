@@ -6667,6 +6667,78 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_product_meta_missing_manifest_hash_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            manifest_path = root / "docs/product/core/source/source-manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            source_hash = manifest["source"]["sha256"]
+            meta = root / "docs/product/core/product-meta.md"
+            meta.write_text(
+                meta.read_text(encoding="utf-8").replace(
+                    f"- Source SHA-256: `{source_hash}`\n",
+                    "",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                f"docs/product/core/product-meta.md must preserve product manifest evidence: Source SHA-256 `{source_hash}`",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "product_meta_manifest_evidence_missing",
+                    "severity": "error",
+                    "path": "docs/product/core/product-meta.md",
+                    "message": "docs/product/core/product-meta.md must preserve product manifest evidence: "
+                    f"Source SHA-256 `{source_hash}`",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_product_meta_import_status_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            meta = root / "docs/product/core/product-meta.md"
+            meta.write_text(
+                meta.read_text(encoding="utf-8").replace(
+                    "- Import status: `ready_for_structuring`\n",
+                    "- Import status: `conversion_required`\n",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "docs/product/core/product-meta.md must preserve product manifest evidence: "
+                "Import status `ready_for_structuring`",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "product_meta_manifest_evidence_missing",
+                    "severity": "error",
+                    "path": "docs/product/core/product-meta.md",
+                    "message": "docs/product/core/product-meta.md must preserve product manifest evidence: "
+                    "Import status `ready_for_structuring`",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_rejects_absolute_archived_product_source_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
