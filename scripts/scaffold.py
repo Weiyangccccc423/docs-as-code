@@ -947,25 +947,55 @@ def _section_lines(path: str, section: str) -> list[str]:
         ]
     if path.startswith("docs/product/") and section == "Open Questions":
         return ["- Register blocking ambiguity in [unresolved](../unresolved.md) instead of guessing."]
+    if key == ("docs/api/endpoints/01-endpoint-contract.md", "Method and Path"):
+        return ["METHOD /product-derived-path"]
+    if key == ("docs/api/endpoints/01-endpoint-contract.md", "Auth"):
+        return ["- Source-backed auth rule, or `none` with product-backed rationale."]
+    if key == ("docs/api/endpoints/01-endpoint-contract.md", "Idempotency"):
+        return ["- Safe/idempotent/retry policy and idempotency-key rule when the endpoint can be retried."]
+    if key == ("docs/api/endpoints/01-endpoint-contract.md", "Request Fields"):
+        return [
+            "| Field | Type | Required | Source | Notes |",
+            "| --- | --- | --- | --- | --- |",
+            "| field_name | type | yes/no | [source](../../product/NN-source.md) | validation/defaults |",
+        ]
+    if key == ("docs/api/endpoints/01-endpoint-contract.md", "Response Fields"):
+        return [
+            "| Field | Type | Source | Notes |",
+            "| --- | --- | --- | --- |",
+            "| field_name | type | [source](../../product/NN-source.md) | response meaning |",
+        ]
+    if key == ("docs/api/endpoints/01-endpoint-contract.md", "Error Codes"):
+        return ["- [Error registry](../error-codes.md): product-facing code, HTTP status, retryability, and user action."]
+    if key == ("docs/api/endpoints/01-endpoint-contract.md", "Upstream Links"):
+        return [
+            "- [Acceptance](../../product/NN-acceptance.md#a-nnn)",
+            "- [Backend owner](../../backend/01-modules.md)",
+        ]
+    if key == ("docs/api/endpoints/01-endpoint-contract.md", "Frontend Consumers"):
+        return [
+            "- [Interaction model](../../ui/01-interaction-model.md)",
+            "- [API consumption](../../frontend/02-api-consumption.md)",
+        ]
     if key == ("docs/tests/02-acceptance-matrix.md", "Matrix"):
         return [
             "| Acceptance | Design | API | Test |",
             "| --- | --- | --- | --- |",
-            "| A-NNN acceptance source | design source | endpoint contract source | test evidence source |",
+            "| [A-NNN](../product/NN-acceptance.md#a-nnn) | [Design](../architecture/NN-design.md) | [Endpoint](../api/endpoints/NN-endpoint.md) | [Test strategy](01-strategy.md) |",
         ]
     if key == ("docs/tests/02-acceptance-matrix.md", "Uncovered Criteria"):
-        return ["- A-NNN deferred or uncovered reason"]
+        return ["- A-NNN deferred or uncovered reason linked to product scope or unresolved question"]
     if key == ("docs/development/01-roadmap.md", "Milestones"):
         return [
             "| ID | Status | Milestone |",
             "| --- | --- | --- |",
-            "| TASK-NNN | Backlog | Product-derived milestone |",
+            "| TASK-NNN | Backlog | Product-derived milestone linked to acceptance/design scope |",
         ]
     if key == ("docs/development/02-task-board.md", "Task Table"):
         return [
             "| ID | Status | Task | Product | Design | API | Acceptance | Verification |",
             "| --- | --- | --- | --- | --- | --- | --- | --- |",
-            "| TASK-NNN | Backlog | Product-derived task | product source | design source | endpoint contract source | A-NNN acceptance source | verification plan |",
+            "| TASK-NNN | Backlog | Product-derived task | [Product](../product/NN-scope.md) | [Design](../architecture/NN-design.md) | [Endpoint](../api/endpoints/NN-endpoint.md) | [A-NNN](../product/NN-acceptance.md#a-nnn) | [Verification plan](03-verification-log.md#task-nnn) |",
         ]
     if key == ("docs/development/02-task-board.md", "Status Policy"):
         return ["- Allowed statuses: Backlog, Ready, In Progress, Blocked, Done, Deferred."]
@@ -978,7 +1008,7 @@ def _section_lines(path: str, section: str) -> list[str]:
         return [
             "| Task | Command | Result | Date | Notes |",
             "| --- | --- | --- | --- | --- |",
-            "| TASK-NNN | verification command | pending | YYYY-MM-DD | evidence notes |",
+            "| TASK-NNN | verification command | pending | YYYY-MM-DD | evidence notes and artifact links |",
         ]
     if key == ("docs/development/03-verification-log.md", "Artifacts"):
         return ["- Link local evidence artifacts or summarize relevant command output here."]
