@@ -29,7 +29,7 @@ from check_env import (
     repair_target_error,
     write_repair_plan,
 )
-from design_plan import build_design_plan
+from design_plan import build_api_candidates, build_design_plan
 from gates import GATE_NAMES, evaluate_gate
 from phases import PHASE_NAMES, advance_phase, check_advance_phase
 from product_import import check_product_import_ready, mark_product_import_ready
@@ -627,6 +627,23 @@ def _cmd_design_plan(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_design_api_candidates(args: argparse.Namespace) -> int:
+    target = Path(args.target)
+    payload = build_api_candidates(target)
+    if args.json:
+        _print_json(payload)
+        return 0 if payload["ok"] else 1
+    if not payload["ok"]:
+        print("API candidate extraction failed:")
+        for error in payload["errors"]:
+            print(f"- ERROR: {error}")
+        return 1
+    print("API candidates:")
+    for candidate in payload["candidates"]:
+        print(f"- {candidate['candidate_id']}: {candidate['acceptance_id']} -> {candidate['suggested_endpoint_file']}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="docs-as-code governance workflow CLI")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -736,6 +753,13 @@ def build_parser() -> argparse.ArgumentParser:
     design_plan.add_argument("target", nargs="?", default=".")
     design_plan.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     design_plan.set_defaults(func=_cmd_design_plan)
+    api_candidates = design_sub.add_parser(
+        "api-candidates",
+        help="Extract source-backed API endpoint candidates from product acceptance criteria.",
+    )
+    api_candidates.add_argument("target", nargs="?", default=".")
+    api_candidates.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    api_candidates.set_defaults(func=_cmd_design_api_candidates)
 
     return parser
 

@@ -142,6 +142,7 @@ bin/governance scaffold product /path/to/new-project --chapter goals-and-require
 Use `scaffold design --check --json` after the design-derivation gate to inspect `would_create`, `would_skip`, and `would_index` for the standard architecture, API, UI, backend, frontend, test, and development document shells before writing them. The scaffold includes the starter endpoint contract at `docs/api/endpoints/01-endpoint-contract.md` and table skeletons for the acceptance matrix, roadmap, task board, and verification log. Scaffolded files contain `governance:scaffold-placeholder`; verification fails until the placeholders are replaced with product-derived content.
 Successful scaffold write payloads include `scaffold_phase`, showing the recorded workflow phase and the phase this scaffold belongs to. When `scaffold_phase.matches` is false, keep following returned `next_actions` to advance recorded phases in order before treating the scaffold as current-phase work. Payloads also include `next_actions_blocked_by` while placeholders remain; keep returned `next_actions` for later, but do not run them until every listed blocker is resolved.
 After the recorded phase is `design-derivation`, run `design plan --json` to route scaffold blockers into ordered design tracks. The plan returns `source_documents`, `tracks` with required `skills`, `references`, `documents`, per-track `blockers`, and ordered `steps`, plus `local_commands` and `next_actions`; use it to load `designing-system-architecture`, `designing-api-contracts`, `designing-backend-modules`, `designing-data-models`, and the remaining design skills in a deterministic order before replacing placeholders.
+For the API track, run `design api-candidates --json` to extract source-backed endpoint candidates from product acceptance criteria. It returns `candidates` with `acceptance_id`, source `reference`, `suggested_endpoint_file`, `replaceable_starter_endpoint`, and `open_decisions`; agents must use `designing-api-contracts` and the API/security checklists to resolve those decisions instead of guessing method/path, fields, errors, auth, or frontend consumers.
 
 ```bash
 bin/governance advance design-derivation /path/to/new-project --check --json
@@ -149,6 +150,7 @@ bin/governance advance design-derivation /path/to/new-project --json
 bin/governance scaffold design /path/to/new-project --check --json
 bin/governance scaffold design /path/to/new-project --json
 bin/governance design plan /path/to/new-project --json
+bin/governance design api-candidates /path/to/new-project --json
 ```
 
 ## Workflow Order

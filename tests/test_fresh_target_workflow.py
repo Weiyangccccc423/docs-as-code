@@ -504,3 +504,21 @@ class FreshTargetWorkflowTest(unittest.TestCase):
                 )
             )
             self.assertEqual("advance-implementation-check", design_plan["next_actions"][0]["id"])
+
+            api_candidates = _run_json(
+                self,
+                ["bin/governance", "design", "api-candidates", ".", "--json"],
+                cwd=target,
+            )
+            self.assertTrue(api_candidates["ok"])
+            self.assertEqual("api-contracts", api_candidates["track"])
+            self.assertEqual(1, len(api_candidates["candidates"]))
+            candidate = api_candidates["candidates"][0]
+            self.assertEqual("A-001", candidate["acceptance_id"])
+            self.assertEqual("Initialized Repository Exposes Local Governance Checks", candidate["title"])
+            self.assertEqual(
+                "docs/api/endpoints/01-initialized-repository-exposes-local-governance-checks.md",
+                candidate["suggested_endpoint_file"],
+            )
+            self.assertIn("method_path", candidate["open_decisions"])
+            self.assertIn("frontend_consumers", candidate["open_decisions"])

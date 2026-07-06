@@ -86,14 +86,15 @@ Link `Frontend Consumers` to existing local UI or frontend API-consumption Markd
    Stop on `ok: false` and repair by `requirements[].code`.
 
 2. Run `bin/governance scaffold design <target> --check --json` when standard API files are missing, then run it without `--check` when the plan is correct; use returned `local_commands` for checks and inspect `scaffold_phase`. If `scaffold_phase.matches` is false, follow returned `next_actions` to advance recorded phases in order before treating the scaffold as current-phase work. If `next_actions_blocked_by` is present, keep `next_actions` for later and do not run downstream state-writing actions until blockers are resolved.
-3. Read `references/api-design-checklist.md`.
-4. Replace scaffold placeholders in API files with product-derived content.
-5. Derive endpoints from structured product chapters and architecture docs.
-6. Name endpoint files with the next unique `NN-<slug>.md` prefix.
-7. Keep field names, auth rules, idempotency, upstream links, frontend consumers, and error behavior traceable.
-8. Check contract shape, HTTP semantics, error responses, idempotency, collection behavior, compatibility, and traceability against `references/api-design-checklist.md`.
-9. Check object-level authorization, function-level authorization, mass-assignment, rate-limit, sensitive-field, and logging expectations against `references/security-design-checklist.md`.
-10. Update `docs/api/README.md` and endpoint indexes for every new Markdown file.
+3. Run `bin/governance design api-candidates <target> --json` to extract source-backed endpoint candidates from product acceptance criteria. Use returned `candidates[].acceptance_id`, source `reference`, `suggested_endpoint_file`, `replaceable_starter_endpoint`, and `open_decisions` as the API authoring queue; do not guess method/path, fields, errors, auth, or frontend consumers from a candidate alone.
+4. Read `references/api-design-checklist.md`.
+5. Replace scaffold placeholders in API files with product-derived content.
+6. Derive endpoints from structured product chapters and architecture docs.
+7. Name endpoint files with the next unique `NN-<slug>.md` prefix.
+8. Keep field names, auth rules, idempotency, upstream links, frontend consumers, and error behavior traceable.
+9. Check contract shape, HTTP semantics, error responses, idempotency, collection behavior, compatibility, and traceability against `references/api-design-checklist.md`.
+10. Check object-level authorization, function-level authorization, mass-assignment, rate-limit, sensitive-field, and logging expectations against `references/security-design-checklist.md`.
+11. Update `docs/api/README.md` and endpoint indexes for every new Markdown file.
 
 ## Stop Conditions
 

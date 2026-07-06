@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -18,6 +19,20 @@ except ImportError:  # pragma: no cover - direct script execution
 
 DESIGN_WORKFLOW_PATH = "workflows/04-design-derivation.md"
 DESIGN_PHASE = "design-derivation"
+API_TRACK_ID = "api-contracts"
+STARTER_ENDPOINT_CONTRACT = "docs/api/endpoints/01-endpoint-contract.md"
+ACCEPTANCE_HEADING_RE = re.compile(r"^##[ \t]+(?P<id>A-[0-9]{3})[ \t]+(?P<title>.+?)[ \t]*$", re.MULTILINE)
+SLUG_TOKEN_RE = re.compile(r"[a-z0-9]+")
+OPEN_API_DECISIONS = (
+    "method_path",
+    "auth",
+    "idempotency",
+    "request_fields",
+    "response_fields",
+    "error_codes",
+    "upstream_links",
+    "frontend_consumers",
+)
 
 
 @dataclass(frozen=True)
@@ -167,6 +182,40 @@ def build_design_plan(root: Path) -> dict[str, object]:
     return payload
 
 
+def build_api_candidates(root: Path) -> dict[str, object]:
+    root = root.resolve()
+    state = load_state(root)
+    phase = state.get("phase") if isinstance(state.get("phase"), str) else ""
+    errors: list[str] = []
+    if not state:
+        errors.append("No governance state found.")
+    elif phase != DESIGN_PHASE:
+        errors.append(f"API candidates require recorded phase {DESIGN_PHASE}")
+    candidates = _api_candidates(root)
+    if not candidates:
+        errors.append("No product acceptance criteria with A-NNN headings found.")
+    payload: dict[str, object] = {
+        "ok": not errors,
+        "target": str(root),
+        "phase": phase,
+        "workflow": DESIGN_WORKFLOW_PATH,
+        "track": API_TRACK_ID,
+        "skills": ["designing-api-contracts"],
+        "references": [
+            "references/architecture-methods.md",
+            "references/api-design-checklist.md",
+            "references/security-design-checklist.md",
+        ],
+        "source_documents": _source_documents(root),
+        "candidates": candidates,
+        "errors": errors,
+    }
+    if not errors:
+        payload["local_commands"] = target_local_commands_payload(cwd=str(root))
+        payload["next_actions"] = next_actions_payload(state, cwd=str(root))
+    return payload
+
+
 def _source_documents(root: Path) -> list[str]:
     candidates: list[str] = []
     for rel in ("docs/product/core/PRD.md", "docs/unresolved.md", "docs/glossary.md"):
@@ -178,6 +227,86 @@ def _source_documents(root: Path) -> list[str]:
             if path.is_file():
                 candidates.append(path.relative_to(root).as_posix())
     return sorted(dict.fromkeys(candidates))
+
+
+def _api_candidates(root: Path) -> list[dict[str, object]]:
+    acceptance_headings = _acceptance_headings(root)
+    start_prefix = _next_endpoint_prefix(root)
+    candidates: list[dict[str, object]] = []
+    for index, item in enumerate(acceptance_headings, start=1):
+        prefix = start_prefix + index - 1
+        slug = _slugify(item["title"])
+        suggested_endpoint_file = f"docs/api/endpoints/{prefix:02d}-{slug}.md"
+        candidates.append(
+            {
+                "candidate_id": f"API-{index:03d}",
+                "acceptance_id": item["acceptance_id"],
+                "title": item["title"],
+                "source": {
+                    "path": item["path"],
+                    "anchor": item["anchor"],
+                    "reference": f"{item['path']}#{item['anchor']}",
+                },
+                "suggested_endpoint_file": suggested_endpoint_file,
+                "endpoint_exists": (root / suggested_endpoint_file).is_file(),
+                "replaceable_starter_endpoint": STARTER_ENDPOINT_CONTRACT
+                if (root / STARTER_ENDPOINT_CONTRACT).is_file()
+                else "",
+                "open_decisions": list(OPEN_API_DECISIONS),
+            }
+        )
+    return candidates
+
+
+def _acceptance_headings(root: Path) -> list[dict[str, str]]:
+    product_root = root / "docs/product"
+    if not product_root.is_dir():
+        return []
+    headings: list[dict[str, str]] = []
+    for path in sorted(product_root.glob("[0-9][0-9]-*acceptance*.md")):
+        if not path.is_file():
+            continue
+        rel = path.relative_to(root).as_posix()
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        for match in ACCEPTANCE_HEADING_RE.finditer(text):
+            title = match.group("title").strip()
+            acceptance_id = match.group("id")
+            headings.append(
+                {
+                    "acceptance_id": acceptance_id,
+                    "title": title,
+                    "path": rel,
+                    "anchor": _markdown_anchor(f"{acceptance_id} {title}"),
+                }
+            )
+    return headings
+
+
+def _next_endpoint_prefix(root: Path) -> int:
+    endpoint_root = root / "docs/api/endpoints"
+    prefixes: list[int] = []
+    if endpoint_root.is_dir():
+        for path in endpoint_root.glob("[0-9][0-9]-*.md"):
+            rel = path.relative_to(root).as_posix()
+            if rel == STARTER_ENDPOINT_CONTRACT:
+                continue
+            try:
+                prefixes.append(int(path.name[:2]))
+            except ValueError:
+                continue
+    return max(prefixes, default=0) + 1
+
+
+def _slugify(value: str) -> str:
+    slug = "-".join(SLUG_TOKEN_RE.findall(value.lower()))
+    return slug or "endpoint"
+
+
+def _markdown_anchor(value: str) -> str:
+    return _slugify(value)
 
 
 def _findings_by_path(findings: list[VerificationFinding]) -> dict[str, list[dict[str, str]]]:

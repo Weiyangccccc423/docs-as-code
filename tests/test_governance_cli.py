@@ -5398,6 +5398,75 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn("designing-data-models", tracks["data-model"]["skills"])
             self.assertIn("references/data-model-design-checklist.md", tracks["data-model"]["references"])
 
+    def test_design_api_candidates_extracts_acceptance_inputs_without_guessing_contracts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            (target / "docs/product/01-goals.md").write_text("# Goals\n\nSource: [PRD](core/PRD.md).\n", encoding="utf-8")
+            _append_index(target / "docs/product/README.md", "01-goals.md")
+            _append_product_meta_chapter(target, "01-goals.md")
+            (target / "docs/product/08-acceptance-criteria.md").write_text(
+                _acceptance_doc(),
+                encoding="utf-8",
+            )
+            _append_index(target / "docs/product/README.md", "08-acceptance-criteria.md")
+            _append_product_meta_chapter(target, "08-acceptance-criteria.md")
+            advance_product = subprocess.run(
+                [sys.executable, str(CLI), "advance", "product-structuring", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, advance_product.returncode, advance_product.stderr)
+            advance_design = subprocess.run(
+                [sys.executable, str(CLI), "advance", "design-derivation", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, advance_design.returncode, advance_design.stderr)
+
+            result = subprocess.run(
+                [sys.executable, str(CLI), "design", "api-candidates", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertEqual(str(target.resolve()), payload["target"])
+            self.assertEqual("design-derivation", payload["phase"])
+            self.assertEqual("api-contracts", payload["track"])
+            self.assertIn("designing-api-contracts", payload["skills"])
+            self.assertIn("references/api-design-checklist.md", payload["references"])
+            self.assertIn("references/security-design-checklist.md", payload["references"])
+            self.assertIn("local_commands", payload)
+            self.assertEqual("advance-implementation-check", payload["next_actions"][0]["id"])
+            self.assertEqual(1, len(payload["candidates"]))
+            candidate = payload["candidates"][0]
+            self.assertEqual("API-001", candidate["candidate_id"])
+            self.assertEqual("A-001", candidate["acceptance_id"])
+            self.assertEqual("Goal Flow", candidate["title"])
+            self.assertEqual("docs/product/08-acceptance-criteria.md", candidate["source"]["path"])
+            self.assertEqual("a-001-goal-flow", candidate["source"]["anchor"])
+            self.assertEqual("docs/product/08-acceptance-criteria.md#a-001-goal-flow", candidate["source"]["reference"])
+            self.assertEqual("docs/api/endpoints/01-goal-flow.md", candidate["suggested_endpoint_file"])
+            self.assertFalse(candidate["endpoint_exists"])
+            self.assertIn("method_path", candidate["open_decisions"])
+            self.assertIn("request_fields", candidate["open_decisions"])
+            self.assertIn("response_fields", candidate["open_decisions"])
+            self.assertIn("frontend_consumers", candidate["open_decisions"])
+
     def test_scaffold_design_check_json_reports_plan_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "target"
