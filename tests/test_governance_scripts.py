@@ -5082,6 +5082,74 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_command_contract_invalid_argv(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            contract = root / "docs/agent-workflow/command-contract.md"
+            contract.write_text(
+                contract.read_text(encoding="utf-8").replace(
+                    '`["bin/governance", "verify", ".", "--check", "--json"]`',
+                    "`bin/governance verify . --check --json`",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "command contract row verify-check Argv must be a JSON array of strings",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "target_command_contract_argv_invalid",
+                    "severity": "error",
+                    "path": "docs/agent-workflow/command-contract.md",
+                    "message": "command contract row verify-check Argv must be a JSON array of strings",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_command_contract_invalid_writes_state(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            contract = root / "docs/agent-workflow/command-contract.md"
+            contract.write_text(
+                contract.read_text(encoding="utf-8").replace(
+                    "| verify-check | Read-only governance verification before or after task work. | `.` | "
+                    '`["bin/governance", "verify", ".", "--check", "--json"]` | false |',
+                    "| verify-check | Read-only governance verification before or after task work. | `.` | "
+                    '`["bin/governance", "verify", ".", "--check", "--json"]` | maybe |',
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "command contract row verify-check Writes State must be true or false",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "target_command_contract_writes_state_invalid",
+                    "severity": "error",
+                    "path": "docs/agent-workflow/command-contract.md",
+                    "message": "command contract row verify-check Writes State must be true or false",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_task_handoff_guardrail_drift(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

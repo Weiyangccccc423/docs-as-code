@@ -468,6 +468,7 @@ COMMAND_CONTRACT_REQUIRED_COLUMNS = {
     "evidence": "Evidence",
     "environment": "Environment",
 }
+COMMAND_CONTRACT_WRITES_STATE_VALUES = {"true", "false"}
 TASK_HANDOFF_REQUIRED_SECTIONS = {
     "task goal": "Task Goal",
     "related specs": "Related Specs",
@@ -1332,6 +1333,60 @@ def _check_command_contract(root: Path, report: VerificationReport) -> None:
             f"{', '.join(COMMAND_CONTRACT_REQUIRED_COLUMNS[column] for column in missing_columns)}",
             rel,
         )
+        return
+    rows: list[dict[str, str]] = []
+    for data in table[1:]:
+        if _is_separator_row(data):
+            continue
+        rows.append(
+            {
+                column: _table_cell(data, header.index(column))
+                for column in COMMAND_CONTRACT_REQUIRED_COLUMNS
+            }
+        )
+    if not rows:
+        report.add_error("target_command_contract_no_commands", f"{rel} Command Table must list at least one command", rel)
+        return
+    for row in rows:
+        command_name = row["name"].strip() or "(missing name)"
+        missing_fields = [
+            COMMAND_CONTRACT_REQUIRED_COLUMNS[column]
+            for column in COMMAND_CONTRACT_REQUIRED_COLUMNS
+            if not row[column].strip()
+        ]
+        if missing_fields:
+            report.add_error(
+                "target_command_contract_row_missing_fields",
+                f"command contract row {command_name} is missing required fields: {', '.join(missing_fields)}",
+                rel,
+            )
+            continue
+        try:
+            argv = json.loads(row["argv"].strip().strip("`"))
+        except json.JSONDecodeError:
+            report.add_error(
+                "target_command_contract_argv_invalid",
+                f"command contract row {command_name} Argv must be a JSON array of strings",
+                rel,
+            )
+            argv = None
+        if argv is not None and (
+            not isinstance(argv, list)
+            or not argv
+            or any(not isinstance(item, str) or not item for item in argv)
+        ):
+            report.add_error(
+                "target_command_contract_argv_invalid",
+                f"command contract row {command_name} Argv must be a JSON array of strings",
+                rel,
+            )
+        writes_state = _normalize_cell(row["writes state"])
+        if writes_state not in COMMAND_CONTRACT_WRITES_STATE_VALUES:
+            report.add_error(
+                "target_command_contract_writes_state_invalid",
+                f"command contract row {command_name} Writes State must be true or false",
+                rel,
+            )
 
 
 def _check_task_handoff_section_guardrails(
