@@ -1928,6 +1928,14 @@ def _check_product_source_manifest(root: Path, report: VerificationReport) -> No
         )
         return
 
+    if not isinstance(manifest, dict):
+        report.add_error(
+            "product_source_manifest_invalid_schema",
+            "invalid product source manifest: root must be an object",
+            "docs/product/core/source/source-manifest.json",
+        )
+        return
+
     if manifest.get("schema_version") != MANIFEST_SCHEMA_VERSION:
         report.add_error(
             "product_source_manifest_schema_version_invalid",

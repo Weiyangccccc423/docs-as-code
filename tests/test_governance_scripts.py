@@ -6444,6 +6444,29 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_product_source_manifest_root_schema_error_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            manifest_path = root / "docs/product/core/source/source-manifest.json"
+            manifest_path.write_text("[]\n", encoding="utf-8")
+
+            report = verify(root)
+
+            self.assertIn("invalid product source manifest: root must be an object", report.errors)
+            self.assertIn(
+                {
+                    "code": "product_source_manifest_invalid_schema",
+                    "severity": "error",
+                    "path": "docs/product/core/source/source-manifest.json",
+                    "message": "invalid product source manifest: root must be an object",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_product_structuring_gate_handles_product_source_manifest_invalid_encoding(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
