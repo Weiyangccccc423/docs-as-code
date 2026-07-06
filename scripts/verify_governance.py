@@ -83,6 +83,7 @@ WORKFLOW_PACK_REQUIRED_PATHS = (
     "references/data-model-design-checklist.md",
     "references/frontend-interaction-checklist.md",
     "references/governance-verification-checklist.md",
+    "references/implementation-execution-checklist.md",
     "references/implementation-readiness-checklist.md",
     "references/product-archive-checklist.md",
     "references/product-requirements-checklist.md",
@@ -475,6 +476,7 @@ TASK_HANDOFF_DOD_GUARDRAILS = (
     "code and tests are complete",
     "documentation is synchronized",
     "verification commands pass and output is recorded",
+    "implementation-execution-checklist.md",
     "implementation-readiness-checklist.md",
 )
 TASK_HANDOFF_VERIFICATION_GUARDRAILS = (

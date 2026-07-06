@@ -81,6 +81,7 @@ TEMPLATE_REQUIRED_GUARDRAILS = {
         "- Documentation is synchronized.",
         "- Verification commands pass and output is recorded.",
         "- Task satisfies `docs/agent-workflow/workflow-pack/references/implementation-readiness-checklist.md`.",
+        "- Task execution satisfies `docs/agent-workflow/workflow-pack/references/implementation-execution-checklist.md`.",
         "| Command | Result | Evidence |",
         "- Open follow-ups:",
         "- Risks:",
@@ -833,6 +834,15 @@ VERIFICATION_REFERENCE_DOC_REQUIREMENTS = (
         ),
     ),
 )
+IMPLEMENTATION_REFERENCE_DOC_REQUIREMENTS = (
+    (
+        "references/implementation-execution-checklist.md",
+        (
+            "workflows/05-verification-and-drift-control.md",
+            "skills/planning-implementation-work/SKILL.md",
+        ),
+    ),
+)
 WORKFLOW_ROUTING_REFERENCE_DOC_REQUIREMENTS = (
     (
         "references/workflow-routing-checklist.md",
@@ -1550,6 +1560,44 @@ METHOD_REFERENCE_BASELINES = {
             ),
         ),
     ),
+    "references/implementation-execution-checklist.md": (
+        (
+            "Task Intake",
+            (
+                "## Task Intake",
+                "exactly one `Ready` `TASK-NNN`",
+                "mapped in `docs/tests/02-acceptance-matrix.md`",
+                "https://google.github.io/eng-practices/review/developer/",
+            ),
+        ),
+        (
+            "Scope Control",
+            (
+                "## Scope Control",
+                "modified files limited to the task goal",
+                "registered in `docs/unresolved.md` instead of silently guessed",
+                "https://google.github.io/eng-practices/review/developer/small-cls.html",
+            ),
+        ),
+        (
+            "Verification Execution",
+            (
+                "## Verification Execution",
+                "preferring target-local `local_commands[].argv`",
+                "skipped, flaky, unavailable, or failed checks recorded honestly",
+                "https://dora.dev/capabilities/test-automation/",
+            ),
+        ),
+        (
+            "Security and Supply Chain",
+            (
+                "## Security and Supply Chain",
+                "secrets, credentials, tokens, private keys",
+                "https://slsa.dev/spec/v1.2/about",
+                "https://openssf.org/projects/scorecard/",
+            ),
+        ),
+    ),
     "references/security-design-checklist.md": (
         (
             "Identity and Access",
@@ -1931,6 +1979,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_implementation_handoff_docs(root, findings)
     _check_initialization_reference_docs(root, findings)
     _check_verification_reference_docs(root, findings)
+    _check_implementation_reference_docs(root, findings)
     _check_product_reference_docs(root, findings)
     _check_workflow_routing_reference_docs(root, findings)
     _check_design_reference_docs(root, findings)
@@ -3290,6 +3339,21 @@ def _check_verification_reference_docs(root: Path, findings: list[PackFinding]) 
                 PackFinding(
                     "pack_verification_reference_doc_missing",
                     f"{rel} must route governance verification through reference document: {reference}",
+                    rel,
+                )
+            )
+
+
+def _check_implementation_reference_docs(root: Path, findings: list[PackFinding]) -> None:
+    for reference, consumers in IMPLEMENTATION_REFERENCE_DOC_REQUIREMENTS:
+        for rel in consumers:
+            text = _read_utf8_text_or_none(root / rel)
+            if text is None or reference in text:
+                continue
+            findings.append(
+                PackFinding(
+                    "pack_implementation_reference_doc_missing",
+                    f"{rel} must route implementation execution through reference document: {reference}",
                     rel,
                 )
             )

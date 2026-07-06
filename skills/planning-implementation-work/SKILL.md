@@ -7,7 +7,7 @@ description: Use when deriving implementation roadmaps, traceable task boards, R
 
 Implementation planning converts completed product and design documents into traceable work items without adding product meaning.
 
-Read `references/implementation-readiness-checklist.md` before marking tasks `Ready`, creating agent handoffs, or accepting `Done` evidence.
+Read `references/implementation-readiness-checklist.md` before marking tasks `Ready`, creating agent handoffs, or accepting `Done` evidence. Read `references/implementation-execution-checklist.md` before writing or updating a task handoff for an implementation agent.
 
 ## Required Context
 
@@ -29,7 +29,7 @@ Read `references/implementation-readiness-checklist.md` before marking tasks `Re
    Use `requirements[].code` and `verification.findings[]` to identify missing design, test, or traceability inputs.
 
 2. Run `bin/governance scaffold design <target> --check --json` when development files are missing, then run it without `--check` when the plan is correct; use returned `local_commands` for checks and inspect `scaffold_phase`. If `scaffold_phase.matches` is false, follow returned `next_actions` to advance recorded phases in order before treating the scaffold as current-phase work. If `next_actions_blocked_by` is present, keep `next_actions` for later and do not run downstream state-writing actions until blockers are resolved.
-3. Read `references/implementation-readiness-checklist.md`.
+3. Read `references/implementation-readiness-checklist.md` and `references/implementation-execution-checklist.md`.
 4. Replace scaffold placeholders in `docs/development/01-roadmap.md`, `docs/development/02-task-board.md`, and `docs/development/03-verification-log.md`.
 5. Derive roadmap milestones from product acceptance IDs, architecture/API/backend/frontend dependencies, and test strategy risk order.
 6. Assign stable `TASK-NNN` IDs in `docs/development/01-roadmap.md`; use standard statuses only.
@@ -37,7 +37,7 @@ Read `references/implementation-readiness-checklist.md` before marking tasks `Re
 8. Mark a task `Ready` only when its Product, Design, API, Acceptance, and Verification cells link existing local Markdown sources, its `A-NNN` ID is mapped in `docs/tests/02-acceptance-matrix.md`, and its Ready contract satisfies `references/implementation-readiness-checklist.md`.
 9. Keep task board statuses synchronized with roadmap milestone statuses.
 10. Initialize `docs/development/03-verification-log.md` as the stable target for Done evidence; add matching `TASK-NNN` rows when tasks are completed.
-11. Accept `Done` only when verification evidence is recorded, documentation is synchronized, and the task satisfies the Definition of Done in `references/implementation-readiness-checklist.md`.
+11. Accept `Done` only when verification evidence is recorded, documentation is synchronized, and the task satisfies the Definition of Done in `references/implementation-readiness-checklist.md` plus the execution rubric in `references/implementation-execution-checklist.md`.
 12. Register blockers in `docs/unresolved.md` instead of marking speculative tasks Ready.
 
 ## Stop Conditions

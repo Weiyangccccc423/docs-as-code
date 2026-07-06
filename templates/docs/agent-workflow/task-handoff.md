@@ -24,6 +24,7 @@
 - Documentation is synchronized.
 - Verification commands pass and output is recorded.
 - Task satisfies `docs/agent-workflow/workflow-pack/references/implementation-readiness-checklist.md`.
+- Task execution satisfies `docs/agent-workflow/workflow-pack/references/implementation-execution-checklist.md`.
 
 ## Verification Record
 

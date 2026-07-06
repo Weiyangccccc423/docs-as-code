@@ -1763,6 +1763,66 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_missing_implementation_execution_doc_routing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            skill = target / "skills/planning-implementation-work/SKILL.md"
+            skill.write_text(
+                skill.read_text(encoding="utf-8").replace(
+                    "`references/implementation-execution-checklist.md`",
+                    "the implementation execution checklist",
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_implementation_reference_doc_missing"
+                    and finding.path == "skills/planning-implementation-work/SKILL.md"
+                    and "references/implementation-execution-checklist.md" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_missing_implementation_execution_reference_baseline(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            reference = target / "references/implementation-execution-checklist.md"
+            reference.write_text(
+                reference.read_text(encoding="utf-8").replace(
+                    "preferring target-local `local_commands[].argv`",
+                    "preferring local commands",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_method_reference_baseline_missing"
+                    and finding.path == "references/implementation-execution-checklist.md"
+                    and "Verification Execution" in finding.message
+                    and "local_commands[].argv" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_missing_test_strategy_reference_baseline(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
@@ -3365,6 +3425,36 @@ class PackStructureTest(unittest.TestCase):
                     finding.code == "pack_template_guardrail_missing"
                     and finding.path == "templates/docs/agent-workflow/task-handoff.md"
                     and "Verification commands pass" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_task_handoff_execution_guardrail_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            template = target / "templates/docs/agent-workflow/task-handoff.md"
+            template.write_text(
+                template.read_text(encoding="utf-8").replace(
+                    "- Task execution satisfies `docs/agent-workflow/workflow-pack/references/implementation-execution-checklist.md`.\n",
+                    "",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_template_guardrail_missing"
+                    and finding.path == "templates/docs/agent-workflow/task-handoff.md"
+                    and "implementation-execution-checklist.md" in finding.message
                     for finding in report.findings
                 )
             )
