@@ -1383,6 +1383,12 @@ def _check_command_contract(root: Path, report: VerificationReport) -> None:
                 f"command contract row {command_name} Cwd must be `.` or a normalized relative POSIX path inside the repository",
                 rel,
             )
+        if not _command_contract_evidence_valid(row["evidence"]):
+            report.add_error(
+                "target_command_contract_evidence_invalid",
+                f"command contract row {command_name} Evidence must include a normalized local Markdown path inside the repository",
+                rel,
+            )
         try:
             argv = json.loads(row["argv"].strip().strip("`"))
         except json.JSONDecodeError:
@@ -1429,6 +1435,38 @@ def _command_contract_cwd_valid(value: str) -> bool:
         return False
     posix = PurePosixPath(cwd)
     if posix.is_absolute() or posix.as_posix() != cwd:
+        return False
+    return bool(posix.parts) and all(part not in {"", ".", ".."} for part in posix.parts)
+
+
+def _command_contract_evidence_valid(value: str) -> bool:
+    return any(_command_contract_markdown_path_valid(target) for target in _command_contract_evidence_targets(value))
+
+
+def _command_contract_evidence_targets(value: str) -> list[str]:
+    targets: list[str] = []
+    targets.extend(_extract_local_markdown_reference_targets(value, include_bare=True, strip_code=False))
+    for token in re.split(r"\s+", value):
+        candidate = token.strip().strip("`").strip("<>()[]").strip(".,;")
+        if ".md" in candidate:
+            targets.append(candidate)
+    return targets
+
+
+def _command_contract_markdown_path_valid(value: str) -> bool:
+    target = value.strip().strip("`").strip("<>").strip().rstrip(".,;")
+    if not target or target.startswith("#") or _is_external_reference_target(target):
+        return False
+    target = target.split("#", 1)[0].split("?", 1)[0]
+    if target.startswith("./"):
+        target = target[2:]
+    if not target.endswith(".md") or "\\" in target or target.startswith(("~", "/")):
+        return False
+    windows = PureWindowsPath(target)
+    if windows.is_absolute() or windows.drive:
+        return False
+    posix = PurePosixPath(target)
+    if posix.is_absolute() or posix.as_posix() != target:
         return False
     return bool(posix.parts) and all(part not in {"", ".", ".."} for part in posix.parts)
 

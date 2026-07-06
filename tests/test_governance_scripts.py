@@ -5259,6 +5259,72 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_command_contract_missing_evidence_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            contract = root / "docs/agent-workflow/command-contract.md"
+            contract.write_text(
+                contract.read_text(encoding="utf-8").replace(
+                    "`docs/development/03-verification-log.md`",
+                    "chat transcript",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "command contract row verify-check Evidence must include a normalized local Markdown path inside the repository",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "target_command_contract_evidence_invalid",
+                    "severity": "error",
+                    "path": "docs/agent-workflow/command-contract.md",
+                    "message": "command contract row verify-check Evidence must include a normalized local Markdown path inside the repository",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_command_contract_external_evidence_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            contract = root / "docs/agent-workflow/command-contract.md"
+            contract.write_text(
+                contract.read_text(encoding="utf-8").replace(
+                    "`docs/development/03-verification-log.md`",
+                    "https://example.com/verification-log.md",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "command contract row verify-check Evidence must include a normalized local Markdown path inside the repository",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "target_command_contract_evidence_invalid",
+                    "severity": "error",
+                    "path": "docs/agent-workflow/command-contract.md",
+                    "message": "command contract row verify-check Evidence must include a normalized local Markdown path inside the repository",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_command_contract_invalid_name(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
