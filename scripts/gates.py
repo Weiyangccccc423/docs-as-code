@@ -44,6 +44,123 @@ PRODUCT_UNRESOLVED_FINDING_CODES = {
     "unresolved_duplicate_id",
     "unresolved_blocking_item",
 }
+DOMAIN_DOCUMENT_FINDING_CODES = {
+    "docs_local_markdown_link_missing",
+    "docs_readme_not_file",
+    "docs_readme_unindexed_file",
+    "governance_scaffold_placeholder",
+    "markdown_invalid_encoding",
+    "markdown_not_file",
+    "required_directory_not_directory",
+    "required_file_not_file",
+}
+ARCHITECTURE_DESIGN_FINDING_CODES = {
+    "architecture_system_context_missing_sections",
+    "architecture_system_context_empty_sections",
+    "architecture_system_context_trace_reference_missing",
+    "architecture_containers_missing_sections",
+    "architecture_containers_empty_sections",
+    "architecture_containers_trace_reference_missing",
+    "architecture_quality_attributes_missing_sections",
+    "architecture_quality_attributes_empty_sections",
+    "architecture_quality_attributes_trace_reference_missing",
+}
+API_CONTRACT_FINDING_CODES = {
+    "api_conventions_missing_sections",
+    "api_conventions_empty_sections",
+    "api_conventions_trace_reference_missing",
+    "api_error_codes_missing_sections",
+    "api_error_codes_empty_sections",
+    "api_error_codes_trace_reference_missing",
+    "api_changelog_missing_sections",
+    "api_changelog_empty_sections",
+    "api_endpoint_invalid_filename",
+    "api_endpoint_duplicate_prefix",
+    "api_endpoint_missing_sections",
+    "api_endpoint_empty_sections",
+    "api_endpoint_method_path_invalid",
+    "api_endpoint_error_codes_reference_missing",
+    "api_endpoint_upstream_reference_missing",
+    "api_endpoint_frontend_consumer_reference_missing",
+}
+BACKEND_DESIGN_FINDING_CODES = {
+    "backend_module_missing_sections",
+    "backend_module_empty_sections",
+    "backend_module_trace_reference_missing",
+    "backend_data_model_missing_sections",
+    "backend_data_model_empty_sections",
+    "backend_data_model_trace_reference_missing",
+    "backend_external_services_missing_sections",
+    "backend_external_services_empty_sections",
+    "backend_external_services_trace_reference_missing",
+}
+FRONTEND_DESIGN_FINDING_CODES = {
+    "ui_interaction_model_missing_sections",
+    "ui_interaction_model_empty_sections",
+    "ui_interaction_model_trace_reference_missing",
+    "frontend_module_missing_sections",
+    "frontend_module_empty_sections",
+    "frontend_module_trace_reference_missing",
+    "frontend_api_consumption_missing_sections",
+    "frontend_api_consumption_empty_sections",
+    "frontend_api_consumption_trace_reference_missing",
+}
+VERIFICATION_STRATEGY_FINDING_CODES = {
+    "test_strategy_missing_sections",
+    "test_strategy_empty_sections",
+    "test_strategy_trace_reference_missing",
+    "acceptance_matrix_missing_sections",
+    "acceptance_matrix_empty_sections",
+    "acceptance_matrix_missing_columns",
+    "acceptance_matrix_no_rows",
+    "acceptance_matrix_row_missing_fields",
+    "acceptance_matrix_invalid_acceptance_id",
+    "acceptance_matrix_duplicate_acceptance_id",
+    "acceptance_matrix_acceptance_anchor_mismatch",
+    "acceptance_matrix_acceptance_id_unknown",
+    "acceptance_matrix_trace_reference_missing",
+    "acceptance_matrix_api_endpoint_reference_missing",
+    "acceptance_matrix_uncovered_id_unknown",
+    "acceptance_matrix_product_coverage_missing",
+}
+DELIVERY_PLAN_FINDING_CODES = {
+    "roadmap_missing_sections",
+    "roadmap_empty_sections",
+    "roadmap_milestone_missing_columns",
+    "roadmap_milestone_no_rows",
+    "roadmap_milestone_row_missing_fields",
+    "roadmap_milestone_invalid_id",
+    "roadmap_milestone_invalid_status",
+    "roadmap_milestone_duplicate_id",
+    "roadmap_trace_reference_missing",
+    "roadmap_task_missing",
+    "roadmap_task_status_conflict",
+    "task_board_missing_sections",
+    "task_board_empty_sections",
+    "task_board_missing_columns",
+    "task_board_no_tasks",
+    "task_board_row_missing_fields",
+    "task_board_invalid_id",
+    "task_board_invalid_status",
+    "task_board_duplicate_id",
+    "task_board_trace_reference_missing",
+    "task_board_trace_reference_mismatch",
+    "task_board_acceptance_reference_missing",
+    "task_board_acceptance_id_missing",
+    "task_board_acceptance_id_unknown",
+    "task_board_acceptance_anchor_mismatch",
+    "task_board_blocked_unresolved_missing",
+    "task_board_blocked_unresolved_link_missing",
+    "task_board_done_evidence_missing",
+    "task_board_ready_task_missing",
+    "task_board_roadmap_missing",
+    "task_board_acceptance_matrix_missing",
+    "verification_log_missing_sections",
+    "verification_log_empty_sections",
+    "verification_log_missing_columns",
+    "verification_log_invalid_task_id",
+    "verification_log_duplicate_task_id",
+}
 IMPLEMENTATION_REQUIRED_FILES = (
     ("architecture_system_context_present", "docs/architecture/01-system-context.md", "system context architecture doc exists"),
     ("architecture_containers_present", "docs/architecture/02-containers.md", "containers architecture doc exists"),
@@ -233,6 +350,7 @@ def evaluate_gate(root: Path, gate: str) -> GateResult:
         )
     if gate == "implementation":
         _add_implementation_requirements(requirements, root)
+        _add_design_derivation_readiness_requirements(requirements, report)
 
     return GateResult(
         gate=gate,
@@ -278,6 +396,64 @@ def _report_has_no_error_finding_codes(report: Any, codes: set[str]) -> bool:
     return True
 
 
+def _add_design_derivation_readiness_requirements(requirements: list[GateRequirement], report: Any) -> None:
+    _add(
+        requirements,
+        "architecture_design_ready",
+        _report_has_no_domain_errors(report, ARCHITECTURE_DESIGN_FINDING_CODES, ("docs/architecture",)),
+        "docs/architecture",
+        "architecture design docs are complete and traceable",
+    )
+    _add(
+        requirements,
+        "api_contracts_ready",
+        _report_has_no_domain_errors(report, API_CONTRACT_FINDING_CODES, ("docs/api",)),
+        "docs/api",
+        "API conventions, registry, changelog, and endpoint contracts are complete and traceable",
+    )
+    _add(
+        requirements,
+        "backend_design_ready",
+        _report_has_no_domain_errors(report, BACKEND_DESIGN_FINDING_CODES, ("docs/backend",)),
+        "docs/backend",
+        "backend modules, data model, and external service docs are complete and traceable",
+    )
+    _add(
+        requirements,
+        "frontend_design_ready",
+        _report_has_no_domain_errors(report, FRONTEND_DESIGN_FINDING_CODES, ("docs/ui", "docs/frontend")),
+        "docs/frontend",
+        "UI and frontend design docs are complete and traceable",
+    )
+    _add(
+        requirements,
+        "verification_strategy_ready",
+        _report_has_no_domain_errors(report, VERIFICATION_STRATEGY_FINDING_CODES, ("docs/tests",)),
+        "docs/tests",
+        "test strategy and acceptance matrix are complete and traceable",
+    )
+    _add(
+        requirements,
+        "delivery_plan_ready",
+        _report_has_no_domain_errors(report, DELIVERY_PLAN_FINDING_CODES, ("docs/development",)),
+        "docs/development",
+        "roadmap, task board, and verification log are complete and traceable",
+    )
+
+
+def _report_has_no_domain_errors(report: Any, codes: set[str], path_prefixes: tuple[str, ...]) -> bool:
+    for finding in getattr(report, "findings", []):
+        if getattr(finding, "severity", "") != "error":
+            continue
+        code = getattr(finding, "code", "")
+        path = getattr(finding, "path", "")
+        if code in codes:
+            return False
+        if code in DOMAIN_DOCUMENT_FINDING_CODES and _path_is_under_any(path, path_prefixes):
+            return False
+    return True
+
+
 def _product_chapter_trace_ok(report: Any) -> bool:
     for finding in getattr(report, "findings", []):
         if getattr(finding, "severity", "") != "error":
@@ -291,6 +467,18 @@ def _product_chapter_trace_ok(report: Any) -> bool:
         if code == "docs_local_markdown_link_missing" and path.startswith("docs/product/"):
             return False
     return True
+
+
+def _path_is_under_any(path: object, prefixes: tuple[str, ...]) -> bool:
+    return any(_path_is_under(path, prefix) for prefix in prefixes)
+
+
+def _path_is_under(path: object, prefix: str) -> bool:
+    if not isinstance(path, str):
+        return False
+    posix_path = PurePosixPath(path)
+    prefix_path = PurePosixPath(prefix)
+    return len(posix_path.parts) >= len(prefix_path.parts) and posix_path.parts[: len(prefix_path.parts)] == prefix_path.parts
 
 
 def _is_product_chapter_path(path: object) -> bool:

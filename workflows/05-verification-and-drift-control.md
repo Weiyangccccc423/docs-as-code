@@ -74,7 +74,7 @@ Load:
    bin/governance advance implementation <target> --json
    ```
 
-   `advance` records adjacent transitions one phase at a time and cannot skip phases; use `gate implementation <target> --json` for repeated checks. The implementation gate requires the standard handoff files from Phase 04, including the API endpoint index, at least one endpoint contract, task board, and verification log; arbitrary Markdown in a docs domain is not enough.
+   `advance` records adjacent transitions one phase at a time and cannot skip phases; use `gate implementation <target> --json` for repeated checks. The implementation gate requires the standard handoff files from Phase 04, including the API endpoint index, at least one endpoint contract, task board, and verification log; arbitrary Markdown in a docs domain is not enough. The gate also exposes domain readiness requirements for repair routing: `architecture_design_ready`, `api_contracts_ready`, `backend_design_ready`, `frontend_design_ready`, `verification_strategy_ready`, and `delivery_plan_ready`.
 
 7. Read `references/implementation-execution-checklist.md` before assigning an implementation agent to a `Ready` `TASK-NNN`. Use it as the execution rubric for task intake, scope control, implementation loop, verification commands, evidence updates, security and supply-chain handling, and completion status.
 

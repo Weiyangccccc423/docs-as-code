@@ -723,6 +723,43 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [item.to_dict() for item in result.requirements],
             )
 
+    def test_gate_implementation_reports_design_derivation_blockers(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_product_chapter(root, "01-goals.md", "Goals")
+            _write_acceptance_chapter(root)
+            _write_indexed_doc(root, "docs/architecture/01-system-context.md", "# System Context\n")
+            _write_indexed_doc(root, "docs/api/00-conventions.md", "# API Conventions\n")
+            _write_indexed_doc(root, "docs/backend/01-modules.md", "# Backend Modules\n")
+            _write_indexed_doc(root, "docs/ui/01-interaction-model.md", "# Interaction Model\n")
+            _write_indexed_doc(root, "docs/frontend/01-modules.md", "# Frontend Modules\n")
+            _write_indexed_doc(root, "docs/tests/01-strategy.md", "# Test Strategy\n")
+            _write_indexed_doc(root, "docs/development/01-roadmap.md", "# Roadmap\n")
+            _write_indexed_doc(root, "docs/development/02-task-board.md", "# Task Board\n")
+
+            result = evaluate_gate(root, "implementation")
+            requirements = {item.code: item for item in result.requirements}
+
+            self.assertFalse(result.ok)
+            self.assertFalse(requirements["architecture_design_ready"].ok)
+            self.assertFalse(requirements["api_contracts_ready"].ok)
+            self.assertFalse(requirements["backend_design_ready"].ok)
+            self.assertFalse(requirements["frontend_design_ready"].ok)
+            self.assertFalse(requirements["verification_strategy_ready"].ok)
+            self.assertFalse(requirements["delivery_plan_ready"].ok)
+            self.assertIn(
+                {
+                    "code": "api_contracts_ready",
+                    "ok": False,
+                    "path": "docs/api",
+                    "message": "API conventions, registry, changelog, and endpoint contracts are complete and traceable",
+                },
+                [item.to_dict() for item in result.requirements],
+            )
+
     def test_verification_report_objects_reject_unstable_output_shape(self) -> None:
         error = verify_governance_module.VerificationFinding(
             code="missing_required_file",

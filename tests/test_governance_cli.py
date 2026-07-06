@@ -4951,6 +4951,7 @@ class GovernanceCliTest(unittest.TestCase):
             blocked_trace_requirements = {item["code"]: item for item in blocked_trace_payload["requirements"]}
             self.assertFalse(blocked_trace_requirements["verification_passed"]["ok"])
             self.assertFalse(blocked_trace_requirements["task_board_ready_task_present"]["ok"])
+            self.assertFalse(blocked_trace_requirements["delivery_plan_ready"]["ok"])
             self.assertIn(
                 {
                     "code": "task_board_trace_reference_missing",
@@ -4975,7 +4976,15 @@ class GovernanceCliTest(unittest.TestCase):
                 check=False,
             )
             self.assertEqual(0, allowed.returncode, allowed.stderr)
-            self.assertTrue(json.loads(allowed.stdout)["ok"])
+            allowed_payload = json.loads(allowed.stdout)
+            allowed_requirements = {item["code"]: item for item in allowed_payload["requirements"]}
+            self.assertTrue(allowed_payload["ok"])
+            self.assertTrue(allowed_requirements["architecture_design_ready"]["ok"])
+            self.assertTrue(allowed_requirements["api_contracts_ready"]["ok"])
+            self.assertTrue(allowed_requirements["backend_design_ready"]["ok"])
+            self.assertTrue(allowed_requirements["frontend_design_ready"]["ok"])
+            self.assertTrue(allowed_requirements["verification_strategy_ready"]["ok"])
+            self.assertTrue(allowed_requirements["delivery_plan_ready"]["ok"])
 
     def test_scaffold_design_requires_design_gate(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -5120,6 +5129,8 @@ class GovernanceCliTest(unittest.TestCase):
             requirements = {item["code"]: item for item in json.loads(gate.stdout)["requirements"]}
             self.assertTrue(requirements["api_endpoint_contract_present"]["ok"])
             self.assertFalse(requirements["verification_passed"]["ok"])
+            self.assertFalse(requirements["api_contracts_ready"]["ok"])
+            self.assertFalse(requirements["delivery_plan_ready"]["ok"])
 
     def test_scaffold_design_check_json_reports_plan_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
