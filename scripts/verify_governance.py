@@ -1982,6 +1982,15 @@ def _check_product_source_manifest(root: Path, report: VerificationReport) -> No
             "invalid product source manifest: import.conversion_method must be a non-empty string",
             "docs/product/core/source/source-manifest.json",
         )
+    reviewed_at = imported.get("reviewed_at")
+    if reviewed_at is not None and (
+        not isinstance(reviewed_at, str) or not _is_iso_timestamp_with_timezone(reviewed_at)
+    ):
+        report.add_error(
+            "product_source_manifest_import_reviewed_at_invalid",
+            "invalid product source manifest: import.reviewed_at must be an ISO timestamp with timezone",
+            "docs/product/core/source/source-manifest.json",
+        )
     if status == "no_source":
         report.add_error(
             "product_source_missing",

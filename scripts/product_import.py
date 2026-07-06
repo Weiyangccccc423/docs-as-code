@@ -411,6 +411,11 @@ def _load_manifest(root: Path, errors: list[str]) -> dict[str, Any]:
         conversion_method = imported.get("conversion_method")
         if not isinstance(conversion_method, str) or not conversion_method.strip():
             errors.append("invalid product source manifest: import.conversion_method must be a non-empty string")
+        reviewed_at = imported.get("reviewed_at")
+        if reviewed_at is not None and (
+            not isinstance(reviewed_at, str) or not _is_iso_timestamp_with_timezone(reviewed_at)
+        ):
+            errors.append("invalid product source manifest: import.reviewed_at must be an ISO timestamp with timezone")
         can_derive_design = imported.get("can_derive_design")
         if not isinstance(can_derive_design, bool):
             errors.append("invalid product source manifest: import.can_derive_design must be a boolean")
