@@ -2152,6 +2152,7 @@ def _check_product_meta_manifest_evidence(
     if not isinstance(source, dict) or not isinstance(archive, dict) or not isinstance(imported, dict):
         return
     expected_values = (
+        ("Manifest created at", manifest.get("created_at")),
         ("Source filename", source.get("filename")),
         ("Archived path", archive.get("path")),
         ("Source SHA-256", source.get("sha256")),

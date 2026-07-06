@@ -1421,6 +1421,7 @@ def _product_meta(manifest: dict[str, object] | None = None) -> str:
             "# Product Meta\n\n"
             "> Derived from `PRD.md`. Keep this file as a navigation and summary layer only.\n\n"
             "## Source Archive\n\n"
+            f"- Manifest created at: `{manifest['created_at']}`\n"
             f"- Source filename: `{source['filename']}`\n"
             f"- Archived path: `{archive['path']}`\n"
             f"- Source SHA-256: `{source['sha256']}`\n"

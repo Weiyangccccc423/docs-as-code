@@ -576,6 +576,10 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertEqual("markdown-copy", manifest["import"]["conversion_method"])
             self.assertTrue(manifest["import"]["can_derive_design"])
             self.assertEqual(manifest["source"]["sha256"], manifest["archive"]["sha256"])
+            self.assertIn(
+                f"- Manifest created at: `{manifest['created_at']}`",
+                (root / "docs/product/core/product-meta.md").read_text(encoding="utf-8"),
+            )
 
             report = verify(root)
             self.assertEqual([], report.errors)
@@ -6906,6 +6910,42 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "path": "docs/product/core/product-meta.md",
                     "message": "docs/product/core/product-meta.md must preserve product manifest evidence: "
                     f"Source SHA-256 `{source_hash}`",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_product_meta_missing_manifest_created_at_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            manifest = json.loads((root / "docs/product/core/source/source-manifest.json").read_text(encoding="utf-8"))
+            created_at = manifest["created_at"]
+            meta = root / "docs/product/core/product-meta.md"
+            meta.write_text(
+                meta.read_text(encoding="utf-8").replace(
+                    f"- Manifest created at: `{created_at}`\n",
+                    "",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                f"docs/product/core/product-meta.md must preserve product manifest evidence: Manifest created at `{created_at}`",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "product_meta_manifest_evidence_missing",
+                    "severity": "error",
+                    "path": "docs/product/core/product-meta.md",
+                    "message": "docs/product/core/product-meta.md must preserve product manifest evidence: "
+                    f"Manifest created at `{created_at}`",
                 },
                 [finding.to_dict() for finding in report.findings],
             )
