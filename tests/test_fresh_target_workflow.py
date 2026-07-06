@@ -18,7 +18,12 @@ def _agent_env() -> dict[str, str]:
     return env
 
 
-def _run_json(testcase: unittest.TestCase, argv: list[str], cwd: Path | str) -> dict[str, object]:
+def _run_json(
+    testcase: unittest.TestCase,
+    argv: list[str],
+    cwd: Path | str,
+    expected_returncode: int = 0,
+) -> dict[str, object]:
     result = subprocess.run(
         argv,
         cwd=cwd,
@@ -27,7 +32,7 @@ def _run_json(testcase: unittest.TestCase, argv: list[str], cwd: Path | str) -> 
         capture_output=True,
         check=False,
     )
-    testcase.assertEqual(0, result.returncode, result.stderr)
+    testcase.assertEqual(expected_returncode, result.returncode, result.stderr)
     testcase.assertEqual("", result.stderr)
     try:
         payload = json.loads(result.stdout)
@@ -177,3 +182,106 @@ class FreshTargetWorkflowTest(unittest.TestCase):
             self.assertTrue(target_local_status["ok"])
             self.assertEqual(".", target_local_status["target"])
             self.assertEqual("initialized", target_local_status["state"]["phase"])
+
+            apply_action = next_actions["advance-product-structuring"]
+            advanced = _run_json(self, apply_action["argv"], cwd=apply_action["cwd"])
+            self.assertTrue(advanced["ok"])
+            self.assertTrue(advanced["advanced"])
+            self.assertEqual("product-structuring", advanced["state"]["phase"])
+            self.assertEqual("advance-design-derivation-check", advanced["next_actions"][0]["id"])
+
+            scaffold_check = _run_json(
+                self,
+                [
+                    "bin/governance",
+                    "scaffold",
+                    "product",
+                    ".",
+                    "--chapter",
+                    "goals-and-requirements",
+                    "--chapter",
+                    "acceptance-criteria",
+                    "--check",
+                    "--json",
+                ],
+                cwd=target,
+            )
+            self.assertTrue(scaffold_check["ok"])
+            self.assertTrue(scaffold_check["check"])
+            self.assertEqual([], scaffold_check["created"])
+            self.assertEqual([], scaffold_check["indexed"])
+            self.assertIn("docs/product/03-goals-and-requirements.md", scaffold_check["would_create"])
+            self.assertIn("docs/product/08-acceptance-criteria.md", scaffold_check["would_create"])
+            self.assertIn("docs/product/03-goals-and-requirements.md", scaffold_check["would_index"])
+            self.assertIn("docs/product/08-acceptance-criteria.md", scaffold_check["would_index"])
+            self.assertIn("docs/product/core/product-meta.md", scaffold_check["would_index"])
+            self.assertNotIn("local_commands", scaffold_check)
+            self.assertNotIn("next_actions", scaffold_check)
+            self.assertFalse((target / "docs/product/03-goals-and-requirements.md").exists())
+            self.assertFalse((target / "docs/product/08-acceptance-criteria.md").exists())
+
+            scaffold = _run_json(
+                self,
+                [
+                    "bin/governance",
+                    "scaffold",
+                    "product",
+                    ".",
+                    "--chapter",
+                    "goals-and-requirements",
+                    "--chapter",
+                    "acceptance-criteria",
+                    "--json",
+                ],
+                cwd=target,
+            )
+            self.assertTrue(scaffold["ok"])
+            self.assertIn("docs/product/03-goals-and-requirements.md", scaffold["created"])
+            self.assertIn("docs/product/08-acceptance-criteria.md", scaffold["created"])
+            self.assertIn("docs/product/core/product-meta.md", scaffold["indexed"])
+            self.assertEqual(
+                {
+                    "current": "product-structuring",
+                    "expected": "product-structuring",
+                    "matches": True,
+                    "message": "recorded phase matches scaffold phase",
+                },
+                scaffold["scaffold_phase"],
+            )
+            self.assertEqual("advance-design-derivation-check", scaffold["next_actions"][0]["id"])
+            blockers = {blocker["path"]: blocker for blocker in scaffold["next_actions_blocked_by"]}
+            self.assertEqual(
+                "governance_scaffold_placeholder",
+                blockers["docs/product/03-goals-and-requirements.md"]["code"],
+            )
+            self.assertEqual(
+                "governance_scaffold_placeholder",
+                blockers["docs/product/08-acceptance-criteria.md"]["code"],
+            )
+            self.assertIn("before running next_actions", blockers["docs/product/03-goals-and-requirements.md"]["message"])
+
+            goals = (target / "docs/product/03-goals-and-requirements.md").read_text(encoding="utf-8")
+            acceptance = (target / "docs/product/08-acceptance-criteria.md").read_text(encoding="utf-8")
+            product_meta = (target / "docs/product/core/product-meta.md").read_text(encoding="utf-8")
+            self.assertIn("governance:scaffold-placeholder", goals)
+            self.assertIn("[PRD](core/PRD.md)", goals)
+            self.assertIn("A-NNN", acceptance)
+            self.assertIn("[Goals and Requirements](../03-goals-and-requirements.md)", product_meta)
+            self.assertIn("[Acceptance Criteria](../08-acceptance-criteria.md)", product_meta)
+
+            blocked_verify = _run_json(
+                self,
+                ["bin/governance", "verify", ".", "--check", "--json"],
+                cwd=target,
+                expected_returncode=1,
+            )
+            self.assertFalse(blocked_verify["ok"])
+            self.assertTrue(blocked_verify["check"])
+            self.assertFalse(blocked_verify["state_updated"])
+            self.assertTrue(
+                any(
+                    finding["code"] == "governance_scaffold_placeholder"
+                    and finding["path"] == "docs/product/03-goals-and-requirements.md"
+                    for finding in blocked_verify["findings"]
+                )
+            )
