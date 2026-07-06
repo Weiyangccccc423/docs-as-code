@@ -398,6 +398,11 @@ def _load_manifest(root: Path, errors: list[str]) -> dict[str, Any]:
             errors.append(
                 f"invalid product import status: {status}; expected one of {', '.join(PRODUCT_IMPORT_STATUSES)}"
             )
+        can_derive_design = imported.get("can_derive_design")
+        if status == "ready_for_structuring" and can_derive_design is not True:
+            errors.append("product import status ready_for_structuring requires can_derive_design: true")
+        if status == "conversion_required" and can_derive_design is True:
+            errors.append("product import status conversion_required requires can_derive_design: false")
     return payload
 
 

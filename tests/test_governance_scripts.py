@@ -8750,6 +8750,33 @@ class GovernanceScriptsTest(unittest.TestCase):
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             self.assertEqual("reviewed", manifest["import"]["status"])
 
+    def test_product_mark_ready_rejects_inconsistent_conversion_required_import(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.docx"
+            product.write_bytes(b"fake docx bytes")
+            bootstrap(root, product)
+            (root / "docs/product/core/PRD.md").write_text("# Converted Product\n", encoding="utf-8")
+            manifest_path = root / "docs/product/core/source/source-manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["import"]["status"] = "conversion_required"
+            manifest["import"]["can_derive_design"] = True
+            manifest_path.write_text(
+                json.dumps(manifest, indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
+
+            result = product_import_module.mark_product_import_ready(root, reviewed=True)
+
+            self.assertFalse(result.ok)
+            self.assertIn(
+                "product import status conversion_required requires can_derive_design: false",
+                result.errors,
+            )
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual("conversion_required", manifest["import"]["status"])
+            self.assertTrue(manifest["import"]["can_derive_design"])
+
     def test_product_mark_ready_rejects_missing_source_object(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
