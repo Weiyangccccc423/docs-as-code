@@ -13,7 +13,7 @@ Each phase has:
 - **Verification:** deterministic checks or review gates
 - **Stop conditions:** cases where the agent must ask instead of guessing
 
-Use `references/community-practices.md` to calibrate this workflow against recognized docs-as-code, architecture, API, ADR, quality, and security practices without treating any single framework as a rigid template.
+Use `references/community-practices.md` to calibrate this workflow against recognized docs-as-code, architecture, API, ADR, quality, and security practices without treating any single framework as a rigid template. Use `references/workflow-routing-checklist.md` when choosing or resuming phases, interpreting JSON continuation payloads, or deciding whether a blocker requires a phase-specific repair skill.
 
 ## Runtime Model
 

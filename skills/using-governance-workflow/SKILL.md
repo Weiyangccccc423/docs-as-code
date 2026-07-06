@@ -7,6 +7,8 @@ description: Use when starting or resuming a docs-as-code governance workflow fr
 
 Use this as the router skill for the workflow pack.
 
+Read `references/workflow-routing-checklist.md` before selecting a phase, resuming from `local_commands` or `next_actions`, or repairing a blocked workflow transition.
+
 ## Route
 
 | Situation | Load next |

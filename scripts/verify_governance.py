@@ -90,6 +90,7 @@ WORKFLOW_PACK_REQUIRED_PATHS = (
     "references/runtime-strategy.md",
     "references/security-design-checklist.md",
     "references/test-strategy-checklist.md",
+    "references/workflow-routing-checklist.md",
     "skills/archiving-product-document/SKILL.md",
     "skills/capturing-architecture-decisions/SKILL.md",
     "skills/designing-api-contracts/SKILL.md",

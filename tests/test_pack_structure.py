@@ -3038,6 +3038,67 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_missing_workflow_routing_reference_doc_routing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            router = target / "skills/using-governance-workflow/SKILL.md"
+            router.write_text(
+                router.read_text(encoding="utf-8").replace(
+                    "`references/workflow-routing-checklist.md`",
+                    "the workflow routing checklist",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_workflow_routing_reference_doc_missing"
+                    and finding.path == "skills/using-governance-workflow/SKILL.md"
+                    and "references/workflow-routing-checklist.md" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_missing_workflow_routing_reference_baseline(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            reference = target / "references/workflow-routing-checklist.md"
+            reference.write_text(
+                reference.read_text(encoding="utf-8").replace(
+                    "`local_commands[].argv` and `next_actions[].argv` executed from their reported `cwd`",
+                    "`local_commands` and `next_actions` are useful",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_method_reference_baseline_missing"
+                    and finding.path == "references/workflow-routing-checklist.md"
+                    and "Machine-Readable Continuation" in finding.message
+                    and "next_actions[].argv" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_unrouted_reference_documents(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
@@ -3049,7 +3110,7 @@ class PackStructureTest(unittest.TestCase):
             overview = target / "workflows/00-overview.md"
             overview.write_text(
                 overview.read_text(encoding="utf-8").replace(
-                    "Use `references/community-practices.md` to calibrate this workflow against recognized docs-as-code, architecture, API, ADR, quality, and security practices without treating any single framework as a rigid template.\n\n",
+                    "Use `references/community-practices.md` to calibrate this workflow against recognized docs-as-code, architecture, API, ADR, quality, and security practices without treating any single framework as a rigid template. ",
                     "",
                     1,
                 ),

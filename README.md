@@ -72,6 +72,7 @@ Create reliable project governance before implementation starts:
 - `references/security-design-checklist.md`: security, abuse-case, and supply-chain design checklist.
 - `references/test-strategy-checklist.md`: acceptance traceability, test portfolio, automation, test data, non-functional verification, and evidence checklist.
 - `references/runtime-strategy.md`: core runtime, optional tooling, and repair policy.
+- `references/workflow-routing-checklist.md`: workflow entry classification, JSON continuation, gate/advance, scaffold, repair routing, schema, source-of-truth, and normative-language checklist.
 
 ## Skill Files
 

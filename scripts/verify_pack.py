@@ -833,6 +833,15 @@ VERIFICATION_REFERENCE_DOC_REQUIREMENTS = (
         ),
     ),
 )
+WORKFLOW_ROUTING_REFERENCE_DOC_REQUIREMENTS = (
+    (
+        "references/workflow-routing-checklist.md",
+        (
+            "workflows/00-overview.md",
+            "skills/using-governance-workflow/SKILL.md",
+        ),
+    ),
+)
 PRODUCT_REFERENCE_DOC_REQUIREMENTS = (
     (
         "references/product-archive-checklist.md",
@@ -850,6 +859,74 @@ PRODUCT_REFERENCE_DOC_REQUIREMENTS = (
     ),
 )
 METHOD_REFERENCE_BASELINES = {
+    "references/workflow-routing-checklist.md": (
+        (
+            "Entry Classification",
+            (
+                "## Entry Classification",
+                "target state classified from current files and governance state",
+                "routed to `initializing-governance-repo`",
+                "https://www.omg.org/spec/BPMN/2.0.2/",
+            ),
+        ),
+        (
+            "Machine-Readable Continuation",
+            (
+                "## Machine-Readable Continuation",
+                "`local_commands[].argv` and `next_actions[].argv` executed from their reported `cwd`",
+                "https://www.rfc-editor.org/rfc/rfc8259.html",
+            ),
+        ),
+        (
+            "Gate and Advance Discipline",
+            (
+                "## Gate and Advance Discipline",
+                "advance --check --json",
+                "requirements[].code",
+            ),
+        ),
+        (
+            "Scaffold Continuation",
+            (
+                "## Scaffold Continuation",
+                "scaffold_phase.matches",
+                "next_actions_blocked_by",
+                "governance:scaffold-placeholder",
+            ),
+        ),
+        (
+            "Repair Routing",
+            (
+                "## Repair Routing",
+                "runtime refresh --check --json",
+                "trusted source workflow-pack checkout",
+            ),
+        ),
+        (
+            "Schema and Payload Expectations",
+            (
+                "## Schema and Payload Expectations",
+                "`cwd`, `command`, `argv`, and `writes_state`",
+                "https://json-schema.org/draft/2020-12/json-schema-core",
+            ),
+        ),
+        (
+            "Source-of-Truth Priority",
+            (
+                "## Source-of-Truth Priority",
+                "stronger evidence than prior chat context",
+                "explicit stop conditions escalated to the user",
+            ),
+        ),
+        (
+            "Normative Language",
+            (
+                "## Normative Language",
+                "hard requirements",
+                "https://www.rfc-editor.org/rfc/rfc2119.html",
+            ),
+        ),
+    ),
     "references/architecture-decision-record-checklist.md": (
         (
             "Decision Trigger",
@@ -1855,6 +1932,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_initialization_reference_docs(root, findings)
     _check_verification_reference_docs(root, findings)
     _check_product_reference_docs(root, findings)
+    _check_workflow_routing_reference_docs(root, findings)
     _check_design_reference_docs(root, findings)
     _check_method_reference_baselines(root, findings)
     _check_phase_order_docs(root, findings)
@@ -3227,6 +3305,21 @@ def _check_product_reference_docs(root: Path, findings: list[PackFinding]) -> No
                 PackFinding(
                     "pack_product_reference_doc_missing",
                     f"{rel} must route product workflow through reference document: {reference}",
+                    rel,
+                )
+            )
+
+
+def _check_workflow_routing_reference_docs(root: Path, findings: list[PackFinding]) -> None:
+    for reference, consumers in WORKFLOW_ROUTING_REFERENCE_DOC_REQUIREMENTS:
+        for rel in consumers:
+            text = _read_utf8_text_or_none(root / rel)
+            if text is None or reference in text:
+                continue
+            findings.append(
+                PackFinding(
+                    "pack_workflow_routing_reference_doc_missing",
+                    f"{rel} must route workflow selection and continuation through reference document: {reference}",
                     rel,
                 )
             )
