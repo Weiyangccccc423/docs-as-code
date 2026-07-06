@@ -488,6 +488,9 @@ def _check_archived_source(root: Path, manifest: dict[str, Any], errors: list[st
     if not isinstance(expected_hash, str) or not expected_hash:
         errors.append("invalid product source manifest: archive.sha256 is missing")
         return
+    if not _is_valid_sha256_digest(expected_hash):
+        errors.append("invalid product source manifest: archive.sha256 must be a lowercase SHA-256 hex digest")
+        return
     try:
         actual_hash = _sha256(archived_path)
     except OSError as error:
@@ -499,6 +502,8 @@ def _check_archived_source(root: Path, manifest: dict[str, Any], errors: list[st
         source_hash = source.get("sha256")
         if not isinstance(source_hash, str) or not source_hash:
             errors.append("invalid product source manifest: source.sha256 is missing")
+        elif not _is_valid_sha256_digest(source_hash):
+            errors.append("invalid product source manifest: source.sha256 must be a lowercase SHA-256 hex digest")
         elif source_hash != expected_hash:
             errors.append("invalid product source manifest: source.sha256 does not match archive.sha256")
 
@@ -603,6 +608,10 @@ def _is_safe_basename(value: str) -> bool:
 
 def _is_valid_manifest_size(value: object) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
+def _is_valid_sha256_digest(value: object) -> bool:
+    return isinstance(value, str) and len(value) == 64 and all(char in "0123456789abcdef" for char in value)
 
 
 def _resolve_conversion_blocker(path: Path) -> bool:

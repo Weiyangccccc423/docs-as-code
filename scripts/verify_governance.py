@@ -2047,14 +2047,23 @@ def _check_product_source_manifest(root: Path, report: VerificationReport) -> No
         report.add_error("product_source_size_mismatch", f"archived product source size mismatch: {archived_rel}", archived_rel)
 
     expected_hash = archive.get("sha256")
+    expected_hash_valid = False
     if not isinstance(expected_hash, str) or not expected_hash:
         report.add_error(
             "product_source_manifest_archive_hash_missing",
             "invalid product source manifest: archive.sha256 is missing",
             "docs/product/core/source/source-manifest.json",
         )
-    elif _sha256(archived_path) != expected_hash:
-        report.add_error("product_source_hash_mismatch", f"archived product source hash mismatch: {archived_rel}", archived_rel)
+    elif not _is_valid_sha256_digest(expected_hash):
+        report.add_error(
+            "product_source_manifest_archive_hash_invalid",
+            "invalid product source manifest: archive.sha256 must be a lowercase SHA-256 hex digest",
+            "docs/product/core/source/source-manifest.json",
+        )
+    else:
+        expected_hash_valid = True
+        if _sha256(archived_path) != expected_hash:
+            report.add_error("product_source_hash_mismatch", f"archived product source hash mismatch: {archived_rel}", archived_rel)
 
     source_size = source.get("size_bytes")
     if not _is_valid_manifest_size(source_size):
@@ -2077,7 +2086,13 @@ def _check_product_source_manifest(root: Path, report: VerificationReport) -> No
             "invalid product source manifest: source.sha256 is missing",
             "docs/product/core/source/source-manifest.json",
         )
-    elif isinstance(expected_hash, str) and expected_hash and source_hash != expected_hash:
+    elif not _is_valid_sha256_digest(source_hash):
+        report.add_error(
+            "product_source_manifest_source_hash_invalid",
+            "invalid product source manifest: source.sha256 must be a lowercase SHA-256 hex digest",
+            "docs/product/core/source/source-manifest.json",
+        )
+    elif expected_hash_valid and source_hash != expected_hash:
         report.add_error(
             "product_source_manifest_source_hash_mismatch",
             "invalid product source manifest: source.sha256 does not match archive.sha256",
@@ -4030,6 +4045,10 @@ def _workflow_pack_snapshot_files(snapshot_root: Path) -> list[Path]:
 
 def _is_valid_manifest_size(value: object) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
+def _is_valid_sha256_digest(value: object) -> bool:
+    return isinstance(value, str) and len(value) == 64 and all(char in "0123456789abcdef" for char in value)
 
 
 def _is_valid_manifest_relative_path(value: object) -> bool:
