@@ -386,6 +386,8 @@ def _load_manifest(root: Path, errors: list[str]) -> dict[str, Any]:
     source = payload.get("source")
     if not isinstance(source, dict):
         errors.append("invalid product source manifest: missing source object")
+    elif source.get("provided") is not True:
+        errors.append("invalid product source manifest: source.provided must be true when product source is archived")
     imported = payload.get("import")
     if not isinstance(imported, dict):
         errors.append("invalid product source manifest: missing import object")

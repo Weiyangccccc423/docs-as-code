@@ -1983,6 +1983,12 @@ def _check_product_source_manifest(root: Path, report: VerificationReport) -> No
             "docs/product/core/source/source-manifest.json",
         )
         return
+    if source.get("provided") is not True:
+        report.add_error(
+            "product_source_manifest_source_provided_invalid",
+            "invalid product source manifest: source.provided must be true when product source is archived",
+            "docs/product/core/source/source-manifest.json",
+        )
     source_filename_error = _product_source_filename_error(source.get("filename"), archived_rel)
     if source_filename_error is not None:
         report.add_error(
