@@ -148,8 +148,9 @@ def build_design_plan(root: Path) -> dict[str, object]:
         errors.append("No governance state found.")
     elif phase != DESIGN_PHASE:
         errors.append(f"design plan requires recorded phase {DESIGN_PHASE}")
+    source_documents = _source_documents(root)
     findings_by_path = _findings_by_path(report.findings)
-    tracks = [_track_payload(root, track, findings_by_path) for track in DESIGN_TRACKS]
+    tracks = [_track_payload(root, track, source_documents, findings_by_path) for track in DESIGN_TRACKS]
     payload: dict[str, object] = {
         "ok": not errors,
         "target": str(root),
@@ -157,12 +158,26 @@ def build_design_plan(root: Path) -> dict[str, object]:
         "workflow": DESIGN_WORKFLOW_PATH,
         "verification_ok": report.ok,
         "errors": errors,
+        "source_documents": source_documents,
         "tracks": tracks,
     }
     if not errors:
         payload["local_commands"] = target_local_commands_payload(cwd=str(root))
         payload["next_actions"] = next_actions_payload(state, cwd=str(root))
     return payload
+
+
+def _source_documents(root: Path) -> list[str]:
+    candidates: list[str] = []
+    for rel in ("docs/product/core/PRD.md", "docs/unresolved.md", "docs/glossary.md"):
+        if (root / rel).is_file():
+            candidates.append(rel)
+    product_root = root / "docs/product"
+    if product_root.is_dir():
+        for path in sorted(product_root.glob("[0-9][0-9]-*.md")):
+            if path.is_file():
+                candidates.append(path.relative_to(root).as_posix())
+    return sorted(dict.fromkeys(candidates))
 
 
 def _findings_by_path(findings: list[VerificationFinding]) -> dict[str, list[dict[str, str]]]:
@@ -174,7 +189,12 @@ def _findings_by_path(findings: list[VerificationFinding]) -> dict[str, list[dic
     return findings_by_path
 
 
-def _track_payload(root: Path, track: DesignTrack, findings_by_path: dict[str, list[dict[str, str]]]) -> dict[str, object]:
+def _track_payload(
+    root: Path,
+    track: DesignTrack,
+    source_documents: list[str],
+    findings_by_path: dict[str, list[dict[str, str]]],
+) -> dict[str, object]:
     documents = list(track.documents)
     blockers: list[dict[str, str]] = []
     document_status: list[dict[str, object]] = []
@@ -200,6 +220,68 @@ def _track_payload(root: Path, track: DesignTrack, findings_by_path: dict[str, l
         "document_status": document_status,
         "blockers": blockers,
         "procedure": track.procedure,
+        "steps": _track_steps(root, track, source_documents, documents, blockers),
+    }
+
+
+def _track_steps(
+    root: Path,
+    track: DesignTrack,
+    source_documents: list[str],
+    documents: list[str],
+    blockers: list[dict[str, str]],
+) -> list[dict[str, object]]:
+    return [
+        {
+            "id": "load-track-skills",
+            "kind": "skill-load",
+            "skills": list(track.skills),
+            "description": "Load the listed skills before interpreting or editing this design track.",
+        },
+        {
+            "id": "read-product-sources",
+            "kind": "read",
+            "documents": list(source_documents),
+            "description": "Read product truth, acceptance criteria, glossary, and unresolved items before authoring.",
+        },
+        {
+            "id": "read-track-references",
+            "kind": "read",
+            "references": list(track.references),
+            "description": "Read the authoritative checklists and method references for this track.",
+        },
+        {
+            "id": "author-track-documents",
+            "kind": "author",
+            "documents": list(documents),
+            "blockers": list(blockers),
+            "description": "Replace placeholders with source-backed content and register unresolved gaps instead of guessing.",
+        },
+        _command_step(
+            root,
+            "verify-track",
+            "Run read-only governance verification after authoring this track.",
+            ["bin/governance", "verify", ".", "--check", "--json"],
+        ),
+        _command_step(
+            root,
+            "refresh-design-plan",
+            "Refresh the design authoring queue after verification.",
+            ["bin/governance", "design", "plan", ".", "--json"],
+        ),
+    ]
+
+
+def _command_step(root: Path, step_id: str, description: str, argv: list[str]) -> dict[str, object]:
+    return {
+        "id": step_id,
+        "kind": "command",
+        "cwd": str(root),
+        "command": " ".join(argv),
+        "argv": list(argv),
+        "writes_state": False,
+        "approval_required": False,
+        "description": description,
     }
 
 

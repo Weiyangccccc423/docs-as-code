@@ -560,7 +560,11 @@ FRESH_TARGET_SMOKE_TEST_REQUIRED_PHRASES = (
     "design_plan",
     '"design"',
     '"plan"',
+    "source_documents",
     "tracks",
+    "steps",
+    "read-product-sources",
+    "verify-track",
     "api-contracts",
     "designing-api-contracts",
     "design_blocked_verify",
@@ -726,11 +730,13 @@ DESIGN_PLAN_DOC_PATHS = (
 )
 DESIGN_PLAN_REQUIRED_PHRASES = (
     "design plan",
+    "source_documents",
     "tracks",
     "skills",
     "references",
     "documents",
     "blockers",
+    "steps",
     "local_commands",
     "next_actions",
 )

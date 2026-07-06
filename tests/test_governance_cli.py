@@ -5334,6 +5334,10 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual("workflows/04-design-derivation.md", payload["workflow"])
             self.assertIn("local_commands", payload)
             self.assertEqual("advance-implementation-check", payload["next_actions"][0]["id"])
+            self.assertIn("docs/product/core/PRD.md", payload["source_documents"])
+            self.assertIn("docs/product/08-acceptance-criteria.md", payload["source_documents"])
+            self.assertIn("docs/unresolved.md", payload["source_documents"])
+            self.assertIn("docs/glossary.md", payload["source_documents"])
             track_ids = [track["id"] for track in payload["tracks"]]
             self.assertEqual(
                 [
@@ -5355,6 +5359,33 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn("references/api-design-checklist.md", tracks["api-contracts"]["references"])
             self.assertIn("references/security-design-checklist.md", tracks["api-contracts"]["references"])
             self.assertIn("docs/api/endpoints/01-endpoint-contract.md", tracks["api-contracts"]["documents"])
+            api_steps = tracks["api-contracts"]["steps"]
+            self.assertEqual(
+                [
+                    "load-track-skills",
+                    "read-product-sources",
+                    "read-track-references",
+                    "author-track-documents",
+                    "verify-track",
+                    "refresh-design-plan",
+                ],
+                [step["id"] for step in api_steps],
+            )
+            self.assertEqual("skill-load", api_steps[0]["kind"])
+            self.assertIn("designing-api-contracts", api_steps[0]["skills"])
+            self.assertEqual("read", api_steps[1]["kind"])
+            self.assertIn("docs/product/core/PRD.md", api_steps[1]["documents"])
+            self.assertIn("docs/product/08-acceptance-criteria.md", api_steps[1]["documents"])
+            self.assertEqual("read", api_steps[2]["kind"])
+            self.assertIn("references/api-design-checklist.md", api_steps[2]["references"])
+            self.assertEqual("author", api_steps[3]["kind"])
+            self.assertIn("docs/api/endpoints/01-endpoint-contract.md", api_steps[3]["documents"])
+            self.assertEqual("command", api_steps[4]["kind"])
+            self.assertEqual(["bin/governance", "verify", ".", "--check", "--json"], api_steps[4]["argv"])
+            self.assertFalse(api_steps[4]["writes_state"])
+            self.assertFalse(api_steps[4]["approval_required"])
+            self.assertEqual("command", api_steps[5]["kind"])
+            self.assertEqual(["bin/governance", "design", "plan", ".", "--json"], api_steps[5]["argv"])
             self.assertTrue(
                 any(
                     blocker["path"] == "docs/api/endpoints/01-endpoint-contract.md"

@@ -461,6 +461,8 @@ class FreshTargetWorkflowTest(unittest.TestCase):
             )
             self.assertTrue(design_plan["ok"])
             self.assertEqual("design-derivation", design_plan["phase"])
+            self.assertIn("docs/product/core/PRD.md", design_plan["source_documents"])
+            self.assertIn("docs/product/08-acceptance-criteria.md", design_plan["source_documents"])
             self.assertEqual(
                 [
                     "architecture",
@@ -483,6 +485,13 @@ class FreshTargetWorkflowTest(unittest.TestCase):
             self.assertIn("references/api-design-checklist.md", tracks["api-contracts"]["references"])
             self.assertIn("references/security-design-checklist.md", tracks["api-contracts"]["references"])
             self.assertIn("docs/api/endpoints/01-endpoint-contract.md", tracks["api-contracts"]["documents"])
+            api_steps = tracks["api-contracts"]["steps"]
+            self.assertEqual("load-track-skills", api_steps[0]["id"])
+            self.assertIn("designing-api-contracts", api_steps[0]["skills"])
+            self.assertEqual("read-product-sources", api_steps[1]["id"])
+            self.assertIn("docs/product/core/PRD.md", api_steps[1]["documents"])
+            self.assertEqual("verify-track", api_steps[4]["id"])
+            self.assertEqual(["bin/governance", "verify", ".", "--check", "--json"], api_steps[4]["argv"])
             self.assertIn("designing-backend-modules", tracks["backend-modules"]["skills"])
             self.assertIn("references/backend-design-checklist.md", tracks["backend-modules"]["references"])
             self.assertIn("designing-data-models", tracks["data-model"]["skills"])
