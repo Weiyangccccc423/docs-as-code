@@ -5110,6 +5110,71 @@ class GovernanceScriptsTest(unittest.TestCase):
                 contract,
             )
 
+    def test_verify_reports_command_contract_missing_default_command(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            contract = root / "docs/agent-workflow/command-contract.md"
+            contract.write_text(
+                contract.read_text(encoding="utf-8").replace(
+                    "| governance-status | Print workflow state as JSON. | `.` | `"
+                    '["bin/governance", "status", ".", "--json"]'
+                    "` | false | false | `docs/development/03-verification-log.md` | Core governance runtime |\n",
+                    "",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn("command contract must preserve default row: governance-status", report.errors)
+            self.assertIn(
+                {
+                    "code": "target_command_contract_default_drift",
+                    "severity": "error",
+                    "path": "docs/agent-workflow/command-contract.md",
+                    "message": "command contract must preserve default row: governance-status",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_command_contract_default_argv_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            contract = root / "docs/agent-workflow/command-contract.md"
+            contract.write_text(
+                contract.read_text(encoding="utf-8").replace(
+                    '| check-env | Inventory local governance tools. | `.` | `["bin/governance", "env", "--target", "."]`',
+                    '| check-env | Inventory local governance tools. | `.` | `["bin/governance", "env", "--repair", "--check", "--target", ".", "--json"]`',
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                'command contract row check-env Argv must match default recipe: ["bin/governance", "env", "--target", "."]',
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "target_command_contract_default_drift",
+                    "severity": "error",
+                    "path": "docs/agent-workflow/command-contract.md",
+                    "message": 'command contract row check-env Argv must match default recipe: ["bin/governance", "env", "--target", "."]',
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_command_contract_invalid_argv(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

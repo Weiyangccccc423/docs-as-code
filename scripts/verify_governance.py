@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import re
+import shlex
 import stat
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -1453,6 +1454,90 @@ def _check_command_contract(root: Path, report: VerificationReport) -> None:
                 f"command contract row {command_name} Approval Required must be true for high-risk Argv",
                 rel,
             )
+    _check_default_command_contract_rows(rows, rel, report)
+
+
+def _check_default_command_contract_rows(rows: list[dict[str, str]], rel: str, report: VerificationReport) -> None:
+    rows_by_name: dict[str, list[dict[str, str]]] = {}
+    for row in rows:
+        command_name = row["name"].strip()
+        if command_name:
+            rows_by_name.setdefault(command_name, []).append(row)
+    for target, recipe, description, writes_state in TARGET_LOCAL_COMMANDS:
+        matching_rows = rows_by_name.get(target, [])
+        if not matching_rows:
+            report.add_error(
+                "target_command_contract_default_drift",
+                f"command contract must preserve default row: {target}",
+                rel,
+            )
+            continue
+        if len(matching_rows) > 1:
+            report.add_error(
+                "target_command_contract_default_drift",
+                f"command contract default row must be unique: {target}",
+                rel,
+            )
+        _check_default_command_contract_row(
+            matching_rows[0],
+            target,
+            recipe,
+            description,
+            writes_state,
+            rel,
+            report,
+        )
+
+
+def _check_default_command_contract_row(
+    row: dict[str, str],
+    target: str,
+    recipe: str,
+    description: str,
+    writes_state: bool,
+    rel: str,
+    report: VerificationReport,
+) -> None:
+    expected_cells = {
+        "purpose": _command_contract_sentence_case(description),
+        "cwd": "`.`",
+        "writes state": str(writes_state).lower(),
+        "approval required": "false",
+        "evidence": _default_command_contract_evidence(target),
+        "environment": "Core governance runtime",
+    }
+    for column, expected in expected_cells.items():
+        actual = row[column].strip()
+        if actual == expected:
+            continue
+        report.add_error(
+            "target_command_contract_default_drift",
+            f"command contract row {target} {COMMAND_CONTRACT_REQUIRED_COLUMNS[column]} must be {expected}",
+            rel,
+        )
+    actual_argv_text = row["argv"].strip().strip("`")
+    try:
+        actual_argv = json.loads(actual_argv_text)
+    except json.JSONDecodeError:
+        return
+    expected_argv = shlex.split(recipe)
+    if actual_argv != expected_argv:
+        report.add_error(
+            "target_command_contract_default_drift",
+            f"command contract row {target} Argv must match default recipe: {json.dumps(expected_argv)}",
+            rel,
+        )
+
+
+def _command_contract_sentence_case(text: str) -> str:
+    text = text.strip().rstrip(".")
+    return f"{text[:1].upper()}{text[1:]}." if text else ""
+
+
+def _default_command_contract_evidence(target: str) -> str:
+    if target == "repair-env-check":
+        return "`.governance/env-repair.md` when repair is written"
+    return "`docs/development/03-verification-log.md`"
 
 
 def _command_contract_cwd_valid(value: str) -> bool:
