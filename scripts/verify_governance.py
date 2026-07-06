@@ -3753,7 +3753,7 @@ def _check_runtime_manifest(root: Path, report: VerificationReport) -> None:
         rel = item.get("path")
         expected_hash = item.get("sha256")
         expected_size = item.get("size_bytes")
-        if not isinstance(rel, str) or not rel or Path(rel).is_absolute() or ".." in Path(rel).parts:
+        if not _is_valid_manifest_relative_path(rel):
             report.add_error("runtime_manifest_invalid_path", f"invalid runtime file path: {rel}", manifest_rel)
             continue
         if rel in listed_paths:
@@ -3840,7 +3840,7 @@ def _check_workflow_pack_manifest(root: Path, report: VerificationReport) -> Non
         rel = item.get("path")
         expected_hash = item.get("sha256")
         expected_size = item.get("size_bytes")
-        if not isinstance(rel, str) or not rel or Path(rel).is_absolute() or ".." in Path(rel).parts:
+        if not _is_valid_manifest_relative_path(rel):
             report.add_error("workflow_pack_manifest_invalid_path", f"invalid workflow pack file path: {rel}", manifest_rel)
             continue
         if rel in listed_paths:
@@ -3921,6 +3921,18 @@ def _workflow_pack_snapshot_files(snapshot_root: Path) -> list[Path]:
 
 def _is_valid_manifest_size(value: object) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
+def _is_valid_manifest_relative_path(value: object) -> bool:
+    if not isinstance(value, str) or not value or "\\" in value or value.startswith("~"):
+        return False
+    windows = PureWindowsPath(value)
+    if windows.is_absolute() or windows.drive:
+        return False
+    posix = PurePosixPath(value)
+    if posix.is_absolute() or posix.as_posix() != value:
+        return False
+    return bool(posix.parts) and all(part not in {"", ".", ".."} for part in posix.parts)
 
 
 def _is_valid_product_source_archive_path(value: str) -> bool:
