@@ -1417,6 +1417,8 @@ def _product_meta(manifest: dict[str, object] | None = None) -> str:
         archive = manifest["archive"]
         imported = manifest["import"]
         can_derive_design = str(imported["can_derive_design"]).lower()
+        reviewed_at = imported.get("reviewed_at")
+        reviewed_at_line = f"- Reviewed at: `{reviewed_at}`\n" if isinstance(reviewed_at, str) and reviewed_at else ""
         return (
             "# Product Meta\n\n"
             "> Derived from `PRD.md`. Keep this file as a navigation and summary layer only.\n\n"
@@ -1428,6 +1430,7 @@ def _product_meta(manifest: dict[str, object] | None = None) -> str:
             f"- Archive SHA-256: `{archive['sha256']}`\n"
             f"- Conversion method: `{imported['conversion_method']}`\n"
             f"- Import status: `{imported['status']}`\n"
+            f"{reviewed_at_line}"
             f"- Can derive design: `{can_derive_design}`\n"
             "- Manifest: `source/source-manifest.json`\n\n"
             "## Product Positioning\n\n"

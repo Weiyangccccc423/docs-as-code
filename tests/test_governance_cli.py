@@ -3813,6 +3813,7 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual("ready_for_structuring", manifest["import"]["status"])
             self.assertEqual("manual-reviewed-markdown", manifest["import"]["conversion_method"])
             self.assertTrue(manifest["import"]["can_derive_design"])
+            self.assertIn("reviewed_at", manifest["import"])
             self.assertIn(
                 {
                     "make_target": "verify-check",
@@ -3843,7 +3844,9 @@ class GovernanceCliTest(unittest.TestCase):
                 },
                 payload["next_actions"],
             )
-            self.assertIn("- Import status: `ready_for_structuring`", (target / "docs/product/core/product-meta.md").read_text(encoding="utf-8"))
+            product_meta = (target / "docs/product/core/product-meta.md").read_text(encoding="utf-8")
+            self.assertIn("- Import status: `ready_for_structuring`", product_meta)
+            self.assertIn(f"- Reviewed at: `{manifest['import']['reviewed_at']}`", product_meta)
             self.assertIn("| U-001 | Product Archiving |", (target / "docs/unresolved.md").read_text(encoding="utf-8"))
             self.assertIn("| resolved |", (target / "docs/unresolved.md").read_text(encoding="utf-8"))
 

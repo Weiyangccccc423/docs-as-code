@@ -6950,6 +6950,45 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_reports_product_meta_missing_reviewed_at_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.docx"
+            product.write_bytes(b"fake docx bytes")
+            bootstrap(root, product)
+            (root / "docs/product/core/PRD.md").write_text("# Converted Product\n", encoding="utf-8")
+            result = product_import_module.mark_product_import_ready(root, reviewed=True)
+            self.assertTrue(result.ok)
+
+            manifest = json.loads((root / "docs/product/core/source/source-manifest.json").read_text(encoding="utf-8"))
+            reviewed_at = manifest["import"]["reviewed_at"]
+            meta = root / "docs/product/core/product-meta.md"
+            meta.write_text(
+                meta.read_text(encoding="utf-8").replace(
+                    f"- Reviewed at: `{reviewed_at}`\n",
+                    "",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                f"docs/product/core/product-meta.md must preserve product manifest evidence: Reviewed at `{reviewed_at}`",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "product_meta_manifest_evidence_missing",
+                    "severity": "error",
+                    "path": "docs/product/core/product-meta.md",
+                    "message": "docs/product/core/product-meta.md must preserve product manifest evidence: "
+                    f"Reviewed at `{reviewed_at}`",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
     def test_verify_reports_product_meta_import_status_drift(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

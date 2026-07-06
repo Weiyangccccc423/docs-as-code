@@ -2159,6 +2159,7 @@ def _check_product_meta_manifest_evidence(
         ("Archive SHA-256", archive.get("sha256")),
         ("Conversion method", imported.get("conversion_method")),
         ("Import status", imported.get("status")),
+        ("Reviewed at", imported.get("reviewed_at")),
         ("Can derive design", _manifest_bool_text(imported.get("can_derive_design"))),
     )
     for label, value in expected_values:
