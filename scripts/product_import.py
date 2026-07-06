@@ -383,6 +383,9 @@ def _load_manifest(root: Path, errors: list[str]) -> dict[str, Any]:
         return {}
     if payload.get("schema_version") != PRODUCT_SOURCE_MANIFEST_SCHEMA_VERSION:
         errors.append(f"product source manifest schema_version must be {PRODUCT_SOURCE_MANIFEST_SCHEMA_VERSION}")
+    source = payload.get("source")
+    if not isinstance(source, dict):
+        errors.append("invalid product source manifest: missing source object")
     imported = payload.get("import")
     if not isinstance(imported, dict):
         errors.append("invalid product source manifest: missing import object")
