@@ -2002,6 +2002,13 @@ def _check_product_source_manifest(root: Path, report: VerificationReport) -> No
             "invalid product source manifest: source.provided must be true when product source is archived",
             "docs/product/core/source/source-manifest.json",
         )
+    original_path = source.get("original_path")
+    if not isinstance(original_path, str) or not original_path.strip():
+        report.add_error(
+            "product_source_manifest_source_original_path_invalid",
+            "invalid product source manifest: source.original_path must be a non-empty string",
+            "docs/product/core/source/source-manifest.json",
+        )
     source_filename_error = _product_source_filename_error(source.get("filename"), archived_rel)
     if source_filename_error is not None:
         report.add_error(
