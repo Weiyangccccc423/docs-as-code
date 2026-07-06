@@ -33,7 +33,7 @@ Create the minimum structure needed for reliable docs-as-code work.
    bin/governance init --target <target> --product <product-doc>
    ```
 
-   For automation, use `--json`. Use `local_commands[].argv` from `local_commands[].cwd` for routine checks; inspect `local_commands[].writes_state` before running a command that records state. Follow `next_actions`: run each action's `argv` from its reported `cwd`; run the reported `preflight` command first, then the matching state-writing `apply` command only after `ok: true`.
+   For automation, use `--json`. Use `local_commands[].argv` from `local_commands[].cwd` for routine checks; inspect `writes_state` and `approval_required` before running returned commands. Follow `next_actions`: run each action's `argv` from its reported `cwd`; run the reported `preflight` command first, then the matching state-writing `apply` command only after `ok: true`.
 
 5. Verify:
 

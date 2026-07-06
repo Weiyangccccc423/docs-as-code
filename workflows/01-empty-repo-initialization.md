@@ -47,7 +47,7 @@ Load:
    bin/governance init --target <target> --product <product-doc> --profile <profile> --project-name "<name>"
    ```
 
-   When `--json` is used, the success payload includes `local_commands` with target-local `make` entries plus `next_actions` with the next preflight/apply workflow commands. Both payloads include `cwd` and `argv` for direct agent execution; `local_commands` also marks state-writing commands with `writes_state`. Follow `next_actions` instead of assuming product structuring is immediately available.
+   When `--json` is used, the success payload includes `local_commands` with target-local `make` entries plus `next_actions` with the next preflight/apply workflow commands. Both payloads include `cwd`, `argv`, `writes_state`, and `approval_required` for direct agent execution. Follow `next_actions` instead of assuming product structuring is immediately available.
 
 5. Inspect generated root files:
 

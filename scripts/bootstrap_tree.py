@@ -133,6 +133,7 @@ def target_local_commands_payload(cwd: str = ".") -> list[dict[str, object]]:
             "argv": ["make", target],
             "recipe": recipe,
             "writes_state": writes_state,
+            "approval_required": False,
             "description": description,
         }
         for target, recipe, description, writes_state in TARGET_LOCAL_COMMANDS

@@ -9,6 +9,7 @@ Calibrate against automated verification, secure development, supply-chain integ
 - Is every state-writing verification or phase transition preceded by its matching `--check --json` preflight?
 - Are agents branching on `ok`, `findings[].code`, `findings[].path`, and `requirements[].code` instead of scraping prose?
 - Are `local_commands[].argv` and `next_actions[].argv` executed from their reported `cwd` rather than reconstructed from display strings?
+- Are returned commands with `approval_required: true` blocked until explicit authorization is available?
 - Are `errors` and `warnings` treated as human summaries, with structured findings used for repair routing?
 
 Reference: `https://dora.dev/capabilities/test-automation/`

@@ -381,6 +381,37 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_missing_product_import_action_approval_schema_key(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/workflow_actions.py"
+            script.write_text(
+                script.read_text(encoding="utf-8").replace(
+                    '        "approval_required": False,\n',
+                    "",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_workflow_action_schema_missing"
+                    and finding.path == "scripts/workflow_actions.py"
+                    and "PRODUCT_IMPORT_ACTIONS action 0" in finding.message
+                    and "approval_required" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_missing_advance_action_schema_key(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
@@ -560,6 +591,36 @@ class PackStructureTest(unittest.TestCase):
                     finding.code == "pack_target_local_command_schema_missing"
                     and finding.path == "scripts/bootstrap_tree.py"
                     and "writes_state" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_missing_target_local_command_approval_schema_key(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/bootstrap_tree.py"
+            script.write_text(
+                script.read_text(encoding="utf-8").replace(
+                    '            "approval_required": False,\n',
+                    "",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_target_local_command_schema_missing"
+                    and finding.path == "scripts/bootstrap_tree.py"
+                    and "approval_required" in finding.message
                     for finding in report.findings
                 )
             )

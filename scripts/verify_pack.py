@@ -933,7 +933,7 @@ METHOD_REFERENCE_BASELINES = {
             "Schema and Payload Expectations",
             (
                 "## Schema and Payload Expectations",
-                "`cwd`, `command`, `argv`, and `writes_state`",
+                "`cwd`, `command`, `argv`, `writes_state`, and `approval_required`",
                 "https://json-schema.org/draft/2020-12/json-schema-core",
             ),
         ),
@@ -1768,6 +1768,7 @@ TARGET_LOCAL_COMMAND_PAYLOAD_REQUIRED_KEYS = (
     "argv",
     "recipe",
     "writes_state",
+    "approval_required",
     "description",
 )
 WORKFLOW_ACTION_SOURCE_REQUIRED_KEYS = (
@@ -1779,6 +1780,7 @@ WORKFLOW_ACTION_SOURCE_REQUIRED_KEYS = (
     "command",
     "argv",
     "writes_state",
+    "approval_required",
     "requires",
     "description",
 )

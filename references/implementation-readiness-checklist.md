@@ -40,7 +40,7 @@ Reference: `https://dora.dev/capabilities/trunk-based-development/`
 
 - Does the handoff include task goal, related specs, constraints, allowed files or modules, verification commands, and Definition of Done?
 - Are assumptions, unresolved questions, and user decisions captured in `docs/unresolved.md` or the task handoff before implementation starts?
-- Are implementation agents told to use target-local `local_commands[].argv` and avoid reparsing command strings when JSON payloads provide structured commands?
+- Are implementation agents told to use target-local `local_commands[].argv`, inspect `approval_required`, and avoid reparsing command strings when JSON payloads provide structured commands?
 
 ## Supply Chain Evidence
 

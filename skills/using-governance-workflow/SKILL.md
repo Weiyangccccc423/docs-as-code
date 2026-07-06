@@ -41,7 +41,7 @@ bin/governance gate implementation <target> --json
 ```
 
 Stop on `ok: false`. Use `requirements[].code` to choose the repair skill, then rerun the gate.
-When `gate --json` can read governance state, use returned `local_commands[].argv` for local checks; when the gate passes, use returned `next_actions[].argv` for the matching advance preflight.
+When `gate --json` can read governance state, use returned `local_commands[].argv` for local checks; when the gate passes, use returned `next_actions[].argv` for the matching advance preflight. Treat any returned command with `approval_required: true` as a stop-and-ask action.
 When actually changing phase, run `bin/governance advance <phase> <target> --check --json`, then run it without `--check` so `.governance/state.json` records `phase_history`. `advance` records adjacent transitions one phase at a time and cannot skip phases; use `gate` for repeated checks or earlier-phase audits.
 After a state-writing `product mark-ready --json` or `advance --json` succeeds, prefer the returned `local_commands` and `next_actions` instead of reconstructing commands or rerunning `status`.
 
