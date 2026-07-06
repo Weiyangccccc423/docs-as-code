@@ -760,6 +760,34 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [item.to_dict() for item in result.requirements],
             )
 
+    def test_gate_implementation_routes_structured_scaffold_placeholders(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            (root / "docs/api/endpoints").mkdir(parents=True, exist_ok=True)
+            (root / "docs/api/endpoints/README.md").write_text("# API Endpoints\n", encoding="utf-8")
+            _write_indexed_doc(
+                root,
+                "docs/api/endpoints/01-placeholder.md",
+                _endpoint_contract_doc("Placeholder Endpoint").replace("GET /example", "METHOD /product-derived-path"),
+            )
+
+            result = evaluate_gate(root, "implementation")
+            requirements = {item.code: item for item in result.requirements}
+
+            self.assertFalse(requirements["api_contracts_ready"].ok)
+            self.assertIn(
+                {
+                    "code": "governance_structured_placeholder",
+                    "severity": "error",
+                    "path": "docs/api/endpoints/01-placeholder.md",
+                    "message": "docs/api/endpoints/01-placeholder.md still contains structured scaffold placeholder: METHOD /product-derived-path",
+                },
+                result.verification["findings"],
+            )
+
     def test_verification_report_objects_reject_unstable_output_shape(self) -> None:
         error = verify_governance_module.VerificationFinding(
             code="missing_required_file",
@@ -13267,6 +13295,67 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "message": "acceptance matrix row docs/product/08-acceptance-criteria.md Acceptance link fragment A-999 does not match Acceptance ID A-001",
                 },
                 [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_structured_scaffold_placeholders_after_marker_removed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_acceptance_matrix_trace_docs(root)
+            _write_indexed_doc(
+                root,
+                "docs/api/endpoints/01-placeholder.md",
+                _endpoint_contract_doc("Placeholder Endpoint").replace("GET /example", "METHOD /product-derived-path"),
+            )
+            _write_indexed_doc(
+                root,
+                "docs/tests/02-acceptance-matrix.md",
+                _acceptance_matrix_doc(
+                    acceptance="A-NNN",
+                    design="[Design](../architecture/NN-design.md)",
+                    api="[Endpoint](../api/endpoints/NN-endpoint.md)",
+                    test="[Test](NN-source.md)",
+                ),
+            )
+            _write_indexed_doc(
+                root,
+                "docs/development/02-task-board.md",
+                _task_board_doc(
+                    "| TASK-NNN | Ready | product-derived task | [Goals](../product/NN-scope.md) | [Design](../architecture/NN-design.md) | [Endpoint](../api/endpoints/NN-endpoint.md) | A-NNN | make test |\n"
+                ),
+            )
+
+            report = verify(root)
+
+            findings = [finding.to_dict() for finding in report.findings]
+            self.assertIn(
+                {
+                    "code": "governance_structured_placeholder",
+                    "severity": "error",
+                    "path": "docs/api/endpoints/01-placeholder.md",
+                    "message": "docs/api/endpoints/01-placeholder.md still contains structured scaffold placeholder: METHOD /product-derived-path",
+                },
+                findings,
+            )
+            self.assertIn(
+                {
+                    "code": "governance_structured_placeholder",
+                    "severity": "error",
+                    "path": "docs/tests/02-acceptance-matrix.md",
+                    "message": "docs/tests/02-acceptance-matrix.md still contains structured scaffold placeholder: A-NNN",
+                },
+                findings,
+            )
+            self.assertIn(
+                {
+                    "code": "governance_structured_placeholder",
+                    "severity": "error",
+                    "path": "docs/development/02-task-board.md",
+                    "message": "docs/development/02-task-board.md still contains structured scaffold placeholder: TASK-NNN",
+                },
+                findings,
             )
 
     def test_verify_reports_acceptance_matrix_missing_trace_targets(self) -> None:

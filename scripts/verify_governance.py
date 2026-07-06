@@ -65,6 +65,17 @@ ADR_TEMPLATE_GUARDRAILS = (
 )
 ADR_DECISION_RE = re.compile(r"^(?P<prefix>[0-9]{3})-[a-z0-9][a-z0-9-]*\.md$")
 SCAFFOLD_PLACEHOLDER = "governance:scaffold-placeholder"
+STRUCTURED_SCAFFOLD_PLACEHOLDER_RE = re.compile(
+    r"(?<![A-Za-z0-9_-])(?:"
+    r"METHOD[ \t]+/product-derived-path"
+    r"|TASK-NNN"
+    r"|A-NNN"
+    r"|NN-(?:endpoint|source|scope|design|acceptance)"
+    r"|field_name"
+    r"|product-derived[ \t]+(?:task|milestone)"
+    r")(?![A-Za-z0-9_-])",
+    re.IGNORECASE,
+)
 WORKFLOW_PACK_SNAPSHOT_ROOT = "docs/agent-workflow/workflow-pack"
 WORKFLOW_PACK_IGNORED_FILE_NAMES = {".DS_Store", "manifest.json"}
 MANIFEST_SCHEMA_VERSION = 1
@@ -720,6 +731,7 @@ def verify(root: Path) -> VerificationReport:
     _check_readme_indexes(root, report)
     _check_local_markdown_links(root, report)
     _check_scaffold_placeholders(root, report)
+    _check_structured_scaffold_placeholders(root, report)
     _check_runtime_manifest(root, report)
     _check_workflow_pack_manifest(root, report)
     _check_task_board(root, report)
@@ -3888,6 +3900,35 @@ def _check_scaffold_placeholders(root: Path, report: VerificationReport) -> None
             f"{rel} still contains a governance scaffold placeholder",
             rel,
         )
+
+
+def _check_structured_scaffold_placeholders(root: Path, report: VerificationReport) -> None:
+    docs_root = root / "docs"
+    if not docs_root.is_dir():
+        return
+    for path in sorted(docs_root.rglob("*.md")):
+        if not path.is_file():
+            continue
+        rel = path.relative_to(root).as_posix()
+        if rel.startswith(f"{WORKFLOW_PACK_SNAPSHOT_ROOT}/"):
+            continue
+        if rel.startswith("docs/product/core/source/"):
+            continue
+        text = _read_markdown_text(root, path, report)
+        if text is None or SCAFFOLD_PLACEHOLDER in text:
+            continue
+        seen: set[str] = set()
+        for match in STRUCTURED_SCAFFOLD_PLACEHOLDER_RE.finditer(text):
+            placeholder = re.sub(r"\s+", " ", match.group(0).strip())
+            key = placeholder.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            report.add_error(
+                "governance_structured_placeholder",
+                f"{rel} still contains structured scaffold placeholder: {placeholder}",
+                rel,
+            )
 
 
 def _check_runtime_manifest(root: Path, report: VerificationReport) -> None:

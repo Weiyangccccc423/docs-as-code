@@ -81,7 +81,7 @@ Load:
 8. Before implementation starts, confirm:
    - no unregistered docs directories
    - no stale reserved markers
-   - no `governance:scaffold-placeholder` markers
+   - no `governance:scaffold-placeholder` markers or structured scaffold placeholders such as `A-NNN`, `TASK-NNN`, `METHOD /product-derived-path`, `NN-*`, or `field_name`
    - no `docs/unresolved.md` rows with a blocking `Blocking Scope`
    - no `docs/unresolved.md` rows with missing `ID`, `Domain`, or `Description`, invalid `U-NNN` IDs, or duplicate unresolved IDs
    - no `docs/glossary.md` rows with missing `Term`, `Meaning`, or `Source`, duplicate terms, or missing local Markdown sources

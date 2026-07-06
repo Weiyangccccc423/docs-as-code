@@ -49,6 +49,7 @@ DOMAIN_DOCUMENT_FINDING_CODES = {
     "docs_readme_not_file",
     "docs_readme_unindexed_file",
     "governance_scaffold_placeholder",
+    "governance_structured_placeholder",
     "markdown_invalid_encoding",
     "markdown_not_file",
     "required_directory_not_directory",
