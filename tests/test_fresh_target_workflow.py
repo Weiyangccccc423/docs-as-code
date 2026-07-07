@@ -622,3 +622,30 @@ class FreshTargetWorkflowTest(unittest.TestCase):
                 ["bin/governance", "design", "test-strategy-authoring", ".", "--json"],
                 test_task["steps"][-1]["argv"],
             )
+
+            implementation_planning_authoring = _run_json(
+                self,
+                ["bin/governance", "design", "implementation-planning-authoring", ".", "--json"],
+                cwd=target,
+            )
+            self.assertTrue(implementation_planning_authoring["ok"])
+            self.assertEqual("implementation-planning", implementation_planning_authoring["track"])
+            self.assertEqual("do_not_guess_task_scope", implementation_planning_authoring["decision_policy"])
+            self.assertEqual(1, len(implementation_planning_authoring["authoring_tasks"]))
+            planning_task = implementation_planning_authoring["authoring_tasks"][0]
+            self.assertEqual("PLAN-AUTHOR-001", planning_task["task_id"])
+            self.assertEqual("A-001", planning_task["acceptance_id"])
+            self.assertEqual("TASK-001", planning_task["suggested_task_id"])
+            self.assertIn("planning-implementation-work", implementation_planning_authoring["skills"])
+            self.assertIn("docs/development/01-roadmap.md", [document["path"] for document in planning_task["documents"]])
+            self.assertIn("docs/development/02-task-board.md", [document["path"] for document in planning_task["documents"]])
+            self.assertIn("docs/development/03-verification-log.md", [document["path"] for document in planning_task["documents"]])
+            self.assertIn("task_scope", planning_task["open_decisions"])
+            self.assertIn("ready_criteria", planning_task["open_decisions"])
+            self.assertIn("verification_plan", planning_task["open_decisions"])
+            self.assertIn("agent_handoff", planning_task["open_decisions"])
+            self.assertIn("docs/tests/02-acceptance-matrix.md", [link["target"] for link in planning_task["required_links"]])
+            self.assertEqual(
+                ["bin/governance", "design", "implementation-planning-authoring", ".", "--json"],
+                planning_task["steps"][-1]["argv"],
+            )

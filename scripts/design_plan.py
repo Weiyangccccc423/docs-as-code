@@ -23,8 +23,10 @@ API_TRACK_ID = "api-contracts"
 BACKEND_TRACK_ID = "backend-modules"
 FRONTEND_TRACK_ID = "frontend-modules"
 TEST_STRATEGY_TRACK_ID = "test-strategy"
+IMPLEMENTATION_PLANNING_TRACK_ID = "implementation-planning"
 STARTER_ENDPOINT_CONTRACT = "docs/api/endpoints/01-endpoint-contract.md"
 ACCEPTANCE_HEADING_RE = re.compile(r"^##[ \t]+(?P<id>A-[0-9]{3})[ \t]+(?P<title>.+?)[ \t]*$", re.MULTILINE)
+TASK_ID_RE = re.compile(r"\bTASK-(?P<num>[0-9]{3})\b")
 SLUG_TOKEN_RE = re.compile(r"[a-z0-9]+")
 OPEN_API_DECISIONS = (
     "method_path",
@@ -166,6 +168,40 @@ TEST_STRATEGY_SECTIONS = (
 ACCEPTANCE_MATRIX_SECTIONS = (
     "Matrix",
     "Uncovered Criteria",
+)
+OPEN_IMPLEMENTATION_PLANNING_DECISIONS = (
+    "task_scope",
+    "milestone_sequence",
+    "task_boundaries",
+    "task_status",
+    "ready_criteria",
+    "product_traceability",
+    "design_traceability",
+    "api_traceability",
+    "acceptance_mapping",
+    "verification_plan",
+    "agent_handoff",
+    "dependency_order",
+    "done_evidence",
+    "deferred_scope",
+    "supply_chain_checks",
+)
+ROADMAP_SECTIONS = (
+    "Product Links",
+    "Milestones",
+    "Sequencing",
+    "Risks",
+    "Deferred Scope",
+)
+TASK_BOARD_SECTIONS = (
+    "Task Table",
+    "Status Policy",
+    "Traceability Rules",
+)
+VERIFICATION_LOG_SECTIONS = (
+    "Verification Runs",
+    "Artifacts",
+    "Open Follow-ups",
 )
 
 
@@ -491,6 +527,49 @@ def build_test_strategy_authoring(root: Path) -> dict[str, object]:
         "source_documents": _source_documents(root),
         "authoring_tasks": [
             _test_strategy_authoring_task(root, candidate, index)
+            for index, candidate in enumerate(candidates, start=1)
+        ],
+        "errors": errors,
+    }
+    if not errors:
+        payload["local_commands"] = target_local_commands_payload(cwd=str(root))
+        payload["next_actions"] = next_actions_payload(state, cwd=str(root))
+    return payload
+
+
+def build_implementation_planning_authoring(root: Path) -> dict[str, object]:
+    root = root.resolve()
+    state = load_state(root)
+    phase = state.get("phase") if isinstance(state.get("phase"), str) else ""
+    errors: list[str] = []
+    if not state:
+        errors.append("No governance state found.")
+    elif phase != DESIGN_PHASE:
+        errors.append(f"implementation planning authoring requires recorded phase {DESIGN_PHASE}")
+    candidates = _api_candidates(root)
+    if not candidates:
+        errors.append("No product acceptance criteria with A-NNN headings found.")
+    start_task_prefix = _next_task_prefix(root)
+    payload: dict[str, object] = {
+        "ok": not errors,
+        "target": str(root),
+        "phase": phase,
+        "workflow": DESIGN_WORKFLOW_PATH,
+        "track": IMPLEMENTATION_PLANNING_TRACK_ID,
+        "decision_policy": "do_not_guess_task_scope",
+        "skills": ["planning-implementation-work"],
+        "references": [
+            "references/implementation-readiness-checklist.md",
+            "references/implementation-execution-checklist.md",
+        ],
+        "source_documents": _source_documents(root),
+        "authoring_tasks": [
+            _implementation_planning_authoring_task(
+                root,
+                candidate,
+                index,
+                f"TASK-{start_task_prefix + index - 1:03d}",
+            )
             for index, candidate in enumerate(candidates, start=1)
         ],
         "errors": errors,
@@ -1067,6 +1146,165 @@ def _test_strategy_authoring_steps(
     ]
 
 
+def _implementation_planning_authoring_task(
+    root: Path,
+    candidate: dict[str, object],
+    index: int,
+    suggested_task_id: str,
+) -> dict[str, object]:
+    source = candidate["source"]
+    if not isinstance(source, dict):  # pragma: no cover - internal invariant
+        source = {}
+    source_reference = str(source.get("reference", ""))
+    api_contract = str(candidate["suggested_endpoint_file"])
+    documents = [
+        _authoring_document(
+            "docs/development/01-roadmap.md",
+            ROADMAP_SECTIONS,
+            "Define product-linked milestones, sequencing, risks, and explicitly deferred scope.",
+        ),
+        _authoring_document(
+            "docs/development/02-task-board.md",
+            TASK_BOARD_SECTIONS,
+            "Create traceable TASK-NNN rows only when Product, Design, API, Acceptance, and Verification sources exist.",
+        ),
+        _authoring_document(
+            "docs/development/03-verification-log.md",
+            VERIFICATION_LOG_SECTIONS,
+            "Initialize the stable local Markdown evidence target for Done task verification.",
+        ),
+    ]
+    required_links = [
+        _required_link(root, "product_acceptance", source_reference),
+        _required_link(root, "architecture_context", "docs/architecture/01-system-context.md"),
+        _required_link(root, "architecture_quality", "docs/architecture/03-quality-attributes.md"),
+        _required_link(root, "ui_interaction", "docs/ui/01-interaction-model.md"),
+        _required_link(root, "api_contract", api_contract),
+        _required_link(root, "backend_modules", "docs/backend/01-modules.md"),
+        _required_link(root, "frontend_modules", "docs/frontend/01-modules.md"),
+        _required_link(root, "test_strategy", "docs/tests/01-strategy.md"),
+        _required_link(root, "acceptance_matrix", "docs/tests/02-acceptance-matrix.md"),
+        _required_link(root, "roadmap", "docs/development/01-roadmap.md"),
+        _required_link(root, "task_board", "docs/development/02-task-board.md"),
+        _required_link(root, "verification_log", "docs/development/03-verification-log.md"),
+        _required_link(root, "unresolved_decisions", "docs/unresolved.md"),
+    ]
+    return {
+        "task_id": f"PLAN-AUTHOR-{index:03d}",
+        "api_candidate_id": candidate["candidate_id"],
+        "acceptance_id": candidate["acceptance_id"],
+        "title": candidate["title"],
+        "suggested_task_id": suggested_task_id,
+        "source": source,
+        "documents": documents,
+        "required_links": required_links,
+        "open_decisions": list(OPEN_IMPLEMENTATION_PLANNING_DECISIONS),
+        "steps": _implementation_planning_authoring_steps(
+            root,
+            source_reference,
+            api_contract,
+            required_links,
+        ),
+    }
+
+
+def _implementation_planning_authoring_steps(
+    root: Path,
+    source_reference: str,
+    api_contract: str,
+    required_links: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    return [
+        {
+            "id": "load-implementation-planning-skill",
+            "kind": "skill-load",
+            "skills": ["planning-implementation-work"],
+            "description": "Load the implementation planning skill before assigning TASK-NNN scope, status, readiness, or evidence targets.",
+        },
+        {
+            "id": "read-implementation-references",
+            "kind": "read",
+            "references": [
+                "references/implementation-readiness-checklist.md",
+                "references/implementation-execution-checklist.md",
+            ],
+            "description": "Read readiness and execution guidance before resolving task scope or Ready/Done contracts.",
+        },
+        {
+            "id": "read-source-acceptance",
+            "kind": "read",
+            "documents": [source_reference],
+            "description": "Read the product acceptance criterion that drives this implementation planning task.",
+        },
+        {
+            "id": "read-design-and-test-sources",
+            "kind": "read",
+            "documents": [
+                "docs/architecture/01-system-context.md",
+                "docs/architecture/03-quality-attributes.md",
+                "docs/ui/01-interaction-model.md",
+                api_contract,
+                "docs/backend/01-modules.md",
+                "docs/frontend/01-modules.md",
+                "docs/tests/01-strategy.md",
+                "docs/tests/02-acceptance-matrix.md",
+            ],
+            "description": "Read design, API, and verification sources before deciding task boundaries, dependencies, or readiness.",
+        },
+        {
+            "id": "author-roadmap",
+            "kind": "author",
+            "document": "docs/development/01-roadmap.md",
+            "sections": list(ROADMAP_SECTIONS),
+            "description": "Create milestone rows with TASK-NNN IDs, sequencing, risks, and deferred scope backed by product and design sources.",
+        },
+        {
+            "id": "author-task-board",
+            "kind": "author",
+            "document": "docs/development/02-task-board.md",
+            "sections": list(TASK_BOARD_SECTIONS),
+            "description": "Create task rows with Product, Design, API, Acceptance, and Verification links; mark Ready only when every gate input exists.",
+        },
+        {
+            "id": "initialize-verification-log",
+            "kind": "author",
+            "document": "docs/development/03-verification-log.md",
+            "sections": list(VERIFICATION_LOG_SECTIONS),
+            "description": "Initialize the local Markdown evidence target for completed task verification without claiming Done evidence.",
+        },
+        {
+            "id": "link-ready-contract",
+            "kind": "link",
+            "required_links": [
+                link
+                for link in required_links
+                if link["kind"]
+                in {
+                    "product_acceptance",
+                    "api_contract",
+                    "test_strategy",
+                    "acceptance_matrix",
+                    "verification_log",
+                    "unresolved_decisions",
+                }
+            ],
+            "description": "Connect each planned task to acceptance, API, test, evidence, and unresolved-decision sources before marking it Ready.",
+        },
+        _command_step(
+            root,
+            "verify-implementation-planning-authoring",
+            "Run read-only governance verification after implementation planning authoring.",
+            ["bin/governance", "verify", ".", "--check", "--json"],
+        ),
+        _command_step(
+            root,
+            "refresh-implementation-planning-authoring",
+            "Refresh the implementation planning authoring queue after verification.",
+            ["bin/governance", "design", "implementation-planning-authoring", ".", "--json"],
+        ),
+    ]
+
+
 def _acceptance_headings(root: Path) -> list[dict[str, str]]:
     product_root = root / "docs/product"
     if not product_root.is_dir():
@@ -1106,6 +1344,20 @@ def _next_endpoint_prefix(root: Path) -> int:
                 prefixes.append(int(path.name[:2]))
             except ValueError:
                 continue
+    return max(prefixes, default=0) + 1
+
+
+def _next_task_prefix(root: Path) -> int:
+    prefixes: list[int] = []
+    for rel in ("docs/development/01-roadmap.md", "docs/development/02-task-board.md"):
+        path = root / rel
+        if not path.is_file():
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        prefixes.extend(int(match.group("num")) for match in TASK_ID_RE.finditer(text))
     return max(prefixes, default=0) + 1
 
 

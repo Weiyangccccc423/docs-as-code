@@ -586,16 +586,23 @@ FRESH_TARGET_SMOKE_TEST_REQUIRED_PHRASES = (
     "test-strategy-authoring",
     "acceptance_coverage",
     "evidence_targets",
+    "implementation_planning_authoring",
+    "implementation-planning-authoring",
+    "task_scope",
+    "ready_criteria",
+    "agent_handoff",
     "api-contracts",
     "backend-modules",
     "frontend-modules",
     "test-strategy",
+    "implementation-planning",
     "designing-api-contracts",
     "designing-backend-modules",
     "designing-data-models",
     "designing-ui-interactions",
     "designing-frontend-modules",
     "designing-test-strategy",
+    "planning-implementation-work",
     "design_blocked_verify",
     "docs/architecture/01-system-context.md",
     "docs/api/endpoints/README.md",
@@ -869,6 +876,29 @@ TEST_STRATEGY_AUTHORING_REQUIRED_PHRASES = (
     "evidence_targets",
     "verify-test-strategy-authoring",
     "refresh-test-strategy-authoring",
+)
+IMPLEMENTATION_PLANNING_AUTHORING_DOC_PATHS = (
+    "README.md",
+    "workflows/00-overview.md",
+    "workflows/04-design-derivation.md",
+    "skills/planning-implementation-work/SKILL.md",
+    "skills/verifying-governance-docs/SKILL.md",
+)
+IMPLEMENTATION_PLANNING_AUTHORING_REQUIRED_PHRASES = (
+    "design implementation-planning-authoring",
+    "authoring_tasks",
+    "decision_policy",
+    "do_not_guess_task_scope",
+    "documents",
+    "sections",
+    "required_links",
+    "open_decisions",
+    "task_scope",
+    "ready_criteria",
+    "verification_plan",
+    "agent_handoff",
+    "verify-implementation-planning-authoring",
+    "refresh-implementation-planning-authoring",
 )
 SCAFFOLD_CONTINUATION_DOC_PATHS = (
     "README.md",
@@ -1968,6 +1998,7 @@ GOVERNANCE_CLI_REQUIRED_SUBCOMMANDS = {
         "backend-authoring",
         "frontend-authoring",
         "test-strategy-authoring",
+        "implementation-planning-authoring",
     ),
 }
 GOVERNANCE_CLI_PARSER_VARIABLES = {
@@ -2239,6 +2270,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_backend_authoring_docs(root, findings)
     _check_frontend_authoring_docs(root, findings)
     _check_test_strategy_authoring_docs(root, findings)
+    _check_implementation_planning_authoring_docs(root, findings)
     _check_scaffold_continuation_docs(root, findings)
     _check_implementation_handoff_docs(root, findings)
     _check_initialization_reference_docs(root, findings)
@@ -3656,6 +3688,23 @@ def _check_test_strategy_authoring_docs(root: Path, findings: list[PackFinding])
             PackFinding(
                 "pack_test_strategy_authoring_doc_missing",
                 f"{rel} must document test strategy authoring phrase(s): {', '.join(missing)}",
+                rel,
+            )
+        )
+
+
+def _check_implementation_planning_authoring_docs(root: Path, findings: list[PackFinding]) -> None:
+    for rel in IMPLEMENTATION_PLANNING_AUTHORING_DOC_PATHS:
+        text = _read_utf8_text_or_none(root / rel)
+        if text is None:
+            continue
+        missing = [phrase for phrase in IMPLEMENTATION_PLANNING_AUTHORING_REQUIRED_PHRASES if phrase not in text]
+        if not missing:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_implementation_planning_authoring_doc_missing",
+                f"{rel} must document implementation planning authoring phrase(s): {', '.join(missing)}",
                 rel,
             )
         )
