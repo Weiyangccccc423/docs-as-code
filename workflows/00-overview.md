@@ -23,6 +23,7 @@ From the source workflow-pack checkout, run the disposable end-to-end dry run be
 
 ```bash
 make dry-run
+make dry-run-golden
 python3 scripts/dry_run_workflow.py --json
 python3 scripts/dry_run_workflow.py --product tests/fixtures/product-docs/field-service-ops.md --json
 ```

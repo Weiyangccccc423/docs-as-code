@@ -102,6 +102,7 @@ Before using the pack on a real project, run the disposable source-pack dry run.
 
 ```bash
 make dry-run
+make dry-run-golden
 python3 scripts/dry_run_workflow.py --json
 python3 scripts/dry_run_workflow.py --product tests/fixtures/product-docs/field-service-ops.md --json
 ```
@@ -218,6 +219,7 @@ Read `workflows/00-overview.md` before running a phase.
 ```bash
 make test
 make dry-run
+make dry-run-golden
 python3 scripts/dry_run_workflow.py --product tests/fixtures/product-docs/field-service-ops.md --json
 make package
 python3 scripts/verify_pack_manifest.py dist/docs-as-code-workflow-pack --json

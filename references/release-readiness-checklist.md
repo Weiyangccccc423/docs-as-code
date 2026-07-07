@@ -11,6 +11,7 @@ Use this checklist before tagging, exporting, or handing off this source workflo
 ## Dry Run Validation
 
 - Run `make dry-run`.
+- Run `make dry-run-golden`.
 - Run `python3 scripts/dry_run_workflow.py --json` and require `ok: true`.
 - Run `python3 scripts/dry_run_workflow.py --product tests/fixtures/product-docs/field-service-ops.md --json` and require `ok: true`.
 - Confirm the payload reports `workflow: fresh-target-governance-dry-run`, reaches `final_phase: design-derivation`, produces API/backend/frontend/test/implementation-planning/ADR authoring queues, and keeps the implementation gate blocked until source-backed design placeholders are replaced.

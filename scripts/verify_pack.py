@@ -684,6 +684,7 @@ DRY_RUN_GOLDEN_TEST_REQUIRED_PHRASES = (
 DRY_RUN_DOC_REQUIREMENTS = {
     "README.md": (
         "make dry-run",
+        "make dry-run-golden",
         "python3 scripts/dry_run_workflow.py --json",
         "python3 scripts/dry_run_workflow.py --product tests/fixtures/product-docs/field-service-ops.md --json",
         "temporary target",
@@ -692,6 +693,7 @@ DRY_RUN_DOC_REQUIREMENTS = {
     ),
     "workflows/00-overview.md": (
         "make dry-run",
+        "make dry-run-golden",
         "python3 scripts/dry_run_workflow.py --json",
         "python3 scripts/dry_run_workflow.py --product tests/fixtures/product-docs/field-service-ops.md --json",
         "temporary target",
@@ -701,10 +703,12 @@ DRY_RUN_DOC_REQUIREMENTS = {
     "skills/verifying-governance-docs/SKILL.md": (
         "source workflow-pack health",
         "make dry-run",
+        "make dry-run-golden",
         "python3 scripts/dry_run_workflow.py --json",
         "python3 scripts/dry_run_workflow.py --product tests/fixtures/product-docs/field-service-ops.md --json",
     ),
     "references/release-readiness-checklist.md": (
+        "make dry-run-golden",
         "python3 scripts/dry_run_workflow.py --product tests/fixtures/product-docs/field-service-ops.md --json",
         "acceptance_id_count: 4",
         "api_candidate_count: 4",
@@ -2281,6 +2285,7 @@ PHASE_ADVANCE_AMBIGUOUS_PHRASES = (
 MAKEFILE_REQUIRED_TARGETS = (
     "test",
     "dry-run",
+    "dry-run-golden",
     "package",
     "artifact-smoke",
     "release-check",
@@ -2292,6 +2297,9 @@ MAKEFILE_REQUIRED_TARGET_RECIPES = {
     ),
     "dry-run": (
         "python3 scripts/dry_run_workflow.py --json",
+    ),
+    "dry-run-golden": (
+        "python3 scripts/dry_run_workflow.py --product tests/fixtures/product-docs/field-service-ops.md --json",
     ),
     "package": (
         "python3 scripts/export_workflow_pack.py --output dist/docs-as-code-workflow-pack --archive dist/docs-as-code-workflow-pack.tar.gz --force --json",

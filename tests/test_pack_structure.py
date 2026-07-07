@@ -689,6 +689,36 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_missing_dry_run_golden_makefile_target(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            makefile = target / "Makefile"
+            makefile.write_text(
+                makefile.read_text(encoding="utf-8").replace(
+                    "\ndry-run-golden:\n\tpython3 scripts/dry_run_workflow.py --product tests/fixtures/product-docs/field-service-ops.md --json\n",
+                    "\n",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_makefile_target_missing"
+                    and finding.path == "Makefile"
+                    and "dry-run-golden" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_missing_package_makefile_target(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
