@@ -45,6 +45,8 @@ class ExportWorkflowPackTest(unittest.TestCase):
             self.assertTrue(archive.is_file())
             self.assertGreater(payload["file_count"], 20)
             self.assertEqual(payload["file_count"], payload["manifest_file_count"])
+            self.assertTrue(payload["manifest_verification"]["ok"])
+            self.assertEqual([], payload["manifest_verification"]["findings"])
             self.assertEqual([], payload["verification"]["findings"])
             self.assertTrue((output / "pack-manifest.json").is_file())
             self.assertTrue((output / "scripts/export_workflow_pack.py").is_file())

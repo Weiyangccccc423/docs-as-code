@@ -20,8 +20,10 @@ Use this checklist before tagging, exporting, or handing off this source workflo
 - Run `make artifact-smoke`.
 - Run `python3 scripts/export_workflow_pack.py --check --json` before writing a package when inspecting changes.
 - Run `python3 scripts/export_workflow_pack.py --output dist/docs-as-code-workflow-pack --archive dist/docs-as-code-workflow-pack.tar.gz --force --json` for the release artifact.
-- Run `python3 scripts/smoke_workflow_pack_artifact.py --json` to unpack the tar.gz artifact and run `verify_pack` plus dry-run checks from the unpacked artifact.
+- Run `python3 scripts/verify_pack_manifest.py dist/docs-as-code-workflow-pack --json` for explicit manifest verification of the exported directory.
+- Run `python3 scripts/smoke_workflow_pack_artifact.py --json` to unpack the tar.gz artifact and run manifest verification, `verify_pack`, plus dry-run checks from the unpacked artifact.
 - Confirm the export writes `pack-manifest.json` with SHA-256 evidence, verifies the exported directory with `verify_pack`, and reports archive SHA-256 and size for transfer evidence.
+- Confirm manifest verification reports `ok: true` with no `findings`, including no hash, size, executable-bit, duplicate-path, invalid-path, missing-file, or unmanifested-file drift.
 - Confirm the unpacked artifact reports `ok: true`, has `pack-manifest.json`, and reaches `final_phase: design-derivation` during its dry run.
 
 ## Environment and Tooling

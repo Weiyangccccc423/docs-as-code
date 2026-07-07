@@ -384,6 +384,66 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_missing_pack_manifest_verify_script(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/verify_pack_manifest.py"
+            if script.exists():
+                script.unlink()
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_required_file_missing"
+                    and finding.path == "scripts/verify_pack_manifest.py"
+                    for finding in report.findings
+                )
+            )
+            self.assertTrue(
+                any(
+                    finding.code == "pack_manifest_verify_missing"
+                    and finding.path == "scripts/verify_pack_manifest.py"
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_incomplete_pack_manifest_verify_script(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/verify_pack_manifest.py"
+            script.write_text(
+                script.read_text(encoding="utf-8").replace(
+                    "pack_manifest_file_unmanifested",
+                    "pack_manifest_file_not_listed",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_manifest_verify_incomplete"
+                    and finding.path == "scripts/verify_pack_manifest.py"
+                    and "pack_manifest_file_unmanifested" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_missing_artifact_smoke_script(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
@@ -432,6 +492,35 @@ class PackStructureTest(unittest.TestCase):
                     finding.code == "pack_artifact_smoke_incomplete"
                     and finding.path == "scripts/smoke_workflow_pack_artifact.py"
                     and "unpacked_dry_run" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_artifact_smoke_missing_manifest_verifier_call(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/smoke_workflow_pack_artifact.py"
+            script.write_text(
+                script.read_text(encoding="utf-8").replace(
+                    "unpacked_verify_pack_manifest",
+                    "unpacked_manifest_preview",
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_artifact_smoke_incomplete"
+                    and finding.path == "scripts/smoke_workflow_pack_artifact.py"
+                    and "unpacked_verify_pack_manifest" in finding.message
                     for finding in report.findings
                 )
             )
@@ -782,6 +871,36 @@ class PackStructureTest(unittest.TestCase):
                     finding.code == "pack_release_readiness_doc_missing"
                     and finding.path == "README.md"
                     and "references/release-readiness-checklist.md" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_missing_pack_manifest_verify_doc_phrase(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            readme = target / "README.md"
+            readme.write_text(
+                readme.read_text(encoding="utf-8").replace(
+                    "python3 scripts/verify_pack_manifest.py dist/docs-as-code-workflow-pack --json",
+                    "python3 scripts/check_export_manifest.py dist/docs-as-code-workflow-pack --json",
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_manifest_verify_doc_missing"
+                    and finding.path == "README.md"
+                    and "python3 scripts/verify_pack_manifest.py dist/docs-as-code-workflow-pack --json"
+                    in finding.message
                     for finding in report.findings
                 )
             )

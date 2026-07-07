@@ -106,6 +106,23 @@ def run_artifact_smoke(*, keep: bool = False) -> dict[str, object]:
         _require(unpacked_root.is_dir(), "archive did not unpack to expected root directory")
         _require((unpacked_root / "pack-manifest.json").is_file(), "unpacked artifact is missing pack-manifest.json")
 
+        manifest_payload = _run_json(
+            steps,
+            "unpacked_verify_pack_manifest",
+            [sys.executable, "scripts/verify_pack_manifest.py", "--json"],
+            unpacked_root,
+        )
+        _require(
+            manifest_payload.get("ok") is True,
+            "unpacked artifact verify_pack_manifest failed",
+            payload=manifest_payload,
+        )
+        _require(
+            manifest_payload.get("findings") == [],
+            "unpacked artifact verify_pack_manifest returned findings",
+            payload=manifest_payload,
+        )
+
         verify_payload = _run_json(
             steps,
             "unpacked_verify_pack",

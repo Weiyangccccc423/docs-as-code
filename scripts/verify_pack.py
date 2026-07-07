@@ -683,6 +683,7 @@ SOURCE_PACK_EXPORT_REQUIRED_PHRASES = (
     "run_export",
     "EXPORT_RESOURCE_PATHS",
     "pack-manifest.json",
+    "verify_pack_manifest",
     "verify_pack",
     "sha256_file",
     "tarfile",
@@ -715,10 +716,43 @@ SOURCE_PACK_EXPORT_DOC_REQUIREMENTS = {
         "python3 scripts/export_workflow_pack.py --output dist/docs-as-code-workflow-pack --archive dist/docs-as-code-workflow-pack.tar.gz --force --json",
     ),
 }
+PACK_MANIFEST_VERIFY_PATH = "scripts/verify_pack_manifest.py"
+PACK_MANIFEST_VERIFY_REQUIRED_PHRASES = (
+    "verify_pack_manifest",
+    "pack-manifest.json",
+    "sha256_file",
+    "size_bytes",
+    "sha256",
+    "executable",
+    "pack_manifest_file_unmanifested",
+    "duplicate",
+    "PurePosixPath",
+    "PureWindowsPath",
+)
+PACK_MANIFEST_VERIFY_DOC_REQUIREMENTS = {
+    "README.md": (
+        "python3 scripts/verify_pack_manifest.py dist/docs-as-code-workflow-pack --json",
+        "validates `pack-manifest.json`",
+        "SHA-256",
+        "unmanifested",
+    ),
+    "workflows/00-overview.md": (
+        "python3 scripts/verify_pack_manifest.py dist/docs-as-code-workflow-pack --json",
+        "validates `pack-manifest.json`",
+    ),
+    "references/release-readiness-checklist.md": (
+        "python3 scripts/verify_pack_manifest.py dist/docs-as-code-workflow-pack --json",
+        "manifest verification",
+    ),
+    "skills/verifying-governance-docs/SKILL.md": (
+        "python3 scripts/verify_pack_manifest.py dist/docs-as-code-workflow-pack --json",
+    ),
+}
 ARTIFACT_SMOKE_PATH = "scripts/smoke_workflow_pack_artifact.py"
 ARTIFACT_SMOKE_REQUIRED_PHRASES = (
     "run_artifact_smoke",
     "export_artifact",
+    "unpacked_verify_pack_manifest",
     "unpacked_verify_pack",
     "unpacked_dry_run",
     "safe_extract_archive",
@@ -726,6 +760,7 @@ ARTIFACT_SMOKE_REQUIRED_PHRASES = (
     "archive_member_count",
     "target_retained",
     "scripts/export_workflow_pack.py",
+    "scripts/verify_pack_manifest.py",
     "scripts/verify_pack.py",
     "scripts/dry_run_workflow.py",
 )
@@ -2387,6 +2422,7 @@ SOURCE_PACK_REQUIRED_PATHS = tuple(
             "README.md",
             "AGENTS.md",
             "Makefile",
+            "scripts/verify_pack_manifest.py",
             "scripts/verify_pack.py",
             *(path.as_posix() for path in RUNTIME_REQUIRED_PATHS),
             *WORKFLOW_PACK_REQUIRED_PATHS,
@@ -2521,6 +2557,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_fresh_target_workflow_smoke_test(root, findings)
     _check_dry_run_workflow(root, findings)
     _check_source_pack_export_workflow(root, findings)
+    _check_pack_manifest_verify_workflow(root, findings)
     _check_artifact_smoke_workflow(root, findings)
     _check_release_readiness_workflow(root, findings)
     _check_runtime_continuation_calls(root, findings)
@@ -2533,6 +2570,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_readme_quick_start(root, findings)
     _check_dry_run_docs(root, findings)
     _check_source_pack_export_docs(root, findings)
+    _check_pack_manifest_verify_docs(root, findings)
     _check_artifact_smoke_docs(root, findings)
     _check_release_readiness_docs(root, findings)
     _check_target_makefile_command_docs(root, findings)
@@ -2681,6 +2719,36 @@ def _check_source_pack_export_workflow(root: Path, findings: list[PackFinding]) 
                 f"missing phrase(s): {', '.join(missing)}"
             ),
             SOURCE_PACK_EXPORT_PATH,
+        )
+    )
+
+
+def _check_pack_manifest_verify_workflow(root: Path, findings: list[PackFinding]) -> None:
+    path = root / PACK_MANIFEST_VERIFY_PATH
+    if not path.is_file():
+        findings.append(
+            PackFinding(
+                "pack_manifest_verify_missing",
+                f"missing pack manifest verifier script: {PACK_MANIFEST_VERIFY_PATH}",
+                PACK_MANIFEST_VERIFY_PATH,
+            )
+        )
+        return
+    text = _read_utf8_text_or_none(path)
+    if text is None:
+        return
+    missing = [phrase for phrase in PACK_MANIFEST_VERIFY_REQUIRED_PHRASES if phrase not in text]
+    if not missing:
+        return
+    findings.append(
+        PackFinding(
+            "pack_manifest_verify_incomplete",
+            (
+                f"{PACK_MANIFEST_VERIFY_PATH} must verify pack-manifest.json hashes, sizes, "
+                f"executable flags, duplicates, invalid paths, and unmanifested files; "
+                f"missing phrase(s): {', '.join(missing)}"
+            ),
+            PACK_MANIFEST_VERIFY_PATH,
         )
     )
 
@@ -3909,6 +3977,23 @@ def _check_source_pack_export_docs(root: Path, findings: list[PackFinding]) -> N
                 PackFinding(
                     "pack_source_pack_export_doc_missing",
                     f"{rel} must document source-pack export command or behavior: {phrase}",
+                    rel,
+                )
+            )
+
+
+def _check_pack_manifest_verify_docs(root: Path, findings: list[PackFinding]) -> None:
+    for rel, required_phrases in PACK_MANIFEST_VERIFY_DOC_REQUIREMENTS.items():
+        text = _read_utf8_text_or_none(root / rel)
+        if text is None:
+            continue
+        for phrase in required_phrases:
+            if phrase in text:
+                continue
+            findings.append(
+                PackFinding(
+                    "pack_manifest_verify_doc_missing",
+                    f"{rel} must document pack manifest verification command or behavior: {phrase}",
                     rel,
                 )
             )

@@ -33,6 +33,7 @@ class ArtifactSmokeTest(unittest.TestCase):
         self.assertIsInstance(payload["manifest_sha256"], str)
         step_ids = {step["id"] for step in payload["steps"]}
         self.assertIn("export_artifact", step_ids)
+        self.assertIn("unpacked_verify_pack_manifest", step_ids)
         self.assertIn("unpacked_verify_pack", step_ids)
         self.assertIn("unpacked_dry_run", step_ids)
 

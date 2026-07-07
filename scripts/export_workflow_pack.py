@@ -13,8 +13,10 @@ from typing import Any
 
 try:
     from .verify_pack import verify_pack
+    from .verify_pack_manifest import verify_pack_manifest
 except ImportError:  # pragma: no cover - direct script execution
     from verify_pack import verify_pack
+    from verify_pack_manifest import verify_pack_manifest
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -122,6 +124,12 @@ def run_export(
             shutil.rmtree(output)
         _copy_files(root, output, files)
         manifest = _write_manifest(root, output, files)
+        manifest_verification = verify_pack_manifest(output)
+        payload["manifest_verification"] = manifest_verification.to_dict()
+        if not manifest_verification.ok:
+            payload["ok"] = False
+            payload["errors"] = ["exported pack failed verify_pack_manifest"]
+            return payload
         verification = verify_pack(output)
         payload["manifest"] = str((output / MANIFEST_NAME).resolve())
         payload["manifest_sha256"] = sha256_file(output / MANIFEST_NAME)

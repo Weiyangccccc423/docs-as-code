@@ -34,9 +34,11 @@ When the source workflow pack needs to move to another workspace or agent enviro
 make package
 python3 scripts/export_workflow_pack.py --check --json
 python3 scripts/export_workflow_pack.py --output dist/docs-as-code-workflow-pack --archive dist/docs-as-code-workflow-pack.tar.gz --force --json
+python3 scripts/verify_pack_manifest.py dist/docs-as-code-workflow-pack --json
 ```
 
 The export writes `pack-manifest.json` with SHA-256 evidence for the included source-pack files, runs `verify_pack` on the exported directory, and can create a tar.gz artifact for transfer.
+The manifest verifier validates `pack-manifest.json` by recomputing file hashes, sizes, executable flags, path safety, duplicate entries, missing files, and unmanifested files.
 
 To prove the transfer artifact is self-contained, smoke-test it with a command that unpacks the tar.gz artifact and runs checks from the unpacked workflow pack:
 

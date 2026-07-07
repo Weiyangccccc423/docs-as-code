@@ -19,6 +19,7 @@ python3 scripts/dry_run_workflow.py --json
 make package
 python3 scripts/export_workflow_pack.py --check --json
 python3 scripts/export_workflow_pack.py --output dist/docs-as-code-workflow-pack --archive dist/docs-as-code-workflow-pack.tar.gz --force --json
+python3 scripts/verify_pack_manifest.py dist/docs-as-code-workflow-pack --json
 make artifact-smoke
 python3 scripts/smoke_workflow_pack_artifact.py --json
 make release-check
