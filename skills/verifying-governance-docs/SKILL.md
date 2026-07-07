@@ -23,6 +23,7 @@ bin/governance advance implementation <target>
 bin/governance design plan <target>
 bin/governance design api-candidates <target>
 bin/governance design api-authoring <target>
+bin/governance design backend-authoring <target>
 bin/governance runtime refresh <target> --check
 bin/governance runtime refresh <target>
 ```
@@ -41,6 +42,7 @@ bin/governance advance implementation <target> --json
 bin/governance design plan <target> --json
 bin/governance design api-candidates <target> --json
 bin/governance design api-authoring <target> --json
+bin/governance design backend-authoring <target> --json
 bin/governance runtime refresh <target> --check --json
 bin/governance runtime refresh <target> --json
 ```
@@ -54,6 +56,7 @@ After successful write-mode `scaffold product --json` or `scaffold design --json
 After successful `design plan --json`, use returned `source_documents`, `tracks[].skills`, `tracks[].references`, `tracks[].documents`, `tracks[].blockers`, and `tracks[].steps` to route authoring work to the correct design skill without guessing from raw verification output. Treat `authoring_blocked` tracks as the active repair queue until every listed blocker is replaced with source-backed content, then run each read-only command step such as `verify-track` and `refresh-design-plan`.
 After successful `design api-candidates --json`, use returned `candidates[].acceptance_id`, source `reference`, `suggested_endpoint_file`, `replaceable_starter_endpoint`, and `open_decisions` to route API authoring. Treat every `open_decisions` item as unresolved until the API contract links product, architecture/UI/backend/frontend, security, and test sources.
 After successful `design api-authoring --json`, use `decision_policy: do_not_guess_contract_details` and `authoring_tasks[]` to drive API contract edits. Each task lists target `documents`, required `sections`, `required_links`, unresolved `open_decisions`, and command steps such as verify-api-authoring and refresh-api-authoring; run those read-only commands before considering the API track repaired.
+After successful `design backend-authoring --json`, use `decision_policy: do_not_guess_backend_boundaries` and `authoring_tasks[]` to drive backend module and data-model edits. Each task lists backend/data-model `documents`, required `sections`, `required_links`, unresolved `open_decisions` such as `module_boundaries` and `transaction_boundaries`, and command steps such as verify-backend-authoring and refresh-backend-authoring; run those read-only commands before considering the backend track repaired.
 After successful write-mode `runtime refresh --json`, use returned `local_commands[].argv` before trusting target-local checks and `next_actions[].argv` for the next workflow transition. Keep `runtime refresh --check --json` as a no-write plan only.
 
 ## Repair Order

@@ -29,7 +29,7 @@ from check_env import (
     repair_target_error,
     write_repair_plan,
 )
-from design_plan import build_api_authoring, build_api_candidates, build_design_plan
+from design_plan import build_api_authoring, build_api_candidates, build_backend_authoring, build_design_plan
 from gates import GATE_NAMES, evaluate_gate
 from phases import PHASE_NAMES, advance_phase, check_advance_phase
 from product_import import check_product_import_ready, mark_product_import_ready
@@ -661,6 +661,23 @@ def _cmd_design_api_authoring(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_design_backend_authoring(args: argparse.Namespace) -> int:
+    target = Path(args.target)
+    payload = build_backend_authoring(target)
+    if args.json:
+        _print_json(payload)
+        return 0 if payload["ok"] else 1
+    if not payload["ok"]:
+        print("Backend authoring plan failed:")
+        for error in payload["errors"]:
+            print(f"- ERROR: {error}")
+        return 1
+    print("Backend authoring tasks:")
+    for task in payload["authoring_tasks"]:
+        print(f"- {task['task_id']}: {task['acceptance_id']}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="docs-as-code governance workflow CLI")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -784,6 +801,13 @@ def build_parser() -> argparse.ArgumentParser:
     api_authoring.add_argument("target", nargs="?", default=".")
     api_authoring.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     api_authoring.set_defaults(func=_cmd_design_api_authoring)
+    backend_authoring = design_sub.add_parser(
+        "backend-authoring",
+        help="Build source-backed backend module and data-model authoring tasks.",
+    )
+    backend_authoring.add_argument("target", nargs="?", default=".")
+    backend_authoring.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    backend_authoring.set_defaults(func=_cmd_design_backend_authoring)
 
     return parser
 

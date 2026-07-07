@@ -549,3 +549,28 @@ class FreshTargetWorkflowTest(unittest.TestCase):
                 ["bin/governance", "design", "api-authoring", ".", "--json"],
                 authoring_task["steps"][-1]["argv"],
             )
+
+            backend_authoring = _run_json(
+                self,
+                ["bin/governance", "design", "backend-authoring", ".", "--json"],
+                cwd=target,
+            )
+            self.assertTrue(backend_authoring["ok"])
+            self.assertEqual("backend-modules", backend_authoring["track"])
+            self.assertEqual("do_not_guess_backend_boundaries", backend_authoring["decision_policy"])
+            self.assertEqual(1, len(backend_authoring["authoring_tasks"]))
+            backend_task = backend_authoring["authoring_tasks"][0]
+            self.assertEqual("BACKEND-AUTHOR-001", backend_task["task_id"])
+            self.assertEqual("A-001", backend_task["acceptance_id"])
+            self.assertIn("designing-backend-modules", backend_authoring["skills"])
+            self.assertIn("designing-data-models", backend_authoring["skills"])
+            self.assertIn("docs/backend/01-modules.md", [document["path"] for document in backend_task["documents"]])
+            self.assertIn("docs/backend/02-data-model.md", [document["path"] for document in backend_task["documents"]])
+            self.assertIn("docs/backend/03-external-services.md", [document["path"] for document in backend_task["documents"]])
+            self.assertIn("module_boundaries", backend_task["open_decisions"])
+            self.assertIn("transaction_boundaries", backend_task["open_decisions"])
+            self.assertIn("docs/api/endpoints/01-initialized-repository-exposes-local-governance-checks.md", [link["target"] for link in backend_task["required_links"]])
+            self.assertEqual(
+                ["bin/governance", "design", "backend-authoring", ".", "--json"],
+                backend_task["steps"][-1]["argv"],
+            )

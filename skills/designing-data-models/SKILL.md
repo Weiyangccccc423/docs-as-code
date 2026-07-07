@@ -33,15 +33,16 @@ Read `references/backend-design-checklist.md` and `references/data-model-design-
    Stop on `ok: false` and repair by `requirements[].code`.
 
 2. Run `bin/governance scaffold design <target> --check --json` when standard data-model files are missing, then run it without `--check` when the plan is correct; use returned `local_commands` for checks and inspect `scaffold_phase`. If `scaffold_phase.matches` is false, follow returned `next_actions` to advance recorded phases in order before treating the scaffold as current-phase work. If `next_actions_blocked_by` is present, keep `next_actions` for later and do not run downstream state-writing actions until blockers are resolved.
-3. Read `references/backend-design-checklist.md` and `references/data-model-design-checklist.md`.
-4. Replace scaffold placeholders in data-model files with product-derived content.
-5. Start from product nouns and backend module ownership.
-6. Define state machines before writing fields.
-7. Add constraints for idempotency and cross-user isolation.
-8. Define transaction boundaries, consistency expectations, and concurrency conflict handling for each state-changing operation.
-9. Document query paths that justify indexes.
-10. Link schema choices to API contracts and acceptance criteria.
-11. Re-check data ownership, lifecycle states, constraints, transaction boundaries, indexes, migrations, retention, audit, and tests against both checklists.
+3. Run `bin/governance design backend-authoring <target> --json` and use `authoring_tasks[]` before writing data-model content. The payload's `decision_policy` is `do_not_guess_backend_boundaries`; each task lists target `documents`, required `sections`, `required_links`, unresolved `open_decisions` such as `module_boundaries` and `transaction_boundaries`, and read-only command steps verify-backend-authoring and refresh-backend-authoring.
+4. Read `references/backend-design-checklist.md` and `references/data-model-design-checklist.md`.
+5. Replace scaffold placeholders in data-model files with product-derived content.
+6. Start from product nouns and backend module ownership.
+7. Define state machines before writing fields.
+8. Add constraints for idempotency and cross-user isolation.
+9. Define transaction boundaries, consistency expectations, and concurrency conflict handling for each state-changing operation.
+10. Document query paths that justify indexes.
+11. Link schema choices to API contracts and acceptance criteria.
+12. Re-check data ownership, lifecycle states, constraints, transaction boundaries, indexes, migrations, retention, audit, and tests against both checklists.
 
 ## Stop Conditions
 

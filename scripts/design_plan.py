@@ -20,6 +20,7 @@ except ImportError:  # pragma: no cover - direct script execution
 DESIGN_WORKFLOW_PATH = "workflows/04-design-derivation.md"
 DESIGN_PHASE = "design-derivation"
 API_TRACK_ID = "api-contracts"
+BACKEND_TRACK_ID = "backend-modules"
 STARTER_ENDPOINT_CONTRACT = "docs/api/endpoints/01-endpoint-contract.md"
 ACCEPTANCE_HEADING_RE = re.compile(r"^##[ \t]+(?P<id>A-[0-9]{3})[ \t]+(?P<title>.+?)[ \t]*$", re.MULTILINE)
 SLUG_TOKEN_RE = re.compile(r"[a-z0-9]+")
@@ -61,6 +62,47 @@ API_ENDPOINT_SECTIONS = (
     "Error Codes",
     "Upstream Links",
     "Frontend Consumers",
+)
+OPEN_BACKEND_DECISIONS = (
+    "module_boundaries",
+    "runtime_flow",
+    "api_ownership",
+    "data_ownership",
+    "entities",
+    "state_machines",
+    "transaction_boundaries",
+    "consistency_model",
+    "external_dependencies",
+    "retries_timeouts",
+    "observability",
+    "security_boundaries",
+    "acceptance_tests",
+)
+BACKEND_MODULE_SECTIONS = (
+    "Product Links",
+    "Architecture Links",
+    "Modules",
+    "API Ownership",
+    "Failure Modes",
+    "Open Decisions",
+)
+BACKEND_DATA_MODEL_SECTIONS = (
+    "Product Links",
+    "Owners",
+    "Entities",
+    "State Machines",
+    "Constraints",
+    "Indexes",
+    "Migrations",
+)
+BACKEND_EXTERNAL_SERVICE_SECTIONS = (
+    "Product Links",
+    "Dependencies",
+    "Contracts",
+    "Retries",
+    "Timeouts",
+    "Authentication",
+    "Observability",
 )
 
 
@@ -283,6 +325,45 @@ def build_api_authoring(root: Path) -> dict[str, object]:
     return payload
 
 
+def build_backend_authoring(root: Path) -> dict[str, object]:
+    root = root.resolve()
+    state = load_state(root)
+    phase = state.get("phase") if isinstance(state.get("phase"), str) else ""
+    errors: list[str] = []
+    if not state:
+        errors.append("No governance state found.")
+    elif phase != DESIGN_PHASE:
+        errors.append(f"backend authoring requires recorded phase {DESIGN_PHASE}")
+    candidates = _api_candidates(root)
+    if not candidates:
+        errors.append("No product acceptance criteria with A-NNN headings found.")
+    payload: dict[str, object] = {
+        "ok": not errors,
+        "target": str(root),
+        "phase": phase,
+        "workflow": DESIGN_WORKFLOW_PATH,
+        "track": BACKEND_TRACK_ID,
+        "decision_policy": "do_not_guess_backend_boundaries",
+        "skills": ["designing-backend-modules", "designing-data-models"],
+        "references": [
+            "references/backend-design-checklist.md",
+            "references/data-model-design-checklist.md",
+            "references/backend-operability-checklist.md",
+            "references/security-design-checklist.md",
+        ],
+        "source_documents": _source_documents(root),
+        "authoring_tasks": [
+            _backend_authoring_task(root, candidate, index)
+            for index, candidate in enumerate(candidates, start=1)
+        ],
+        "errors": errors,
+    }
+    if not errors:
+        payload["local_commands"] = target_local_commands_payload(cwd=str(root))
+        payload["next_actions"] = next_actions_payload(state, cwd=str(root))
+    return payload
+
+
 def _source_documents(root: Path) -> list[str]:
     candidates: list[str] = []
     for rel in ("docs/product/core/PRD.md", "docs/unresolved.md", "docs/glossary.md"):
@@ -464,6 +545,138 @@ def _api_authoring_steps(
             "refresh-api-authoring",
             "Refresh the API authoring queue after verification.",
             ["bin/governance", "design", "api-authoring", ".", "--json"],
+        ),
+    ]
+
+
+def _backend_authoring_task(root: Path, candidate: dict[str, object], index: int) -> dict[str, object]:
+    source = candidate["source"]
+    if not isinstance(source, dict):  # pragma: no cover - internal invariant
+        source = {}
+    source_reference = str(source.get("reference", ""))
+    api_contract = str(candidate["suggested_endpoint_file"])
+    documents = [
+        _authoring_document(
+            "docs/backend/01-modules.md",
+            BACKEND_MODULE_SECTIONS,
+            "Define module boundaries, API ownership, runtime flow, failure modes, and open decisions.",
+        ),
+        _authoring_document(
+            "docs/backend/02-data-model.md",
+            BACKEND_DATA_MODEL_SECTIONS,
+            "Define data ownership, entities, lifecycle states, constraints, indexes, and migration order.",
+        ),
+        _authoring_document(
+            "docs/backend/03-external-services.md",
+            BACKEND_EXTERNAL_SERVICE_SECTIONS,
+            "Document dependencies, contracts, retries, timeouts, authentication, and observability expectations.",
+        ),
+    ]
+    required_links = [
+        _required_link(root, "product_acceptance", source_reference),
+        _required_link(root, "architecture_context", "docs/architecture/01-system-context.md"),
+        _required_link(root, "architecture_containers", "docs/architecture/02-containers.md"),
+        _required_link(root, "api_contract", api_contract),
+        _required_link(root, "data_model", "docs/backend/02-data-model.md"),
+        _required_link(root, "external_services", "docs/backend/03-external-services.md"),
+        _required_link(root, "test_strategy", "docs/tests/01-strategy.md"),
+        _required_link(root, "unresolved_decisions", "docs/unresolved.md"),
+    ]
+    return {
+        "task_id": f"BACKEND-AUTHOR-{index:03d}",
+        "api_candidate_id": candidate["candidate_id"],
+        "acceptance_id": candidate["acceptance_id"],
+        "title": candidate["title"],
+        "source": source,
+        "documents": documents,
+        "required_links": required_links,
+        "open_decisions": list(OPEN_BACKEND_DECISIONS),
+        "steps": _backend_authoring_steps(root, source_reference, api_contract, required_links),
+    }
+
+
+def _backend_authoring_steps(
+    root: Path,
+    source_reference: str,
+    api_contract: str,
+    required_links: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    return [
+        {
+            "id": "load-backend-design-skills",
+            "kind": "skill-load",
+            "skills": ["designing-backend-modules", "designing-data-models"],
+            "description": "Load backend and data-model skills before assigning modules, persistence, or operability responsibilities.",
+        },
+        {
+            "id": "read-backend-references",
+            "kind": "read",
+            "references": [
+                "references/backend-design-checklist.md",
+                "references/data-model-design-checklist.md",
+                "references/backend-operability-checklist.md",
+                "references/security-design-checklist.md",
+            ],
+            "description": "Read backend, data-model, operability, and security checklists before resolving backend decisions.",
+        },
+        {
+            "id": "read-source-acceptance",
+            "kind": "read",
+            "documents": [source_reference],
+            "description": "Read the product acceptance criterion that drives this backend design task.",
+        },
+        {
+            "id": "read-architecture-and-api-sources",
+            "kind": "read",
+            "documents": [
+                "docs/architecture/01-system-context.md",
+                "docs/architecture/02-containers.md",
+                api_contract,
+            ],
+            "description": "Read architecture and API contract sources before assigning backend ownership.",
+        },
+        {
+            "id": "author-backend-modules",
+            "kind": "author",
+            "document": "docs/backend/01-modules.md",
+            "sections": list(BACKEND_MODULE_SECTIONS),
+            "description": "Define module boundaries, API ownership, runtime flow, failure modes, and unresolved backend gaps.",
+        },
+        {
+            "id": "author-data-model",
+            "kind": "author",
+            "document": "docs/backend/02-data-model.md",
+            "sections": list(BACKEND_DATA_MODEL_SECTIONS),
+            "description": "Define ownership, entities, state machines, constraints, indexes, migrations, retention, and audit decisions.",
+        },
+        {
+            "id": "author-external-services",
+            "kind": "author",
+            "document": "docs/backend/03-external-services.md",
+            "sections": list(BACKEND_EXTERNAL_SERVICE_SECTIONS),
+            "description": "Document dependencies, contracts, retries, timeouts, authentication, observability, or explicitly state none.",
+        },
+        {
+            "id": "link-tests-and-acceptance",
+            "kind": "link",
+            "required_links": [
+                link
+                for link in required_links
+                if link["kind"] in {"product_acceptance", "test_strategy", "unresolved_decisions"}
+            ],
+            "description": "Connect backend decisions to acceptance criteria, test strategy, and unresolved items.",
+        },
+        _command_step(
+            root,
+            "verify-backend-authoring",
+            "Run read-only governance verification after backend design authoring.",
+            ["bin/governance", "verify", ".", "--check", "--json"],
+        ),
+        _command_step(
+            root,
+            "refresh-backend-authoring",
+            "Refresh the backend authoring queue after verification.",
+            ["bin/governance", "design", "backend-authoring", ".", "--json"],
         ),
     ]
 

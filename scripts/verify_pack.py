@@ -574,8 +574,15 @@ FRESH_TARGET_SMOKE_TEST_REQUIRED_PHRASES = (
     "api-authoring",
     "authoring_tasks",
     "decision_policy",
+    "backend_authoring",
+    "backend-authoring",
+    "module_boundaries",
+    "transaction_boundaries",
     "api-contracts",
+    "backend-modules",
     "designing-api-contracts",
+    "designing-backend-modules",
+    "designing-data-models",
     "design_blocked_verify",
     "docs/architecture/01-system-context.md",
     "docs/api/endpoints/README.md",
@@ -784,6 +791,28 @@ API_AUTHORING_REQUIRED_PHRASES = (
     "open_decisions",
     "verify-api-authoring",
     "refresh-api-authoring",
+)
+BACKEND_AUTHORING_DOC_PATHS = (
+    "README.md",
+    "workflows/00-overview.md",
+    "workflows/04-design-derivation.md",
+    "skills/designing-backend-modules/SKILL.md",
+    "skills/designing-data-models/SKILL.md",
+    "skills/verifying-governance-docs/SKILL.md",
+)
+BACKEND_AUTHORING_REQUIRED_PHRASES = (
+    "design backend-authoring",
+    "authoring_tasks",
+    "decision_policy",
+    "do_not_guess_backend_boundaries",
+    "documents",
+    "sections",
+    "required_links",
+    "open_decisions",
+    "module_boundaries",
+    "transaction_boundaries",
+    "verify-backend-authoring",
+    "refresh-backend-authoring",
 )
 SCAFFOLD_CONTINUATION_DOC_PATHS = (
     "README.md",
@@ -1876,7 +1905,7 @@ GOVERNANCE_CLI_REQUIRED_COMMANDS = (
 GOVERNANCE_CLI_REQUIRED_SUBCOMMANDS = {
     "runtime": ("refresh",),
     "product": ("mark-ready", "structure"),
-    "design": ("plan", "api-candidates", "api-authoring"),
+    "design": ("plan", "api-candidates", "api-authoring", "backend-authoring"),
 }
 GOVERNANCE_CLI_PARSER_VARIABLES = {
     "top-level": "sub",
@@ -2144,6 +2173,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_design_plan_docs(root, findings)
     _check_api_candidates_docs(root, findings)
     _check_api_authoring_docs(root, findings)
+    _check_backend_authoring_docs(root, findings)
     _check_scaffold_continuation_docs(root, findings)
     _check_implementation_handoff_docs(root, findings)
     _check_initialization_reference_docs(root, findings)
@@ -3510,6 +3540,23 @@ def _check_api_authoring_docs(root: Path, findings: list[PackFinding]) -> None:
             PackFinding(
                 "pack_api_authoring_doc_missing",
                 f"{rel} must document API authoring phrase(s): {', '.join(missing)}",
+                rel,
+            )
+        )
+
+
+def _check_backend_authoring_docs(root: Path, findings: list[PackFinding]) -> None:
+    for rel in BACKEND_AUTHORING_DOC_PATHS:
+        text = _read_utf8_text_or_none(root / rel)
+        if text is None:
+            continue
+        missing = [phrase for phrase in BACKEND_AUTHORING_REQUIRED_PHRASES if phrase not in text]
+        if not missing:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_backend_authoring_doc_missing",
+                f"{rel} must document backend authoring phrase(s): {', '.join(missing)}",
                 rel,
             )
         )

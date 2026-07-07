@@ -1211,6 +1211,36 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_missing_backend_authoring_doc_phrase(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            skill = target / "skills/designing-backend-modules/SKILL.md"
+            skill.write_text(
+                skill.read_text(encoding="utf-8").replace(
+                    "`bin/governance design backend-authoring <target> --json`",
+                    "`bin/governance design plan <target> --json`",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_backend_authoring_doc_missing"
+                    and finding.path == "skills/designing-backend-modules/SKILL.md"
+                    and "design backend-authoring" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_missing_product_scaffold_continuation_doc_phrase(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
