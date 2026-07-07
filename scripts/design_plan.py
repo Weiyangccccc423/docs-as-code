@@ -21,6 +21,7 @@ DESIGN_WORKFLOW_PATH = "workflows/04-design-derivation.md"
 DESIGN_PHASE = "design-derivation"
 API_TRACK_ID = "api-contracts"
 BACKEND_TRACK_ID = "backend-modules"
+FRONTEND_TRACK_ID = "frontend-modules"
 STARTER_ENDPOINT_CONTRACT = "docs/api/endpoints/01-endpoint-contract.md"
 ACCEPTANCE_HEADING_RE = re.compile(r"^##[ \t]+(?P<id>A-[0-9]{3})[ \t]+(?P<title>.+?)[ \t]*$", re.MULTILINE)
 SLUG_TOKEN_RE = re.compile(r"[a-z0-9]+")
@@ -103,6 +104,42 @@ BACKEND_EXTERNAL_SERVICE_SECTIONS = (
     "Timeouts",
     "Authentication",
     "Observability",
+)
+OPEN_FRONTEND_DECISIONS = (
+    "primary_flows",
+    "screens",
+    "route_ownership",
+    "state_ownership",
+    "api_consumption",
+    "loading_states",
+    "error_actions",
+    "accessibility",
+    "performance",
+    "copy_and_content",
+    "cache_invalidation",
+)
+UI_INTERACTION_SECTIONS = (
+    "Product Links",
+    "Primary Flows",
+    "Screens",
+    "States",
+    "Errors",
+    "Accessibility",
+)
+FRONTEND_MODULE_SECTIONS = (
+    "Product Links",
+    "UI Links",
+    "Modules",
+    "State Ownership",
+    "Routes",
+    "Open Decisions",
+)
+FRONTEND_API_CONSUMPTION_SECTIONS = (
+    "Product Links",
+    "API Links",
+    "Consumption Map",
+    "Loading States",
+    "Error Actions",
 )
 
 
@@ -354,6 +391,43 @@ def build_backend_authoring(root: Path) -> dict[str, object]:
         "source_documents": _source_documents(root),
         "authoring_tasks": [
             _backend_authoring_task(root, candidate, index)
+            for index, candidate in enumerate(candidates, start=1)
+        ],
+        "errors": errors,
+    }
+    if not errors:
+        payload["local_commands"] = target_local_commands_payload(cwd=str(root))
+        payload["next_actions"] = next_actions_payload(state, cwd=str(root))
+    return payload
+
+
+def build_frontend_authoring(root: Path) -> dict[str, object]:
+    root = root.resolve()
+    state = load_state(root)
+    phase = state.get("phase") if isinstance(state.get("phase"), str) else ""
+    errors: list[str] = []
+    if not state:
+        errors.append("No governance state found.")
+    elif phase != DESIGN_PHASE:
+        errors.append(f"frontend authoring requires recorded phase {DESIGN_PHASE}")
+    candidates = _api_candidates(root)
+    if not candidates:
+        errors.append("No product acceptance criteria with A-NNN headings found.")
+    payload: dict[str, object] = {
+        "ok": not errors,
+        "target": str(root),
+        "phase": phase,
+        "workflow": DESIGN_WORKFLOW_PATH,
+        "track": FRONTEND_TRACK_ID,
+        "decision_policy": "do_not_guess_frontend_behavior",
+        "skills": ["designing-ui-interactions", "designing-frontend-modules"],
+        "references": [
+            "references/frontend-interaction-checklist.md",
+            "references/security-design-checklist.md",
+        ],
+        "source_documents": _source_documents(root),
+        "authoring_tasks": [
+            _frontend_authoring_task(root, candidate, index)
             for index, candidate in enumerate(candidates, start=1)
         ],
         "errors": errors,
@@ -677,6 +751,135 @@ def _backend_authoring_steps(
             "refresh-backend-authoring",
             "Refresh the backend authoring queue after verification.",
             ["bin/governance", "design", "backend-authoring", ".", "--json"],
+        ),
+    ]
+
+
+def _frontend_authoring_task(root: Path, candidate: dict[str, object], index: int) -> dict[str, object]:
+    source = candidate["source"]
+    if not isinstance(source, dict):  # pragma: no cover - internal invariant
+        source = {}
+    source_reference = str(source.get("reference", ""))
+    api_contract = str(candidate["suggested_endpoint_file"])
+    documents = [
+        _authoring_document(
+            "docs/ui/01-interaction-model.md",
+            UI_INTERACTION_SECTIONS,
+            "Define product-derived flows, screens, states, errors, and accessibility expectations.",
+        ),
+        _authoring_document(
+            "docs/frontend/01-modules.md",
+            FRONTEND_MODULE_SECTIONS,
+            "Define frontend module boundaries, route ownership, state ownership, and open decisions.",
+        ),
+        _authoring_document(
+            "docs/frontend/02-api-consumption.md",
+            FRONTEND_API_CONSUMPTION_SECTIONS,
+            "Map API contracts to frontend loading, retry, stale, success, and error handling behavior.",
+        ),
+    ]
+    required_links = [
+        _required_link(root, "product_acceptance", source_reference),
+        _required_link(root, "ui_interaction", "docs/ui/01-interaction-model.md"),
+        _required_link(root, "api_contract", api_contract),
+        _required_link(root, "api_error_registry", "docs/api/error-codes.md"),
+        _required_link(root, "frontend_modules", "docs/frontend/01-modules.md"),
+        _required_link(root, "test_strategy", "docs/tests/01-strategy.md"),
+        _required_link(root, "unresolved_decisions", "docs/unresolved.md"),
+    ]
+    return {
+        "task_id": f"FRONTEND-AUTHOR-{index:03d}",
+        "api_candidate_id": candidate["candidate_id"],
+        "acceptance_id": candidate["acceptance_id"],
+        "title": candidate["title"],
+        "source": source,
+        "documents": documents,
+        "required_links": required_links,
+        "open_decisions": list(OPEN_FRONTEND_DECISIONS),
+        "steps": _frontend_authoring_steps(root, source_reference, api_contract, required_links),
+    }
+
+
+def _frontend_authoring_steps(
+    root: Path,
+    source_reference: str,
+    api_contract: str,
+    required_links: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    return [
+        {
+            "id": "load-frontend-design-skills",
+            "kind": "skill-load",
+            "skills": ["designing-ui-interactions", "designing-frontend-modules"],
+            "description": "Load UI and frontend module skills before assigning flows, routes, state, or API consumption.",
+        },
+        {
+            "id": "read-frontend-references",
+            "kind": "read",
+            "references": [
+                "references/frontend-interaction-checklist.md",
+                "references/security-design-checklist.md",
+            ],
+            "description": "Read frontend interaction and security guidance before resolving user-visible behavior.",
+        },
+        {
+            "id": "read-source-acceptance",
+            "kind": "read",
+            "documents": [source_reference],
+            "description": "Read the product acceptance criterion that drives this frontend design task.",
+        },
+        {
+            "id": "read-ui-and-api-sources",
+            "kind": "read",
+            "documents": [
+                "docs/ui/01-interaction-model.md",
+                api_contract,
+                "docs/api/error-codes.md",
+            ],
+            "description": "Read UI and API sources before assigning frontend state, routes, loading, and errors.",
+        },
+        {
+            "id": "author-ui-interaction-model",
+            "kind": "author",
+            "document": "docs/ui/01-interaction-model.md",
+            "sections": list(UI_INTERACTION_SECTIONS),
+            "description": "Define product-derived flows, screens, states, user-visible errors, and accessibility expectations.",
+        },
+        {
+            "id": "author-frontend-modules",
+            "kind": "author",
+            "document": "docs/frontend/01-modules.md",
+            "sections": list(FRONTEND_MODULE_SECTIONS),
+            "description": "Define frontend modules, state ownership, route ownership, and unresolved frontend gaps.",
+        },
+        {
+            "id": "author-api-consumption",
+            "kind": "author",
+            "document": "docs/frontend/02-api-consumption.md",
+            "sections": list(FRONTEND_API_CONSUMPTION_SECTIONS),
+            "description": "Map API links to loading states, stale states, retries, success handling, and user-visible error actions.",
+        },
+        {
+            "id": "link-tests-and-acceptance",
+            "kind": "link",
+            "required_links": [
+                link
+                for link in required_links
+                if link["kind"] in {"product_acceptance", "test_strategy", "unresolved_decisions"}
+            ],
+            "description": "Connect frontend behavior to acceptance criteria, test strategy, and unresolved items.",
+        },
+        _command_step(
+            root,
+            "verify-frontend-authoring",
+            "Run read-only governance verification after frontend design authoring.",
+            ["bin/governance", "verify", ".", "--check", "--json"],
+        ),
+        _command_step(
+            root,
+            "refresh-frontend-authoring",
+            "Refresh the frontend authoring queue after verification.",
+            ["bin/governance", "design", "frontend-authoring", ".", "--json"],
         ),
     ]
 

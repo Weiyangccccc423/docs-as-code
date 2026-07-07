@@ -145,6 +145,7 @@ After the recorded phase is `design-derivation`, run `design plan --json` to rou
 For the API track, run `design api-candidates --json` to extract source-backed endpoint candidates from product acceptance criteria. It returns `candidates` with `acceptance_id`, source `reference`, `suggested_endpoint_file`, `replaceable_starter_endpoint`, and `open_decisions`; agents must use `designing-api-contracts` and the API/security checklists to resolve those decisions instead of guessing method/path, fields, errors, auth, or frontend consumers.
 Then run `design api-authoring --json` to turn candidates into API contract authoring work. The payload uses `decision_policy: do_not_guess_contract_details` and returns `authoring_tasks[]` with target `documents`, required `sections`, `required_links`, unresolved `open_decisions`, and command steps named verify-api-authoring and refresh-api-authoring.
 For backend work, run `design backend-authoring --json` after architecture/API sources exist. The payload uses `decision_policy: do_not_guess_backend_boundaries` and returns `authoring_tasks[]` with backend/data-model `documents`, required `sections`, `required_links`, unresolved `open_decisions` such as `module_boundaries` and `transaction_boundaries`, and command steps named verify-backend-authoring and refresh-backend-authoring.
+For UI and frontend work, run `design frontend-authoring --json` after product/API sources exist. The payload uses `decision_policy: do_not_guess_frontend_behavior` and returns `authoring_tasks[]` with UI/frontend `documents`, required `sections`, `required_links`, unresolved `open_decisions` such as `state_ownership` and `error_actions`, and command steps named verify-frontend-authoring and refresh-frontend-authoring.
 
 ```bash
 bin/governance advance design-derivation /path/to/new-project --check --json
@@ -155,6 +156,7 @@ bin/governance design plan /path/to/new-project --json
 bin/governance design api-candidates /path/to/new-project --json
 bin/governance design api-authoring /path/to/new-project --json
 bin/governance design backend-authoring /path/to/new-project --json
+bin/governance design frontend-authoring /path/to/new-project --json
 ```
 
 ## Workflow Order

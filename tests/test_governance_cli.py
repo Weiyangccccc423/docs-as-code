@@ -5714,6 +5714,131 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertNotIn("table_name", task)
             self.assertNotIn("fields", task)
 
+    def test_design_frontend_authoring_builds_ui_task_queue_without_guessing_behavior(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            (target / "docs/product/01-goals.md").write_text("# Goals\n\nSource: [PRD](core/PRD.md).\n", encoding="utf-8")
+            _append_index(target / "docs/product/README.md", "01-goals.md")
+            _append_product_meta_chapter(target, "01-goals.md")
+            (target / "docs/product/08-acceptance-criteria.md").write_text(
+                _acceptance_doc(),
+                encoding="utf-8",
+            )
+            _append_index(target / "docs/product/README.md", "08-acceptance-criteria.md")
+            _append_product_meta_chapter(target, "08-acceptance-criteria.md")
+            advance_product = subprocess.run(
+                [sys.executable, str(CLI), "advance", "product-structuring", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, advance_product.returncode, advance_product.stderr)
+            advance_design = subprocess.run(
+                [sys.executable, str(CLI), "advance", "design-derivation", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, advance_design.returncode, advance_design.stderr)
+            scaffold_design = subprocess.run(
+                [sys.executable, str(CLI), "scaffold", "design", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, scaffold_design.returncode, scaffold_design.stderr)
+
+            result = subprocess.run(
+                [sys.executable, str(CLI), "design", "frontend-authoring", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertEqual(str(target.resolve()), payload["target"])
+            self.assertEqual("design-derivation", payload["phase"])
+            self.assertEqual("frontend-modules", payload["track"])
+            self.assertEqual("do_not_guess_frontend_behavior", payload["decision_policy"])
+            self.assertIn("designing-ui-interactions", payload["skills"])
+            self.assertIn("designing-frontend-modules", payload["skills"])
+            self.assertIn("references/frontend-interaction-checklist.md", payload["references"])
+            self.assertIn("references/security-design-checklist.md", payload["references"])
+            self.assertIn("local_commands", payload)
+            self.assertEqual("advance-implementation-check", payload["next_actions"][0]["id"])
+            self.assertEqual(1, len(payload["authoring_tasks"]))
+            task = payload["authoring_tasks"][0]
+            self.assertEqual("FRONTEND-AUTHOR-001", task["task_id"])
+            self.assertEqual("A-001", task["acceptance_id"])
+            self.assertEqual("Goal Flow", task["title"])
+            self.assertEqual("docs/product/08-acceptance-criteria.md#a-001-goal-flow", task["source"]["reference"])
+            document_paths = [document["path"] for document in task["documents"]]
+            self.assertEqual(
+                [
+                    "docs/ui/01-interaction-model.md",
+                    "docs/frontend/01-modules.md",
+                    "docs/frontend/02-api-consumption.md",
+                ],
+                document_paths,
+            )
+            ui_doc = task["documents"][0]
+            self.assertIn("Primary Flows", ui_doc["sections"])
+            self.assertIn("Accessibility", ui_doc["sections"])
+            modules_doc = task["documents"][1]
+            self.assertIn("State Ownership", modules_doc["sections"])
+            self.assertIn("Routes", modules_doc["sections"])
+            api_consumption_doc = task["documents"][2]
+            self.assertIn("Loading States", api_consumption_doc["sections"])
+            self.assertIn("Error Actions", api_consumption_doc["sections"])
+            required_links = {link["kind"]: link["target"] for link in task["required_links"]}
+            self.assertEqual(
+                "docs/product/08-acceptance-criteria.md#a-001-goal-flow",
+                required_links["product_acceptance"],
+            )
+            self.assertEqual("docs/ui/01-interaction-model.md", required_links["ui_interaction"])
+            self.assertEqual("docs/api/endpoints/01-goal-flow.md", required_links["api_contract"])
+            self.assertEqual("docs/api/error-codes.md", required_links["api_error_registry"])
+            self.assertEqual("docs/tests/01-strategy.md", required_links["test_strategy"])
+            self.assertIn("primary_flows", task["open_decisions"])
+            self.assertIn("route_ownership", task["open_decisions"])
+            self.assertIn("state_ownership", task["open_decisions"])
+            self.assertIn("api_consumption", task["open_decisions"])
+            self.assertIn("error_actions", task["open_decisions"])
+            self.assertIn("accessibility", task["open_decisions"])
+            self.assertEqual(
+                [
+                    "load-frontend-design-skills",
+                    "read-frontend-references",
+                    "read-source-acceptance",
+                    "read-ui-and-api-sources",
+                    "author-ui-interaction-model",
+                    "author-frontend-modules",
+                    "author-api-consumption",
+                    "link-tests-and-acceptance",
+                    "verify-frontend-authoring",
+                    "refresh-frontend-authoring",
+                ],
+                [step["id"] for step in task["steps"]],
+            )
+            self.assertEqual(["designing-ui-interactions", "designing-frontend-modules"], task["steps"][0]["skills"])
+            self.assertEqual(["bin/governance", "verify", ".", "--check", "--json"], task["steps"][8]["argv"])
+            self.assertFalse(task["steps"][8]["writes_state"])
+            self.assertEqual(["bin/governance", "design", "frontend-authoring", ".", "--json"], task["steps"][9]["argv"])
+            self.assertNotIn("route_names", task)
+            self.assertNotIn("component_names", task)
+            self.assertNotIn("state_shape", task)
+
     def test_scaffold_design_check_json_reports_plan_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "target"

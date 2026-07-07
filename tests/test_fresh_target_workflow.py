@@ -574,3 +574,28 @@ class FreshTargetWorkflowTest(unittest.TestCase):
                 ["bin/governance", "design", "backend-authoring", ".", "--json"],
                 backend_task["steps"][-1]["argv"],
             )
+
+            frontend_authoring = _run_json(
+                self,
+                ["bin/governance", "design", "frontend-authoring", ".", "--json"],
+                cwd=target,
+            )
+            self.assertTrue(frontend_authoring["ok"])
+            self.assertEqual("frontend-modules", frontend_authoring["track"])
+            self.assertEqual("do_not_guess_frontend_behavior", frontend_authoring["decision_policy"])
+            self.assertEqual(1, len(frontend_authoring["authoring_tasks"]))
+            frontend_task = frontend_authoring["authoring_tasks"][0]
+            self.assertEqual("FRONTEND-AUTHOR-001", frontend_task["task_id"])
+            self.assertEqual("A-001", frontend_task["acceptance_id"])
+            self.assertIn("designing-ui-interactions", frontend_authoring["skills"])
+            self.assertIn("designing-frontend-modules", frontend_authoring["skills"])
+            self.assertIn("docs/ui/01-interaction-model.md", [document["path"] for document in frontend_task["documents"]])
+            self.assertIn("docs/frontend/01-modules.md", [document["path"] for document in frontend_task["documents"]])
+            self.assertIn("docs/frontend/02-api-consumption.md", [document["path"] for document in frontend_task["documents"]])
+            self.assertIn("state_ownership", frontend_task["open_decisions"])
+            self.assertIn("error_actions", frontend_task["open_decisions"])
+            self.assertIn("docs/api/endpoints/01-initialized-repository-exposes-local-governance-checks.md", [link["target"] for link in frontend_task["required_links"]])
+            self.assertEqual(
+                ["bin/governance", "design", "frontend-authoring", ".", "--json"],
+                frontend_task["steps"][-1]["argv"],
+            )

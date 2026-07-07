@@ -578,11 +578,18 @@ FRESH_TARGET_SMOKE_TEST_REQUIRED_PHRASES = (
     "backend-authoring",
     "module_boundaries",
     "transaction_boundaries",
+    "frontend_authoring",
+    "frontend-authoring",
+    "state_ownership",
+    "error_actions",
     "api-contracts",
     "backend-modules",
+    "frontend-modules",
     "designing-api-contracts",
     "designing-backend-modules",
     "designing-data-models",
+    "designing-ui-interactions",
+    "designing-frontend-modules",
     "design_blocked_verify",
     "docs/architecture/01-system-context.md",
     "docs/api/endpoints/README.md",
@@ -813,6 +820,28 @@ BACKEND_AUTHORING_REQUIRED_PHRASES = (
     "transaction_boundaries",
     "verify-backend-authoring",
     "refresh-backend-authoring",
+)
+FRONTEND_AUTHORING_DOC_PATHS = (
+    "README.md",
+    "workflows/00-overview.md",
+    "workflows/04-design-derivation.md",
+    "skills/designing-ui-interactions/SKILL.md",
+    "skills/designing-frontend-modules/SKILL.md",
+    "skills/verifying-governance-docs/SKILL.md",
+)
+FRONTEND_AUTHORING_REQUIRED_PHRASES = (
+    "design frontend-authoring",
+    "authoring_tasks",
+    "decision_policy",
+    "do_not_guess_frontend_behavior",
+    "documents",
+    "sections",
+    "required_links",
+    "open_decisions",
+    "state_ownership",
+    "error_actions",
+    "verify-frontend-authoring",
+    "refresh-frontend-authoring",
 )
 SCAFFOLD_CONTINUATION_DOC_PATHS = (
     "README.md",
@@ -1905,7 +1934,7 @@ GOVERNANCE_CLI_REQUIRED_COMMANDS = (
 GOVERNANCE_CLI_REQUIRED_SUBCOMMANDS = {
     "runtime": ("refresh",),
     "product": ("mark-ready", "structure"),
-    "design": ("plan", "api-candidates", "api-authoring", "backend-authoring"),
+    "design": ("plan", "api-candidates", "api-authoring", "backend-authoring", "frontend-authoring"),
 }
 GOVERNANCE_CLI_PARSER_VARIABLES = {
     "top-level": "sub",
@@ -2174,6 +2203,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_api_candidates_docs(root, findings)
     _check_api_authoring_docs(root, findings)
     _check_backend_authoring_docs(root, findings)
+    _check_frontend_authoring_docs(root, findings)
     _check_scaffold_continuation_docs(root, findings)
     _check_implementation_handoff_docs(root, findings)
     _check_initialization_reference_docs(root, findings)
@@ -3557,6 +3587,23 @@ def _check_backend_authoring_docs(root: Path, findings: list[PackFinding]) -> No
             PackFinding(
                 "pack_backend_authoring_doc_missing",
                 f"{rel} must document backend authoring phrase(s): {', '.join(missing)}",
+                rel,
+            )
+        )
+
+
+def _check_frontend_authoring_docs(root: Path, findings: list[PackFinding]) -> None:
+    for rel in FRONTEND_AUTHORING_DOC_PATHS:
+        text = _read_utf8_text_or_none(root / rel)
+        if text is None:
+            continue
+        missing = [phrase for phrase in FRONTEND_AUTHORING_REQUIRED_PHRASES if phrase not in text]
+        if not missing:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_frontend_authoring_doc_missing",
+                f"{rel} must document frontend authoring phrase(s): {', '.join(missing)}",
                 rel,
             )
         )
