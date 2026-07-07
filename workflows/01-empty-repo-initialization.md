@@ -3,7 +3,7 @@
 ## Input
 
 - Empty or near-empty target folder
-- Optional product document path
+- Optional product document path. If omitted, `init` auto-discovers exactly one supported product document in the target folder root.
 - This workflow pack
 
 ## Skills
@@ -36,16 +36,18 @@ Load:
 3. Run initialization preflight:
 
    ```bash
-   bin/governance init --check --target <target> --product <product-doc> --profile <profile> --project-name "<name>" --json
+   bin/governance init --check --target <target> --profile <profile> --project-name "<name>" --json
    ```
 
-   Stop when `ok` is false. Existing generated governance files must be reviewed before using `--force`.
+   Stop when `ok` is false. Existing generated governance files must be reviewed before using `--force`. When `--product` is omitted, inspect `product.selection`: `auto-discovered` means exactly one root candidate was selected, `none` means the placeholder PRD path will be used, and `ambiguous` means multiple candidates were found and the agent must rerun with `--product <product-doc>` instead of guessing.
 
 4. Initialize the target folder:
 
    ```bash
-   bin/governance init --target <target> --product <product-doc> --profile <profile> --project-name "<name>"
+   bin/governance init --target <target> --profile <profile> --project-name "<name>"
    ```
+
+   Use `--product <product-doc>` when the product document is outside the target root or when preflight reports multiple candidates.
 
    When `--json` is used, the success payload includes `local_commands` with target-local `make` entries plus `next_actions` with the next preflight/apply workflow commands. Both payloads include `cwd`, `argv`, `writes_state`, and `approval_required` for direct agent execution. `next_actions` also include `sequence`, `success_condition`, and either `preflight_for` or `requires_action`; run them by ascending `sequence` and run an apply action only after its `requires_action` reports `ok: true`. Follow `next_actions` instead of assuming product structuring is immediately available.
 
@@ -124,4 +126,5 @@ Target safety, environment repair, generated entry points, runtime snapshot inte
 - Target folder has existing governance files and the user did not approve overwrite.
 - `init --check` returns conflicts.
 - Product document path is missing or unreadable.
+- Product document discovery returns multiple candidates and the user has not selected one with `--product`.
 - The target project type is unclear and would change the top-level code layout.

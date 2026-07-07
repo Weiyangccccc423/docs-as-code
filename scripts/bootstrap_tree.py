@@ -54,6 +54,7 @@ RUNTIME_SCRIPT_FILES = [
 ]
 RUNTIME_MANIFEST_REL = "docs/agent-workflow/runtime-manifest.json"
 MARKDOWN_PRODUCT_SUFFIXES = {".md", ".markdown"}
+PRODUCT_DISCOVERY_SUFFIXES = MARKDOWN_PRODUCT_SUFFIXES | {".docx", ".pdf", ".html", ".htm", ".txt"}
 
 ROOT_GENERATED_FILES = [
     "README.md",
@@ -65,6 +66,16 @@ ROOT_GENERATED_FILES = [
     ".gitignore",
     "Makefile",
 ]
+PRODUCT_DISCOVERY_EXCLUDED_NAMES = {name.lower() for name in ROOT_GENERATED_FILES} | {
+    "license",
+    "license.md",
+    "license.txt",
+}
+PRODUCT_DISCOVERY_EXCLUDED_STEMS = {Path(name).stem.lower() for name in ROOT_GENERATED_FILES} | {
+    "copying",
+    "license",
+    "notice",
+}
 
 WORKFLOW_PACK_SNAPSHOT_ROOT = "docs/agent-workflow/workflow-pack"
 WORKFLOW_PACK_RESOURCE_PATHS = [
@@ -443,6 +454,14 @@ class InitPreflightError(RuntimeError):
         self.result = result
 
 
+@dataclass(frozen=True)
+class _ProductDocumentSelection:
+    path: Path | None
+    selection: str
+    candidates: list[Path]
+    conflicts: list[InitConflict] = field(default_factory=list)
+
+
 @dataclass
 class RuntimeRefreshResult:
     target: str
@@ -564,11 +583,26 @@ def generated_file_paths(product_doc: Path | None = None) -> list[str]:
 
 def preflight_init(root: Path, product_doc: Path | None = None, force: bool = False) -> InitPreflightResult:
     root = root.resolve()
+    product_selection = _select_product_document(root, product_doc)
+    return _preflight_init_selected(root, product_selection, force=force)
+
+
+def _preflight_init_selected(
+    root: Path,
+    product_selection: _ProductDocumentSelection,
+    force: bool = False,
+) -> InitPreflightResult:
+    product_doc = product_selection.path
     paths = generated_file_paths(product_doc)
-    product = _product_payload(product_doc)
+    product = _product_payload(
+        product_doc,
+        selection=product_selection.selection,
+        candidates=product_selection.candidates,
+    )
     conflicts: list[InitConflict] = []
     product_resolved = product_doc.resolve() if product_doc is not None and product_doc.exists() else None
 
+    conflicts.extend(product_selection.conflicts)
     conflicts.extend(_target_preflight_conflicts(root))
     conflicts.extend(
         _source_preflight_conflicts(Path(__file__).resolve().parents[1].resolve(), _iter_workflow_pack_files())
@@ -765,6 +799,73 @@ def _source_preflight_conflicts(pack_root: Path, workflow_pack_files: list[Path]
     for rel in workflow_pack_files:
         _check_runtime_refresh_source_file(source_root / rel, rel, append)
     return conflicts
+
+
+def _select_product_document(root: Path, product_doc: Path | None) -> _ProductDocumentSelection:
+    if product_doc is not None:
+        return _ProductDocumentSelection(
+            path=product_doc,
+            selection="explicit",
+            candidates=[],
+        )
+
+    candidates, conflicts = _discover_product_document_candidates(root)
+    if conflicts:
+        return _ProductDocumentSelection(
+            path=None,
+            selection="unavailable",
+            candidates=candidates,
+            conflicts=conflicts,
+        )
+    if len(candidates) == 1:
+        return _ProductDocumentSelection(
+            path=candidates[0],
+            selection="auto-discovered",
+            candidates=candidates,
+        )
+    if len(candidates) > 1:
+        return _ProductDocumentSelection(
+            path=None,
+            selection="ambiguous",
+            candidates=candidates,
+            conflicts=[
+                InitConflict(
+                    str(root),
+                    "multiple product document candidates found; pass --product",
+                )
+            ],
+        )
+    return _ProductDocumentSelection(
+        path=None,
+        selection="none",
+        candidates=[],
+    )
+
+
+def _discover_product_document_candidates(root: Path) -> tuple[list[Path], list[InitConflict]]:
+    if not root.exists() or not root.is_dir():
+        return [], []
+    try:
+        children = list(root.iterdir())
+    except OSError as error:
+        reason = error.strerror or str(error)
+        return [], [InitConflict(str(root), f"product document discovery failed: {reason}")]
+
+    candidates: list[Path] = []
+    for child in children:
+        if not child.is_file():
+            continue
+        name = child.name
+        if name.startswith("."):
+            continue
+        if name.lower() in PRODUCT_DISCOVERY_EXCLUDED_NAMES:
+            continue
+        if child.stem.lower() in PRODUCT_DISCOVERY_EXCLUDED_STEMS:
+            continue
+        if child.suffix.lower() not in PRODUCT_DISCOVERY_SUFFIXES:
+            continue
+        candidates.append(child.resolve())
+    return sorted(dict.fromkeys(candidates), key=lambda path: (path.name.lower(), str(path))), []
 
 
 def _snapshot_files(root: Path, rels: list[Path]) -> dict[str, _FileSnapshot]:
@@ -1036,12 +1137,20 @@ def refresh_runtime(root: Path) -> RuntimeRefreshResult:
     )
 
 
-def _product_payload(product_doc: Path | None) -> dict[str, object]:
+def _product_payload(
+    product_doc: Path | None,
+    selection: str | None = None,
+    candidates: list[Path] | None = None,
+) -> dict[str, object]:
+    selection = selection or ("explicit" if product_doc is not None else "none")
+    candidate_paths = [str(candidate) for candidate in candidates or []]
     if product_doc is None:
         return {
             "provided": False,
             "path": None,
             "exists": False,
+            "selection": selection,
+            "candidates": candidate_paths,
         }
     return {
         "provided": True,
@@ -1049,6 +1158,8 @@ def _product_payload(product_doc: Path | None) -> dict[str, object]:
         "exists": product_doc.exists(),
         "is_file": product_doc.is_file(),
         "suffix": product_doc.suffix.lower(),
+        "selection": selection,
+        "candidates": candidate_paths,
     }
 
 
@@ -1157,14 +1268,16 @@ def bootstrap(
     project_name: str | None = None,
 ) -> None:
     root = root.resolve()
-    preflight = preflight_init(root, product_doc, force=force)
+    product_selection = _select_product_document(root, product_doc)
+    preflight = _preflight_init_selected(root, product_selection, force=force)
     if not preflight.ok:
         raise InitPreflightError(preflight)
-    output_paths = _bootstrap_output_paths(product_doc)
+    selected_product_doc = product_selection.path
+    output_paths = _bootstrap_output_paths(selected_product_doc)
     snapshots = _snapshot_files(root, output_paths)
     root_existed_before = root.exists()
     try:
-        _write_bootstrap_outputs(root, product_doc, force, profile, project_name)
+        _write_bootstrap_outputs(root, selected_product_doc, force, profile, project_name)
     except (OSError, StateFileError):
         _rollback_bootstrap_outputs(root, snapshots, output_paths, root_existed_before)
         raise

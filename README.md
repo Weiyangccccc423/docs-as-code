@@ -137,12 +137,14 @@ python3 scripts/release_readiness.py --json
 
 ```bash
 bin/governance env --repair --check --target /path/to/new-project --json
-bin/governance init --check --target /path/to/new-project --product /path/to/product.md --json
-bin/governance init --target /path/to/new-project --product /path/to/product.md --profile web-app --project-name "Project Name"
+bin/governance init --check --target /path/to/new-project --json
+bin/governance init --target /path/to/new-project --profile web-app --project-name "Project Name"
 bin/governance verify /path/to/new-project
 bin/governance gate product-structuring /path/to/new-project --json
 bin/governance status /path/to/new-project
 ```
+
+If the target folder contains exactly one supported root product document (`.md`, `.markdown`, `.docx`, `.pdf`, `.html`, `.htm`, or `.txt`), `init` auto-discovers it and reports `product.selection: "auto-discovered"` in JSON. When the product document is outside the target or multiple candidates exist, pass `--product /path/to/product.md`; ambiguous discovery is a preflight conflict instead of a guess.
 
 For agent automation, append `--json` to `init`, `verify`, `status`, `env`, `product mark-ready`, or `advance`:
 
@@ -234,7 +236,7 @@ make verify-pack
 
 `python3 scripts/dry_run_workflow.py --json` checks the user-facing source-pack workflow on a disposable generated target. `python3 scripts/dry_run_workflow.py --product tests/fixtures/product-docs/field-service-ops.md --json` runs the same flow against a realistic multi-acceptance product fixture. `python3 scripts/export_workflow_pack.py --check --json` previews a source-pack export without writing files; the write form exports `dist/docs-as-code-workflow-pack`, writes `pack-manifest.json`, verifies the exported pack, and optionally creates `dist/docs-as-code-workflow-pack.tar.gz`. `python3 scripts/verify_pack_manifest.py dist/docs-as-code-workflow-pack --json` validates `pack-manifest.json` for SHA-256, size, executable-bit, duplicate-path, invalid-path, missing-file, and unmanifested-file drift. `python3 scripts/smoke_workflow_pack_artifact.py --json` unpacks the tar.gz artifact and runs manifest verification, `verify_pack`, plus dry-run checks from the unpacked workflow pack. `python3 scripts/release_readiness.py --json` runs the release readiness gate from `references/release-readiness-checklist.md`: whitespace checks, unit tests, pack verification, environment inventory, default and multi-acceptance fresh-target dry runs, source-pack export verification, and release artifact smoke validation. `python3 scripts/verify_pack.py --json` checks this source workflow pack for required files, AGENTS purpose/editing/required-reading/verification/baseline guardrails, documented verification commands, Makefile verification targets and recipes, dry-run workflow entry points, source-pack export entry points, pack manifest verification entry points, artifact smoke entry points, release readiness entry points, README Quick Start and agent automation commands, UTF-8 workflow-pack sources, runtime Python syntax, governance CLI command and subcommand surface, local command source/schema, workflow action schema, command/argv consistency, and phase-skill alignment, runtime wrapper executability, shell guards, root self-location, and command targets, README package layout, canonical phase identity, overview phase titles, ordered non-empty phase workflow sections, phase-map primary skills, product archive closeout docs, product scaffold docs, design scaffold docs, design plan docs, scaffold continuation docs, implementation handoff docs, runtime refresh docs, router coverage, critical initialization, product, and design reference routing, method reference baselines, skill identity, frontmatter and routing, described skill/reference/template index coverage, template guardrails, local Markdown links, reference and template entry points, and workflow-pack snapshot coverage. `make verify-pack` runs the full test suite, pack verifier, and environment inventory.
 
-`bin/governance init` runs a preflight check before writing files. Existing generated governance files cause initialization to fail unless `--force` is supplied. Use `init --check --json` to inspect conflicts without writing to the target.
+`bin/governance init` runs a preflight check before writing files. It auto-discovers exactly one supported product document in the target root when `--product` is omitted, and reports ambiguous candidates as conflicts. Existing generated governance files cause initialization to fail unless `--force` is supplied. Use `init --check --json` to inspect conflicts without writing to the target.
 
 ## Runtime Strategy
 

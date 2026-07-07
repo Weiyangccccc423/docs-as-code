@@ -831,6 +831,99 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn("docs/agent-workflow/workflow-pack/skills/using-governance-workflow/SKILL.md", payload["would_write"])
             self.assertFalse(target.exists())
 
+    def test_init_json_auto_discovers_single_product_doc_in_target(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            target.mkdir()
+            product = target / "product.md"
+            product.write_text("# Auto Product\n\nInitialize from the only product document.\n", encoding="utf-8")
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "init",
+                    "--target",
+                    str(target),
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertEqual("auto-discovered", payload["product"]["selection"])
+            self.assertEqual(str(product.resolve()), payload["product"]["path"])
+            self.assertEqual([str(product.resolve())], payload["product"]["candidates"])
+            self.assertIn("Auto Product", (target / "docs/product/core/PRD.md").read_text(encoding="utf-8"))
+            manifest = json.loads((target / "docs/product/core/source/source-manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual("product.md", manifest["source"]["filename"])
+            self.assertEqual(str(product.resolve()), payload["state"]["product_source"])
+
+    def test_init_check_json_rejects_multiple_auto_discovery_candidates(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            target.mkdir()
+            product = target / "product.md"
+            requirements = target / "requirements.md"
+            product.write_text("# Product\n", encoding="utf-8")
+            requirements.write_text("# Requirements\n", encoding="utf-8")
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "init",
+                    "--target",
+                    str(target),
+                    "--check",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, result.returncode)
+            payload = json.loads(result.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertEqual("ambiguous", payload["product"]["selection"])
+            self.assertEqual([str(product.resolve()), str(requirements.resolve())], payload["product"]["candidates"])
+            self.assertIn(
+                {
+                    "path": str(target.resolve()),
+                    "reason": "multiple product document candidates found; pass --product",
+                },
+                payload["conflicts"],
+            )
+            self.assertFalse((target / "README.md").exists())
+
+            explicit = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "init",
+                    "--target",
+                    str(target),
+                    "--product",
+                    str(product),
+                    "--check",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, explicit.returncode, explicit.stderr)
+            explicit_payload = json.loads(explicit.stdout)
+            self.assertTrue(explicit_payload["ok"])
+            self.assertEqual("explicit", explicit_payload["product"]["selection"])
+            self.assertEqual(str(product), explicit_payload["product"]["path"])
+
     def test_init_json_reports_bootstrap_write_failure_without_traceback(self) -> None:
         scripts_dir = str(ROOT / "scripts")
         if scripts_dir not in sys.path:

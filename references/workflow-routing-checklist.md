@@ -25,6 +25,7 @@ Reference: `https://www.omg.org/spec/BPMN/2.0.2/`
 - Are `next_actions` sorted by `sequence`, with `preflight_for`, `requires_action`, and `success_condition` used to pair preflight/apply commands instead of guessing from IDs?
 - Are design `authoring_tasks[]` sorted by `sequence`, with `execution.primary_skill`, `execution.primary_specialist_skill`, `execution.verify_step`, `execution.refresh_step`, and `execution.stop_condition` used instead of guessing from prose?
 - Are `command` strings kept for human display while `argv` remains the automation contract?
+- Is initialization `product.selection` used to distinguish `explicit`, `auto-discovered`, `none`, and `ambiguous` product input states before downstream product work starts?
 
 Reference: `https://www.rfc-editor.org/rfc/rfc8259.html`
 

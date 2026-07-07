@@ -584,6 +584,87 @@ class GovernanceScriptsTest(unittest.TestCase):
             report = verify(root)
             self.assertEqual([], report.errors)
 
+    def test_bootstrap_auto_discovers_single_root_product_doc(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Auto Product\n\nUse the root product document.\n", encoding="utf-8")
+
+            preflight = preflight_init(root)
+
+            self.assertTrue(preflight.ok)
+            self.assertEqual("auto-discovered", preflight.product["selection"])
+            self.assertEqual(str(product.resolve()), preflight.product["path"])
+            self.assertEqual([str(product.resolve())], preflight.product["candidates"])
+            self.assertIn("docs/product/core/source/product.md", preflight.would_write)
+
+            bootstrap(root)
+
+            self.assertIn("Auto Product", (root / "docs/product/core/PRD.md").read_text(encoding="utf-8"))
+            self.assertTrue((root / "docs/product/core/source/product.md").is_file())
+            manifest = json.loads((root / "docs/product/core/source/source-manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual("product.md", manifest["source"]["filename"])
+            self.assertEqual("ready_for_structuring", manifest["import"]["status"])
+            state = load_state(root)
+            self.assertEqual(str(product.resolve()), state["product_source"])
+            self.assertEqual("docs/product/core/source/product.md", state["archived_product"])
+
+    def test_bootstrap_rejects_multiple_auto_discovery_candidates_without_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            requirements = root / "requirements.md"
+            product.write_text("# Product\n", encoding="utf-8")
+            requirements.write_text("# Requirements\n", encoding="utf-8")
+
+            preflight = preflight_init(root)
+
+            self.assertFalse(preflight.ok)
+            self.assertEqual("ambiguous", preflight.product["selection"])
+            self.assertEqual(
+                [str(product.resolve()), str(requirements.resolve())],
+                preflight.product["candidates"],
+            )
+            self.assertIn(
+                {
+                    "path": str(root.resolve()),
+                    "reason": "multiple product document candidates found; pass --product",
+                },
+                preflight.to_dict()["conflicts"],
+            )
+            with self.assertRaises(InitPreflightError):
+                bootstrap(root)
+            self.assertFalse((root / "README.md").exists())
+
+    def test_explicit_product_doc_overrides_auto_discovery_candidates(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            requirements = root / "requirements.md"
+            product.write_text("# Product\n", encoding="utf-8")
+            requirements.write_text("# Requirements\n", encoding="utf-8")
+
+            preflight = preflight_init(root, product)
+
+            self.assertTrue(preflight.ok)
+            self.assertEqual("explicit", preflight.product["selection"])
+            self.assertEqual(str(product), preflight.product["path"])
+            self.assertEqual([], preflight.product["candidates"])
+
+    def test_product_auto_discovery_ignores_root_readme_variants(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            readme = root / "README.markdown"
+            product.write_text("# Product\n", encoding="utf-8")
+            readme.write_text("# Existing Notes\n", encoding="utf-8")
+
+            preflight = preflight_init(root, product_doc=None, force=True)
+
+            self.assertTrue(preflight.ok)
+            self.assertEqual("auto-discovered", preflight.product["selection"])
+            self.assertEqual([str(product.resolve())], preflight.product["candidates"])
+
     def test_gates_main_json_reports_ok_for_product_structuring_gate(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

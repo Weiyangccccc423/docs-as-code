@@ -22,18 +22,18 @@ Create the minimum structure needed for reliable docs-as-code work.
 3. Run preflight without writing files:
 
    ```bash
-   bin/governance init --check --target <target> --product <product-doc> --json
+   bin/governance init --check --target <target> --json
    ```
 
-   Stop when `ok` is false. Existing generated governance files require user approval before `--force`.
+   If the product document is outside the target root, or `product.selection` returns `ambiguous`, rerun with `--product <product-doc>`. Stop when `ok` is false. Existing generated governance files require user approval before `--force`.
 
 4. Bootstrap the target:
 
    ```bash
-   bin/governance init --target <target> --product <product-doc>
+   bin/governance init --target <target>
    ```
 
-   For automation, use `--json`. Use `local_commands[].argv` from `local_commands[].cwd` for routine checks; inspect `writes_state` and `approval_required` before running returned commands. Follow `next_actions`: sort by `sequence`, run each action's `argv` from its reported `cwd`, use `preflight_for` and `requires_action` to pair commands, and run the matching state-writing `apply` command only after the referenced preflight reports the declared `success_condition` of `ok:true`.
+   For automation, use `--json` and inspect `product.selection`; `auto-discovered` means exactly one root product document was imported. Use `local_commands[].argv` from `local_commands[].cwd` for routine checks; inspect `writes_state` and `approval_required` before running returned commands. Follow `next_actions`: sort by `sequence`, run each action's `argv` from its reported `cwd`, use `preflight_for` and `requires_action` to pair commands, and run the matching state-writing `apply` command only after the referenced preflight reports the declared `success_condition` of `ok:true`.
 
 5. Verify:
 
@@ -84,4 +84,5 @@ Create the minimum structure needed for reliable docs-as-code work.
 
 - Existing files would be overwritten without user approval.
 - Product document cannot be read.
+- Product document discovery is ambiguous and no explicit `--product` was selected.
 - Project type is unclear and affects code-directory choices.

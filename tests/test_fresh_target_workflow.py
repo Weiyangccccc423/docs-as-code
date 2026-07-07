@@ -47,7 +47,8 @@ class FreshTargetWorkflowTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
             target = base / "fresh-target"
-            product = base / "product.md"
+            target.mkdir()
+            product = target / "product.md"
             product.write_text(
                 "# Product\n\n"
                 "## Goals and Requirements\n\n"
@@ -81,7 +82,7 @@ class FreshTargetWorkflowTest(unittest.TestCase):
             self.assertIn("next_step", env_check["repair_execution"])
             self.assertIn("would_repair", env_check)
             self.assertNotIn("local_commands", env_check)
-            self.assertFalse(target.exists())
+            self.assertTrue(target.exists())
 
             init_check = _run_json(
                 self,
@@ -92,8 +93,6 @@ class FreshTargetWorkflowTest(unittest.TestCase):
                     "--check",
                     "--target",
                     str(target),
-                    "--product",
-                    str(product),
                     "--profile",
                     "service",
                     "--project-name",
@@ -104,8 +103,10 @@ class FreshTargetWorkflowTest(unittest.TestCase):
             )
             self.assertTrue(init_check["ok"])
             self.assertEqual([], init_check["conflicts"])
+            self.assertEqual("auto-discovered", init_check["product"]["selection"])
+            self.assertEqual(str(product.resolve()), init_check["product"]["path"])
             self.assertIn(".governance/state.json", init_check["would_write"])
-            self.assertFalse(target.exists())
+            self.assertTrue(target.exists())
 
             init_payload = _run_json(
                 self,
@@ -115,8 +116,6 @@ class FreshTargetWorkflowTest(unittest.TestCase):
                     "init",
                     "--target",
                     str(target),
-                    "--product",
-                    str(product),
                     "--profile",
                     "service",
                     "--project-name",
@@ -126,6 +125,8 @@ class FreshTargetWorkflowTest(unittest.TestCase):
                 cwd=ROOT,
             )
             self.assertTrue(init_payload["ok"])
+            self.assertEqual("auto-discovered", init_payload["product"]["selection"])
+            self.assertEqual([str(product.resolve())], init_payload["product"]["candidates"])
             self.assertEqual("initialized", init_payload["state"]["phase"])
             self.assertEqual("ready_for_structuring", init_payload["state"]["product_import_status"])
             self.assertTrue((target / "bin/governance").is_file())

@@ -7,9 +7,11 @@ Calibrate against Git repository initialization, repository entry-point document
 ## Target Safety
 
 - Is the target folder empty or near-empty enough that generated governance files can be created without hiding user work?
-- Does `bin/governance init --check --target <target> --product <product-doc> --json` report conflicts before write mode is used?
+- Does `bin/governance init --check --target <target> --json` auto-discover exactly one root product document when `--product` is omitted?
+- Does `bin/governance init --check --target <target> --product <product-doc> --json` report conflicts before write mode is used when the source is outside the target or multiple candidates exist?
 - Are existing governance files reviewed with the user before `--force` is used?
-- Is the product document path readable before initialization writes target files?
+- Is the selected product document path readable before initialization writes target files?
+- Are multiple product document candidates treated as a stop condition instead of guessed from file names?
 
 Reference: `https://git-scm.com/book/en/v2/Git-Basics-Getting-a-Git-Repository`
 
@@ -39,6 +41,7 @@ Reference: `https://docs.github.com/en/repositories/managing-your-repositorys-se
 
 - Are `docs/product/core/PRD.md`, `docs/product/core/product-meta.md`, `docs/product/core/source/source-manifest.json`, `docs/unresolved.md`, and `docs/glossary.md` initialized?
 - Is the original product source archived or represented as conversion-required before product structuring begins?
+- Does initialization JSON record product selection as `explicit`, `auto-discovered`, `none`, or `ambiguous` so agents can branch deterministically?
 - Does `.governance/state.json` record phase, profile, product source, archive path, and product import readiness consistently?
 
 ## Git Readiness
