@@ -32,6 +32,7 @@ from check_env import (
 from design_plan import (
     build_api_authoring,
     build_api_candidates,
+    build_architecture_decisions_authoring,
     build_backend_authoring,
     build_design_plan,
     build_frontend_authoring,
@@ -737,6 +738,23 @@ def _cmd_design_implementation_planning_authoring(args: argparse.Namespace) -> i
     return 0
 
 
+def _cmd_design_architecture_decisions_authoring(args: argparse.Namespace) -> int:
+    target = Path(args.target)
+    payload = build_architecture_decisions_authoring(target)
+    if args.json:
+        _print_json(payload)
+        return 0 if payload["ok"] else 1
+    if not payload["ok"]:
+        print("Architecture decisions authoring plan failed:")
+        for error in payload["errors"]:
+            print(f"- ERROR: {error}")
+        return 1
+    print("Architecture decisions authoring tasks:")
+    for task in payload["authoring_tasks"]:
+        print(f"- {task['task_id']}: {task['acceptance_id']} -> ADR {task['requires_adr']}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="docs-as-code governance workflow CLI")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -888,6 +906,13 @@ def build_parser() -> argparse.ArgumentParser:
     implementation_planning_authoring.add_argument("target", nargs="?", default=".")
     implementation_planning_authoring.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     implementation_planning_authoring.set_defaults(func=_cmd_design_implementation_planning_authoring)
+    architecture_decisions_authoring = design_sub.add_parser(
+        "architecture-decisions-authoring",
+        help="Build source-backed ADR trigger review and architecture decision authoring tasks.",
+    )
+    architecture_decisions_authoring.add_argument("target", nargs="?", default=".")
+    architecture_decisions_authoring.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    architecture_decisions_authoring.set_defaults(func=_cmd_design_architecture_decisions_authoring)
 
     return parser
 

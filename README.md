@@ -148,6 +148,7 @@ For backend work, run `design backend-authoring --json` after architecture/API s
 For UI and frontend work, run `design frontend-authoring --json` after product/API sources exist. The payload uses `decision_policy: do_not_guess_frontend_behavior` and returns `authoring_tasks[]` with UI/frontend `documents`, required `sections`, `required_links`, unresolved `open_decisions` such as `state_ownership` and `error_actions`, and command steps named verify-frontend-authoring and refresh-frontend-authoring.
 For verification work, run `design test-strategy-authoring --json` after product/design/API sources exist. The payload uses `decision_policy: do_not_guess_verification_scope` and returns `authoring_tasks[]` with test `documents`, required `sections`, `required_links`, unresolved `open_decisions` such as `acceptance_coverage` and `evidence_targets`, and command steps named verify-test-strategy-authoring and refresh-test-strategy-authoring.
 For implementation planning work, run `design implementation-planning-authoring --json` after product/design/API/test sources exist. The payload uses `decision_policy: do_not_guess_task_scope` and returns `authoring_tasks[]` with development `documents`, required `sections`, `required_links`, unresolved `open_decisions` such as `task_scope`, `ready_criteria`, `verification_plan`, and `agent_handoff`, plus command steps named verify-implementation-planning-authoring and refresh-implementation-planning-authoring.
+For architecture decision work, run `design architecture-decisions-authoring --json` after design sources exist. The payload uses `decision_policy: do_not_guess_architecture_decisions` and returns `authoring_tasks[]` with ADR `documents`, required `sections`, `required_links`, unresolved `open_decisions` such as `adr_trigger`, `decision_scope`, and `alternatives`, `requires_adr: undetermined`, and command steps named verify-architecture-decisions-authoring and refresh-architecture-decisions-authoring.
 
 ```bash
 bin/governance advance design-derivation /path/to/new-project --check --json
@@ -161,6 +162,7 @@ bin/governance design backend-authoring /path/to/new-project --json
 bin/governance design frontend-authoring /path/to/new-project --json
 bin/governance design test-strategy-authoring /path/to/new-project --json
 bin/governance design implementation-planning-authoring /path/to/new-project --json
+bin/governance design architecture-decisions-authoring /path/to/new-project --json
 ```
 
 ## Workflow Order

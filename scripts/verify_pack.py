@@ -591,11 +591,17 @@ FRESH_TARGET_SMOKE_TEST_REQUIRED_PHRASES = (
     "task_scope",
     "ready_criteria",
     "agent_handoff",
+    "architecture_decisions_authoring",
+    "architecture-decisions-authoring",
+    "adr_trigger",
+    "decision_scope",
+    "alternatives",
     "api-contracts",
     "backend-modules",
     "frontend-modules",
     "test-strategy",
     "implementation-planning",
+    "architecture-decisions",
     "designing-api-contracts",
     "designing-backend-modules",
     "designing-data-models",
@@ -603,6 +609,7 @@ FRESH_TARGET_SMOKE_TEST_REQUIRED_PHRASES = (
     "designing-frontend-modules",
     "designing-test-strategy",
     "planning-implementation-work",
+    "capturing-architecture-decisions",
     "design_blocked_verify",
     "docs/architecture/01-system-context.md",
     "docs/api/endpoints/README.md",
@@ -899,6 +906,29 @@ IMPLEMENTATION_PLANNING_AUTHORING_REQUIRED_PHRASES = (
     "agent_handoff",
     "verify-implementation-planning-authoring",
     "refresh-implementation-planning-authoring",
+)
+ARCHITECTURE_DECISIONS_AUTHORING_DOC_PATHS = (
+    "README.md",
+    "workflows/00-overview.md",
+    "workflows/04-design-derivation.md",
+    "skills/capturing-architecture-decisions/SKILL.md",
+    "skills/verifying-governance-docs/SKILL.md",
+)
+ARCHITECTURE_DECISIONS_AUTHORING_REQUIRED_PHRASES = (
+    "design architecture-decisions-authoring",
+    "authoring_tasks",
+    "decision_policy",
+    "do_not_guess_architecture_decisions",
+    "documents",
+    "sections",
+    "required_links",
+    "open_decisions",
+    "adr_trigger",
+    "decision_scope",
+    "alternatives",
+    "requires_adr",
+    "verify-architecture-decisions-authoring",
+    "refresh-architecture-decisions-authoring",
 )
 SCAFFOLD_CONTINUATION_DOC_PATHS = (
     "README.md",
@@ -1999,6 +2029,7 @@ GOVERNANCE_CLI_REQUIRED_SUBCOMMANDS = {
         "frontend-authoring",
         "test-strategy-authoring",
         "implementation-planning-authoring",
+        "architecture-decisions-authoring",
     ),
 }
 GOVERNANCE_CLI_PARSER_VARIABLES = {
@@ -2271,6 +2302,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_frontend_authoring_docs(root, findings)
     _check_test_strategy_authoring_docs(root, findings)
     _check_implementation_planning_authoring_docs(root, findings)
+    _check_architecture_decisions_authoring_docs(root, findings)
     _check_scaffold_continuation_docs(root, findings)
     _check_implementation_handoff_docs(root, findings)
     _check_initialization_reference_docs(root, findings)
@@ -3705,6 +3737,23 @@ def _check_implementation_planning_authoring_docs(root: Path, findings: list[Pac
             PackFinding(
                 "pack_implementation_planning_authoring_doc_missing",
                 f"{rel} must document implementation planning authoring phrase(s): {', '.join(missing)}",
+                rel,
+            )
+        )
+
+
+def _check_architecture_decisions_authoring_docs(root: Path, findings: list[PackFinding]) -> None:
+    for rel in ARCHITECTURE_DECISIONS_AUTHORING_DOC_PATHS:
+        text = _read_utf8_text_or_none(root / rel)
+        if text is None:
+            continue
+        missing = [phrase for phrase in ARCHITECTURE_DECISIONS_AUTHORING_REQUIRED_PHRASES if phrase not in text]
+        if not missing:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_architecture_decisions_authoring_doc_missing",
+                f"{rel} must document architecture decisions authoring phrase(s): {', '.join(missing)}",
                 rel,
             )
         )

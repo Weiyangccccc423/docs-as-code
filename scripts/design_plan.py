@@ -24,9 +24,11 @@ BACKEND_TRACK_ID = "backend-modules"
 FRONTEND_TRACK_ID = "frontend-modules"
 TEST_STRATEGY_TRACK_ID = "test-strategy"
 IMPLEMENTATION_PLANNING_TRACK_ID = "implementation-planning"
+ARCHITECTURE_DECISIONS_TRACK_ID = "architecture-decisions"
 STARTER_ENDPOINT_CONTRACT = "docs/api/endpoints/01-endpoint-contract.md"
 ACCEPTANCE_HEADING_RE = re.compile(r"^##[ \t]+(?P<id>A-[0-9]{3})[ \t]+(?P<title>.+?)[ \t]*$", re.MULTILINE)
 TASK_ID_RE = re.compile(r"\bTASK-(?P<num>[0-9]{3})\b")
+ADR_ID_RE = re.compile(r"^(?P<num>[0-9]{3})-[a-z0-9][a-z0-9-]*\.md$")
 SLUG_TOKEN_RE = re.compile(r"[a-z0-9]+")
 OPEN_API_DECISIONS = (
     "method_path",
@@ -202,6 +204,26 @@ VERIFICATION_LOG_SECTIONS = (
     "Verification Runs",
     "Artifacts",
     "Open Follow-ups",
+)
+OPEN_ARCHITECTURE_DECISION_DECISIONS = (
+    "adr_trigger",
+    "decision_scope",
+    "decision_drivers",
+    "affected_modules",
+    "alternatives",
+    "selected_option",
+    "consequences",
+    "status",
+    "verification_path",
+    "reverse_links",
+    "supersession",
+    "deferred_or_no_adr_reason",
+)
+ADR_SECTIONS = (
+    "Context",
+    "Decision",
+    "Consequences",
+    "References",
 )
 
 
@@ -570,6 +592,44 @@ def build_implementation_planning_authoring(root: Path) -> dict[str, object]:
                 index,
                 f"TASK-{start_task_prefix + index - 1:03d}",
             )
+            for index, candidate in enumerate(candidates, start=1)
+        ],
+        "errors": errors,
+    }
+    if not errors:
+        payload["local_commands"] = target_local_commands_payload(cwd=str(root))
+        payload["next_actions"] = next_actions_payload(state, cwd=str(root))
+    return payload
+
+
+def build_architecture_decisions_authoring(root: Path) -> dict[str, object]:
+    root = root.resolve()
+    state = load_state(root)
+    phase = state.get("phase") if isinstance(state.get("phase"), str) else ""
+    errors: list[str] = []
+    if not state:
+        errors.append("No governance state found.")
+    elif phase != DESIGN_PHASE:
+        errors.append(f"architecture decisions authoring requires recorded phase {DESIGN_PHASE}")
+    candidates = _api_candidates(root)
+    if not candidates:
+        errors.append("No product acceptance criteria with A-NNN headings found.")
+    next_adr_prefix = f"{_next_adr_prefix(root):03d}"
+    payload: dict[str, object] = {
+        "ok": not errors,
+        "target": str(root),
+        "phase": phase,
+        "workflow": DESIGN_WORKFLOW_PATH,
+        "track": ARCHITECTURE_DECISIONS_TRACK_ID,
+        "decision_policy": "do_not_guess_architecture_decisions",
+        "skills": ["capturing-architecture-decisions"],
+        "references": [
+            "references/architecture-methods.md",
+            "references/architecture-decision-record-checklist.md",
+        ],
+        "source_documents": _source_documents(root),
+        "authoring_tasks": [
+            _architecture_decision_authoring_task(root, candidate, index, next_adr_prefix)
             for index, candidate in enumerate(candidates, start=1)
         ],
         "errors": errors,
@@ -1305,6 +1365,148 @@ def _implementation_planning_authoring_steps(
     ]
 
 
+def _architecture_decision_authoring_task(
+    root: Path,
+    candidate: dict[str, object],
+    index: int,
+    next_adr_prefix: str,
+) -> dict[str, object]:
+    source = candidate["source"]
+    if not isinstance(source, dict):  # pragma: no cover - internal invariant
+        source = {}
+    source_reference = str(source.get("reference", ""))
+    api_contract = str(candidate["suggested_endpoint_file"])
+    documents = [
+        _authoring_document(
+            "docs/decisions/_template.md",
+            ADR_SECTIONS,
+            "Use the ADR template only when the decision trigger is source-backed; otherwise record a deferral or no-ADR reason.",
+        ),
+    ]
+    required_links = [
+        _required_link(root, "product_acceptance", source_reference),
+        _required_link(root, "architecture_context", "docs/architecture/01-system-context.md"),
+        _required_link(root, "architecture_containers", "docs/architecture/02-containers.md"),
+        _required_link(root, "architecture_quality", "docs/architecture/03-quality-attributes.md"),
+        _required_link(root, "api_contract", api_contract),
+        _required_link(root, "backend_modules", "docs/backend/01-modules.md"),
+        _required_link(root, "data_model", "docs/backend/02-data-model.md"),
+        _required_link(root, "frontend_modules", "docs/frontend/01-modules.md"),
+        _required_link(root, "test_strategy", "docs/tests/01-strategy.md"),
+        _required_link(root, "task_board", "docs/development/02-task-board.md"),
+        _required_link(root, "unresolved_decisions", "docs/unresolved.md"),
+    ]
+    return {
+        "task_id": f"ADR-AUTHOR-{index:03d}",
+        "api_candidate_id": candidate["candidate_id"],
+        "acceptance_id": candidate["acceptance_id"],
+        "title": candidate["title"],
+        "requires_adr": "undetermined",
+        "next_adr_prefix": next_adr_prefix,
+        "source": source,
+        "documents": documents,
+        "required_links": required_links,
+        "open_decisions": list(OPEN_ARCHITECTURE_DECISION_DECISIONS),
+        "steps": _architecture_decision_authoring_steps(root, source_reference, api_contract, required_links),
+    }
+
+
+def _architecture_decision_authoring_steps(
+    root: Path,
+    source_reference: str,
+    api_contract: str,
+    required_links: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    return [
+        {
+            "id": "load-adr-skill",
+            "kind": "skill-load",
+            "skills": ["capturing-architecture-decisions"],
+            "description": "Load the ADR skill before deciding whether a source-backed architecture decision record is required.",
+        },
+        {
+            "id": "read-adr-references",
+            "kind": "read",
+            "references": [
+                "references/architecture-methods.md",
+                "references/architecture-decision-record-checklist.md",
+            ],
+            "description": "Read ADR method and checklist guidance before evaluating trigger, options, consequences, or lifecycle.",
+        },
+        {
+            "id": "read-source-acceptance",
+            "kind": "read",
+            "documents": [source_reference],
+            "description": "Read the product acceptance criterion that may drive an architecture decision.",
+        },
+        {
+            "id": "read-design-decision-sources",
+            "kind": "read",
+            "documents": [
+                "docs/architecture/01-system-context.md",
+                "docs/architecture/02-containers.md",
+                "docs/architecture/03-quality-attributes.md",
+                api_contract,
+                "docs/backend/01-modules.md",
+                "docs/backend/02-data-model.md",
+                "docs/frontend/01-modules.md",
+                "docs/tests/01-strategy.md",
+            ],
+            "description": "Read design sources before judging whether a decision is cross-module, costly, reversible-later, or alternative-rich.",
+        },
+        {
+            "id": "evaluate-adr-trigger",
+            "kind": "review",
+            "open_decisions": [
+                "adr_trigger",
+                "decision_scope",
+                "decision_drivers",
+                "affected_modules",
+                "deferred_or_no_adr_reason",
+            ],
+            "description": "Decide from sources whether an ADR is required, should be deferred, or should be omitted as a local design note.",
+        },
+        {
+            "id": "author-adr-if-triggered",
+            "kind": "author",
+            "template": "docs/decisions/_template.md",
+            "sections": list(ADR_SECTIONS),
+            "description": "Create a numbered NNN-<slug>.md ADR only after trigger, options, decision, consequences, status, and references are source-backed.",
+        },
+        {
+            "id": "link-decision-references",
+            "kind": "link",
+            "required_links": [
+                link
+                for link in required_links
+                if link["kind"]
+                in {
+                    "product_acceptance",
+                    "architecture_context",
+                    "architecture_quality",
+                    "api_contract",
+                    "backend_modules",
+                    "frontend_modules",
+                    "unresolved_decisions",
+                }
+            ],
+            "description": "Connect ADR references and reverse links to existing local Markdown sources, or register blockers.",
+        },
+        _command_step(
+            root,
+            "verify-architecture-decisions-authoring",
+            "Run read-only governance verification after ADR authoring.",
+            ["bin/governance", "verify", ".", "--check", "--json"],
+        ),
+        _command_step(
+            root,
+            "refresh-architecture-decisions-authoring",
+            "Refresh the architecture decisions authoring queue after verification.",
+            ["bin/governance", "design", "architecture-decisions-authoring", ".", "--json"],
+        ),
+    ]
+
+
 def _acceptance_headings(root: Path) -> list[dict[str, str]]:
     product_root = root / "docs/product"
     if not product_root.is_dir():
@@ -1358,6 +1560,17 @@ def _next_task_prefix(root: Path) -> int:
         except (OSError, UnicodeDecodeError):
             continue
         prefixes.extend(int(match.group("num")) for match in TASK_ID_RE.finditer(text))
+    return max(prefixes, default=0) + 1
+
+
+def _next_adr_prefix(root: Path) -> int:
+    decisions_root = root / "docs/decisions"
+    prefixes: list[int] = []
+    if decisions_root.is_dir():
+        for path in decisions_root.glob("[0-9][0-9][0-9]-*.md"):
+            match = ADR_ID_RE.fullmatch(path.name)
+            if match:
+                prefixes.append(int(match.group("num")))
     return max(prefixes, default=0) + 1
 
 

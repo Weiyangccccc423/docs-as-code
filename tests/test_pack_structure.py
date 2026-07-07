@@ -1331,6 +1331,36 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_missing_architecture_decisions_authoring_doc_phrase(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            skill = target / "skills/capturing-architecture-decisions/SKILL.md"
+            skill.write_text(
+                skill.read_text(encoding="utf-8").replace(
+                    "`bin/governance design architecture-decisions-authoring <target> --json`",
+                    "`bin/governance design plan <target> --json`",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_architecture_decisions_authoring_doc_missing"
+                    and finding.path == "skills/capturing-architecture-decisions/SKILL.md"
+                    and "design architecture-decisions-authoring" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_missing_product_scaffold_continuation_doc_phrase(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
@@ -1580,7 +1610,6 @@ class PackStructureTest(unittest.TestCase):
                 skill.read_text(encoding="utf-8").replace(
                     "`references/architecture-decision-record-checklist.md`",
                     "the architecture decision record checklist",
-                    1,
                 ),
                 encoding="utf-8",
             )

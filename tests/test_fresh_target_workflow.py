@@ -649,3 +649,31 @@ class FreshTargetWorkflowTest(unittest.TestCase):
                 ["bin/governance", "design", "implementation-planning-authoring", ".", "--json"],
                 planning_task["steps"][-1]["argv"],
             )
+
+            architecture_decisions_authoring = _run_json(
+                self,
+                ["bin/governance", "design", "architecture-decisions-authoring", ".", "--json"],
+                cwd=target,
+            )
+            self.assertTrue(architecture_decisions_authoring["ok"])
+            self.assertEqual("architecture-decisions", architecture_decisions_authoring["track"])
+            self.assertEqual(
+                "do_not_guess_architecture_decisions",
+                architecture_decisions_authoring["decision_policy"],
+            )
+            self.assertEqual(1, len(architecture_decisions_authoring["authoring_tasks"]))
+            adr_task = architecture_decisions_authoring["authoring_tasks"][0]
+            self.assertEqual("ADR-AUTHOR-001", adr_task["task_id"])
+            self.assertEqual("A-001", adr_task["acceptance_id"])
+            self.assertEqual("undetermined", adr_task["requires_adr"])
+            self.assertEqual("001", adr_task["next_adr_prefix"])
+            self.assertIn("capturing-architecture-decisions", architecture_decisions_authoring["skills"])
+            self.assertIn("docs/decisions/_template.md", [document["path"] for document in adr_task["documents"]])
+            self.assertIn("adr_trigger", adr_task["open_decisions"])
+            self.assertIn("decision_scope", adr_task["open_decisions"])
+            self.assertIn("alternatives", adr_task["open_decisions"])
+            self.assertIn("docs/architecture/03-quality-attributes.md", [link["target"] for link in adr_task["required_links"]])
+            self.assertEqual(
+                ["bin/governance", "design", "architecture-decisions-authoring", ".", "--json"],
+                adr_task["steps"][-1]["argv"],
+            )
