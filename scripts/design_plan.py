@@ -29,7 +29,9 @@ TEST_STRATEGY_TRACK_ID = "test-strategy"
 IMPLEMENTATION_PLANNING_TRACK_ID = "implementation-planning"
 ARCHITECTURE_DECISIONS_TRACK_ID = "architecture-decisions"
 STARTER_ENDPOINT_CONTRACT = "docs/api/endpoints/01-endpoint-contract.md"
+SCAFFOLD_PLACEHOLDER = "governance:scaffold-placeholder"
 ACCEPTANCE_HEADING_RE = re.compile(r"^##[ \t]+(?P<id>A-[0-9]{3})[ \t]+(?P<title>.+?)[ \t]*$", re.MULTILINE)
+MARKDOWN_HEADING_RE = re.compile(r"^(?P<hashes>#{1,6})[ \t]+(?P<title>.+?)[ \t]*#*[ \t]*$", re.MULTILINE)
 TASK_ID_RE = re.compile(r"\bTASK-(?P<num>[0-9]{3})\b")
 ADR_ID_RE = re.compile(r"^(?P<num>[0-9]{3})-[a-z0-9][a-z0-9-]*\.md$")
 SLUG_TOKEN_RE = re.compile(r"[a-z0-9]+")
@@ -916,11 +918,53 @@ def _authoring_document(path: str, sections: tuple[str, ...], purpose: str) -> d
 
 def _required_link(root: Path, kind: str, target: str) -> dict[str, object]:
     path = target.split("#", 1)[0]
-    return {
+    status, details = _required_link_status(root, target)
+    payload: dict[str, object] = {
         "kind": kind,
         "target": target,
         "exists": bool(path) and (root / path).is_file(),
+        "status": status,
     }
+    if details:
+        payload["details"] = details
+    return payload
+
+
+def _required_link_status(root: Path, target: str) -> tuple[str, str]:
+    path_part, anchor = _split_markdown_reference(target)
+    if not path_part:
+        return "missing", "required link target has no file path"
+    path = root / path_part
+    if not path.exists():
+        return "missing", f"{path_part} does not exist"
+    if not path.is_file():
+        return "missing", f"{path_part} is not a file"
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return "unreadable", f"{path_part} is not UTF-8 Markdown"
+    except OSError as error:
+        return "unreadable", f"{path_part} is unreadable: {error.strerror or str(error)}"
+    if SCAFFOLD_PLACEHOLDER in text:
+        return "placeholder_present", f"{path_part} still contains a governance scaffold placeholder"
+    if anchor and not _markdown_anchor_exists(text, anchor):
+        return "anchor_missing", f"{path_part} does not define anchor #{anchor}"
+    return "satisfied", f"{target} resolves to a local Markdown source"
+
+
+def _split_markdown_reference(target: str) -> tuple[str, str]:
+    path_part, separator, anchor = target.partition("#")
+    return path_part, anchor if separator else ""
+
+
+def _markdown_anchor_exists(text: str, expected_anchor: str) -> bool:
+    normalized_expected = expected_anchor.strip().casefold()
+    if not normalized_expected:
+        return True
+    for match in MARKDOWN_HEADING_RE.finditer(text):
+        if _markdown_anchor(match.group("title").strip()).casefold() == normalized_expected:
+            return True
+    return False
 
 
 def _api_authoring_steps(

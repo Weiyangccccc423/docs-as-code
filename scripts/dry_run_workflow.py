@@ -553,6 +553,17 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         _require(isinstance(tasks, list), f"{command} did not return authoring_tasks", payload=payload)
         authoring_task_counts[command] = len(tasks)
         _require(len(tasks) == expected_task_count, f"{command} task count mismatch", payload=payload)
+        _require(
+            all(
+                isinstance(link, dict) and isinstance(link.get("status"), str) and link["status"]
+                for task in tasks
+                if isinstance(task, dict)
+                for link in task.get("required_links", [])
+                if isinstance(task.get("required_links"), list)
+            ),
+            f"{command} required links did not expose machine-readable statuses",
+            payload=payload,
+        )
 
     implementation_preflight = _run_json(
         steps,
