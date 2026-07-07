@@ -319,6 +319,12 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
     _require(product_plan.get("ok") is True, "product plan failed", payload=product_plan)
     suggested_mappings = product_plan.get("suggested_mappings")
     _require(isinstance(suggested_mappings, list), "product plan did not return suggested mappings", payload=product_plan)
+    manual_authoring_tasks = product_plan.get("manual_authoring_tasks")
+    _require(
+        isinstance(manual_authoring_tasks, list),
+        "product plan did not return manual authoring tasks",
+        payload=product_plan,
+    )
     command_args = {
         str(mapping.get("command_arg"))
         for mapping in suggested_mappings
@@ -332,6 +338,11 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
     _require(
         "acceptance-criteria=Acceptance Criteria" in command_args,
         "product plan did not suggest acceptance mapping",
+        payload=product_plan,
+    )
+    _require(
+        any(isinstance(task, dict) and task.get("status") == "decision_required" for task in manual_authoring_tasks),
+        "product plan did not expose decision-required manual authoring tasks",
         payload=product_plan,
     )
 

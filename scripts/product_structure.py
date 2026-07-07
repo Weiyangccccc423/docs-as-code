@@ -261,6 +261,7 @@ def build_product_plan(root: Path) -> dict[str, object]:
     available_chapters = _available_chapter_payloads()
     suggested_mappings = _suggest_chapter_mappings(prd_headings)
     required_decisions = _required_product_decisions(suggested_mappings)
+    manual_authoring_tasks = _manual_authoring_tasks(root, required_decisions)
     steps = _product_plan_steps(root, suggested_mappings, required_decisions)
     payload: dict[str, object] = {
         "ok": not errors,
@@ -277,6 +278,7 @@ def build_product_plan(root: Path) -> dict[str, object]:
         "prd_headings": prd_headings,
         "suggested_mappings": suggested_mappings,
         "required_decisions": required_decisions,
+        "manual_authoring_tasks": manual_authoring_tasks,
         "steps": steps,
         "errors": errors,
     }
@@ -450,6 +452,166 @@ def _required_product_decisions(suggested_mappings: list[dict[str, object]]) -> 
             }
         )
     return decisions
+
+
+def _manual_authoring_tasks(root: Path, required_decisions: list[dict[str, str]]) -> list[dict[str, object]]:
+    return [
+        _manual_authoring_task(root, decision, index)
+        for index, decision in enumerate(required_decisions, start=1)
+    ]
+
+
+def _manual_authoring_task(root: Path, decision: dict[str, str], index: int) -> dict[str, object]:
+    chapter = decision["chapter"]
+    spec = PRODUCT_SCAFFOLD_BY_KEY[chapter]
+    return {
+        "task_id": f"PRODUCT-AUTHOR-{index:03d}",
+        "sequence": index,
+        "chapter": chapter,
+        "title": spec.title,
+        "path": spec.path,
+        "status": "decision_required",
+        "reason": decision["reason"],
+        "decision": decision["decision"],
+        "decision_policy": "do_not_guess_product_meaning",
+        "action_options": [
+            "provide_explicit_key_heading_mapping",
+            "author_manually_from_prd",
+            "omit_unsupported_chapter",
+        ],
+        "execution": {
+            "stage": "product-manual-authoring",
+            "primary_skill": "structuring-product-requirements",
+            "verify_step": "verify-product-authoring",
+            "refresh_step": "refresh-product-plan",
+            "stop_condition": "source_evidence_missing_or_chapter_unsupported",
+        },
+        "skills": list(PRODUCT_STRUCTURING_SKILLS),
+        "skill_requirements": _product_skill_requirements(root),
+        "authority_skill_requirements": [],
+        "source_documents": list(PRODUCT_SOURCE_DOCUMENTS),
+        "required_sections": list(spec.sections),
+        "required_links": [
+            _product_required_link(root, "canonical_prd", "docs/product/core/PRD.md"),
+            _product_required_link(root, "product_index", "docs/product/README.md"),
+            _product_required_link(root, "product_meta", "docs/product/core/product-meta.md"),
+            _product_required_link(root, "unresolved_registry", "docs/unresolved.md"),
+        ],
+        "open_decisions": _manual_authoring_open_decisions(chapter),
+        "steps": _manual_authoring_steps(root, chapter, spec.path, spec.sections),
+    }
+
+
+def _manual_authoring_open_decisions(chapter: str) -> list[str]:
+    decisions = [
+        "chapter_in_scope",
+        "source_evidence",
+        "section_mapping",
+        "unresolved_questions",
+        "glossary_terms",
+    ]
+    if chapter == "acceptance-criteria":
+        decisions.append("acceptance_id_strategy")
+    if chapter == "success-metrics":
+        decisions.append("measurement_source")
+    return decisions
+
+
+def _product_required_link(root: Path, kind: str, target: str) -> dict[str, object]:
+    return {
+        "kind": kind,
+        "target": target,
+        "exists": (root / target).is_file(),
+    }
+
+
+def _manual_authoring_steps(
+    root: Path,
+    chapter: str,
+    path: str,
+    sections: tuple[str, ...],
+) -> list[dict[str, object]]:
+    return _sequence_steps(
+        [
+            {
+                "id": "load-product-structuring-skills",
+                "kind": "skill-load",
+                "skills": list(PRODUCT_STRUCTURING_SKILLS),
+                "skill_requirements": _product_skill_requirements(root),
+                "authority_skill_requirements": [],
+                "description": "Load product structuring, archiving, and verification skills before manual product authoring.",
+            },
+            {
+                "id": "read-product-sources",
+                "kind": "read",
+                "documents": list(PRODUCT_SOURCE_DOCUMENTS),
+                "description": "Read the canonical PRD, product metadata, glossary, and unresolved registry.",
+            },
+            {
+                "id": "read-product-rubric",
+                "kind": "read",
+                "references": ["references/product-requirements-checklist.md"],
+                "description": "Read product source-fidelity and traceability rules before manual authoring.",
+            },
+            {
+                "id": "decide-chapter-inclusion",
+                "kind": "decision",
+                "chapter": chapter,
+                "action_options": [
+                    "provide_explicit_key_heading_mapping",
+                    "author_manually_from_prd",
+                    "omit_unsupported_chapter",
+                ],
+                "description": "Prove the PRD supports this chapter, provide an explicit heading mapping, or omit it.",
+            },
+            _command_step(
+                root,
+                "scaffold-chapter-check",
+                "Preview the product scaffold for this manually authored chapter.",
+                _scaffold_product_argv([chapter], check=True),
+                writes_state=False,
+            ),
+            _command_step(
+                root,
+                "scaffold-chapter",
+                "Create the product scaffold for this manually authored chapter after preflight passes.",
+                _scaffold_product_argv([chapter], check=False),
+                writes_state=True,
+            ),
+            {
+                "id": "author-product-chapter",
+                "kind": "author",
+                "document": path,
+                "sections": list(sections),
+                "description": "Replace scaffold placeholders with PRD-backed product content and register gaps instead of guessing.",
+            },
+            {
+                "id": "link-product-chapter",
+                "kind": "link",
+                "required_links": [
+                    "docs/product/core/PRD.md",
+                    "docs/product/README.md",
+                    "docs/product/core/product-meta.md",
+                    "docs/unresolved.md",
+                ],
+                "description": "Link the chapter to the canonical PRD, product index, metadata, and unresolved registry.",
+            },
+            _command_step(
+                root,
+                "verify-product-authoring",
+                "Run read-only governance verification after manual product authoring.",
+                ["bin/governance", "verify", ".", "--check", "--json"],
+                writes_state=False,
+            ),
+            _command_step(
+                root,
+                "refresh-product-plan",
+                "Refresh the product structuring plan after manual authoring or omission.",
+                ["bin/governance", "product", "plan", ".", "--json"],
+                writes_state=False,
+            ),
+        ]
+    )
 
 
 def _product_plan_steps(

@@ -4635,6 +4635,46 @@ class GovernanceCliTest(unittest.TestCase):
             required_decisions = {decision["chapter"]: decision for decision in payload["required_decisions"]}
             self.assertIn("background-and-problems", required_decisions)
             self.assertNotIn("acceptance-criteria", required_decisions)
+            manual_tasks = {task["chapter"]: task for task in payload["manual_authoring_tasks"]}
+            self.assertIn("background-and-problems", manual_tasks)
+            self.assertNotIn("acceptance-criteria", manual_tasks)
+            background_task = manual_tasks["background-and-problems"]
+            self.assertEqual("PRODUCT-AUTHOR-001", background_task["task_id"])
+            self.assertEqual("decision_required", background_task["status"])
+            self.assertEqual("do_not_guess_product_meaning", background_task["decision_policy"])
+            self.assertEqual("structuring-product-requirements", background_task["execution"]["primary_skill"])
+            self.assertEqual("verify-product-authoring", background_task["execution"]["verify_step"])
+            self.assertEqual("refresh-product-plan", background_task["execution"]["refresh_step"])
+            self.assertIn("Source Links", background_task["required_sections"])
+            self.assertIn("Open Questions", background_task["required_sections"])
+            required_links = {link["kind"]: link for link in background_task["required_links"]}
+            self.assertTrue(required_links["canonical_prd"]["exists"])
+            self.assertTrue(required_links["product_index"]["exists"])
+            self.assertTrue(required_links["product_meta"]["exists"])
+            self.assertTrue(required_links["unresolved_registry"]["exists"])
+            self.assertIn("chapter_in_scope", background_task["open_decisions"])
+            self.assertIn("source_evidence", background_task["open_decisions"])
+            self.assertIn("provide_explicit_key_heading_mapping", background_task["action_options"])
+            task_steps = background_task["steps"]
+            self.assertEqual(list(range(1, 11)), [step["sequence"] for step in task_steps])
+            self.assertEqual("load-product-structuring-skills", task_steps[0]["id"])
+            self.assertEqual("author-product-chapter", task_steps[6]["id"])
+            self.assertEqual("docs/product/01-background-and-problems.md", task_steps[6]["document"])
+            self.assertEqual(
+                [
+                    "bin/governance",
+                    "scaffold",
+                    "product",
+                    ".",
+                    "--chapter",
+                    "background-and-problems",
+                    "--check",
+                    "--json",
+                ],
+                task_steps[4]["argv"],
+            )
+            self.assertEqual(["bin/governance", "verify", ".", "--check", "--json"], task_steps[8]["argv"])
+            self.assertEqual(["bin/governance", "product", "plan", ".", "--json"], task_steps[9]["argv"])
             skill_requirements = _requirements_by_name(payload["skill_requirements"])
             self.assertEqual("local-workflow", skill_requirements["structuring-product-requirements"]["type"])
             self.assertTrue(skill_requirements["structuring-product-requirements"]["available_in_workflow_pack"])
@@ -4743,6 +4783,26 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn("acceptance-criteria", required_decisions)
             self.assertEqual("no conservative PRD heading match found", required_decisions["acceptance-criteria"]["reason"])
             self.assertIn("key=PRD Heading", required_decisions["acceptance-criteria"]["decision"])
+            manual_tasks = {task["chapter"]: task for task in payload["manual_authoring_tasks"]}
+            self.assertIn("acceptance-criteria", manual_tasks)
+            acceptance_task = manual_tasks["acceptance-criteria"]
+            self.assertEqual("decision_required", acceptance_task["status"])
+            self.assertIn("acceptance_id_strategy", acceptance_task["open_decisions"])
+            self.assertIn("Acceptance Criteria", acceptance_task["required_sections"])
+            self.assertEqual("docs/product/08-acceptance-criteria.md", acceptance_task["path"])
+            self.assertEqual(
+                [
+                    "bin/governance",
+                    "scaffold",
+                    "product",
+                    ".",
+                    "--chapter",
+                    "acceptance-criteria",
+                    "--check",
+                    "--json",
+                ],
+                acceptance_task["steps"][4]["argv"],
+            )
             structure_check = {step["id"]: step for step in payload["steps"]}["structure-product-check"]
             self.assertEqual(
                 [
