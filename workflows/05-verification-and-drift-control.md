@@ -43,7 +43,7 @@ Load:
    bin/governance env --strict --repair --check --target <target> --json
    ```
 
-   Agents must treat `ok: false` as a stop condition. `--check` reports `would_repair`, `repair_commands`, `manual_repairs`, and `repair_execution` without writing `.governance/env-repair.md` or installing packages. Use `repair_execution.status`, `repair_execution.can_auto_apply`, and `repair_execution.next_step` for branching. If `needs_escalation` is true or any `repair_commands[].approval_required` value is true, do not run `repair_commands`, `install_commands`, or `install_command` without explicit approval.
+   Agents must treat `ok: false` as a stop condition. `--check` reports `would_repair`, `repair_commands`, `repair_actions`, `manual_repairs`, and `repair_execution` without writing `.governance/env-repair.md` or installing packages. Use `repair_execution.status`, `repair_execution.can_auto_apply`, and `repair_execution.next_step` for branching. Sort `repair_actions` by `sequence`; run actions with `argv` only when approved by policy, and route `manual-repair` actions to the user. If `needs_escalation` is true or any `repair_commands[].approval_required` value is true, do not run `repair_commands`, `install_commands`, or `install_command` without explicit approval.
    When governance state is readable and the environment result is `ok: true`, JSON includes `local_commands` and `next_actions` for continuing from the checked target state.
 
 4. If the target project has a Makefile, run its verification entry:

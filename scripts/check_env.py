@@ -413,6 +413,50 @@ def repair_execution_summary(
     }
 
 
+def repair_actions_payload(
+    repair_command_items: list[dict[str, object]],
+    manual_repairs: list[ManualRepairItem],
+    *,
+    install_results: list[dict[str, object]],
+    errors: list[str],
+) -> list[dict[str, object]]:
+    if errors or any(result.get("returncode") != 0 for result in install_results):
+        return []
+
+    actions: list[dict[str, object]] = []
+    sequence = 1
+    for item in repair_command_items:
+        action = copy.deepcopy(item)
+        action["sequence"] = sequence
+        action["source"] = "repair_commands"
+        action["success_condition"] = "returncode:0"
+        actions.append(action)
+        sequence += 1
+
+    for item in manual_repairs:
+        actions.append(
+            {
+                "id": f"env-manual-repair-{item.tool}",
+                "kind": "manual-repair",
+                "sequence": sequence,
+                "tool": item.tool,
+                "level": item.level,
+                "note": item.note,
+                "reason": item.reason,
+                "package_manager": item.package_manager,
+                "install_package": item.install_package,
+                "writes_state": True,
+                "approval_required": True,
+                "source": "manual_repairs",
+                "success_condition": f"tool_present:{item.tool}",
+                "description": f"manually install or enable governance environment tool: {item.tool}",
+            }
+        )
+        sequence += 1
+
+    return actions
+
+
 def manual_repair_items(
     statuses: list[ToolStatus],
     strict: bool,
@@ -546,6 +590,12 @@ def _env_payload(
         "install_command": install_command_text(commands),
         "repair_commands": repair_command_items,
         "manual_repairs": [item.to_dict() for item in manual_repairs],
+        "repair_actions": repair_actions_payload(
+            repair_command_items,
+            manual_repairs,
+            install_results=install_results,
+            errors=error_list,
+        ),
         "repair_execution": repair_execution_summary(
             statuses,
             strict,

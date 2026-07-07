@@ -3116,11 +3116,119 @@ class GovernanceScriptsTest(unittest.TestCase):
             ],
             payload["repair_commands"],
         )
+        self.assertEqual([], payload["repair_actions"])
         self.assertEqual([], payload["manual_repairs"])
         self.assertEqual(["environment repair failed: permission denied"], payload["errors"])
 
         payload["install_results"][0]["meta"]["attempt"] = 3
         self.assertEqual({"attempt": 2}, install_results[0]["meta"])
+
+    def test_check_env_payload_reports_ordered_package_repair_actions(self) -> None:
+        statuses = [
+            check_env_module.ToolStatus(
+                "git",
+                False,
+                "",
+                "Required for version control.",
+                "required",
+                "git",
+            ),
+        ]
+        payload = check_env_module._env_payload(
+            Path("/tmp/project"),
+            strict=False,
+            check=True,
+            statuses=statuses,
+            system=check_env_module.SystemStatus("linux", "ubuntu", "debian", "Ubuntu", False),
+            package_manager=check_env_module.PackageManager("apt", "/usr/bin/apt-get", True),
+            git=check_env_module.GitStatus(False, False, "", "", ""),
+            install_plan=[check_env_module.InstallPlanItem("git", "git", "apt")],
+            needs_escalation=True,
+            install_results=[],
+            repairs=[],
+            repair_plan=None,
+        )
+
+        self.assertEqual(
+            [
+                {
+                    "id": "env-repair-apt-update",
+                    "kind": "package-manager",
+                    "cwd": "/tmp/project",
+                    "command": "/usr/bin/apt-get update",
+                    "argv": ["/usr/bin/apt-get", "update"],
+                    "writes_state": True,
+                    "approval_required": True,
+                    "description": "refresh apt package indexes for governance environment repair",
+                    "sequence": 1,
+                    "source": "repair_commands",
+                    "success_condition": "returncode:0",
+                },
+                {
+                    "id": "env-repair-apt-install",
+                    "kind": "package-manager",
+                    "cwd": "/tmp/project",
+                    "command": "/usr/bin/apt-get install -y git",
+                    "argv": ["/usr/bin/apt-get", "install", "-y", "git"],
+                    "writes_state": True,
+                    "approval_required": True,
+                    "description": "install supported governance environment packages: git",
+                    "sequence": 2,
+                    "source": "repair_commands",
+                    "success_condition": "returncode:0",
+                },
+            ],
+            payload["repair_actions"],
+        )
+
+    def test_check_env_payload_reports_manual_repair_actions(self) -> None:
+        statuses = [
+            check_env_module.ToolStatus(
+                "node",
+                False,
+                "",
+                "Recommended for frontend projects and markdown tooling.",
+                "recommended",
+                None,
+            ),
+        ]
+
+        payload = check_env_module._env_payload(
+            Path("/tmp/project"),
+            strict=True,
+            check=True,
+            statuses=statuses,
+            system=check_env_module.SystemStatus("linux", "ubuntu", "debian", "Ubuntu", False),
+            package_manager=check_env_module.PackageManager("apt", "/usr/bin/apt-get", True),
+            git=check_env_module.GitStatus(False, False, "", "", ""),
+            install_plan=[],
+            needs_escalation=False,
+            install_results=[],
+            repairs=[],
+            repair_plan=None,
+        )
+
+        self.assertEqual(
+            [
+                {
+                    "id": "env-manual-repair-node",
+                    "kind": "manual-repair",
+                    "sequence": 1,
+                    "tool": "node",
+                    "level": "recommended",
+                    "note": "Recommended for frontend projects and markdown tooling.",
+                    "reason": "no supported package mapping",
+                    "package_manager": "apt",
+                    "install_package": None,
+                    "writes_state": True,
+                    "approval_required": True,
+                    "source": "manual_repairs",
+                    "success_condition": "tool_present:node",
+                    "description": "manually install or enable governance environment tool: node",
+                }
+            ],
+            payload["repair_actions"],
+        )
 
     def test_check_env_payload_reports_empty_errors_for_success(self) -> None:
         statuses = [
@@ -3151,6 +3259,7 @@ class GovernanceScriptsTest(unittest.TestCase):
         self.assertTrue(payload["ok"])
         self.assertEqual([], payload["errors"])
         self.assertEqual([], payload["manual_repairs"])
+        self.assertEqual([], payload["repair_actions"])
 
     def test_phases_main_json_advances_product_structuring(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -28,7 +28,7 @@ Before repair or strict verification, preview environment changes without writin
 bin/governance env --repair --check --target <target> --json
 ```
 
-Stop on `ok: false` when missing required tools block the current phase. Inspect `would_repair`, `install_commands`, `repair_commands`, `manual_repairs`, `needs_escalation`, and `repair_execution`; use `repair_execution.status`, `repair_execution.can_auto_apply`, and `repair_execution.next_step` for branching. Run `repair_commands[].argv` from `repair_commands[].cwd` only when `approval_required` is false or approval is explicit. Run `bin/governance env --repair --target <target> --json` only when the repair plan should be written or approved package installation should proceed. When an initialized target returns `local_commands` or `next_actions`, use them to resume from the readable state.
+Stop on `ok: false` when missing required tools block the current phase. Inspect `would_repair`, `install_commands`, `repair_commands`, `repair_actions`, `manual_repairs`, `needs_escalation`, and `repair_execution`; use `repair_execution.status`, `repair_execution.can_auto_apply`, and `repair_execution.next_step` for branching. Sort `repair_actions` by `sequence`; run actions with `argv` only when `approval_required` is false or approval is explicit, and present `manual-repair` actions to the user. Run `bin/governance env --repair --target <target> --json` only when the repair plan should be written or approved package installation should proceed. When an initialized target returns `local_commands` or `next_actions`, use them to resume from the readable state.
 
 ## Phase Gates
 

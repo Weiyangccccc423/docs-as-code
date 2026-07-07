@@ -533,6 +533,7 @@ FRESH_TARGET_SMOKE_TEST_REQUIRED_PHRASES = (
     '"status"',
     "would_repair",
     "repair_commands",
+    "repair_actions",
     "repair_execution",
     "can_auto_apply",
     "next_step",
@@ -890,6 +891,7 @@ ENV_REPAIR_REQUIRED_FIELDS = (
     "would_repair",
     "install_commands",
     "repair_commands",
+    "repair_actions",
     "manual_repairs",
     "needs_escalation",
     "repair_execution",
@@ -1649,7 +1651,7 @@ METHOD_REFERENCE_BASELINES = {
             (
                 "## Environment Repair Control",
                 "bin/governance env --strict --repair --check --target <target> --json",
-                "`would_repair`, `install_commands`, `repair_commands`, `manual_repairs`, and `needs_escalation`",
+                "`would_repair`, `install_commands`, `repair_commands`, `repair_actions`, `manual_repairs`, and `needs_escalation`",
             ),
         ),
         (
@@ -1720,7 +1722,7 @@ METHOD_REFERENCE_BASELINES = {
             "Environment and Repair",
             (
                 "## Environment and Repair",
-                "`would_repair`, `install_commands`, `repair_commands`, `manual_repairs`, and `needs_escalation`",
+                "`would_repair`, `install_commands`, `repair_commands`, `repair_actions`, `manual_repairs`, and `needs_escalation`",
                 "POSIX shell plus Python standard-library runtime",
             ),
         ),

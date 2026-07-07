@@ -17,7 +17,8 @@ Reference: `https://git-scm.com/book/en/v2/Git-Basics-Getting-a-Git-Repository`
 
 ## Environment and Repair
 
-- Does `bin/governance env --repair --check --target <target> --json` pass or produce actionable `would_repair`, `install_commands`, `repair_commands`, `manual_repairs`, and `needs_escalation` fields?
+- Does `bin/governance env --repair --check --target <target> --json` pass or produce actionable `would_repair`, `install_commands`, `repair_commands`, `repair_actions`, `manual_repairs`, and `needs_escalation` fields?
+- Are `repair_actions` sorted by `sequence` before any environment repair action is executed?
 - Are package-manager repair commands treated as approval-requiring actions when `needs_escalation` is true?
 - Can initialization proceed with POSIX shell plus Python standard-library runtime and no project package install?
 - Are target-local continuation commands used from returned `cwd` and `argv` instead of reparsing display text?

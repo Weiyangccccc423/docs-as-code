@@ -77,6 +77,7 @@ class FreshTargetWorkflowTest(unittest.TestCase):
             self.assertTrue(env_check["check"])
             self.assertEqual([], env_check["missing_required"])
             self.assertIn("repair_commands", env_check)
+            self.assertIn("repair_actions", env_check)
             self.assertIn("repair_execution", env_check)
             self.assertIn("can_auto_apply", env_check["repair_execution"])
             self.assertIn("next_step", env_check["repair_execution"])
