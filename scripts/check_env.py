@@ -350,6 +350,69 @@ def repair_commands(
     return items
 
 
+def repair_execution_summary(
+    statuses: list[ToolStatus],
+    strict: bool,
+    repair_command_items: list[dict[str, object]],
+    manual_repairs: list[ManualRepairItem],
+    *,
+    needs_escalation: bool,
+    install_results: list[dict[str, object]],
+    errors: list[str] | None = None,
+) -> dict[str, object]:
+    command_ids = [str(item.get("id", "")) for item in repair_command_items if item.get("id")]
+    manual_tools = [item.tool for item in manual_repairs]
+    approval_required = needs_escalation or any(
+        item.get("approval_required") is True for item in repair_command_items
+    )
+    install_attempted = bool(install_results)
+    install_failed = any(result.get("returncode") != 0 for result in install_results)
+    env_ok = environment_ok(statuses, strict)
+    error_list = list(errors or [])
+    status = "continue"
+    can_continue = True
+    can_auto_apply = False
+    next_step = "continue workflow"
+    if error_list:
+        status = "blocked_by_error"
+        can_continue = False
+        next_step = "fix reported environment repair error"
+    elif install_failed:
+        status = "install_failed"
+        can_continue = False
+        next_step = "inspect install_results and repair package-manager failure"
+    elif install_attempted and env_ok:
+        status = "applied"
+        next_step = "rerun governance env or continue workflow"
+    elif manual_repairs:
+        status = "manual_repair_required"
+        can_continue = False
+        next_step = "complete manual_repairs before continuing"
+    elif approval_required and repair_command_items:
+        status = "approval_required"
+        can_continue = False
+        next_step = "request approval before running repair_commands"
+    elif repair_command_items:
+        status = "ready_to_apply"
+        can_continue = False
+        can_auto_apply = True
+        next_step = "run repair_commands[].argv from repair_commands[].cwd"
+    elif not env_ok:
+        status = "unresolved"
+        can_continue = False
+        next_step = "inspect missing tools and manual repair policy"
+    return {
+        "status": status,
+        "can_continue": can_continue,
+        "can_auto_apply": can_auto_apply,
+        "approval_required": approval_required,
+        "manual_repair_required": bool(manual_repairs),
+        "command_ids": command_ids,
+        "manual_tools": manual_tools,
+        "next_step": next_step,
+    }
+
+
 def manual_repair_items(
     statuses: list[ToolStatus],
     strict: bool,
@@ -459,8 +522,15 @@ def _env_payload(
 ) -> dict[str, object]:
     commands = install_commands(install_plan, package_manager)
     manual_repairs = manual_repair_items(statuses, strict, package_manager, install_plan)
+    repair_command_items = repair_commands(
+        target,
+        install_plan,
+        package_manager,
+        needs_escalation=needs_escalation,
+    )
+    error_list = list(errors or [])
     payload: dict[str, object] = {
-        "ok": environment_ok(statuses, strict) and not errors,
+        "ok": environment_ok(statuses, strict) and not error_list,
         "target": str(target),
         "strict": strict,
         "check": check,
@@ -474,19 +544,23 @@ def _env_payload(
         "install_plan": [item.to_dict() for item in install_plan],
         "install_commands": commands,
         "install_command": install_command_text(commands),
-        "repair_commands": repair_commands(
-            target,
-            install_plan,
-            package_manager,
-            needs_escalation=needs_escalation,
-        ),
+        "repair_commands": repair_command_items,
         "manual_repairs": [item.to_dict() for item in manual_repairs],
+        "repair_execution": repair_execution_summary(
+            statuses,
+            strict,
+            repair_command_items,
+            manual_repairs,
+            needs_escalation=needs_escalation,
+            install_results=install_results,
+            errors=error_list,
+        ),
         "needs_escalation": needs_escalation,
         "install_results": copy.deepcopy(install_results),
         "repairs": copy.deepcopy(repairs),
         "repair_plan": repair_plan,
         "would_repair": copy.deepcopy(would_repair or []),
-        "errors": list(errors or []),
+        "errors": error_list,
     }
     payload.update(env_continuation_payload(target, payload))
     return payload

@@ -456,6 +456,101 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn("- `node` (recommended): no supported package mapping. Recommended for frontend projects.", output)
             self.assertFalse((target / ".governance/env-repair.md").exists())
 
+    def test_env_payload_reports_approval_required_repair_execution(self) -> None:
+        scripts_dir = str(ROOT / "scripts")
+        if scripts_dir not in sys.path:
+            sys.path.insert(0, scripts_dir)
+        check_env = importlib.import_module("check_env")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            target.mkdir()
+            statuses = [
+                check_env.ToolStatus(
+                    name="git",
+                    present=False,
+                    version="",
+                    note="Required for version control.",
+                    level="required",
+                    install_package="git",
+                )
+            ]
+            system = check_env.SystemStatus("linux", "ubuntu", "debian", "Ubuntu", False)
+            package_manager = check_env.PackageManager("apt", "/usr/bin/apt-get", True)
+            install_plan = check_env.build_install_plan(statuses, False, package_manager)
+
+            payload = check_env._env_payload(
+                target,
+                strict=False,
+                check=True,
+                statuses=statuses,
+                system=system,
+                package_manager=package_manager,
+                git=check_env.GitStatus(False, False, "", "", ""),
+                install_plan=install_plan,
+                needs_escalation=True,
+                install_results=[],
+                repairs=[],
+                repair_plan=None,
+                would_repair=check_env.planned_repair_actions(target),
+            )
+
+            self.assertFalse(payload["ok"])
+            execution = payload["repair_execution"]
+            self.assertEqual("approval_required", execution["status"])
+            self.assertFalse(execution["can_continue"])
+            self.assertFalse(execution["can_auto_apply"])
+            self.assertTrue(execution["approval_required"])
+            self.assertFalse(execution["manual_repair_required"])
+            self.assertEqual(["env-repair-apt-update", "env-repair-apt-install"], execution["command_ids"])
+
+    def test_env_payload_reports_manual_repair_execution_blocker(self) -> None:
+        scripts_dir = str(ROOT / "scripts")
+        if scripts_dir not in sys.path:
+            sys.path.insert(0, scripts_dir)
+        check_env = importlib.import_module("check_env")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            target.mkdir()
+            statuses = [
+                check_env.ToolStatus(
+                    name="node",
+                    present=False,
+                    version="",
+                    note="Recommended for frontend projects.",
+                    level="recommended",
+                    install_package=None,
+                )
+            ]
+            system = check_env.SystemStatus("linux", "ubuntu", "debian", "Ubuntu", False)
+            package_manager = check_env.PackageManager("apt", "/usr/bin/apt-get", True)
+
+            payload = check_env._env_payload(
+                target,
+                strict=True,
+                check=True,
+                statuses=statuses,
+                system=system,
+                package_manager=package_manager,
+                git=check_env.GitStatus(False, False, "", "", ""),
+                install_plan=[],
+                needs_escalation=False,
+                install_results=[],
+                repairs=[],
+                repair_plan=None,
+                would_repair=check_env.planned_repair_actions(target),
+            )
+
+            self.assertFalse(payload["ok"])
+            execution = payload["repair_execution"]
+            self.assertEqual("manual_repair_required", execution["status"])
+            self.assertFalse(execution["can_continue"])
+            self.assertFalse(execution["can_auto_apply"])
+            self.assertFalse(execution["approval_required"])
+            self.assertTrue(execution["manual_repair_required"])
+            self.assertEqual(["node"], execution["manual_tools"])
+
     def test_env_repair_writes_repair_plan(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "target"
@@ -512,6 +607,8 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn("install_commands", payload)
             self.assertIn("install_command", payload)
             self.assertIn("needs_escalation", payload)
+            self.assertIn("repair_execution", payload)
+            self.assertIn("next_step", payload["repair_execution"])
             self.assertIn("missing_required", payload)
             self.assertIn("missing_recommended", payload)
             self.assertIn("repairs", payload)
@@ -547,6 +644,8 @@ class GovernanceCliTest(unittest.TestCase):
             payload = json.loads(result.stdout)
             self.assertEqual(payload["ok"], result.returncode == 0)
             self.assertTrue(payload["check"])
+            self.assertIn("repair_execution", payload)
+            self.assertIn("can_auto_apply", payload["repair_execution"])
             self.assertEqual([], payload["repairs"])
             self.assertIsNone(payload["repair_plan"])
             self.assertTrue(

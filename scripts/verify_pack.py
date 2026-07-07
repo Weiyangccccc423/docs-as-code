@@ -532,6 +532,9 @@ FRESH_TARGET_SMOKE_TEST_REQUIRED_PHRASES = (
     '"status"',
     "would_repair",
     "repair_commands",
+    "repair_execution",
+    "can_auto_apply",
+    "next_step",
     "local_commands",
     "next_actions",
     "advance-product-structuring-check",
@@ -884,6 +887,9 @@ ENV_REPAIR_REQUIRED_FIELDS = (
     "repair_commands",
     "manual_repairs",
     "needs_escalation",
+    "repair_execution",
+    "can_auto_apply",
+    "next_step",
 )
 RUNTIME_REFRESH_DOC_REQUIREMENTS = {
     "README.md": (
