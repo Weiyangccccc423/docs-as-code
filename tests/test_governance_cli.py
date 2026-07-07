@@ -1486,6 +1486,9 @@ class GovernanceCliTest(unittest.TestCase):
                     "writes_state": False,
                     "approval_required": False,
                     "requires": "current phase is the previous workflow phase and the gate can pass",
+                    "sequence": 1,
+                    "preflight_for": "advance-product-structuring",
+                    "success_condition": "ok:true",
                     "description": "preflight advance from initialization into product structuring",
                 },
                 payload["next_actions"],
@@ -1861,6 +1864,9 @@ class GovernanceCliTest(unittest.TestCase):
                     "writes_state": False,
                     "approval_required": False,
                     "requires": "current phase is the previous workflow phase and the gate can pass",
+                    "sequence": 1,
+                    "preflight_for": "advance-product-structuring",
+                    "success_condition": "ok:true",
                     "description": "preflight advance from initialization into product structuring",
                 },
                 init_payload["next_actions"],
@@ -1903,6 +1909,9 @@ class GovernanceCliTest(unittest.TestCase):
                     "writes_state": False,
                     "approval_required": False,
                     "requires": "current phase is the previous workflow phase and the gate can pass",
+                    "sequence": 1,
+                    "preflight_for": "advance-product-structuring",
+                    "success_condition": "ok:true",
                     "description": "preflight advance from initialization into product structuring",
                 },
                 verify_payload["next_actions"],
@@ -1944,6 +1953,9 @@ class GovernanceCliTest(unittest.TestCase):
                     "writes_state": False,
                     "approval_required": False,
                     "requires": "current phase is the previous workflow phase and the gate can pass",
+                    "sequence": 1,
+                    "preflight_for": "advance-product-structuring",
+                    "success_condition": "ok:true",
                     "description": "preflight advance from initialization into product structuring",
                 },
                 status_payload["next_actions"],
@@ -2019,6 +2031,9 @@ class GovernanceCliTest(unittest.TestCase):
                     "writes_state": False,
                     "approval_required": False,
                     "requires": "current phase is the previous workflow phase and the gate can pass",
+                    "sequence": 1,
+                    "preflight_for": "advance-product-structuring",
+                    "success_condition": "ok:true",
                     "description": "preflight advance from initialization into product structuring",
                 },
                 verify_payload["next_actions"],
@@ -2068,6 +2083,9 @@ class GovernanceCliTest(unittest.TestCase):
                     "writes_state": True,
                     "approval_required": False,
                     "requires": "advance-product-structuring-check ok:true",
+                    "sequence": 2,
+                    "requires_action": "advance-product-structuring-check",
+                    "success_condition": "ok:true",
                     "description": "record advance from initialization into product structuring",
                 },
                 status_payload["next_actions"],
@@ -2138,6 +2156,9 @@ class GovernanceCliTest(unittest.TestCase):
                     "writes_state": False,
                     "approval_required": False,
                     "requires": "current phase is the previous workflow phase and the gate can pass",
+                    "sequence": 1,
+                    "preflight_for": "advance-product-structuring",
+                    "success_condition": "ok:true",
                     "description": "preflight advance from initialization into product structuring",
                 },
                 payload["next_actions"],
@@ -2528,6 +2549,9 @@ class GovernanceCliTest(unittest.TestCase):
                     "writes_state": False,
                     "approval_required": False,
                     "requires": "current phase is the previous workflow phase and the gate can pass",
+                    "sequence": 1,
+                    "preflight_for": "advance-product-structuring",
+                    "success_condition": "ok:true",
                     "description": "preflight advance from initialization into product structuring",
                 },
                 payload["next_actions"],
@@ -2699,6 +2723,9 @@ class GovernanceCliTest(unittest.TestCase):
                     "writes_state": False,
                     "approval_required": False,
                     "requires": "current phase is the previous workflow phase and the gate can pass",
+                    "sequence": 1,
+                    "preflight_for": "advance-design-derivation",
+                    "success_condition": "ok:true",
                     "description": "preflight advance from product structuring into design derivation",
                 },
                 payload["next_actions"],
@@ -4016,6 +4043,9 @@ class GovernanceCliTest(unittest.TestCase):
                     "writes_state": False,
                     "approval_required": False,
                     "requires": "current phase is the previous workflow phase and the gate can pass",
+                    "sequence": 1,
+                    "preflight_for": "advance-product-structuring",
+                    "success_condition": "ok:true",
                     "description": "preflight advance from initialization into product structuring",
                 },
                 payload["next_actions"],
@@ -4051,6 +4081,12 @@ class GovernanceCliTest(unittest.TestCase):
             mark_ready_check, mark_ready_apply = init_payload["next_actions"]
             self.assertEqual("product-mark-ready-check", mark_ready_check["id"])
             self.assertEqual("product-mark-ready", mark_ready_apply["id"])
+            self.assertEqual(1, mark_ready_check["sequence"])
+            self.assertEqual("product-mark-ready", mark_ready_check["preflight_for"])
+            self.assertEqual("ok:true", mark_ready_check["success_condition"])
+            self.assertEqual(2, mark_ready_apply["sequence"])
+            self.assertEqual("product-mark-ready-check", mark_ready_apply["requires_action"])
+            self.assertEqual("ok:true", mark_ready_apply["success_condition"])
 
             (target / "docs/product/core/PRD.md").write_text(
                 "# Converted Product\n\n"

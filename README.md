@@ -158,6 +158,7 @@ bin/governance env --repair --target /path/to/new-project --json
 Use `gate --json` before phase transitions. Supported gates are `product-structuring`, `design-derivation`, and `implementation`; readable-state gate payloads include `local_commands`, and passing gates also include `next_actions`.
 Use `advance --check --json` to preview phase state changes, then `advance --json` when actually moving phases; it runs the matching gate and records `phase_history` in `.governance/state.json`.
 Successful state-writing `product mark-ready --json` and `advance --json` payloads include `local_commands` and `next_actions` so agents can continue from the returned command contract.
+Each `next_actions` entry includes `sequence`, `success_condition`, and either `preflight_for` for read-only preflight actions or `requires_action` for state-writing apply actions; sort by `sequence`, run preflight first, and run apply only after the referenced action returns `ok: true`.
 `advance` records adjacent transitions one phase at a time and cannot skip phases; use `gate --json` for repeated checks or earlier-phase audits instead of moving the recorded phase backward.
 The `implementation` gate requires the standard design handoff files, a traceable task board with at least one `Ready` task, and `docs/development/03-verification-log.md` as the stable evidence target for completed work.
 

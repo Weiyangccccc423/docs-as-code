@@ -156,6 +156,9 @@ class FreshTargetWorkflowTest(unittest.TestCase):
 
             next_actions = {action["id"]: action for action in status["next_actions"]}
             preflight_action = next_actions["advance-product-structuring-check"]
+            self.assertEqual(1, preflight_action["sequence"])
+            self.assertEqual("advance-product-structuring", preflight_action["preflight_for"])
+            self.assertEqual("ok:true", preflight_action["success_condition"])
             preflight = _run_json(self, preflight_action["argv"], cwd=preflight_action["cwd"])
             self.assertTrue(preflight["ok"])
             self.assertTrue(preflight["check"])
@@ -188,6 +191,9 @@ class FreshTargetWorkflowTest(unittest.TestCase):
             self.assertEqual("initialized", target_local_status["state"]["phase"])
 
             apply_action = next_actions["advance-product-structuring"]
+            self.assertEqual(2, apply_action["sequence"])
+            self.assertEqual("advance-product-structuring-check", apply_action["requires_action"])
+            self.assertEqual("ok:true", apply_action["success_condition"])
             advanced = _run_json(self, apply_action["argv"], cwd=apply_action["cwd"])
             self.assertTrue(advanced["ok"])
             self.assertTrue(advanced["advanced"])

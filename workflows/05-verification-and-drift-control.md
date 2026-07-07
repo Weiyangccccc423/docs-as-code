@@ -56,7 +56,7 @@ Load:
    make repair-env-check
    ```
 
-   `governance-status` runs `bin/governance status . --json`; on success, its payload includes `local_commands` with `cwd`, `argv`, `writes_state`, and `approval_required` so resumed agents can rediscover and execute the target-local `make` command contract without re-running initialization. Readable-state `gate --json` payloads include the same `local_commands` contract, and passing gates also include `next_actions`. Successful state-writing `product mark-ready --json` and `advance --json` payloads include both fields for the next state transition.
+   `governance-status` runs `bin/governance status . --json`; on success, its payload includes `local_commands` with `cwd`, `argv`, `writes_state`, and `approval_required` so resumed agents can rediscover and execute the target-local `make` command contract without re-running initialization. Readable-state `gate --json` payloads include the same `local_commands` contract, and passing gates also include `next_actions`. Successful state-writing `product mark-ready --json` and `advance --json` payloads include both fields for the next state transition. Each `next_actions` entry includes `sequence`, `success_condition`, and either `preflight_for` or `requires_action`; resumed agents must sort by `sequence` and run apply actions only after the named preflight returns `ok: true`.
 
 5. If verification reports target-local runtime or workflow-pack snapshot drift, inspect the refresh plan from a trusted source workflow-pack checkout before writing repairs:
 

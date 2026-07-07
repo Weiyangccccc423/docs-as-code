@@ -22,6 +22,7 @@ Reference: `https://www.omg.org/spec/BPMN/2.0.2/`
 - Are `local_commands[].argv` and `next_actions[].argv` executed from their reported `cwd`?
 - Are `writes_state: false` commands preferred for inspection before state-changing actions?
 - Are `approval_required: true` commands treated as stop-and-ask actions until explicit authorization is available?
+- Are `next_actions` sorted by `sequence`, with `preflight_for`, `requires_action`, and `success_condition` used to pair preflight/apply commands instead of guessing from IDs?
 - Are `command` strings kept for human display while `argv` remains the automation contract?
 
 Reference: `https://www.rfc-editor.org/rfc/rfc8259.html`
@@ -50,6 +51,7 @@ Reference: `https://www.rfc-editor.org/rfc/rfc8259.html`
 ## Schema and Payload Expectations
 
 - Are required continuation fields (`cwd`, `command`, `argv`, `writes_state`, and `approval_required`) present before agents execute returned commands?
+- Are action sequencing fields (`sequence`, `preflight_for`, `requires_action`, and `success_condition`) present before agents execute returned `next_actions`?
 - Are action objects distinguished by `kind` such as preflight, apply, or local inspection when present?
 - Are missing or malformed payload fields treated as a stop condition instead of guessed from prose?
 

@@ -28,6 +28,9 @@ PRODUCT_IMPORT_ACTIONS: tuple[dict[str, object], ...] = (
         "writes_state": False,
         "approval_required": False,
         "requires": "docs/product/core/PRD.md has been manually reviewed against the archived source",
+        "sequence": 1,
+        "preflight_for": "product-mark-ready",
+        "success_condition": "ok:true",
         "description": "preview product import readiness closeout before allowing downstream derivation",
     },
     {
@@ -50,6 +53,9 @@ PRODUCT_IMPORT_ACTIONS: tuple[dict[str, object], ...] = (
         "writes_state": True,
         "approval_required": False,
         "requires": "product-mark-ready-check ok:true",
+        "sequence": 2,
+        "requires_action": "product-mark-ready-check",
+        "success_condition": "ok:true",
         "description": "record reviewed product import readiness in source manifest and governance state",
     },
 )
@@ -126,6 +132,9 @@ def _advance_actions(phase: str, cwd: str) -> list[dict[str, object]]:
             "writes_state": False,
             "approval_required": False,
             "requires": "current phase is the previous workflow phase and the gate can pass",
+            "sequence": 1,
+            "preflight_for": f"advance-{phase}",
+            "success_condition": "ok:true",
             "description": f"preflight {metadata['description']}",
         },
         {
@@ -140,6 +149,9 @@ def _advance_actions(phase: str, cwd: str) -> list[dict[str, object]]:
             "writes_state": True,
             "approval_required": False,
             "requires": f"advance-{phase}-check ok:true",
+            "sequence": 2,
+            "requires_action": f"advance-{phase}-check",
+            "success_condition": "ok:true",
             "description": f"record {metadata['description']}",
         },
     ]

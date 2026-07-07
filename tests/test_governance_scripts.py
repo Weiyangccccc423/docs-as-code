@@ -1397,6 +1397,9 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "writes_state": False,
                     "approval_required": False,
                     "requires": "docs/product/core/PRD.md has been manually reviewed against the archived source",
+                    "sequence": 1,
+                    "preflight_for": "product-mark-ready",
+                    "success_condition": "ok:true",
                     "description": "preview product import readiness closeout before allowing downstream derivation",
                 },
                 {
@@ -1423,6 +1426,9 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "writes_state": True,
                     "approval_required": False,
                     "requires": "product-mark-ready-check ok:true",
+                    "sequence": 2,
+                    "requires_action": "product-mark-ready-check",
+                    "success_condition": "ok:true",
                     "description": (
                         "record reviewed product import readiness in source manifest and governance state"
                     ),
@@ -1464,12 +1470,18 @@ class GovernanceScriptsTest(unittest.TestCase):
         self.assertEqual("advance-product-structuring-check", initialized[0]["id"])
         self.assertEqual(".", initialized[0]["cwd"])
         self.assertEqual("bin/governance advance product-structuring . --check --json", initialized[0]["command"])
+        self.assertEqual(1, initialized[0]["sequence"])
+        self.assertEqual("advance-product-structuring", initialized[0]["preflight_for"])
+        self.assertEqual("ok:true", initialized[0]["success_condition"])
         self.assertEqual(
             ["bin/governance", "advance", "product-structuring", ".", "--check", "--json"],
             initialized[0]["argv"],
         )
         self.assertEqual("advance-product-structuring", initialized[1]["id"])
         self.assertEqual("bin/governance advance product-structuring . --json", initialized[1]["command"])
+        self.assertEqual(2, initialized[1]["sequence"])
+        self.assertEqual("advance-product-structuring-check", initialized[1]["requires_action"])
+        self.assertEqual("ok:true", initialized[1]["success_condition"])
         self.assertEqual(
             ["bin/governance", "advance", "product-structuring", ".", "--json"],
             initialized[1]["argv"],
@@ -3446,6 +3458,9 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "writes_state": False,
                     "approval_required": False,
                     "requires": "current phase is the previous workflow phase and the gate can pass",
+                    "sequence": 1,
+                    "preflight_for": "advance-product-structuring",
+                    "success_condition": "ok:true",
                     "description": "preflight advance from initialization into product structuring",
                 },
                 payload["next_actions"],
@@ -8756,6 +8771,9 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "writes_state": True,
                     "approval_required": False,
                     "requires": "advance-product-structuring-check ok:true",
+                    "sequence": 2,
+                    "requires_action": "advance-product-structuring-check",
+                    "success_condition": "ok:true",
                     "description": "record advance from initialization into product structuring",
                 },
                 status_payload["next_actions"],

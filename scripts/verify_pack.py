@@ -537,6 +537,10 @@ FRESH_TARGET_SMOKE_TEST_REQUIRED_PHRASES = (
     "next_step",
     "local_commands",
     "next_actions",
+    "sequence",
+    "preflight_for",
+    "requires_action",
+    "success_condition",
     "advance-product-structuring-check",
     "advance-product-structuring",
     "make_target",
@@ -1478,6 +1482,7 @@ METHOD_REFERENCE_BASELINES = {
             (
                 "## Machine-Readable Continuation",
                 "`local_commands[].argv` and `next_actions[].argv` executed from their reported `cwd`",
+                "`sequence`, `preflight_for`, `requires_action`, and `success_condition`",
                 "https://www.rfc-editor.org/rfc/rfc8259.html",
             ),
         ),
@@ -1511,6 +1516,7 @@ METHOD_REFERENCE_BASELINES = {
             (
                 "## Schema and Payload Expectations",
                 "`cwd`, `command`, `argv`, `writes_state`, and `approval_required`",
+                "`sequence`, `preflight_for`, `requires_action`, and `success_condition`",
                 "https://json-schema.org/draft/2020-12/json-schema-core",
             ),
         ),
@@ -2436,6 +2442,8 @@ WORKFLOW_ACTION_SOURCE_REQUIRED_KEYS = (
     "writes_state",
     "approval_required",
     "requires",
+    "sequence",
+    "success_condition",
     "description",
 )
 WORKFLOW_ACTION_PAYLOAD_REQUIRED_KEYS = (
@@ -3629,15 +3637,41 @@ def _check_action_pair_contract(
         action = actions[index]
         kind = _dict_literal_string_value(action, "kind")
         writes_state = _dict_literal_bool_value(action, "writes_state")
-        if kind == expected_kind and writes_state is expected_writes_state:
-            continue
-        findings.append(
-            PackFinding(
-                "pack_workflow_action_schema_missing",
-                f"scripts/workflow_actions.py {label} action {index} must be {expected_kind} with writes_state {expected_writes_state}",
-                rel,
+        sequence = _dict_literal_int_value(action, "sequence")
+        success_condition = _dict_literal_string_value(action, "success_condition")
+        if not (
+            kind == expected_kind
+            and writes_state is expected_writes_state
+            and sequence == index + 1
+            and success_condition == "ok:true"
+        ):
+            findings.append(
+                PackFinding(
+                    "pack_workflow_action_schema_missing",
+                    (
+                        f"scripts/workflow_actions.py {label} action {index} must be {expected_kind} "
+                        f"with writes_state {expected_writes_state}, sequence {index + 1}, "
+                        "and success_condition ok:true"
+                    ),
+                    rel,
+                )
             )
-        )
+        if expected_kind == "preflight" and "preflight_for" not in _dict_literal_keys(action):
+            findings.append(
+                PackFinding(
+                    "pack_workflow_action_schema_missing",
+                    f"scripts/workflow_actions.py {label} action {index} must include preflight_for",
+                    rel,
+                )
+            )
+        if expected_kind == "apply" and "requires_action" not in _dict_literal_keys(action):
+            findings.append(
+                PackFinding(
+                    "pack_workflow_action_schema_missing",
+                    f"scripts/workflow_actions.py {label} action {index} must include requires_action",
+                    rel,
+                )
+            )
 
 
 def _check_action_command_contract(
@@ -3898,6 +3932,15 @@ def _dict_literal_bool_value(node: ast.Dict, key_name: str) -> bool | None:
         if not isinstance(key, ast.Constant) or key.value != key_name:
             continue
         if isinstance(value, ast.Constant) and isinstance(value.value, bool):
+            return value.value
+    return None
+
+
+def _dict_literal_int_value(node: ast.Dict, key_name: str) -> int | None:
+    for key, value in zip(node.keys, node.values):
+        if not isinstance(key, ast.Constant) or key.value != key_name:
+            continue
+        if isinstance(value, ast.Constant) and isinstance(value.value, int) and not isinstance(value.value, bool):
             return value.value
     return None
 
