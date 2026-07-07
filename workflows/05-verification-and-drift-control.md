@@ -137,9 +137,11 @@ Verification is complete when the relevant checks in the procedure pass and any 
 
 ```bash
 make verify-pack
+make release-check
+python3 scripts/release_readiness.py --json
 ```
 
-Command discipline, environment repair control, drift refresh, phase gates, repair ordering, traceability evidence, security and supply-chain sanity, and completion gates must satisfy `references/governance-verification-checklist.md`. Single-task implementation execution must satisfy `references/implementation-execution-checklist.md` before a task is marked `Done`.
+Command discipline, environment repair control, drift refresh, phase gates, repair ordering, traceability evidence, security and supply-chain sanity, and completion gates must satisfy `references/governance-verification-checklist.md`. Source workflow-pack release handoff must satisfy `references/release-readiness-checklist.md`. Single-task implementation execution must satisfy `references/implementation-execution-checklist.md` before a task is marked `Done`.
 
 ## Stop Conditions
 

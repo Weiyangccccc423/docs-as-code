@@ -38,6 +38,13 @@ python3 scripts/export_workflow_pack.py --output dist/docs-as-code-workflow-pack
 
 The export writes `pack-manifest.json` with SHA-256 evidence for the included source-pack files, runs `verify_pack` on the exported directory, and can create a tar.gz artifact for transfer.
 
+Before tagging or handing off a source workflow-pack release, run the release readiness gate and use `references/release-readiness-checklist.md` as the rubric:
+
+```bash
+make release-check
+python3 scripts/release_readiness.py --json
+```
+
 Generated target repositories receive their own copy of `bin/` and `scripts/` plus `docs/agent-workflow/runtime-manifest.json`. After initialization, prefer the target-local CLI:
 
 ```bash

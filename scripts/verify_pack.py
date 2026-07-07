@@ -715,6 +715,47 @@ SOURCE_PACK_EXPORT_DOC_REQUIREMENTS = {
         "python3 scripts/export_workflow_pack.py --output dist/docs-as-code-workflow-pack --archive dist/docs-as-code-workflow-pack.tar.gz --force --json",
     ),
 }
+RELEASE_READINESS_PATH = "scripts/release_readiness.py"
+RELEASE_READINESS_REQUIRED_PHRASES = (
+    "run_release_readiness",
+    "release_ready",
+    "criteria",
+    "diff_check",
+    "cached_diff_check",
+    "unit_tests",
+    "pack_verification",
+    "environment_inventory",
+    "fresh_target_dry_run",
+    "source_pack_export",
+    "--skip-tests",
+    "scripts/verify_pack.py",
+    "scripts/check_env.py",
+    "scripts/dry_run_workflow.py",
+    "scripts/export_workflow_pack.py",
+)
+RELEASE_READINESS_DOC_REQUIREMENTS = {
+    "README.md": (
+        "make release-check",
+        "python3 scripts/release_readiness.py --json",
+        "references/release-readiness-checklist.md",
+        "release readiness gate",
+    ),
+    "workflows/00-overview.md": (
+        "make release-check",
+        "python3 scripts/release_readiness.py --json",
+        "references/release-readiness-checklist.md",
+    ),
+    "workflows/05-verification-and-drift-control.md": (
+        "make release-check",
+        "python3 scripts/release_readiness.py --json",
+        "references/release-readiness-checklist.md",
+    ),
+    "skills/verifying-governance-docs/SKILL.md": (
+        "make release-check",
+        "python3 scripts/release_readiness.py --json",
+        "references/release-readiness-checklist.md",
+    ),
+}
 ENV_REPAIR_DOC_PATHS = (
     "README.md",
     "references/runtime-strategy.md",
@@ -1219,6 +1260,15 @@ VERIFICATION_REFERENCE_DOC_REQUIREMENTS = (
     (
         "references/governance-verification-checklist.md",
         (
+            "workflows/05-verification-and-drift-control.md",
+            "skills/verifying-governance-docs/SKILL.md",
+        ),
+    ),
+    (
+        "references/release-readiness-checklist.md",
+        (
+            "README.md",
+            "workflows/00-overview.md",
             "workflows/05-verification-and-drift-control.md",
             "skills/verifying-governance-docs/SKILL.md",
         ),
@@ -1952,6 +2002,49 @@ METHOD_REFERENCE_BASELINES = {
             ),
         ),
     ),
+    "references/release-readiness-checklist.md": (
+        (
+            "Source Pack Verification",
+            (
+                "## Source Pack Verification",
+                "make verify-pack",
+                "python3 scripts/verify_pack.py --json",
+            ),
+        ),
+        (
+            "Dry Run Validation",
+            (
+                "## Dry Run Validation",
+                "make dry-run",
+                "fresh-target-governance-dry-run",
+            ),
+        ),
+        (
+            "Export Artifact Integrity",
+            (
+                "## Export Artifact Integrity",
+                "make package",
+                "pack-manifest.json",
+                "SHA-256 evidence",
+            ),
+        ),
+        (
+            "Environment and Tooling",
+            (
+                "## Environment and Tooling",
+                "python3 scripts/check_env.py --json",
+                "missing_required",
+            ),
+        ),
+        (
+            "Release Evidence",
+            (
+                "## Release Evidence",
+                "python3 scripts/release_readiness.py --json",
+                "release_ready",
+            ),
+        ),
+    ),
     "references/implementation-execution-checklist.md": (
         (
             "Task Intake",
@@ -2080,6 +2173,7 @@ MAKEFILE_REQUIRED_TARGETS = (
     "test",
     "dry-run",
     "package",
+    "release-check",
     "verify-pack",
 )
 MAKEFILE_REQUIRED_TARGET_RECIPES = {
@@ -2091,6 +2185,9 @@ MAKEFILE_REQUIRED_TARGET_RECIPES = {
     ),
     "package": (
         "python3 scripts/export_workflow_pack.py --output dist/docs-as-code-workflow-pack --archive dist/docs-as-code-workflow-pack.tar.gz --force --json",
+    ),
+    "release-check": (
+        "python3 scripts/release_readiness.py --json",
     ),
     "verify-pack": (
         "python3 scripts/verify_pack.py",
@@ -2382,6 +2479,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_fresh_target_workflow_smoke_test(root, findings)
     _check_dry_run_workflow(root, findings)
     _check_source_pack_export_workflow(root, findings)
+    _check_release_readiness_workflow(root, findings)
     _check_runtime_continuation_calls(root, findings)
     _check_target_local_command_source(root, findings)
     _check_target_local_command_schema(root, findings)
@@ -2392,6 +2490,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_readme_quick_start(root, findings)
     _check_dry_run_docs(root, findings)
     _check_source_pack_export_docs(root, findings)
+    _check_release_readiness_docs(root, findings)
     _check_target_makefile_command_docs(root, findings)
     _check_env_repair_docs(root, findings)
     _check_runtime_refresh_docs(root, findings)
@@ -2538,6 +2637,35 @@ def _check_source_pack_export_workflow(root: Path, findings: list[PackFinding]) 
                 f"missing phrase(s): {', '.join(missing)}"
             ),
             SOURCE_PACK_EXPORT_PATH,
+        )
+    )
+
+
+def _check_release_readiness_workflow(root: Path, findings: list[PackFinding]) -> None:
+    path = root / RELEASE_READINESS_PATH
+    if not path.is_file():
+        findings.append(
+            PackFinding(
+                "pack_release_readiness_missing",
+                f"missing release readiness script: {RELEASE_READINESS_PATH}",
+                RELEASE_READINESS_PATH,
+            )
+        )
+        return
+    text = _read_utf8_text_or_none(path)
+    if text is None:
+        return
+    missing = [phrase for phrase in RELEASE_READINESS_REQUIRED_PHRASES if phrase not in text]
+    if not missing:
+        return
+    findings.append(
+        PackFinding(
+            "pack_release_readiness_incomplete",
+            (
+                f"{RELEASE_READINESS_PATH} must run the source workflow-pack release readiness gate; "
+                f"missing phrase(s): {', '.join(missing)}"
+            ),
+            RELEASE_READINESS_PATH,
         )
     )
 
@@ -3708,6 +3836,23 @@ def _check_source_pack_export_docs(root: Path, findings: list[PackFinding]) -> N
                 PackFinding(
                     "pack_source_pack_export_doc_missing",
                     f"{rel} must document source-pack export command or behavior: {phrase}",
+                    rel,
+                )
+            )
+
+
+def _check_release_readiness_docs(root: Path, findings: list[PackFinding]) -> None:
+    for rel, required_phrases in RELEASE_READINESS_DOC_REQUIREMENTS.items():
+        text = _read_utf8_text_or_none(root / rel)
+        if text is None:
+            continue
+        for phrase in required_phrases:
+            if phrase in text:
+                continue
+            findings.append(
+                PackFinding(
+                    "pack_release_readiness_doc_missing",
+                    f"{rel} must document release readiness command or behavior: {phrase}",
                     rel,
                 )
             )

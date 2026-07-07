@@ -7,7 +7,7 @@ description: Use when checking whether generated or edited governance documents 
 
 Prefer deterministic checks before manual review.
 
-Read `references/governance-verification-checklist.md` before declaring a phase complete, repairing drift, or approving implementation handoff.
+Read `references/governance-verification-checklist.md` before declaring a phase complete, repairing drift, or approving implementation handoff. Read `references/release-readiness-checklist.md` before tagging, exporting, or handing off this source workflow pack.
 
 ## Commands
 
@@ -19,6 +19,8 @@ python3 scripts/dry_run_workflow.py --json
 make package
 python3 scripts/export_workflow_pack.py --check --json
 python3 scripts/export_workflow_pack.py --output dist/docs-as-code-workflow-pack --archive dist/docs-as-code-workflow-pack.tar.gz --force --json
+make release-check
+python3 scripts/release_readiness.py --json
 ```
 
 ```bash

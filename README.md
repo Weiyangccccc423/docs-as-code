@@ -72,6 +72,7 @@ Create reliable project governance before and during implementation:
 - `references/product-archive-checklist.md`: product source preservation, manifest evidence, conversion fidelity, Markdown portability, review closeout, unresolved import, and handoff-readiness checklist.
 - `references/product-requirements-checklist.md`: product source fidelity, requirement quality, acceptance criteria, glossary, unresolved question, and design-readiness checklist.
 - `references/repository-initialization-checklist.md`: empty-target safety, environment repair, governance entry points, runtime snapshot, product seed, Git readiness, baseline security, tooling, and handoff-readiness checklist.
+- `references/release-readiness-checklist.md`: source-pack release gate, dry-run, export artifact integrity, environment, and release evidence checklist.
 - `references/security-design-checklist.md`: security, abuse-case, and supply-chain design checklist.
 - `references/test-strategy-checklist.md`: acceptance traceability, test portfolio, automation, test data, non-functional verification, and evidence checklist.
 - `references/runtime-strategy.md`: core runtime, optional tooling, and repair policy.
@@ -113,6 +114,13 @@ python3 scripts/export_workflow_pack.py --output dist/docs-as-code-workflow-pack
 ```
 
 The export writes `pack-manifest.json` with SHA-256 evidence for every included source-pack file, runs `verify_pack` against the exported directory, and creates a tar.gz artifact that can be unpacked as a trusted source workflow-pack checkout.
+
+Before tagging or handing off a workflow-pack release, run the release readiness gate from `references/release-readiness-checklist.md`:
+
+```bash
+make release-check
+python3 scripts/release_readiness.py --json
+```
 
 ```bash
 bin/governance env --repair --check --target /path/to/new-project --json
@@ -199,13 +207,14 @@ Read `workflows/00-overview.md` before running a phase.
 make test
 make dry-run
 make package
+make release-check
 python3 scripts/verify_pack.py --json
 make verify-pack
 ```
 
 `bin/governance env --repair --check --json` previews environment repairs without writing `.governance/env-repair.md` or installing packages. It reports `would_repair`, system/package-manager/Git status, supported `install_commands`, structured `repair_commands` with `argv`, `cwd`, `writes_state`, and `approval_required`, unsupported in-scope `manual_repairs`, and `needs_escalation`. Run `bin/governance env --repair --json` only when the repair plan should be written or approved root package installation should proceed. Missing required tools make `ok: false`; missing recommended tools make `ok: false` only with `--strict`. The repair command never calls `sudo`; supported apt installs run only when the process already has root privileges. Project-specific dependency installation should be handled after the target stack is known.
 
-`python3 scripts/dry_run_workflow.py --json` checks the user-facing source-pack workflow on a disposable generated target. `python3 scripts/export_workflow_pack.py --check --json` previews a source-pack export without writing files; the write form exports `dist/docs-as-code-workflow-pack`, writes `pack-manifest.json`, verifies the exported pack, and optionally creates `dist/docs-as-code-workflow-pack.tar.gz`. `python3 scripts/verify_pack.py --json` checks this source workflow pack for required files, AGENTS purpose/editing/required-reading/verification/baseline guardrails, documented verification commands, Makefile verification targets and recipes, dry-run workflow entry points, source-pack export entry points, README Quick Start and agent automation commands, UTF-8 workflow-pack sources, runtime Python syntax, governance CLI command and subcommand surface, local command source/schema, workflow action schema, command/argv consistency, and phase-skill alignment, runtime wrapper executability, shell guards, root self-location, and command targets, README package layout, canonical phase identity, overview phase titles, ordered non-empty phase workflow sections, phase-map primary skills, product archive closeout docs, product scaffold docs, design scaffold docs, design plan docs, scaffold continuation docs, implementation handoff docs, runtime refresh docs, router coverage, critical initialization, product, and design reference routing, method reference baselines, skill identity, frontmatter and routing, described skill/reference/template index coverage, template guardrails, local Markdown links, reference and template entry points, and workflow-pack snapshot coverage. `make verify-pack` runs the full test suite, pack verifier, and environment inventory.
+`python3 scripts/dry_run_workflow.py --json` checks the user-facing source-pack workflow on a disposable generated target. `python3 scripts/export_workflow_pack.py --check --json` previews a source-pack export without writing files; the write form exports `dist/docs-as-code-workflow-pack`, writes `pack-manifest.json`, verifies the exported pack, and optionally creates `dist/docs-as-code-workflow-pack.tar.gz`. `python3 scripts/release_readiness.py --json` runs the release readiness gate from `references/release-readiness-checklist.md`: whitespace checks, unit tests, pack verification, environment inventory, fresh-target dry run, and source-pack export verification. `python3 scripts/verify_pack.py --json` checks this source workflow pack for required files, AGENTS purpose/editing/required-reading/verification/baseline guardrails, documented verification commands, Makefile verification targets and recipes, dry-run workflow entry points, source-pack export entry points, release readiness entry points, README Quick Start and agent automation commands, UTF-8 workflow-pack sources, runtime Python syntax, governance CLI command and subcommand surface, local command source/schema, workflow action schema, command/argv consistency, and phase-skill alignment, runtime wrapper executability, shell guards, root self-location, and command targets, README package layout, canonical phase identity, overview phase titles, ordered non-empty phase workflow sections, phase-map primary skills, product archive closeout docs, product scaffold docs, design scaffold docs, design plan docs, scaffold continuation docs, implementation handoff docs, runtime refresh docs, router coverage, critical initialization, product, and design reference routing, method reference baselines, skill identity, frontmatter and routing, described skill/reference/template index coverage, template guardrails, local Markdown links, reference and template entry points, and workflow-pack snapshot coverage. `make verify-pack` runs the full test suite, pack verifier, and environment inventory.
 
 `bin/governance init` runs a preflight check before writing files. Existing generated governance files cause initialization to fail unless `--force` is supplied. Use `init --check --json` to inspect conflicts without writing to the target.
 
