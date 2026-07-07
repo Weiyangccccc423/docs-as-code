@@ -1005,6 +1005,7 @@ PRODUCT_STRUCTURE_REQUIRED_PHRASES = (
     "required_sections",
     "required_links",
     "required_evidence",
+    "required_evidence[].status",
     "PRD source support",
     "product-meta.md",
     "A-NNN",

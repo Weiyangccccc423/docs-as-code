@@ -355,6 +355,17 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         "product plan did not expose manual authoring evidence requirements",
         payload=product_plan,
     )
+    _require(
+        all(
+            isinstance(item, dict) and isinstance(item.get("status"), str) and item["status"]
+            for task in manual_authoring_tasks
+            if isinstance(task, dict)
+            for item in task.get("required_evidence", [])
+            if isinstance(task.get("required_evidence"), list)
+        ),
+        "product plan evidence requirements did not expose machine-readable statuses",
+        payload=product_plan,
+    )
 
     product_scaffold_check = _run_json(
         steps,

@@ -37,6 +37,8 @@ PRODUCT_SOURCE_DOCUMENTS = (
     "docs/glossary.md",
 )
 HEADING_RE = re.compile(r"^(?P<hashes>#{1,6})\s+(?P<title>.+?)\s*#*\s*$")
+SCAFFOLD_PLACEHOLDER = "governance:scaffold-placeholder"
+ACCEPTANCE_ID_RE = re.compile(r"\bA-\d{3}\b")
 PRODUCT_CHAPTER_ALIASES: dict[str, tuple[str, ...]] = {
     "background-and-problems": (
         "background and problems",
@@ -545,12 +547,14 @@ def _manual_authoring_required_evidence(root: Path, chapter: str, path: str) -> 
             "product-readme-indexed",
             "docs/product/README.md",
             "Product README indexes the authored chapter filename.",
+            subject=path,
         ),
         _evidence_item(
             root,
             "product-meta-linked",
             "docs/product/core/product-meta.md",
             "Product metadata chapter map links the authored chapter.",
+            subject=path,
         ),
         _evidence_item(
             root,
@@ -586,14 +590,149 @@ def _manual_authoring_required_evidence(root: Path, chapter: str, path: str) -> 
     return evidence
 
 
-def _evidence_item(root: Path, evidence_id: str, target: str, condition: str) -> dict[str, object]:
-    return {
+def _evidence_item(
+    root: Path,
+    evidence_id: str,
+    target: str,
+    condition: str,
+    *,
+    subject: str | None = None,
+) -> dict[str, object]:
+    status, details = _evidence_status(root, evidence_id, target, subject)
+    payload: dict[str, object] = {
         "id": evidence_id,
         "target": target,
         "exists": (root / target).is_file(),
+        "status": status,
         "condition": condition,
         "verification": "bin/governance verify . --check --json",
     }
+    if details:
+        payload["details"] = details
+    return payload
+
+
+def _evidence_status(root: Path, evidence_id: str, target: str, subject: str | None = None) -> tuple[str, str]:
+    status_by_id = {
+        "prd-source-evidence": _source_review_status,
+        "chapter-file-authored": _chapter_file_status,
+        "product-readme-indexed": _readme_index_status,
+        "product-meta-linked": _product_meta_status,
+        "unresolved-reviewed": _unresolved_review_status,
+        "glossary-reviewed": _glossary_review_status,
+        "acceptance-ids-stable": _acceptance_ids_status,
+        "measurement-source-recorded": _measurement_source_status,
+    }
+    resolver = status_by_id.get(evidence_id)
+    if resolver is None:
+        return _file_presence_status(root, target)
+    return resolver(root, subject or target)
+
+
+def _file_presence_status(root: Path, target: str) -> tuple[str, str]:
+    path = root / target
+    if not path.exists():
+        return "missing", "target file does not exist"
+    if not path.is_file():
+        return "missing", "target path is not a file"
+    return "pending_review", "target file exists; manual evidence review is still required"
+
+
+def _read_optional_text(root: Path, target: str) -> tuple[str | None, str]:
+    path = root / target
+    if not path.exists():
+        return None, "target file does not exist"
+    if not path.is_file():
+        return None, "target path is not a file"
+    try:
+        return path.read_text(encoding="utf-8"), ""
+    except UnicodeDecodeError:
+        return None, "target file is not UTF-8 Markdown"
+    except OSError as error:
+        return None, f"target file is unreadable: {_os_error_reason(error)}"
+
+
+def _source_review_status(root: Path, target: str) -> tuple[str, str]:
+    text, error = _read_optional_text(root, target)
+    if text is None:
+        return "missing", error
+    return "pending_review", "PRD exists; manual review must identify passages supporting this chapter"
+
+
+def _chapter_file_status(root: Path, target: str) -> tuple[str, str]:
+    text, error = _read_optional_text(root, target)
+    if text is None:
+        return "missing", error
+    if SCAFFOLD_PLACEHOLDER in text:
+        return "placeholder_present", "chapter still contains governance scaffold placeholder"
+    if "core/PRD.md" not in text and "core%2FPRD.md" not in text:
+        return "missing_prd_link", "chapter does not visibly link back to core/PRD.md"
+    return "satisfied", "chapter file exists, links to core/PRD.md, and has no scaffold placeholder"
+
+
+def _readme_index_status(root: Path, target: str) -> tuple[str, str]:
+    text, error = _read_optional_text(root, "docs/product/README.md")
+    if text is None:
+        return "missing", error
+    filename = Path(target).name
+    if filename not in text:
+        return "not_indexed", f"docs/product/README.md does not mention {filename}"
+    return "satisfied", f"docs/product/README.md mentions {filename}"
+
+
+def _product_meta_status(root: Path, target: str) -> tuple[str, str]:
+    text, error = _read_optional_text(root, "docs/product/core/product-meta.md")
+    if text is None:
+        return "missing", error
+    filename = Path(target).name
+    if filename not in text:
+        return "not_linked", f"docs/product/core/product-meta.md does not mention {filename}"
+    return "satisfied", f"docs/product/core/product-meta.md mentions {filename}"
+
+
+def _unresolved_review_status(root: Path, target: str) -> tuple[str, str]:
+    text, error = _read_optional_text(root, target)
+    if text is None:
+        return "missing", error
+    if "| ID | Domain | Description | Blocking Scope | Owner | Date |" not in text:
+        return "needs_manual_review", "unresolved registry does not expose the standard review table"
+    return "pending_review", "registry exists; author must confirm ambiguities are recorded or non-blocking"
+
+
+def _glossary_review_status(root: Path, target: str) -> tuple[str, str]:
+    text, error = _read_optional_text(root, target)
+    if text is None:
+        return "missing", error
+    if "| Term | Meaning | Source |" not in text:
+        return "needs_manual_review", "glossary does not expose the standard review table"
+    return "pending_review", "glossary exists; author must confirm new terms are recorded or unnecessary"
+
+
+def _acceptance_ids_status(root: Path, target: str) -> tuple[str, str]:
+    text, error = _read_optional_text(root, target)
+    if text is None:
+        return "missing", error
+    if SCAFFOLD_PLACEHOLDER in text:
+        return "placeholder_present", "acceptance chapter still contains governance scaffold placeholder"
+    matches = ACCEPTANCE_ID_RE.findall(text)
+    if not matches:
+        return "acceptance_ids_missing", "acceptance chapter does not define any A-NNN IDs"
+    if len(matches) != len(set(matches)):
+        return "needs_manual_review", "acceptance chapter contains duplicate A-NNN IDs"
+    return "satisfied", "acceptance chapter defines stable unique A-NNN IDs"
+
+
+def _measurement_source_status(root: Path, target: str) -> tuple[str, str]:
+    text, error = _read_optional_text(root, target)
+    if text is None:
+        return "missing", error
+    if SCAFFOLD_PLACEHOLDER in text:
+        return "placeholder_present", "success metrics chapter still contains governance scaffold placeholder"
+    lowered = text.casefold()
+    required_terms = ("source", "target")
+    if all(term in lowered for term in required_terms):
+        return "pending_review", "chapter mentions source and target; measurement assumptions still require manual review"
+    return "needs_manual_review", "success metrics chapter must state measurement source and target"
 
 
 def _manual_authoring_steps(

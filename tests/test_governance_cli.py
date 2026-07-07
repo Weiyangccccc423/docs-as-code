@@ -4655,12 +4655,18 @@ class GovernanceCliTest(unittest.TestCase):
             required_evidence = {item["id"]: item for item in background_task["required_evidence"]}
             self.assertEqual("docs/product/core/PRD.md", required_evidence["prd-source-evidence"]["target"])
             self.assertTrue(required_evidence["prd-source-evidence"]["exists"])
+            self.assertEqual("pending_review", required_evidence["prd-source-evidence"]["status"])
             self.assertEqual("docs/product/01-background-and-problems.md", required_evidence["chapter-file-authored"]["target"])
             self.assertFalse(required_evidence["chapter-file-authored"]["exists"])
+            self.assertEqual("missing", required_evidence["chapter-file-authored"]["status"])
             self.assertEqual("docs/product/README.md", required_evidence["product-readme-indexed"]["target"])
+            self.assertEqual("not_indexed", required_evidence["product-readme-indexed"]["status"])
             self.assertEqual("docs/product/core/product-meta.md", required_evidence["product-meta-linked"]["target"])
+            self.assertEqual("not_linked", required_evidence["product-meta-linked"]["status"])
             self.assertEqual("docs/unresolved.md", required_evidence["unresolved-reviewed"]["target"])
+            self.assertEqual("pending_review", required_evidence["unresolved-reviewed"]["status"])
             self.assertEqual("docs/glossary.md", required_evidence["glossary-reviewed"]["target"])
+            self.assertEqual("pending_review", required_evidence["glossary-reviewed"]["status"])
             self.assertEqual(
                 "bin/governance verify . --check --json",
                 required_evidence["chapter-file-authored"]["verification"],
@@ -4808,6 +4814,7 @@ class GovernanceCliTest(unittest.TestCase):
             acceptance_evidence = {item["id"]: item for item in acceptance_task["required_evidence"]}
             self.assertIn("acceptance-ids-stable", acceptance_evidence)
             self.assertEqual("docs/product/08-acceptance-criteria.md", acceptance_evidence["acceptance-ids-stable"]["target"])
+            self.assertEqual("missing", acceptance_evidence["acceptance-ids-stable"]["status"])
             self.assertEqual(
                 [
                     "bin/governance",
@@ -4835,6 +4842,64 @@ class GovernanceCliTest(unittest.TestCase):
                 ],
                 structure_check["argv"],
             )
+
+    def test_product_plan_evidence_status_tracks_scaffolded_manual_chapter(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text(
+                "# Product\n\n"
+                "## Goals and Requirements\n\n"
+                "- Ship a governed project from one product document.\n",
+                encoding="utf-8",
+            )
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            advance_result = subprocess.run(
+                [sys.executable, str(CLI), "advance", "product-structuring", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, advance_result.returncode, advance_result.stderr)
+            scaffold_result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "scaffold",
+                    "product",
+                    str(target),
+                    "--chapter",
+                    "background-and-problems",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, scaffold_result.returncode, scaffold_result.stderr)
+
+            result = subprocess.run(
+                [sys.executable, str(CLI), "product", "plan", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            payload = json.loads(result.stdout)
+            manual_tasks = {task["chapter"]: task for task in payload["manual_authoring_tasks"]}
+            background_task = manual_tasks["background-and-problems"]
+            required_evidence = {item["id"]: item for item in background_task["required_evidence"]}
+            self.assertTrue(required_evidence["chapter-file-authored"]["exists"])
+            self.assertEqual("placeholder_present", required_evidence["chapter-file-authored"]["status"])
+            self.assertEqual("satisfied", required_evidence["product-readme-indexed"]["status"])
+            self.assertEqual("satisfied", required_evidence["product-meta-linked"]["status"])
 
     def test_product_plan_requires_product_structuring_phase(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
