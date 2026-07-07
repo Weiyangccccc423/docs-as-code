@@ -19,6 +19,15 @@ Use `references/community-practices.md` to calibrate this workflow against recog
 
 Core governance commands are implemented as POSIX shell wrappers plus Python standard-library scripts. Normal operation must run without package installation or network access; `env --repair` may install supported system packages only under the repair policy in `references/runtime-strategy.md`.
 
+From the source workflow-pack checkout, run the disposable end-to-end dry run before relying on the pack for a new project:
+
+```bash
+make dry-run
+python3 scripts/dry_run_workflow.py --json
+```
+
+The dry run creates a temporary target, imports a sample product document, advances through product structuring and design derivation, builds the API, backend, frontend, test, implementation-planning, and ADR authoring queues, and confirms the implementation gate remains blocked until design scaffold placeholders are replaced with source-backed content.
+
 Generated target repositories receive their own copy of `bin/` and `scripts/` plus `docs/agent-workflow/runtime-manifest.json`. After initialization, prefer the target-local CLI:
 
 ```bash

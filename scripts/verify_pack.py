@@ -624,6 +624,60 @@ FRESH_TARGET_SMOKE_TEST_REQUIRED_PHRASES = (
     "state_updated",
     "expected_returncode=1",
 )
+DRY_RUN_WORKFLOW_PATH = "scripts/dry_run_workflow.py"
+DRY_RUN_WORKFLOW_REQUIRED_PHRASES = (
+    "run_dry_run",
+    "fresh-target-governance-dry-run",
+    "SAMPLE_PRODUCT",
+    "mkdtemp",
+    '"env"',
+    '"--repair"',
+    '"--check"',
+    '"init"',
+    '"verify"',
+    '"status"',
+    '"scaffold"',
+    '"product"',
+    '"structure"',
+    "goals-and-requirements=Goals and Requirements",
+    "acceptance-criteria=Acceptance Criteria",
+    '"advance"',
+    '"product-structuring"',
+    '"design-derivation"',
+    '"design"',
+    '"plan"',
+    '"api-candidates"',
+    '"api-authoring"',
+    '"backend-authoring"',
+    '"frontend-authoring"',
+    '"test-strategy-authoring"',
+    '"implementation-planning-authoring"',
+    '"architecture-decisions-authoring"',
+    "implementation_advance_check",
+    "expected_returncode=1",
+    "governance:scaffold-placeholder",
+    "authoring_task_counts",
+    "target_retained",
+)
+DRY_RUN_DOC_REQUIREMENTS = {
+    "README.md": (
+        "make dry-run",
+        "python3 scripts/dry_run_workflow.py --json",
+        "temporary target",
+        "implementation gate remains blocked",
+    ),
+    "workflows/00-overview.md": (
+        "make dry-run",
+        "python3 scripts/dry_run_workflow.py --json",
+        "temporary target",
+        "implementation gate remains blocked",
+    ),
+    "skills/verifying-governance-docs/SKILL.md": (
+        "source workflow-pack health",
+        "make dry-run",
+        "python3 scripts/dry_run_workflow.py --json",
+    ),
+}
 ENV_REPAIR_DOC_PATHS = (
     "README.md",
     "references/runtime-strategy.md",
@@ -1987,11 +2041,15 @@ PHASE_ADVANCE_AMBIGUOUS_PHRASES = (
 )
 MAKEFILE_REQUIRED_TARGETS = (
     "test",
+    "dry-run",
     "verify-pack",
 )
 MAKEFILE_REQUIRED_TARGET_RECIPES = {
     "test": (
         "python3 -m unittest discover -s tests",
+    ),
+    "dry-run": (
+        "python3 scripts/dry_run_workflow.py --json",
     ),
     "verify-pack": (
         "python3 scripts/verify_pack.py",
@@ -2281,6 +2339,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_runtime_file_list_alignment(root, findings)
     _check_governance_cli_commands(root, findings)
     _check_fresh_target_workflow_smoke_test(root, findings)
+    _check_dry_run_workflow(root, findings)
     _check_runtime_continuation_calls(root, findings)
     _check_target_local_command_source(root, findings)
     _check_target_local_command_schema(root, findings)
@@ -2289,6 +2348,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_runtime_wrapper_commands(root, findings)
     _check_readme_package_layout(root, findings)
     _check_readme_quick_start(root, findings)
+    _check_dry_run_docs(root, findings)
     _check_target_makefile_command_docs(root, findings)
     _check_env_repair_docs(root, findings)
     _check_runtime_refresh_docs(root, findings)
@@ -2376,6 +2436,36 @@ def _check_fresh_target_workflow_smoke_test(root: Path, findings: list[PackFindi
                 f"next_actions, and target-local commands; missing phrase(s): {', '.join(missing)}"
             ),
             FRESH_TARGET_SMOKE_TEST_PATH,
+        )
+    )
+
+
+def _check_dry_run_workflow(root: Path, findings: list[PackFinding]) -> None:
+    path = root / DRY_RUN_WORKFLOW_PATH
+    if not path.is_file():
+        findings.append(
+            PackFinding(
+                "pack_dry_run_workflow_missing",
+                f"missing dry-run workflow script: {DRY_RUN_WORKFLOW_PATH}",
+                DRY_RUN_WORKFLOW_PATH,
+            )
+        )
+        return
+    text = _read_utf8_text_or_none(path)
+    if text is None:
+        return
+    missing = [phrase for phrase in DRY_RUN_WORKFLOW_REQUIRED_PHRASES if phrase not in text]
+    if not missing:
+        return
+    findings.append(
+        PackFinding(
+            "pack_dry_run_workflow_incomplete",
+            (
+                f"{DRY_RUN_WORKFLOW_PATH} must run the disposable fresh-target workflow through "
+                f"product structuring, design authoring queues, and implementation gate preflight; "
+                f"missing phrase(s): {', '.join(missing)}"
+            ),
+            DRY_RUN_WORKFLOW_PATH,
         )
     )
 
@@ -3515,6 +3605,23 @@ def _check_readme_quick_start(root: Path, findings: list[PackFinding]) -> None:
                 "README.md",
             )
         )
+
+
+def _check_dry_run_docs(root: Path, findings: list[PackFinding]) -> None:
+    for rel, required_phrases in DRY_RUN_DOC_REQUIREMENTS.items():
+        text = _read_utf8_text_or_none(root / rel)
+        if text is None:
+            continue
+        for phrase in required_phrases:
+            if phrase in text:
+                continue
+            findings.append(
+                PackFinding(
+                    "pack_dry_run_doc_missing",
+                    f"{rel} must document source-pack dry-run command or behavior: {phrase}",
+                    rel,
+                )
+            )
 
 
 def _check_target_makefile_command_docs(root: Path, findings: list[PackFinding]) -> None:

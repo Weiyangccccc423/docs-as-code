@@ -11,6 +11,13 @@ Read `references/governance-verification-checklist.md` before declaring a phase 
 
 ## Commands
 
+For source workflow-pack health before using the pack on a real target:
+
+```bash
+make dry-run
+python3 scripts/dry_run_workflow.py --json
+```
+
 ```bash
 bin/governance verify <target> --check
 bin/governance verify <target>
