@@ -3181,6 +3181,103 @@ class GovernanceScriptsTest(unittest.TestCase):
             payload["repair_actions"],
         )
 
+    def test_check_env_payload_suppresses_applied_package_actions(self) -> None:
+        statuses = [
+            check_env_module.ToolStatus(
+                "git",
+                True,
+                "git version 2.34.1",
+                "Required for version control.",
+                "required",
+                "git",
+            ),
+        ]
+        payload = check_env_module._env_payload(
+            Path("/tmp/project"),
+            strict=False,
+            check=False,
+            statuses=statuses,
+            system=check_env_module.SystemStatus("linux", "ubuntu", "debian", "Ubuntu", True),
+            package_manager=check_env_module.PackageManager("apt", "/usr/bin/apt-get", True),
+            git=check_env_module.GitStatus(True, False, "", "", ""),
+            install_plan=[check_env_module.InstallPlanItem("git", "git", "apt")],
+            needs_escalation=False,
+            install_results=[
+                {
+                    "command": "/usr/bin/apt-get update",
+                    "returncode": 0,
+                    "stdout": "",
+                    "stderr": "",
+                },
+                {
+                    "command": "/usr/bin/apt-get install -y git",
+                    "returncode": 0,
+                    "stdout": "",
+                    "stderr": "",
+                },
+            ],
+            repairs=[],
+            repair_plan=None,
+        )
+
+        self.assertTrue(payload["ok"])
+        self.assertEqual([], payload["repair_actions"])
+        execution = payload["repair_execution"]
+        self.assertEqual("applied", execution["status"])
+        self.assertTrue(execution["install_attempted"])
+        self.assertFalse(execution["install_failed"])
+        self.assertEqual([], execution["post_repair_missing_required"])
+
+    def test_check_env_payload_reports_applied_but_unresolved_after_successful_install(self) -> None:
+        statuses = [
+            check_env_module.ToolStatus(
+                "git",
+                False,
+                "",
+                "Required for version control.",
+                "required",
+                "git",
+            ),
+        ]
+        payload = check_env_module._env_payload(
+            Path("/tmp/project"),
+            strict=False,
+            check=False,
+            statuses=statuses,
+            system=check_env_module.SystemStatus("linux", "ubuntu", "debian", "Ubuntu", True),
+            package_manager=check_env_module.PackageManager("apt", "/usr/bin/apt-get", True),
+            git=check_env_module.GitStatus(False, False, "", "", ""),
+            install_plan=[check_env_module.InstallPlanItem("git", "git", "apt")],
+            needs_escalation=False,
+            install_results=[
+                {
+                    "command": "/usr/bin/apt-get update",
+                    "returncode": 0,
+                    "stdout": "",
+                    "stderr": "",
+                },
+                {
+                    "command": "/usr/bin/apt-get install -y git",
+                    "returncode": 0,
+                    "stdout": "",
+                    "stderr": "",
+                },
+            ],
+            repairs=[],
+            repair_plan=None,
+        )
+
+        self.assertFalse(payload["ok"])
+        self.assertEqual([], payload["repair_actions"])
+        execution = payload["repair_execution"]
+        self.assertEqual("applied_but_unresolved", execution["status"])
+        self.assertFalse(execution["can_continue"])
+        self.assertFalse(execution["can_auto_apply"])
+        self.assertTrue(execution["install_attempted"])
+        self.assertFalse(execution["install_failed"])
+        self.assertEqual(["git"], execution["post_repair_missing_required"])
+        self.assertEqual("inspect post-repair missing tools before retrying package-manager repair", execution["next_step"])
+
     def test_check_env_payload_reports_manual_repair_actions(self) -> None:
         statuses = [
             check_env_module.ToolStatus(

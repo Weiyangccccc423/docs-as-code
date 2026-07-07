@@ -896,6 +896,11 @@ ENV_REPAIR_REQUIRED_FIELDS = (
     "needs_escalation",
     "repair_execution",
     "can_auto_apply",
+    "install_attempted",
+    "install_failed",
+    "post_repair_missing_required",
+    "post_repair_missing_recommended",
+    "applied_but_unresolved",
     "next_step",
 )
 RUNTIME_REFRESH_DOC_REQUIREMENTS = {

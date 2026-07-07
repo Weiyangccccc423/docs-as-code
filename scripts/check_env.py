@@ -368,6 +368,8 @@ def repair_execution_summary(
     install_attempted = bool(install_results)
     install_failed = any(result.get("returncode") != 0 for result in install_results)
     env_ok = environment_ok(statuses, strict)
+    post_repair_missing_required = missing_tools_by_level(statuses, "required")
+    post_repair_missing_recommended = missing_tools_by_level(statuses, "recommended")
     error_list = list(errors or [])
     status = "continue"
     can_continue = True
@@ -384,6 +386,10 @@ def repair_execution_summary(
     elif install_attempted and env_ok:
         status = "applied"
         next_step = "rerun governance env or continue workflow"
+    elif install_attempted:
+        status = "applied_but_unresolved"
+        can_continue = False
+        next_step = "inspect post-repair missing tools before retrying package-manager repair"
     elif manual_repairs:
         status = "manual_repair_required"
         can_continue = False
@@ -407,6 +413,10 @@ def repair_execution_summary(
         "can_auto_apply": can_auto_apply,
         "approval_required": approval_required,
         "manual_repair_required": bool(manual_repairs),
+        "install_attempted": install_attempted,
+        "install_failed": install_failed,
+        "post_repair_missing_required": post_repair_missing_required,
+        "post_repair_missing_recommended": post_repair_missing_recommended,
         "command_ids": command_ids,
         "manual_tools": manual_tools,
         "next_step": next_step,
@@ -425,13 +435,14 @@ def repair_actions_payload(
 
     actions: list[dict[str, object]] = []
     sequence = 1
-    for item in repair_command_items:
-        action = copy.deepcopy(item)
-        action["sequence"] = sequence
-        action["source"] = "repair_commands"
-        action["success_condition"] = "returncode:0"
-        actions.append(action)
-        sequence += 1
+    if not install_results:
+        for item in repair_command_items:
+            action = copy.deepcopy(item)
+            action["sequence"] = sequence
+            action["source"] = "repair_commands"
+            action["success_condition"] = "returncode:0"
+            actions.append(action)
+            sequence += 1
 
     for item in manual_repairs:
         actions.append(

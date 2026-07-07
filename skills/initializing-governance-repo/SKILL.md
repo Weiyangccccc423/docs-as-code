@@ -17,7 +17,7 @@ Create the minimum structure needed for reliable docs-as-code work.
    bin/governance env --repair --check --target <target> --json
    ```
 
-   Stop on `ok: false`. Inspect `would_repair`, `install_commands`, `repair_commands`, `repair_actions`, `manual_repairs`, `needs_escalation`, and `repair_execution` before running `bin/governance env --repair --target <target> --json`. Use `repair_execution.status`, `repair_execution.can_auto_apply`, and `repair_execution.next_step` for branching. Sort `repair_actions` by `sequence`; run actions with `argv` only when `approval_required` is false or approval is explicit, and present `manual-repair` actions to the user. If the target is already initialized and env JSON returns `local_commands` or `next_actions`, use them to resume instead of guessing.
+   Stop on `ok: false`. Inspect `would_repair`, `install_commands`, `repair_commands`, `repair_actions`, `manual_repairs`, `needs_escalation`, and `repair_execution` before running `bin/governance env --repair --target <target> --json`. Use `repair_execution.status`, `repair_execution.can_auto_apply`, `repair_execution.install_attempted`, `repair_execution.install_failed`, `repair_execution.post_repair_missing_required`, `repair_execution.post_repair_missing_recommended`, and `repair_execution.next_step` for branching. Sort `repair_actions` by `sequence`; run actions with `argv` only when `approval_required` is false or approval is explicit, and present `manual-repair` actions to the user. Treat `applied_but_unresolved` as a stop state before retrying repairs. If the target is already initialized and env JSON returns `local_commands` or `next_actions`, use them to resume instead of guessing.
 
 3. Run preflight without writing files:
 
