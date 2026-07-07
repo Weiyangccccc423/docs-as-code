@@ -331,6 +331,59 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_missing_source_pack_export_script(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/export_workflow_pack.py"
+            if script.exists():
+                script.unlink()
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_source_pack_export_missing"
+                    and finding.path == "scripts/export_workflow_pack.py"
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_incomplete_source_pack_export_script(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/export_workflow_pack.py"
+            script.write_text(
+                script.read_text(encoding="utf-8").replace(
+                    "pack-manifest.json",
+                    "source-manifest.json",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_source_pack_export_incomplete"
+                    and finding.path == "scripts/export_workflow_pack.py"
+                    and "pack-manifest.json" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_missing_makefile_target(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
@@ -387,6 +440,36 @@ class PackStructureTest(unittest.TestCase):
                     finding.code == "pack_makefile_target_missing"
                     and finding.path == "Makefile"
                     and "dry-run" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_missing_package_makefile_target(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            makefile = target / "Makefile"
+            makefile.write_text(
+                makefile.read_text(encoding="utf-8").replace(
+                    "\npackage:\n\tpython3 scripts/export_workflow_pack.py --output dist/docs-as-code-workflow-pack --archive dist/docs-as-code-workflow-pack.tar.gz --force --json\n",
+                    "\n",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_makefile_target_missing"
+                    and finding.path == "Makefile"
+                    and "package" in finding.message
                     for finding in report.findings
                 )
             )
@@ -448,6 +531,35 @@ class PackStructureTest(unittest.TestCase):
                     finding.code == "pack_dry_run_doc_missing"
                     and finding.path == "README.md"
                     and "temporary target" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_missing_source_pack_export_doc_phrase(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            readme = target / "README.md"
+            readme.write_text(
+                readme.read_text(encoding="utf-8").replace(
+                    "pack-manifest.json",
+                    "export-manifest.json",
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_source_pack_export_doc_missing"
+                    and finding.path == "README.md"
+                    and "pack-manifest.json" in finding.message
                     for finding in report.findings
                 )
             )

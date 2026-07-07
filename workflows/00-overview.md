@@ -28,6 +28,16 @@ python3 scripts/dry_run_workflow.py --json
 
 The dry run creates a temporary target, imports a sample product document, advances through product structuring and design derivation, builds the API, backend, frontend, test, implementation-planning, and ADR authoring queues, and confirms the implementation gate remains blocked until design scaffold placeholders are replaced with source-backed content.
 
+When the source workflow pack needs to move to another workspace or agent environment, export it instead of copying ad hoc files:
+
+```bash
+make package
+python3 scripts/export_workflow_pack.py --check --json
+python3 scripts/export_workflow_pack.py --output dist/docs-as-code-workflow-pack --archive dist/docs-as-code-workflow-pack.tar.gz --force --json
+```
+
+The export writes `pack-manifest.json` with SHA-256 evidence for the included source-pack files, runs `verify_pack` on the exported directory, and can create a tar.gz artifact for transfer.
+
 Generated target repositories receive their own copy of `bin/` and `scripts/` plus `docs/agent-workflow/runtime-manifest.json`. After initialization, prefer the target-local CLI:
 
 ```bash

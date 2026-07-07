@@ -678,6 +678,43 @@ DRY_RUN_DOC_REQUIREMENTS = {
         "python3 scripts/dry_run_workflow.py --json",
     ),
 }
+SOURCE_PACK_EXPORT_PATH = "scripts/export_workflow_pack.py"
+SOURCE_PACK_EXPORT_REQUIRED_PHRASES = (
+    "run_export",
+    "EXPORT_RESOURCE_PATHS",
+    "pack-manifest.json",
+    "verify_pack",
+    "sha256_file",
+    "tarfile",
+    "gzip.GzipFile",
+    "--check",
+    "--force",
+    "--archive",
+    "--no-archive",
+    "dist/docs-as-code-workflow-pack",
+    "docs-as-code source workflow pack",
+)
+SOURCE_PACK_EXPORT_DOC_REQUIREMENTS = {
+    "README.md": (
+        "make package",
+        "python3 scripts/export_workflow_pack.py --check --json",
+        "pack-manifest.json",
+        "SHA-256 evidence",
+        "tar.gz artifact",
+    ),
+    "workflows/00-overview.md": (
+        "make package",
+        "python3 scripts/export_workflow_pack.py --check --json",
+        "pack-manifest.json",
+        "SHA-256 evidence",
+        "tar.gz artifact",
+    ),
+    "skills/verifying-governance-docs/SKILL.md": (
+        "make package",
+        "python3 scripts/export_workflow_pack.py --check --json",
+        "python3 scripts/export_workflow_pack.py --output dist/docs-as-code-workflow-pack --archive dist/docs-as-code-workflow-pack.tar.gz --force --json",
+    ),
+}
 ENV_REPAIR_DOC_PATHS = (
     "README.md",
     "references/runtime-strategy.md",
@@ -2042,6 +2079,7 @@ PHASE_ADVANCE_AMBIGUOUS_PHRASES = (
 MAKEFILE_REQUIRED_TARGETS = (
     "test",
     "dry-run",
+    "package",
     "verify-pack",
 )
 MAKEFILE_REQUIRED_TARGET_RECIPES = {
@@ -2050,6 +2088,9 @@ MAKEFILE_REQUIRED_TARGET_RECIPES = {
     ),
     "dry-run": (
         "python3 scripts/dry_run_workflow.py --json",
+    ),
+    "package": (
+        "python3 scripts/export_workflow_pack.py --output dist/docs-as-code-workflow-pack --archive dist/docs-as-code-workflow-pack.tar.gz --force --json",
     ),
     "verify-pack": (
         "python3 scripts/verify_pack.py",
@@ -2340,6 +2381,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_governance_cli_commands(root, findings)
     _check_fresh_target_workflow_smoke_test(root, findings)
     _check_dry_run_workflow(root, findings)
+    _check_source_pack_export_workflow(root, findings)
     _check_runtime_continuation_calls(root, findings)
     _check_target_local_command_source(root, findings)
     _check_target_local_command_schema(root, findings)
@@ -2349,6 +2391,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_readme_package_layout(root, findings)
     _check_readme_quick_start(root, findings)
     _check_dry_run_docs(root, findings)
+    _check_source_pack_export_docs(root, findings)
     _check_target_makefile_command_docs(root, findings)
     _check_env_repair_docs(root, findings)
     _check_runtime_refresh_docs(root, findings)
@@ -2466,6 +2509,35 @@ def _check_dry_run_workflow(root: Path, findings: list[PackFinding]) -> None:
                 f"missing phrase(s): {', '.join(missing)}"
             ),
             DRY_RUN_WORKFLOW_PATH,
+        )
+    )
+
+
+def _check_source_pack_export_workflow(root: Path, findings: list[PackFinding]) -> None:
+    path = root / SOURCE_PACK_EXPORT_PATH
+    if not path.is_file():
+        findings.append(
+            PackFinding(
+                "pack_source_pack_export_missing",
+                f"missing source-pack export script: {SOURCE_PACK_EXPORT_PATH}",
+                SOURCE_PACK_EXPORT_PATH,
+            )
+        )
+        return
+    text = _read_utf8_text_or_none(path)
+    if text is None:
+        return
+    missing = [phrase for phrase in SOURCE_PACK_EXPORT_REQUIRED_PHRASES if phrase not in text]
+    if not missing:
+        return
+    findings.append(
+        PackFinding(
+            "pack_source_pack_export_incomplete",
+            (
+                f"{SOURCE_PACK_EXPORT_PATH} must export a manifest-checked source workflow pack; "
+                f"missing phrase(s): {', '.join(missing)}"
+            ),
+            SOURCE_PACK_EXPORT_PATH,
         )
     )
 
@@ -3619,6 +3691,23 @@ def _check_dry_run_docs(root: Path, findings: list[PackFinding]) -> None:
                 PackFinding(
                     "pack_dry_run_doc_missing",
                     f"{rel} must document source-pack dry-run command or behavior: {phrase}",
+                    rel,
+                )
+            )
+
+
+def _check_source_pack_export_docs(root: Path, findings: list[PackFinding]) -> None:
+    for rel, required_phrases in SOURCE_PACK_EXPORT_DOC_REQUIREMENTS.items():
+        text = _read_utf8_text_or_none(root / rel)
+        if text is None:
+            continue
+        for phrase in required_phrases:
+            if phrase in text:
+                continue
+            findings.append(
+                PackFinding(
+                    "pack_source_pack_export_doc_missing",
+                    f"{rel} must document source-pack export command or behavior: {phrase}",
                     rel,
                 )
             )
