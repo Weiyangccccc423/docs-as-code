@@ -522,3 +522,30 @@ class FreshTargetWorkflowTest(unittest.TestCase):
             )
             self.assertIn("method_path", candidate["open_decisions"])
             self.assertIn("frontend_consumers", candidate["open_decisions"])
+
+            api_authoring = _run_json(
+                self,
+                ["bin/governance", "design", "api-authoring", ".", "--json"],
+                cwd=target,
+            )
+            self.assertTrue(api_authoring["ok"])
+            self.assertEqual("api-contracts", api_authoring["track"])
+            self.assertEqual("do_not_guess_contract_details", api_authoring["decision_policy"])
+            self.assertEqual(1, len(api_authoring["authoring_tasks"]))
+            authoring_task = api_authoring["authoring_tasks"][0]
+            self.assertEqual("API-AUTHOR-001", authoring_task["task_id"])
+            self.assertEqual("API-001", authoring_task["candidate_id"])
+            self.assertEqual("A-001", authoring_task["acceptance_id"])
+            self.assertEqual(
+                "docs/api/endpoints/01-initialized-repository-exposes-local-governance-checks.md",
+                authoring_task["endpoint_file"],
+            )
+            self.assertIn("docs/api/error-codes.md", [link["target"] for link in authoring_task["required_links"]])
+            self.assertIn("docs/frontend/02-api-consumption.md", [link["target"] for link in authoring_task["required_links"]])
+            self.assertIn("docs/backend/01-modules.md", [link["target"] for link in authoring_task["required_links"]])
+            self.assertIn("request_fields", authoring_task["open_decisions"])
+            self.assertIn("response_fields", authoring_task["open_decisions"])
+            self.assertEqual(
+                ["bin/governance", "design", "api-authoring", ".", "--json"],
+                authoring_task["steps"][-1]["argv"],
+            )

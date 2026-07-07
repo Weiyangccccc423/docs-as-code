@@ -33,6 +33,35 @@ OPEN_API_DECISIONS = (
     "upstream_links",
     "frontend_consumers",
 )
+API_CONVENTION_SECTIONS = (
+    "Product Links",
+    "HTTP Conventions",
+    "Authentication",
+    "Idempotency",
+    "Compatibility",
+    "Open Decisions",
+)
+API_ERROR_CODE_SECTIONS = (
+    "Product Links",
+    "Error Taxonomy",
+    "Error Codes",
+    "Retry Semantics",
+    "Frontend Handling",
+)
+API_CHANGELOG_SECTIONS = (
+    "Change Log",
+    "Compatibility Notes",
+)
+API_ENDPOINT_SECTIONS = (
+    "Method and Path",
+    "Auth",
+    "Idempotency",
+    "Request Fields",
+    "Response Fields",
+    "Error Codes",
+    "Upstream Links",
+    "Frontend Consumers",
+)
 
 
 @dataclass(frozen=True)
@@ -216,6 +245,44 @@ def build_api_candidates(root: Path) -> dict[str, object]:
     return payload
 
 
+def build_api_authoring(root: Path) -> dict[str, object]:
+    root = root.resolve()
+    state = load_state(root)
+    phase = state.get("phase") if isinstance(state.get("phase"), str) else ""
+    errors: list[str] = []
+    if not state:
+        errors.append("No governance state found.")
+    elif phase != DESIGN_PHASE:
+        errors.append(f"API authoring requires recorded phase {DESIGN_PHASE}")
+    candidates = _api_candidates(root)
+    if not candidates:
+        errors.append("No product acceptance criteria with A-NNN headings found.")
+    payload: dict[str, object] = {
+        "ok": not errors,
+        "target": str(root),
+        "phase": phase,
+        "workflow": DESIGN_WORKFLOW_PATH,
+        "track": API_TRACK_ID,
+        "decision_policy": "do_not_guess_contract_details",
+        "skills": ["designing-api-contracts"],
+        "references": [
+            "references/architecture-methods.md",
+            "references/api-design-checklist.md",
+            "references/security-design-checklist.md",
+        ],
+        "source_documents": _source_documents(root),
+        "authoring_tasks": [
+            _api_authoring_task(root, candidate, index)
+            for index, candidate in enumerate(candidates, start=1)
+        ],
+        "errors": errors,
+    }
+    if not errors:
+        payload["local_commands"] = target_local_commands_payload(cwd=str(root))
+        payload["next_actions"] = next_actions_payload(state, cwd=str(root))
+    return payload
+
+
 def _source_documents(root: Path) -> list[str]:
     candidates: list[str] = []
     for rel in ("docs/product/core/PRD.md", "docs/unresolved.md", "docs/glossary.md"):
@@ -256,6 +323,149 @@ def _api_candidates(root: Path) -> list[dict[str, object]]:
             }
         )
     return candidates
+
+
+def _api_authoring_task(root: Path, candidate: dict[str, object], index: int) -> dict[str, object]:
+    endpoint_file = str(candidate["suggested_endpoint_file"])
+    source = candidate["source"]
+    if not isinstance(source, dict):  # pragma: no cover - internal invariant
+        source = {}
+    source_reference = str(source.get("reference", ""))
+    documents = [
+        _authoring_document(
+            "docs/api/00-conventions.md",
+            API_CONVENTION_SECTIONS,
+            "Fill shared API conventions before writing endpoint-specific contracts.",
+        ),
+        _authoring_document(
+            "docs/api/error-codes.md",
+            API_ERROR_CODE_SECTIONS,
+            "Register reusable error taxonomy, retry behavior, and frontend handling.",
+        ),
+        _authoring_document(
+            "docs/api/changelog.md",
+            API_CHANGELOG_SECTIONS,
+            "Record the initial compatibility baseline for the contract set.",
+        ),
+        _authoring_document(
+            endpoint_file,
+            API_ENDPOINT_SECTIONS,
+            "Author the concrete endpoint contract only after every open decision has a source.",
+        ),
+    ]
+    required_links = [
+        _required_link(root, "product_acceptance", source_reference),
+        _required_link(root, "error_registry", "docs/api/error-codes.md"),
+        _required_link(root, "backend_owner", "docs/backend/01-modules.md"),
+        _required_link(root, "frontend_consumers", "docs/frontend/02-api-consumption.md"),
+        _required_link(root, "acceptance_matrix", "docs/tests/02-acceptance-matrix.md"),
+        _required_link(root, "unresolved_decisions", "docs/unresolved.md"),
+    ]
+    return {
+        "task_id": f"API-AUTHOR-{index:03d}",
+        "candidate_id": candidate["candidate_id"],
+        "acceptance_id": candidate["acceptance_id"],
+        "title": candidate["title"],
+        "source": source,
+        "endpoint_file": endpoint_file,
+        "endpoint_exists": candidate["endpoint_exists"],
+        "replaceable_starter_endpoint": candidate["replaceable_starter_endpoint"],
+        "documents": documents,
+        "required_links": required_links,
+        "open_decisions": list(candidate["open_decisions"]),
+        "steps": _api_authoring_steps(root, source_reference, endpoint_file, documents, required_links),
+    }
+
+
+def _authoring_document(path: str, sections: tuple[str, ...], purpose: str) -> dict[str, object]:
+    return {
+        "path": path,
+        "sections": list(sections),
+        "purpose": purpose,
+    }
+
+
+def _required_link(root: Path, kind: str, target: str) -> dict[str, object]:
+    path = target.split("#", 1)[0]
+    return {
+        "kind": kind,
+        "target": target,
+        "exists": bool(path) and (root / path).is_file(),
+    }
+
+
+def _api_authoring_steps(
+    root: Path,
+    source_reference: str,
+    endpoint_file: str,
+    documents: list[dict[str, object]],
+    required_links: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    return [
+        {
+            "id": "load-api-contract-skill",
+            "kind": "skill-load",
+            "skills": ["designing-api-contracts"],
+            "description": "Load the API contract skill before authoring shared conventions or endpoint files.",
+        },
+        {
+            "id": "read-api-references",
+            "kind": "read",
+            "references": [
+                "references/architecture-methods.md",
+                "references/api-design-checklist.md",
+                "references/security-design-checklist.md",
+            ],
+            "description": "Read API, architecture, and security guidance before resolving contract decisions.",
+        },
+        {
+            "id": "read-source-acceptance",
+            "kind": "read",
+            "documents": [source_reference],
+            "description": "Read the acceptance criterion that created this endpoint candidate.",
+        },
+        {
+            "id": "fill-shared-api-documents",
+            "kind": "author",
+            "documents": [document for document in documents if document["path"] != endpoint_file],
+            "description": "Complete conventions, error registry, and changelog sections with source-backed content.",
+        },
+        {
+            "id": "author-endpoint-contract",
+            "kind": "author",
+            "document": endpoint_file,
+            "sections": list(API_ENDPOINT_SECTIONS),
+            "description": "Write method/path, auth, idempotency, fields, errors, upstream links, and consumers only after sources are known.",
+        },
+        {
+            "id": "link-consumers-and-owners",
+            "kind": "link",
+            "required_links": [
+                link
+                for link in required_links
+                if link["kind"] in {"backend_owner", "frontend_consumers", "unresolved_decisions"}
+            ],
+            "description": "Connect endpoint ownership and frontend consumption to existing design documents or unresolved decisions.",
+        },
+        {
+            "id": "update-acceptance-matrix",
+            "kind": "author",
+            "documents": ["docs/tests/02-acceptance-matrix.md"],
+            "description": "Map the acceptance criterion to the concrete endpoint contract and test source, or list it as uncovered.",
+        },
+        _command_step(
+            root,
+            "verify-api-authoring",
+            "Run read-only governance verification after API contract authoring.",
+            ["bin/governance", "verify", ".", "--check", "--json"],
+        ),
+        _command_step(
+            root,
+            "refresh-api-authoring",
+            "Refresh the API authoring queue after verification.",
+            ["bin/governance", "design", "api-authoring", ".", "--json"],
+        ),
+    ]
 
 
 def _acceptance_headings(root: Path) -> list[dict[str, str]]:

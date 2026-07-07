@@ -570,6 +570,10 @@ FRESH_TARGET_SMOKE_TEST_REQUIRED_PHRASES = (
     "candidates",
     "open_decisions",
     "suggested_endpoint_file",
+    "api_authoring",
+    "api-authoring",
+    "authoring_tasks",
+    "decision_policy",
     "api-contracts",
     "designing-api-contracts",
     "design_blocked_verify",
@@ -761,6 +765,25 @@ API_CANDIDATES_REQUIRED_PHRASES = (
     "replaceable_starter_endpoint",
     "open_decisions",
     "method/path",
+)
+API_AUTHORING_DOC_PATHS = (
+    "README.md",
+    "workflows/00-overview.md",
+    "workflows/04-design-derivation.md",
+    "skills/designing-api-contracts/SKILL.md",
+    "skills/verifying-governance-docs/SKILL.md",
+)
+API_AUTHORING_REQUIRED_PHRASES = (
+    "design api-authoring",
+    "authoring_tasks",
+    "decision_policy",
+    "do_not_guess_contract_details",
+    "documents",
+    "sections",
+    "required_links",
+    "open_decisions",
+    "verify-api-authoring",
+    "refresh-api-authoring",
 )
 SCAFFOLD_CONTINUATION_DOC_PATHS = (
     "README.md",
@@ -1853,7 +1876,7 @@ GOVERNANCE_CLI_REQUIRED_COMMANDS = (
 GOVERNANCE_CLI_REQUIRED_SUBCOMMANDS = {
     "runtime": ("refresh",),
     "product": ("mark-ready", "structure"),
-    "design": ("plan", "api-candidates"),
+    "design": ("plan", "api-candidates", "api-authoring"),
 }
 GOVERNANCE_CLI_PARSER_VARIABLES = {
     "top-level": "sub",
@@ -2120,6 +2143,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_design_scaffold_docs(root, findings)
     _check_design_plan_docs(root, findings)
     _check_api_candidates_docs(root, findings)
+    _check_api_authoring_docs(root, findings)
     _check_scaffold_continuation_docs(root, findings)
     _check_implementation_handoff_docs(root, findings)
     _check_initialization_reference_docs(root, findings)
@@ -3469,6 +3493,23 @@ def _check_api_candidates_docs(root: Path, findings: list[PackFinding]) -> None:
             PackFinding(
                 "pack_api_candidates_doc_missing",
                 f"{rel} must document API candidate phrase(s): {', '.join(missing)}",
+                rel,
+            )
+        )
+
+
+def _check_api_authoring_docs(root: Path, findings: list[PackFinding]) -> None:
+    for rel in API_AUTHORING_DOC_PATHS:
+        text = _read_utf8_text_or_none(root / rel)
+        if text is None:
+            continue
+        missing = [phrase for phrase in API_AUTHORING_REQUIRED_PHRASES if phrase not in text]
+        if not missing:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_api_authoring_doc_missing",
+                f"{rel} must document API authoring phrase(s): {', '.join(missing)}",
                 rel,
             )
         )
