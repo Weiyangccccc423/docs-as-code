@@ -19,6 +19,7 @@ except ImportError:  # pragma: no cover - direct script execution
 
 DESIGN_WORKFLOW_PATH = "workflows/04-design-derivation.md"
 DESIGN_PHASE = "design-derivation"
+TARGET_WORKFLOW_PACK_ROOT = "docs/agent-workflow/workflow-pack"
 UI_INTERACTION_TRACK_ID = "ui-interaction"
 API_TRACK_ID = "api-contracts"
 BACKEND_TRACK_ID = "backend-modules"
@@ -227,6 +228,31 @@ ADR_SECTIONS = (
     "Consequences",
     "References",
 )
+LOCAL_WORKFLOW_SKILL_MISSING_POLICY = "workflow_pack_integrity_error"
+AUTHORITY_ROUTING_SKILL_MISSING_POLICY = "load_from_agent_environment_or_stop_before_guessing"
+AUTHORITY_ROUTING_SPECIALIST_SKILLS = frozenset(
+    {
+        "a11y-audit",
+        "api-design-reviewer",
+        "ci-cd-pipeline-builder",
+        "database-designer",
+        "database-schema-designer",
+        "migration-architect",
+        "observability-designer",
+        "performance-profiler",
+        "playwright-pro",
+        "security-pen-testing",
+        "senior-architect",
+        "senior-backend",
+        "senior-frontend",
+        "senior-fullstack",
+        "senior-qa",
+        "senior-security",
+        "slo-architect",
+        "tech-debt-tracker",
+        "tech-stack-evaluator",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -401,14 +427,17 @@ def build_api_candidates(root: Path) -> dict[str, object]:
     candidates = _api_candidates(root)
     if not candidates:
         errors.append("No product acceptance criteria with A-NNN headings found.")
+    skills = ["designing-api-contracts"]
+    specialist_skills = _specialist_skills(API_TRACK_ID)
     payload: dict[str, object] = {
         "ok": not errors,
         "target": str(root),
         "phase": phase,
         "workflow": DESIGN_WORKFLOW_PATH,
         "track": API_TRACK_ID,
-        "skills": ["designing-api-contracts"],
-        "specialist_skills": _specialist_skills(API_TRACK_ID),
+        "skills": skills,
+        "specialist_skills": specialist_skills,
+        **_skill_requirement_fields(root, skills, specialist_skills),
         "references": [
             "references/architecture-methods.md",
             "references/api-design-checklist.md",
@@ -436,6 +465,8 @@ def build_api_authoring(root: Path) -> dict[str, object]:
     candidates = _api_candidates(root)
     if not candidates:
         errors.append("No product acceptance criteria with A-NNN headings found.")
+    skills = ["designing-api-contracts"]
+    specialist_skills = _specialist_skills(API_TRACK_ID)
     payload: dict[str, object] = {
         "ok": not errors,
         "target": str(root),
@@ -443,8 +474,9 @@ def build_api_authoring(root: Path) -> dict[str, object]:
         "workflow": DESIGN_WORKFLOW_PATH,
         "track": API_TRACK_ID,
         "decision_policy": "do_not_guess_contract_details",
-        "skills": ["designing-api-contracts"],
-        "specialist_skills": _specialist_skills(API_TRACK_ID),
+        "skills": skills,
+        "specialist_skills": specialist_skills,
+        **_skill_requirement_fields(root, skills, specialist_skills),
         "references": [
             "references/architecture-methods.md",
             "references/api-design-checklist.md",
@@ -475,6 +507,8 @@ def build_backend_authoring(root: Path) -> dict[str, object]:
     candidates = _api_candidates(root)
     if not candidates:
         errors.append("No product acceptance criteria with A-NNN headings found.")
+    skills = ["designing-backend-modules", "designing-data-models"]
+    specialist_skills = _combined_specialist_skills(BACKEND_TRACK_ID, DATA_MODEL_TRACK_ID)
     payload: dict[str, object] = {
         "ok": not errors,
         "target": str(root),
@@ -482,8 +516,9 @@ def build_backend_authoring(root: Path) -> dict[str, object]:
         "workflow": DESIGN_WORKFLOW_PATH,
         "track": BACKEND_TRACK_ID,
         "decision_policy": "do_not_guess_backend_boundaries",
-        "skills": ["designing-backend-modules", "designing-data-models"],
-        "specialist_skills": _combined_specialist_skills(BACKEND_TRACK_ID, DATA_MODEL_TRACK_ID),
+        "skills": skills,
+        "specialist_skills": specialist_skills,
+        **_skill_requirement_fields(root, skills, specialist_skills),
         "references": [
             "references/backend-design-checklist.md",
             "references/data-model-design-checklist.md",
@@ -515,6 +550,8 @@ def build_frontend_authoring(root: Path) -> dict[str, object]:
     candidates = _api_candidates(root)
     if not candidates:
         errors.append("No product acceptance criteria with A-NNN headings found.")
+    skills = ["designing-ui-interactions", "designing-frontend-modules"]
+    specialist_skills = _combined_specialist_skills(UI_INTERACTION_TRACK_ID, FRONTEND_TRACK_ID)
     payload: dict[str, object] = {
         "ok": not errors,
         "target": str(root),
@@ -522,8 +559,9 @@ def build_frontend_authoring(root: Path) -> dict[str, object]:
         "workflow": DESIGN_WORKFLOW_PATH,
         "track": FRONTEND_TRACK_ID,
         "decision_policy": "do_not_guess_frontend_behavior",
-        "skills": ["designing-ui-interactions", "designing-frontend-modules"],
-        "specialist_skills": _combined_specialist_skills(UI_INTERACTION_TRACK_ID, FRONTEND_TRACK_ID),
+        "skills": skills,
+        "specialist_skills": specialist_skills,
+        **_skill_requirement_fields(root, skills, specialist_skills),
         "references": [
             "references/frontend-interaction-checklist.md",
             "references/security-design-checklist.md",
@@ -553,6 +591,8 @@ def build_test_strategy_authoring(root: Path) -> dict[str, object]:
     candidates = _api_candidates(root)
     if not candidates:
         errors.append("No product acceptance criteria with A-NNN headings found.")
+    skills = ["designing-test-strategy"]
+    specialist_skills = _specialist_skills(TEST_STRATEGY_TRACK_ID)
     payload: dict[str, object] = {
         "ok": not errors,
         "target": str(root),
@@ -560,8 +600,9 @@ def build_test_strategy_authoring(root: Path) -> dict[str, object]:
         "workflow": DESIGN_WORKFLOW_PATH,
         "track": TEST_STRATEGY_TRACK_ID,
         "decision_policy": "do_not_guess_verification_scope",
-        "skills": ["designing-test-strategy"],
-        "specialist_skills": _specialist_skills(TEST_STRATEGY_TRACK_ID),
+        "skills": skills,
+        "specialist_skills": specialist_skills,
+        **_skill_requirement_fields(root, skills, specialist_skills),
         "references": [
             "references/test-strategy-checklist.md",
             "references/security-design-checklist.md",
@@ -592,6 +633,8 @@ def build_implementation_planning_authoring(root: Path) -> dict[str, object]:
     if not candidates:
         errors.append("No product acceptance criteria with A-NNN headings found.")
     start_task_prefix = _next_task_prefix(root)
+    skills = ["planning-implementation-work"]
+    specialist_skills = _specialist_skills(IMPLEMENTATION_PLANNING_TRACK_ID)
     payload: dict[str, object] = {
         "ok": not errors,
         "target": str(root),
@@ -599,8 +642,9 @@ def build_implementation_planning_authoring(root: Path) -> dict[str, object]:
         "workflow": DESIGN_WORKFLOW_PATH,
         "track": IMPLEMENTATION_PLANNING_TRACK_ID,
         "decision_policy": "do_not_guess_task_scope",
-        "skills": ["planning-implementation-work"],
-        "specialist_skills": _specialist_skills(IMPLEMENTATION_PLANNING_TRACK_ID),
+        "skills": skills,
+        "specialist_skills": specialist_skills,
+        **_skill_requirement_fields(root, skills, specialist_skills),
         "references": [
             "references/implementation-readiness-checklist.md",
             "references/implementation-execution-checklist.md",
@@ -636,6 +680,8 @@ def build_architecture_decisions_authoring(root: Path) -> dict[str, object]:
     if not candidates:
         errors.append("No product acceptance criteria with A-NNN headings found.")
     next_adr_prefix = f"{_next_adr_prefix(root):03d}"
+    skills = ["capturing-architecture-decisions"]
+    specialist_skills = _specialist_skills(ARCHITECTURE_DECISIONS_TRACK_ID)
     payload: dict[str, object] = {
         "ok": not errors,
         "target": str(root),
@@ -643,8 +689,9 @@ def build_architecture_decisions_authoring(root: Path) -> dict[str, object]:
         "workflow": DESIGN_WORKFLOW_PATH,
         "track": ARCHITECTURE_DECISIONS_TRACK_ID,
         "decision_policy": "do_not_guess_architecture_decisions",
-        "skills": ["capturing-architecture-decisions"],
-        "specialist_skills": _specialist_skills(ARCHITECTURE_DECISIONS_TRACK_ID),
+        "skills": skills,
+        "specialist_skills": specialist_skills,
+        **_skill_requirement_fields(root, skills, specialist_skills),
         "references": [
             "references/architecture-methods.md",
             "references/architecture-decision-record-checklist.md",
@@ -687,6 +734,85 @@ def _combined_specialist_skills(*track_ids: str) -> list[str]:
     for track_id in track_ids:
         skills.extend(_specialist_skills(track_id))
     return list(dict.fromkeys(skills))
+
+
+def _skill_requirement_fields(
+    root: Path,
+    skills: list[str] | tuple[str, ...],
+    specialist_skills: list[str] | tuple[str, ...],
+) -> dict[str, object]:
+    return {
+        "skill_requirements": _skill_requirements(root, skills, specialist_skills),
+        "authority_skill_requirements": _authority_skill_requirements(specialist_skills),
+    }
+
+
+def _skill_requirements(
+    root: Path,
+    skills: list[str] | tuple[str, ...],
+    specialist_skills: list[str] | tuple[str, ...],
+) -> list[dict[str, object]]:
+    requirements: list[dict[str, object]] = []
+    seen: set[str] = set()
+    for skill in skills:
+        if skill in seen:
+            continue
+        seen.add(skill)
+        requirements.append(_local_workflow_skill_requirement(root, skill))
+    for skill in specialist_skills:
+        if skill in seen:
+            continue
+        seen.add(skill)
+        requirements.append(_authority_skill_requirement(skill))
+    return requirements
+
+
+def _authority_skill_requirements(
+    specialist_skills: list[str] | tuple[str, ...],
+) -> list[dict[str, object]]:
+    requirements: list[dict[str, object]] = []
+    seen: set[str] = set()
+    for skill in specialist_skills:
+        if skill in seen:
+            continue
+        seen.add(skill)
+        requirements.append(_authority_skill_requirement(skill))
+    return requirements
+
+
+def _local_workflow_skill_requirement(root: Path, skill: str) -> dict[str, object]:
+    path, available = _local_workflow_skill_path(root, skill)
+    return {
+        "name": skill,
+        "type": "local-workflow",
+        "required": True,
+        "available_in_workflow_pack": available,
+        "availability_scope": "workflow-pack",
+        "path": path,
+        "missing_policy": LOCAL_WORKFLOW_SKILL_MISSING_POLICY,
+    }
+
+
+def _authority_skill_requirement(skill: str) -> dict[str, object]:
+    return {
+        "name": skill,
+        "type": "authority-routing"
+        if skill in AUTHORITY_ROUTING_SPECIALIST_SKILLS
+        else "specialist-routing",
+        "required": True,
+        "available_in_workflow_pack": False,
+        "availability_scope": "agent-environment",
+        "missing_policy": AUTHORITY_ROUTING_SKILL_MISSING_POLICY,
+    }
+
+
+def _local_workflow_skill_path(root: Path, skill: str) -> tuple[str, bool]:
+    snapshot_rel = Path(TARGET_WORKFLOW_PACK_ROOT) / "skills" / skill / "SKILL.md"
+    source_rel = Path("skills") / skill / "SKILL.md"
+    for rel in (snapshot_rel, source_rel):
+        if (root / rel).is_file():
+            return rel.as_posix(), True
+    return snapshot_rel.as_posix(), False
 
 
 def _api_candidates(root: Path) -> list[dict[str, object]]:
@@ -765,6 +891,7 @@ def _api_authoring_task(root: Path, candidate: dict[str, object], index: int) ->
         "endpoint_exists": candidate["endpoint_exists"],
         "replaceable_starter_endpoint": candidate["replaceable_starter_endpoint"],
         "specialist_skills": _specialist_skills(API_TRACK_ID),
+        **_skill_requirement_fields(root, ["designing-api-contracts"], _specialist_skills(API_TRACK_ID)),
         "execution": _authoring_execution(
             "api-contract-authoring",
             "designing-api-contracts",
@@ -809,6 +936,7 @@ def _api_authoring_steps(
             "kind": "skill-load",
             "skills": ["designing-api-contracts"],
             "specialist_skills": _specialist_skills(API_TRACK_ID),
+            **_skill_requirement_fields(root, ["designing-api-contracts"], _specialist_skills(API_TRACK_ID)),
             "description": "Load the API contract skill before authoring shared conventions or endpoint files.",
         },
         {
@@ -912,6 +1040,11 @@ def _backend_authoring_task(root: Path, candidate: dict[str, object], index: int
         "title": candidate["title"],
         "source": source,
         "specialist_skills": _combined_specialist_skills(BACKEND_TRACK_ID, DATA_MODEL_TRACK_ID),
+        **_skill_requirement_fields(
+            root,
+            ["designing-backend-modules", "designing-data-models"],
+            _combined_specialist_skills(BACKEND_TRACK_ID, DATA_MODEL_TRACK_ID),
+        ),
         "execution": _authoring_execution(
             "backend-design-authoring",
             "designing-backend-modules",
@@ -938,6 +1071,11 @@ def _backend_authoring_steps(
             "kind": "skill-load",
             "skills": ["designing-backend-modules", "designing-data-models"],
             "specialist_skills": _combined_specialist_skills(BACKEND_TRACK_ID, DATA_MODEL_TRACK_ID),
+            **_skill_requirement_fields(
+                root,
+                ["designing-backend-modules", "designing-data-models"],
+                _combined_specialist_skills(BACKEND_TRACK_ID, DATA_MODEL_TRACK_ID),
+            ),
             "description": "Load backend and data-model skills before assigning modules, persistence, or operability responsibilities.",
         },
         {
@@ -1053,6 +1191,11 @@ def _frontend_authoring_task(root: Path, candidate: dict[str, object], index: in
         "title": candidate["title"],
         "source": source,
         "specialist_skills": _combined_specialist_skills(UI_INTERACTION_TRACK_ID, FRONTEND_TRACK_ID),
+        **_skill_requirement_fields(
+            root,
+            ["designing-ui-interactions", "designing-frontend-modules"],
+            _combined_specialist_skills(UI_INTERACTION_TRACK_ID, FRONTEND_TRACK_ID),
+        ),
         "execution": _authoring_execution(
             "frontend-design-authoring",
             "designing-ui-interactions",
@@ -1079,6 +1222,11 @@ def _frontend_authoring_steps(
             "kind": "skill-load",
             "skills": ["designing-ui-interactions", "designing-frontend-modules"],
             "specialist_skills": _combined_specialist_skills(UI_INTERACTION_TRACK_ID, FRONTEND_TRACK_ID),
+            **_skill_requirement_fields(
+                root,
+                ["designing-ui-interactions", "designing-frontend-modules"],
+                _combined_specialist_skills(UI_INTERACTION_TRACK_ID, FRONTEND_TRACK_ID),
+            ),
             "description": "Load UI and frontend module skills before assigning flows, routes, state, or API consumption.",
         },
         {
@@ -1188,6 +1336,7 @@ def _test_strategy_authoring_task(root: Path, candidate: dict[str, object], inde
         "title": candidate["title"],
         "source": source,
         "specialist_skills": _specialist_skills(TEST_STRATEGY_TRACK_ID),
+        **_skill_requirement_fields(root, ["designing-test-strategy"], _specialist_skills(TEST_STRATEGY_TRACK_ID)),
         "execution": _authoring_execution(
             "test-strategy-authoring",
             "designing-test-strategy",
@@ -1214,6 +1363,7 @@ def _test_strategy_authoring_steps(
             "kind": "skill-load",
             "skills": ["designing-test-strategy"],
             "specialist_skills": _specialist_skills(TEST_STRATEGY_TRACK_ID),
+            **_skill_requirement_fields(root, ["designing-test-strategy"], _specialist_skills(TEST_STRATEGY_TRACK_ID)),
             "description": "Load the test strategy skill before assigning verification layers, commands, or evidence targets.",
         },
         {
@@ -1334,6 +1484,11 @@ def _implementation_planning_authoring_task(
         "suggested_task_id": suggested_task_id,
         "source": source,
         "specialist_skills": _specialist_skills(IMPLEMENTATION_PLANNING_TRACK_ID),
+        **_skill_requirement_fields(
+            root,
+            ["planning-implementation-work"],
+            _specialist_skills(IMPLEMENTATION_PLANNING_TRACK_ID),
+        ),
         "execution": _authoring_execution(
             "implementation-planning-authoring",
             "planning-implementation-work",
@@ -1365,6 +1520,11 @@ def _implementation_planning_authoring_steps(
             "kind": "skill-load",
             "skills": ["planning-implementation-work"],
             "specialist_skills": _specialist_skills(IMPLEMENTATION_PLANNING_TRACK_ID),
+            **_skill_requirement_fields(
+                root,
+                ["planning-implementation-work"],
+                _specialist_skills(IMPLEMENTATION_PLANNING_TRACK_ID),
+            ),
             "description": "Load the implementation planning skill before assigning TASK-NNN scope, status, readiness, or evidence targets.",
         },
         {
@@ -1492,6 +1652,11 @@ def _architecture_decision_authoring_task(
         "next_adr_prefix": next_adr_prefix,
         "source": source,
         "specialist_skills": _specialist_skills(ARCHITECTURE_DECISIONS_TRACK_ID),
+        **_skill_requirement_fields(
+            root,
+            ["capturing-architecture-decisions"],
+            _specialist_skills(ARCHITECTURE_DECISIONS_TRACK_ID),
+        ),
         "execution": _authoring_execution(
             "architecture-decision-authoring",
             "capturing-architecture-decisions",
@@ -1518,6 +1683,11 @@ def _architecture_decision_authoring_steps(
             "kind": "skill-load",
             "skills": ["capturing-architecture-decisions"],
             "specialist_skills": _specialist_skills(ARCHITECTURE_DECISIONS_TRACK_ID),
+            **_skill_requirement_fields(
+                root,
+                ["capturing-architecture-decisions"],
+                _specialist_skills(ARCHITECTURE_DECISIONS_TRACK_ID),
+            ),
             "description": "Load the ADR skill before deciding whether a source-backed architecture decision record is required.",
         },
         {
@@ -1717,6 +1887,7 @@ def _track_payload(
         "status": _track_status(document_status, blockers),
         "skills": list(track.skills),
         "specialist_skills": list(track.specialist_skills),
+        **_skill_requirement_fields(root, track.skills, track.specialist_skills),
         "primary_skill": track.skills[0] if track.skills else "",
         "primary_specialist_skill": track.specialist_skills[0] if track.specialist_skills else "",
         "references": list(track.references),
@@ -1741,6 +1912,7 @@ def _track_steps(
             "kind": "skill-load",
             "skills": list(track.skills),
             "specialist_skills": list(track.specialist_skills),
+            **_skill_requirement_fields(root, track.skills, track.specialist_skills),
             "description": "Load the listed skills before interpreting or editing this design track.",
         },
         {
