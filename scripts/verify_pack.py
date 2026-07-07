@@ -582,14 +582,20 @@ FRESH_TARGET_SMOKE_TEST_REQUIRED_PHRASES = (
     "frontend-authoring",
     "state_ownership",
     "error_actions",
+    "test_strategy_authoring",
+    "test-strategy-authoring",
+    "acceptance_coverage",
+    "evidence_targets",
     "api-contracts",
     "backend-modules",
     "frontend-modules",
+    "test-strategy",
     "designing-api-contracts",
     "designing-backend-modules",
     "designing-data-models",
     "designing-ui-interactions",
     "designing-frontend-modules",
+    "designing-test-strategy",
     "design_blocked_verify",
     "docs/architecture/01-system-context.md",
     "docs/api/endpoints/README.md",
@@ -842,6 +848,27 @@ FRONTEND_AUTHORING_REQUIRED_PHRASES = (
     "error_actions",
     "verify-frontend-authoring",
     "refresh-frontend-authoring",
+)
+TEST_STRATEGY_AUTHORING_DOC_PATHS = (
+    "README.md",
+    "workflows/00-overview.md",
+    "workflows/04-design-derivation.md",
+    "skills/designing-test-strategy/SKILL.md",
+    "skills/verifying-governance-docs/SKILL.md",
+)
+TEST_STRATEGY_AUTHORING_REQUIRED_PHRASES = (
+    "design test-strategy-authoring",
+    "authoring_tasks",
+    "decision_policy",
+    "do_not_guess_verification_scope",
+    "documents",
+    "sections",
+    "required_links",
+    "open_decisions",
+    "acceptance_coverage",
+    "evidence_targets",
+    "verify-test-strategy-authoring",
+    "refresh-test-strategy-authoring",
 )
 SCAFFOLD_CONTINUATION_DOC_PATHS = (
     "README.md",
@@ -1934,7 +1961,14 @@ GOVERNANCE_CLI_REQUIRED_COMMANDS = (
 GOVERNANCE_CLI_REQUIRED_SUBCOMMANDS = {
     "runtime": ("refresh",),
     "product": ("mark-ready", "structure"),
-    "design": ("plan", "api-candidates", "api-authoring", "backend-authoring", "frontend-authoring"),
+    "design": (
+        "plan",
+        "api-candidates",
+        "api-authoring",
+        "backend-authoring",
+        "frontend-authoring",
+        "test-strategy-authoring",
+    ),
 }
 GOVERNANCE_CLI_PARSER_VARIABLES = {
     "top-level": "sub",
@@ -2204,6 +2238,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_api_authoring_docs(root, findings)
     _check_backend_authoring_docs(root, findings)
     _check_frontend_authoring_docs(root, findings)
+    _check_test_strategy_authoring_docs(root, findings)
     _check_scaffold_continuation_docs(root, findings)
     _check_implementation_handoff_docs(root, findings)
     _check_initialization_reference_docs(root, findings)
@@ -3604,6 +3639,23 @@ def _check_frontend_authoring_docs(root: Path, findings: list[PackFinding]) -> N
             PackFinding(
                 "pack_frontend_authoring_doc_missing",
                 f"{rel} must document frontend authoring phrase(s): {', '.join(missing)}",
+                rel,
+            )
+        )
+
+
+def _check_test_strategy_authoring_docs(root: Path, findings: list[PackFinding]) -> None:
+    for rel in TEST_STRATEGY_AUTHORING_DOC_PATHS:
+        text = _read_utf8_text_or_none(root / rel)
+        if text is None:
+            continue
+        missing = [phrase for phrase in TEST_STRATEGY_AUTHORING_REQUIRED_PHRASES if phrase not in text]
+        if not missing:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_test_strategy_authoring_doc_missing",
+                f"{rel} must document test strategy authoring phrase(s): {', '.join(missing)}",
                 rel,
             )
         )

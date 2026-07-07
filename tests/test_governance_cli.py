@@ -5839,6 +5839,125 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertNotIn("component_names", task)
             self.assertNotIn("state_shape", task)
 
+    def test_design_test_strategy_authoring_builds_verification_task_queue_without_guessing_tests(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            (target / "docs/product/01-goals.md").write_text("# Goals\n\nSource: [PRD](core/PRD.md).\n", encoding="utf-8")
+            _append_index(target / "docs/product/README.md", "01-goals.md")
+            _append_product_meta_chapter(target, "01-goals.md")
+            (target / "docs/product/08-acceptance-criteria.md").write_text(
+                _acceptance_doc(),
+                encoding="utf-8",
+            )
+            _append_index(target / "docs/product/README.md", "08-acceptance-criteria.md")
+            _append_product_meta_chapter(target, "08-acceptance-criteria.md")
+            advance_product = subprocess.run(
+                [sys.executable, str(CLI), "advance", "product-structuring", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, advance_product.returncode, advance_product.stderr)
+            advance_design = subprocess.run(
+                [sys.executable, str(CLI), "advance", "design-derivation", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, advance_design.returncode, advance_design.stderr)
+            scaffold_design = subprocess.run(
+                [sys.executable, str(CLI), "scaffold", "design", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, scaffold_design.returncode, scaffold_design.stderr)
+
+            result = subprocess.run(
+                [sys.executable, str(CLI), "design", "test-strategy-authoring", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertEqual(str(target.resolve()), payload["target"])
+            self.assertEqual("design-derivation", payload["phase"])
+            self.assertEqual("test-strategy", payload["track"])
+            self.assertEqual("do_not_guess_verification_scope", payload["decision_policy"])
+            self.assertIn("designing-test-strategy", payload["skills"])
+            self.assertIn("references/test-strategy-checklist.md", payload["references"])
+            self.assertIn("references/security-design-checklist.md", payload["references"])
+            self.assertIn("local_commands", payload)
+            self.assertEqual("advance-implementation-check", payload["next_actions"][0]["id"])
+            self.assertEqual(1, len(payload["authoring_tasks"]))
+            task = payload["authoring_tasks"][0]
+            self.assertEqual("TEST-AUTHOR-001", task["task_id"])
+            self.assertEqual("A-001", task["acceptance_id"])
+            self.assertEqual("Goal Flow", task["title"])
+            self.assertEqual("docs/product/08-acceptance-criteria.md#a-001-goal-flow", task["source"]["reference"])
+            document_paths = [document["path"] for document in task["documents"]]
+            self.assertEqual(
+                [
+                    "docs/tests/01-strategy.md",
+                    "docs/tests/02-acceptance-matrix.md",
+                ],
+                document_paths,
+            )
+            strategy_doc = task["documents"][0]
+            self.assertIn("Test Layers", strategy_doc["sections"])
+            self.assertIn("Non-Functional Checks", strategy_doc["sections"])
+            matrix_doc = task["documents"][1]
+            self.assertIn("Matrix", matrix_doc["sections"])
+            self.assertIn("Uncovered Criteria", matrix_doc["sections"])
+            required_links = {link["kind"]: link["target"] for link in task["required_links"]}
+            self.assertEqual(
+                "docs/product/08-acceptance-criteria.md#a-001-goal-flow",
+                required_links["product_acceptance"],
+            )
+            self.assertEqual("docs/api/endpoints/01-goal-flow.md", required_links["api_contract"])
+            self.assertEqual("docs/architecture/03-quality-attributes.md", required_links["architecture_quality"])
+            self.assertEqual("docs/backend/01-modules.md", required_links["backend_modules"])
+            self.assertEqual("docs/frontend/01-modules.md", required_links["frontend_modules"])
+            self.assertEqual("docs/development/03-verification-log.md", required_links["verification_log"])
+            self.assertIn("acceptance_coverage", task["open_decisions"])
+            self.assertIn("test_layers", task["open_decisions"])
+            self.assertIn("security_checks", task["open_decisions"])
+            self.assertIn("non_functional_checks", task["open_decisions"])
+            self.assertIn("evidence_targets", task["open_decisions"])
+            self.assertEqual(
+                [
+                    "load-test-strategy-skill",
+                    "read-test-references",
+                    "read-source-acceptance",
+                    "read-design-risk-sources",
+                    "author-test-strategy",
+                    "author-acceptance-matrix",
+                    "link-evidence-and-readiness",
+                    "verify-test-strategy-authoring",
+                    "refresh-test-strategy-authoring",
+                ],
+                [step["id"] for step in task["steps"]],
+            )
+            self.assertEqual(["designing-test-strategy"], task["steps"][0]["skills"])
+            self.assertEqual(["bin/governance", "verify", ".", "--check", "--json"], task["steps"][7]["argv"])
+            self.assertFalse(task["steps"][7]["writes_state"])
+            self.assertEqual(["bin/governance", "design", "test-strategy-authoring", ".", "--json"], task["steps"][8]["argv"])
+            self.assertNotIn("test_names", task)
+            self.assertNotIn("commands", task)
+            self.assertNotIn("fixtures", task)
+
     def test_scaffold_design_check_json_reports_plan_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "target"

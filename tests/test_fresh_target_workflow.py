@@ -599,3 +599,26 @@ class FreshTargetWorkflowTest(unittest.TestCase):
                 ["bin/governance", "design", "frontend-authoring", ".", "--json"],
                 frontend_task["steps"][-1]["argv"],
             )
+
+            test_strategy_authoring = _run_json(
+                self,
+                ["bin/governance", "design", "test-strategy-authoring", ".", "--json"],
+                cwd=target,
+            )
+            self.assertTrue(test_strategy_authoring["ok"])
+            self.assertEqual("test-strategy", test_strategy_authoring["track"])
+            self.assertEqual("do_not_guess_verification_scope", test_strategy_authoring["decision_policy"])
+            self.assertEqual(1, len(test_strategy_authoring["authoring_tasks"]))
+            test_task = test_strategy_authoring["authoring_tasks"][0]
+            self.assertEqual("TEST-AUTHOR-001", test_task["task_id"])
+            self.assertEqual("A-001", test_task["acceptance_id"])
+            self.assertIn("designing-test-strategy", test_strategy_authoring["skills"])
+            self.assertIn("docs/tests/01-strategy.md", [document["path"] for document in test_task["documents"]])
+            self.assertIn("docs/tests/02-acceptance-matrix.md", [document["path"] for document in test_task["documents"]])
+            self.assertIn("acceptance_coverage", test_task["open_decisions"])
+            self.assertIn("evidence_targets", test_task["open_decisions"])
+            self.assertIn("docs/api/endpoints/01-initialized-repository-exposes-local-governance-checks.md", [link["target"] for link in test_task["required_links"]])
+            self.assertEqual(
+                ["bin/governance", "design", "test-strategy-authoring", ".", "--json"],
+                test_task["steps"][-1]["argv"],
+            )

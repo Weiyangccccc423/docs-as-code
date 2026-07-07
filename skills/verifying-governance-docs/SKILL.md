@@ -25,6 +25,7 @@ bin/governance design api-candidates <target>
 bin/governance design api-authoring <target>
 bin/governance design backend-authoring <target>
 bin/governance design frontend-authoring <target>
+bin/governance design test-strategy-authoring <target>
 bin/governance runtime refresh <target> --check
 bin/governance runtime refresh <target>
 ```
@@ -45,6 +46,7 @@ bin/governance design api-candidates <target> --json
 bin/governance design api-authoring <target> --json
 bin/governance design backend-authoring <target> --json
 bin/governance design frontend-authoring <target> --json
+bin/governance design test-strategy-authoring <target> --json
 bin/governance runtime refresh <target> --check --json
 bin/governance runtime refresh <target> --json
 ```
@@ -60,6 +62,7 @@ After successful `design api-candidates --json`, use returned `candidates[].acce
 After successful `design api-authoring --json`, use `decision_policy: do_not_guess_contract_details` and `authoring_tasks[]` to drive API contract edits. Each task lists target `documents`, required `sections`, `required_links`, unresolved `open_decisions`, and command steps such as verify-api-authoring and refresh-api-authoring; run those read-only commands before considering the API track repaired.
 After successful `design backend-authoring --json`, use `decision_policy: do_not_guess_backend_boundaries` and `authoring_tasks[]` to drive backend module and data-model edits. Each task lists backend/data-model `documents`, required `sections`, `required_links`, unresolved `open_decisions` such as `module_boundaries` and `transaction_boundaries`, and command steps such as verify-backend-authoring and refresh-backend-authoring; run those read-only commands before considering the backend track repaired.
 After successful `design frontend-authoring --json`, use `decision_policy: do_not_guess_frontend_behavior` and `authoring_tasks[]` to drive UI interaction, frontend module, and API-consumption edits. Each task lists UI/frontend `documents`, required `sections`, `required_links`, unresolved `open_decisions` such as `state_ownership` and `error_actions`, and command steps such as verify-frontend-authoring and refresh-frontend-authoring; run those read-only commands before considering the frontend track repaired.
+After successful `design test-strategy-authoring --json`, use `decision_policy: do_not_guess_verification_scope` and `authoring_tasks[]` to drive test strategy and acceptance-matrix edits. Each task lists test `documents`, required `sections`, `required_links`, unresolved `open_decisions` such as `acceptance_coverage` and `evidence_targets`, and command steps such as verify-test-strategy-authoring and refresh-test-strategy-authoring; run those read-only commands before considering the verification track repaired.
 After successful write-mode `runtime refresh --json`, use returned `local_commands[].argv` before trusting target-local checks and `next_actions[].argv` for the next workflow transition. Keep `runtime refresh --check --json` as a no-write plan only.
 
 ## Repair Order

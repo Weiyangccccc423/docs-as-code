@@ -35,6 +35,7 @@ from design_plan import (
     build_backend_authoring,
     build_design_plan,
     build_frontend_authoring,
+    build_test_strategy_authoring,
 )
 from gates import GATE_NAMES, evaluate_gate
 from phases import PHASE_NAMES, advance_phase, check_advance_phase
@@ -701,6 +702,23 @@ def _cmd_design_frontend_authoring(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_design_test_strategy_authoring(args: argparse.Namespace) -> int:
+    target = Path(args.target)
+    payload = build_test_strategy_authoring(target)
+    if args.json:
+        _print_json(payload)
+        return 0 if payload["ok"] else 1
+    if not payload["ok"]:
+        print("Test strategy authoring plan failed:")
+        for error in payload["errors"]:
+            print(f"- ERROR: {error}")
+        return 1
+    print("Test strategy authoring tasks:")
+    for task in payload["authoring_tasks"]:
+        print(f"- {task['task_id']}: {task['acceptance_id']}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="docs-as-code governance workflow CLI")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -838,6 +856,13 @@ def build_parser() -> argparse.ArgumentParser:
     frontend_authoring.add_argument("target", nargs="?", default=".")
     frontend_authoring.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     frontend_authoring.set_defaults(func=_cmd_design_frontend_authoring)
+    test_strategy_authoring = design_sub.add_parser(
+        "test-strategy-authoring",
+        help="Build source-backed test strategy and acceptance matrix authoring tasks.",
+    )
+    test_strategy_authoring.add_argument("target", nargs="?", default=".")
+    test_strategy_authoring.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    test_strategy_authoring.set_defaults(func=_cmd_design_test_strategy_authoring)
 
     return parser
 

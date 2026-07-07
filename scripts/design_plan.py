@@ -22,6 +22,7 @@ DESIGN_PHASE = "design-derivation"
 API_TRACK_ID = "api-contracts"
 BACKEND_TRACK_ID = "backend-modules"
 FRONTEND_TRACK_ID = "frontend-modules"
+TEST_STRATEGY_TRACK_ID = "test-strategy"
 STARTER_ENDPOINT_CONTRACT = "docs/api/endpoints/01-endpoint-contract.md"
 ACCEPTANCE_HEADING_RE = re.compile(r"^##[ \t]+(?P<id>A-[0-9]{3})[ \t]+(?P<title>.+?)[ \t]*$", re.MULTILINE)
 SLUG_TOKEN_RE = re.compile(r"[a-z0-9]+")
@@ -140,6 +141,31 @@ FRONTEND_API_CONSUMPTION_SECTIONS = (
     "Consumption Map",
     "Loading States",
     "Error Actions",
+)
+OPEN_TEST_STRATEGY_DECISIONS = (
+    "acceptance_coverage",
+    "test_layers",
+    "contract_tests",
+    "end_to_end_flows",
+    "accessibility_checks",
+    "security_checks",
+    "non_functional_checks",
+    "test_data",
+    "environment_assumptions",
+    "local_verification_commands",
+    "evidence_targets",
+    "uncovered_criteria",
+)
+TEST_STRATEGY_SECTIONS = (
+    "Product Links",
+    "Acceptance Links",
+    "Test Layers",
+    "Risk Coverage",
+    "Non-Functional Checks",
+)
+ACCEPTANCE_MATRIX_SECTIONS = (
+    "Matrix",
+    "Uncovered Criteria",
 )
 
 
@@ -428,6 +454,43 @@ def build_frontend_authoring(root: Path) -> dict[str, object]:
         "source_documents": _source_documents(root),
         "authoring_tasks": [
             _frontend_authoring_task(root, candidate, index)
+            for index, candidate in enumerate(candidates, start=1)
+        ],
+        "errors": errors,
+    }
+    if not errors:
+        payload["local_commands"] = target_local_commands_payload(cwd=str(root))
+        payload["next_actions"] = next_actions_payload(state, cwd=str(root))
+    return payload
+
+
+def build_test_strategy_authoring(root: Path) -> dict[str, object]:
+    root = root.resolve()
+    state = load_state(root)
+    phase = state.get("phase") if isinstance(state.get("phase"), str) else ""
+    errors: list[str] = []
+    if not state:
+        errors.append("No governance state found.")
+    elif phase != DESIGN_PHASE:
+        errors.append(f"test strategy authoring requires recorded phase {DESIGN_PHASE}")
+    candidates = _api_candidates(root)
+    if not candidates:
+        errors.append("No product acceptance criteria with A-NNN headings found.")
+    payload: dict[str, object] = {
+        "ok": not errors,
+        "target": str(root),
+        "phase": phase,
+        "workflow": DESIGN_WORKFLOW_PATH,
+        "track": TEST_STRATEGY_TRACK_ID,
+        "decision_policy": "do_not_guess_verification_scope",
+        "skills": ["designing-test-strategy"],
+        "references": [
+            "references/test-strategy-checklist.md",
+            "references/security-design-checklist.md",
+        ],
+        "source_documents": _source_documents(root),
+        "authoring_tasks": [
+            _test_strategy_authoring_task(root, candidate, index)
             for index, candidate in enumerate(candidates, start=1)
         ],
         "errors": errors,
@@ -880,6 +943,126 @@ def _frontend_authoring_steps(
             "refresh-frontend-authoring",
             "Refresh the frontend authoring queue after verification.",
             ["bin/governance", "design", "frontend-authoring", ".", "--json"],
+        ),
+    ]
+
+
+def _test_strategy_authoring_task(root: Path, candidate: dict[str, object], index: int) -> dict[str, object]:
+    source = candidate["source"]
+    if not isinstance(source, dict):  # pragma: no cover - internal invariant
+        source = {}
+    source_reference = str(source.get("reference", ""))
+    api_contract = str(candidate["suggested_endpoint_file"])
+    documents = [
+        _authoring_document(
+            "docs/tests/01-strategy.md",
+            TEST_STRATEGY_SECTIONS,
+            "Define test layers, risk coverage, non-functional checks, commands, test data, and evidence targets.",
+        ),
+        _authoring_document(
+            "docs/tests/02-acceptance-matrix.md",
+            ACCEPTANCE_MATRIX_SECTIONS,
+            "Map product-defined acceptance criteria to design, API, and test evidence or list uncovered criteria.",
+        ),
+    ]
+    required_links = [
+        _required_link(root, "product_acceptance", source_reference),
+        _required_link(root, "api_contract", api_contract),
+        _required_link(root, "architecture_quality", "docs/architecture/03-quality-attributes.md"),
+        _required_link(root, "backend_modules", "docs/backend/01-modules.md"),
+        _required_link(root, "frontend_modules", "docs/frontend/01-modules.md"),
+        _required_link(root, "ui_interaction", "docs/ui/01-interaction-model.md"),
+        _required_link(root, "verification_log", "docs/development/03-verification-log.md"),
+        _required_link(root, "unresolved_decisions", "docs/unresolved.md"),
+    ]
+    return {
+        "task_id": f"TEST-AUTHOR-{index:03d}",
+        "api_candidate_id": candidate["candidate_id"],
+        "acceptance_id": candidate["acceptance_id"],
+        "title": candidate["title"],
+        "source": source,
+        "documents": documents,
+        "required_links": required_links,
+        "open_decisions": list(OPEN_TEST_STRATEGY_DECISIONS),
+        "steps": _test_strategy_authoring_steps(root, source_reference, api_contract, required_links),
+    }
+
+
+def _test_strategy_authoring_steps(
+    root: Path,
+    source_reference: str,
+    api_contract: str,
+    required_links: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    return [
+        {
+            "id": "load-test-strategy-skill",
+            "kind": "skill-load",
+            "skills": ["designing-test-strategy"],
+            "description": "Load the test strategy skill before assigning verification layers, commands, or evidence targets.",
+        },
+        {
+            "id": "read-test-references",
+            "kind": "read",
+            "references": [
+                "references/test-strategy-checklist.md",
+                "references/security-design-checklist.md",
+            ],
+            "description": "Read test strategy and security guidance before resolving verification scope.",
+        },
+        {
+            "id": "read-source-acceptance",
+            "kind": "read",
+            "documents": [source_reference],
+            "description": "Read the product acceptance criterion that drives this verification task.",
+        },
+        {
+            "id": "read-design-risk-sources",
+            "kind": "read",
+            "documents": [
+                api_contract,
+                "docs/architecture/03-quality-attributes.md",
+                "docs/backend/01-modules.md",
+                "docs/frontend/01-modules.md",
+                "docs/ui/01-interaction-model.md",
+            ],
+            "description": "Read design and implementation-risk sources before assigning test layers or matrix coverage.",
+        },
+        {
+            "id": "author-test-strategy",
+            "kind": "author",
+            "document": "docs/tests/01-strategy.md",
+            "sections": list(TEST_STRATEGY_SECTIONS),
+            "description": "Define acceptance traceability, test layers, risk coverage, non-functional checks, commands, data, and evidence targets.",
+        },
+        {
+            "id": "author-acceptance-matrix",
+            "kind": "author",
+            "document": "docs/tests/02-acceptance-matrix.md",
+            "sections": list(ACCEPTANCE_MATRIX_SECTIONS),
+            "description": "Map each product-defined acceptance ID to design, API, and test evidence, or list it under uncovered criteria.",
+        },
+        {
+            "id": "link-evidence-and-readiness",
+            "kind": "link",
+            "required_links": [
+                link
+                for link in required_links
+                if link["kind"] in {"product_acceptance", "verification_log", "unresolved_decisions"}
+            ],
+            "description": "Connect verification scope to acceptance criteria, evidence logs, and unresolved coverage gaps.",
+        },
+        _command_step(
+            root,
+            "verify-test-strategy-authoring",
+            "Run read-only governance verification after test strategy authoring.",
+            ["bin/governance", "verify", ".", "--check", "--json"],
+        ),
+        _command_step(
+            root,
+            "refresh-test-strategy-authoring",
+            "Refresh the test strategy authoring queue after verification.",
+            ["bin/governance", "design", "test-strategy-authoring", ".", "--json"],
         ),
     ]
 
