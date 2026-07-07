@@ -488,18 +488,25 @@ class FreshTargetWorkflowTest(unittest.TestCase):
             )
             tracks = {track["id"]: track for track in design_plan["tracks"]}
             self.assertIn("designing-system-architecture", tracks["architecture"]["skills"])
+            self.assertEqual(1, tracks["architecture"]["sequence"])
+            self.assertEqual("senior-architect", tracks["architecture"]["primary_specialist_skill"])
             self.assertIn("references/architecture-methods.md", tracks["architecture"]["references"])
             self.assertIn("docs/architecture/01-system-context.md", tracks["architecture"]["documents"])
             self.assertIn("designing-api-contracts", tracks["api-contracts"]["skills"])
+            self.assertEqual(3, tracks["api-contracts"]["sequence"])
+            self.assertEqual("api-design-reviewer", tracks["api-contracts"]["primary_specialist_skill"])
             self.assertIn("references/api-design-checklist.md", tracks["api-contracts"]["references"])
             self.assertIn("references/security-design-checklist.md", tracks["api-contracts"]["references"])
             self.assertIn("docs/api/endpoints/01-endpoint-contract.md", tracks["api-contracts"]["documents"])
             api_steps = tracks["api-contracts"]["steps"]
             self.assertEqual("load-track-skills", api_steps[0]["id"])
+            self.assertEqual(1, api_steps[0]["sequence"])
             self.assertIn("designing-api-contracts", api_steps[0]["skills"])
             self.assertEqual("read-product-sources", api_steps[1]["id"])
+            self.assertEqual(2, api_steps[1]["sequence"])
             self.assertIn("docs/product/core/PRD.md", api_steps[1]["documents"])
             self.assertEqual("verify-track", api_steps[4]["id"])
+            self.assertEqual(5, api_steps[4]["sequence"])
             self.assertEqual(["bin/governance", "verify", ".", "--check", "--json"], api_steps[4]["argv"])
             self.assertIn("designing-backend-modules", tracks["backend-modules"]["skills"])
             self.assertIn("references/backend-design-checklist.md", tracks["backend-modules"]["references"])
@@ -543,6 +550,11 @@ class FreshTargetWorkflowTest(unittest.TestCase):
             self.assertEqual(1, len(api_authoring["authoring_tasks"]))
             authoring_task = api_authoring["authoring_tasks"][0]
             self.assertEqual("API-AUTHOR-001", authoring_task["task_id"])
+            self.assertEqual(1, authoring_task["sequence"])
+            self.assertEqual("api-contract-authoring", authoring_task["execution"]["stage"])
+            self.assertEqual("api-design-reviewer", authoring_task["execution"]["primary_specialist_skill"])
+            self.assertEqual("verify-api-authoring", authoring_task["execution"]["verify_step"])
+            self.assertEqual("refresh-api-authoring", authoring_task["execution"]["refresh_step"])
             self.assertEqual("API-001", authoring_task["candidate_id"])
             self.assertEqual("A-001", authoring_task["acceptance_id"])
             self.assertEqual(
@@ -570,6 +582,8 @@ class FreshTargetWorkflowTest(unittest.TestCase):
             self.assertEqual(1, len(backend_authoring["authoring_tasks"]))
             backend_task = backend_authoring["authoring_tasks"][0]
             self.assertEqual("BACKEND-AUTHOR-001", backend_task["task_id"])
+            self.assertEqual("backend-design-authoring", backend_task["execution"]["stage"])
+            self.assertEqual("senior-backend", backend_task["execution"]["primary_specialist_skill"])
             self.assertEqual("A-001", backend_task["acceptance_id"])
             self.assertIn("designing-backend-modules", backend_authoring["skills"])
             self.assertIn("designing-data-models", backend_authoring["skills"])
@@ -595,6 +609,8 @@ class FreshTargetWorkflowTest(unittest.TestCase):
             self.assertEqual(1, len(frontend_authoring["authoring_tasks"]))
             frontend_task = frontend_authoring["authoring_tasks"][0]
             self.assertEqual("FRONTEND-AUTHOR-001", frontend_task["task_id"])
+            self.assertEqual("frontend-design-authoring", frontend_task["execution"]["stage"])
+            self.assertEqual("senior-frontend", frontend_task["execution"]["primary_specialist_skill"])
             self.assertEqual("A-001", frontend_task["acceptance_id"])
             self.assertIn("designing-ui-interactions", frontend_authoring["skills"])
             self.assertIn("designing-frontend-modules", frontend_authoring["skills"])
@@ -620,6 +636,8 @@ class FreshTargetWorkflowTest(unittest.TestCase):
             self.assertEqual(1, len(test_strategy_authoring["authoring_tasks"]))
             test_task = test_strategy_authoring["authoring_tasks"][0]
             self.assertEqual("TEST-AUTHOR-001", test_task["task_id"])
+            self.assertEqual("test-strategy-authoring", test_task["execution"]["stage"])
+            self.assertEqual("senior-qa", test_task["execution"]["primary_specialist_skill"])
             self.assertEqual("A-001", test_task["acceptance_id"])
             self.assertIn("designing-test-strategy", test_strategy_authoring["skills"])
             self.assertIn("docs/tests/01-strategy.md", [document["path"] for document in test_task["documents"]])
@@ -643,6 +661,8 @@ class FreshTargetWorkflowTest(unittest.TestCase):
             self.assertEqual(1, len(implementation_planning_authoring["authoring_tasks"]))
             planning_task = implementation_planning_authoring["authoring_tasks"][0]
             self.assertEqual("PLAN-AUTHOR-001", planning_task["task_id"])
+            self.assertEqual("implementation-planning-authoring", planning_task["execution"]["stage"])
+            self.assertEqual("senior-fullstack", planning_task["execution"]["primary_specialist_skill"])
             self.assertEqual("A-001", planning_task["acceptance_id"])
             self.assertEqual("TASK-001", planning_task["suggested_task_id"])
             self.assertIn("planning-implementation-work", implementation_planning_authoring["skills"])
@@ -673,6 +693,8 @@ class FreshTargetWorkflowTest(unittest.TestCase):
             self.assertEqual(1, len(architecture_decisions_authoring["authoring_tasks"]))
             adr_task = architecture_decisions_authoring["authoring_tasks"][0]
             self.assertEqual("ADR-AUTHOR-001", adr_task["task_id"])
+            self.assertEqual("architecture-decision-authoring", adr_task["execution"]["stage"])
+            self.assertEqual("senior-architect", adr_task["execution"]["primary_specialist_skill"])
             self.assertEqual("A-001", adr_task["acceptance_id"])
             self.assertEqual("undetermined", adr_task["requires_adr"])
             self.assertEqual("001", adr_task["next_adr_prefix"])

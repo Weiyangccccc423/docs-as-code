@@ -369,7 +369,10 @@ def build_design_plan(root: Path) -> dict[str, object]:
         errors.append(f"design plan requires recorded phase {DESIGN_PHASE}")
     source_documents = _source_documents(root)
     findings_by_path = _findings_by_path(report.findings)
-    tracks = [_track_payload(root, track, source_documents, findings_by_path) for track in DESIGN_TRACKS]
+    tracks = [
+        _track_payload(root, track, sequence, source_documents, findings_by_path)
+        for sequence, track in enumerate(DESIGN_TRACKS, start=1)
+    ]
     payload: dict[str, object] = {
         "ok": not errors,
         "target": str(root),
@@ -753,6 +756,7 @@ def _api_authoring_task(root: Path, candidate: dict[str, object], index: int) ->
     ]
     return {
         "task_id": f"API-AUTHOR-{index:03d}",
+        "sequence": index,
         "candidate_id": candidate["candidate_id"],
         "acceptance_id": candidate["acceptance_id"],
         "title": candidate["title"],
@@ -761,6 +765,13 @@ def _api_authoring_task(root: Path, candidate: dict[str, object], index: int) ->
         "endpoint_exists": candidate["endpoint_exists"],
         "replaceable_starter_endpoint": candidate["replaceable_starter_endpoint"],
         "specialist_skills": _specialist_skills(API_TRACK_ID),
+        "execution": _authoring_execution(
+            "api-contract-authoring",
+            "designing-api-contracts",
+            "api-design-reviewer",
+            "verify-api-authoring",
+            "refresh-api-authoring",
+        ),
         "documents": documents,
         "required_links": required_links,
         "open_decisions": list(candidate["open_decisions"]),
@@ -792,7 +803,7 @@ def _api_authoring_steps(
     documents: list[dict[str, object]],
     required_links: list[dict[str, object]],
 ) -> list[dict[str, object]]:
-    return [
+    return _sequence_steps([
         {
             "id": "load-api-contract-skill",
             "kind": "skill-load",
@@ -857,7 +868,7 @@ def _api_authoring_steps(
             "Refresh the API authoring queue after verification.",
             ["bin/governance", "design", "api-authoring", ".", "--json"],
         ),
-    ]
+    ])
 
 
 def _backend_authoring_task(root: Path, candidate: dict[str, object], index: int) -> dict[str, object]:
@@ -895,11 +906,19 @@ def _backend_authoring_task(root: Path, candidate: dict[str, object], index: int
     ]
     return {
         "task_id": f"BACKEND-AUTHOR-{index:03d}",
+        "sequence": index,
         "api_candidate_id": candidate["candidate_id"],
         "acceptance_id": candidate["acceptance_id"],
         "title": candidate["title"],
         "source": source,
         "specialist_skills": _combined_specialist_skills(BACKEND_TRACK_ID, DATA_MODEL_TRACK_ID),
+        "execution": _authoring_execution(
+            "backend-design-authoring",
+            "designing-backend-modules",
+            "senior-backend",
+            "verify-backend-authoring",
+            "refresh-backend-authoring",
+        ),
         "documents": documents,
         "required_links": required_links,
         "open_decisions": list(OPEN_BACKEND_DECISIONS),
@@ -913,7 +932,7 @@ def _backend_authoring_steps(
     api_contract: str,
     required_links: list[dict[str, object]],
 ) -> list[dict[str, object]]:
-    return [
+    return _sequence_steps([
         {
             "id": "load-backend-design-skills",
             "kind": "skill-load",
@@ -991,7 +1010,7 @@ def _backend_authoring_steps(
             "Refresh the backend authoring queue after verification.",
             ["bin/governance", "design", "backend-authoring", ".", "--json"],
         ),
-    ]
+    ])
 
 
 def _frontend_authoring_task(root: Path, candidate: dict[str, object], index: int) -> dict[str, object]:
@@ -1028,11 +1047,19 @@ def _frontend_authoring_task(root: Path, candidate: dict[str, object], index: in
     ]
     return {
         "task_id": f"FRONTEND-AUTHOR-{index:03d}",
+        "sequence": index,
         "api_candidate_id": candidate["candidate_id"],
         "acceptance_id": candidate["acceptance_id"],
         "title": candidate["title"],
         "source": source,
         "specialist_skills": _combined_specialist_skills(UI_INTERACTION_TRACK_ID, FRONTEND_TRACK_ID),
+        "execution": _authoring_execution(
+            "frontend-design-authoring",
+            "designing-ui-interactions",
+            "senior-frontend",
+            "verify-frontend-authoring",
+            "refresh-frontend-authoring",
+        ),
         "documents": documents,
         "required_links": required_links,
         "open_decisions": list(OPEN_FRONTEND_DECISIONS),
@@ -1046,7 +1073,7 @@ def _frontend_authoring_steps(
     api_contract: str,
     required_links: list[dict[str, object]],
 ) -> list[dict[str, object]]:
-    return [
+    return _sequence_steps([
         {
             "id": "load-frontend-design-skills",
             "kind": "skill-load",
@@ -1122,7 +1149,7 @@ def _frontend_authoring_steps(
             "Refresh the frontend authoring queue after verification.",
             ["bin/governance", "design", "frontend-authoring", ".", "--json"],
         ),
-    ]
+    ])
 
 
 def _test_strategy_authoring_task(root: Path, candidate: dict[str, object], index: int) -> dict[str, object]:
@@ -1155,11 +1182,19 @@ def _test_strategy_authoring_task(root: Path, candidate: dict[str, object], inde
     ]
     return {
         "task_id": f"TEST-AUTHOR-{index:03d}",
+        "sequence": index,
         "api_candidate_id": candidate["candidate_id"],
         "acceptance_id": candidate["acceptance_id"],
         "title": candidate["title"],
         "source": source,
         "specialist_skills": _specialist_skills(TEST_STRATEGY_TRACK_ID),
+        "execution": _authoring_execution(
+            "test-strategy-authoring",
+            "designing-test-strategy",
+            "senior-qa",
+            "verify-test-strategy-authoring",
+            "refresh-test-strategy-authoring",
+        ),
         "documents": documents,
         "required_links": required_links,
         "open_decisions": list(OPEN_TEST_STRATEGY_DECISIONS),
@@ -1173,7 +1208,7 @@ def _test_strategy_authoring_steps(
     api_contract: str,
     required_links: list[dict[str, object]],
 ) -> list[dict[str, object]]:
-    return [
+    return _sequence_steps([
         {
             "id": "load-test-strategy-skill",
             "kind": "skill-load",
@@ -1244,7 +1279,7 @@ def _test_strategy_authoring_steps(
             "Refresh the test strategy authoring queue after verification.",
             ["bin/governance", "design", "test-strategy-authoring", ".", "--json"],
         ),
-    ]
+    ])
 
 
 def _implementation_planning_authoring_task(
@@ -1292,12 +1327,20 @@ def _implementation_planning_authoring_task(
     ]
     return {
         "task_id": f"PLAN-AUTHOR-{index:03d}",
+        "sequence": index,
         "api_candidate_id": candidate["candidate_id"],
         "acceptance_id": candidate["acceptance_id"],
         "title": candidate["title"],
         "suggested_task_id": suggested_task_id,
         "source": source,
         "specialist_skills": _specialist_skills(IMPLEMENTATION_PLANNING_TRACK_ID),
+        "execution": _authoring_execution(
+            "implementation-planning-authoring",
+            "planning-implementation-work",
+            "senior-fullstack",
+            "verify-implementation-planning-authoring",
+            "refresh-implementation-planning-authoring",
+        ),
         "documents": documents,
         "required_links": required_links,
         "open_decisions": list(OPEN_IMPLEMENTATION_PLANNING_DECISIONS),
@@ -1316,7 +1359,7 @@ def _implementation_planning_authoring_steps(
     api_contract: str,
     required_links: list[dict[str, object]],
 ) -> list[dict[str, object]]:
-    return [
+    return _sequence_steps([
         {
             "id": "load-implementation-planning-skill",
             "kind": "skill-load",
@@ -1405,7 +1448,7 @@ def _implementation_planning_authoring_steps(
             "Refresh the implementation planning authoring queue after verification.",
             ["bin/governance", "design", "implementation-planning-authoring", ".", "--json"],
         ),
-    ]
+    ])
 
 
 def _architecture_decision_authoring_task(
@@ -1441,6 +1484,7 @@ def _architecture_decision_authoring_task(
     ]
     return {
         "task_id": f"ADR-AUTHOR-{index:03d}",
+        "sequence": index,
         "api_candidate_id": candidate["candidate_id"],
         "acceptance_id": candidate["acceptance_id"],
         "title": candidate["title"],
@@ -1448,6 +1492,13 @@ def _architecture_decision_authoring_task(
         "next_adr_prefix": next_adr_prefix,
         "source": source,
         "specialist_skills": _specialist_skills(ARCHITECTURE_DECISIONS_TRACK_ID),
+        "execution": _authoring_execution(
+            "architecture-decision-authoring",
+            "capturing-architecture-decisions",
+            "senior-architect",
+            "verify-architecture-decisions-authoring",
+            "refresh-architecture-decisions-authoring",
+        ),
         "documents": documents,
         "required_links": required_links,
         "open_decisions": list(OPEN_ARCHITECTURE_DECISION_DECISIONS),
@@ -1461,7 +1512,7 @@ def _architecture_decision_authoring_steps(
     api_contract: str,
     required_links: list[dict[str, object]],
 ) -> list[dict[str, object]]:
-    return [
+    return _sequence_steps([
         {
             "id": "load-adr-skill",
             "kind": "skill-load",
@@ -1549,7 +1600,7 @@ def _architecture_decision_authoring_steps(
             "Refresh the architecture decisions authoring queue after verification.",
             ["bin/governance", "design", "architecture-decisions-authoring", ".", "--json"],
         ),
-    ]
+    ])
 
 
 def _acceptance_headings(root: Path) -> list[dict[str, str]]:
@@ -1640,6 +1691,7 @@ def _findings_by_path(findings: list[VerificationFinding]) -> dict[str, list[dic
 def _track_payload(
     root: Path,
     track: DesignTrack,
+    sequence: int,
     source_documents: list[str],
     findings_by_path: dict[str, list[dict[str, str]]],
 ) -> dict[str, object]:
@@ -1659,11 +1711,14 @@ def _track_payload(
         )
     return {
         "id": track.id,
+        "sequence": sequence,
         "title": track.title,
         "purpose": track.purpose,
         "status": _track_status(document_status, blockers),
         "skills": list(track.skills),
         "specialist_skills": list(track.specialist_skills),
+        "primary_skill": track.skills[0] if track.skills else "",
+        "primary_specialist_skill": track.specialist_skills[0] if track.specialist_skills else "",
         "references": list(track.references),
         "documents": documents,
         "document_status": document_status,
@@ -1680,7 +1735,7 @@ def _track_steps(
     documents: list[str],
     blockers: list[dict[str, str]],
 ) -> list[dict[str, object]]:
-    return [
+    return _sequence_steps([
         {
             "id": "load-track-skills",
             "kind": "skill-load",
@@ -1719,7 +1774,7 @@ def _track_steps(
             "Refresh the design authoring queue after verification.",
             ["bin/governance", "design", "plan", ".", "--json"],
         ),
-    ]
+    ])
 
 
 def _command_step(root: Path, step_id: str, description: str, argv: list[str]) -> dict[str, object]:
@@ -1732,6 +1787,33 @@ def _command_step(root: Path, step_id: str, description: str, argv: list[str]) -
         "writes_state": False,
         "approval_required": False,
         "description": description,
+    }
+
+
+def _sequence_steps(steps: list[dict[str, object]]) -> list[dict[str, object]]:
+    return [
+        {
+            "sequence": index,
+            **step,
+        }
+        for index, step in enumerate(steps, start=1)
+    ]
+
+
+def _authoring_execution(
+    stage: str,
+    primary_skill: str,
+    primary_specialist_skill: str,
+    verify_step: str,
+    refresh_step: str,
+) -> dict[str, str]:
+    return {
+        "stage": stage,
+        "primary_skill": primary_skill,
+        "primary_specialist_skill": primary_specialist_skill,
+        "verify_step": verify_step,
+        "refresh_step": refresh_step,
+        "stop_condition": "open_decisions_unresolved_or_required_links_missing",
     }
 
 

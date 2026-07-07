@@ -5489,8 +5489,14 @@ class GovernanceCliTest(unittest.TestCase):
                 track_ids,
             )
             tracks = {track["id"]: track for track in payload["tracks"]}
+            self.assertEqual(1, tracks["architecture"]["sequence"])
+            self.assertEqual("designing-system-architecture", tracks["architecture"]["primary_skill"])
+            self.assertEqual("senior-architect", tracks["architecture"]["primary_specialist_skill"])
             self.assertIn("senior-architect", tracks["architecture"]["specialist_skills"])
             self.assertIn("senior-security", tracks["architecture"]["specialist_skills"])
+            self.assertEqual(3, tracks["api-contracts"]["sequence"])
+            self.assertEqual("designing-api-contracts", tracks["api-contracts"]["primary_skill"])
+            self.assertEqual("api-design-reviewer", tracks["api-contracts"]["primary_specialist_skill"])
             self.assertEqual("authoring_blocked", tracks["api-contracts"]["status"])
             self.assertIn("designing-api-contracts", tracks["api-contracts"]["skills"])
             self.assertIn("api-design-reviewer", tracks["api-contracts"]["specialist_skills"])
@@ -5510,6 +5516,7 @@ class GovernanceCliTest(unittest.TestCase):
                 ],
                 [step["id"] for step in api_steps],
             )
+            self.assertEqual(list(range(1, 7)), [step["sequence"] for step in api_steps])
             self.assertEqual("skill-load", api_steps[0]["kind"])
             self.assertIn("designing-api-contracts", api_steps[0]["skills"])
             self.assertIn("api-design-reviewer", api_steps[0]["specialist_skills"])
@@ -5537,7 +5544,9 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn("senior-backend", tracks["backend-modules"]["specialist_skills"])
             self.assertIn("observability-designer", tracks["backend-modules"]["specialist_skills"])
             self.assertIn("references/backend-operability-checklist.md", tracks["backend-modules"]["references"])
+            self.assertEqual("senior-backend", tracks["backend-modules"]["primary_specialist_skill"])
             self.assertIn("designing-data-models", tracks["data-model"]["skills"])
+            self.assertEqual("database-designer", tracks["data-model"]["primary_specialist_skill"])
             self.assertIn("database-schema-designer", tracks["data-model"]["specialist_skills"])
             self.assertIn("references/data-model-design-checklist.md", tracks["data-model"]["references"])
 
@@ -5678,6 +5687,18 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual(1, len(payload["authoring_tasks"]))
             task = payload["authoring_tasks"][0]
             self.assertEqual("API-AUTHOR-001", task["task_id"])
+            self.assertEqual(1, task["sequence"])
+            self.assertEqual(
+                {
+                    "stage": "api-contract-authoring",
+                    "primary_skill": "designing-api-contracts",
+                    "primary_specialist_skill": "api-design-reviewer",
+                    "verify_step": "verify-api-authoring",
+                    "refresh_step": "refresh-api-authoring",
+                    "stop_condition": "open_decisions_unresolved_or_required_links_missing",
+                },
+                task["execution"],
+            )
             self.assertEqual("API-001", task["candidate_id"])
             self.assertEqual("A-001", task["acceptance_id"])
             self.assertEqual("Goal Flow", task["title"])
@@ -5726,6 +5747,7 @@ class GovernanceCliTest(unittest.TestCase):
                 ],
                 [step["id"] for step in task["steps"]],
             )
+            self.assertEqual(list(range(1, 10)), [step["sequence"] for step in task["steps"]])
             self.assertEqual(["designing-api-contracts"], task["steps"][0]["skills"])
             self.assertIn("api-design-reviewer", task["steps"][0]["specialist_skills"])
             self.assertEqual(["bin/governance", "verify", ".", "--check", "--json"], task["steps"][7]["argv"])
@@ -5808,6 +5830,16 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual(1, len(payload["authoring_tasks"]))
             task = payload["authoring_tasks"][0]
             self.assertEqual("BACKEND-AUTHOR-001", task["task_id"])
+            self.assertEqual(1, task["sequence"])
+            self.assertEqual("backend-design-authoring", task["execution"]["stage"])
+            self.assertEqual("designing-backend-modules", task["execution"]["primary_skill"])
+            self.assertEqual("senior-backend", task["execution"]["primary_specialist_skill"])
+            self.assertEqual("verify-backend-authoring", task["execution"]["verify_step"])
+            self.assertEqual("refresh-backend-authoring", task["execution"]["refresh_step"])
+            self.assertEqual(
+                "open_decisions_unresolved_or_required_links_missing",
+                task["execution"]["stop_condition"],
+            )
             self.assertEqual("A-001", task["acceptance_id"])
             self.assertEqual("Goal Flow", task["title"])
             self.assertEqual("docs/product/08-acceptance-criteria.md#a-001-goal-flow", task["source"]["reference"])
@@ -5862,6 +5894,7 @@ class GovernanceCliTest(unittest.TestCase):
                 ],
                 [step["id"] for step in task["steps"]],
             )
+            self.assertEqual(list(range(1, 11)), [step["sequence"] for step in task["steps"]])
             self.assertEqual(["designing-backend-modules", "designing-data-models"], task["steps"][0]["skills"])
             self.assertIn("senior-backend", task["steps"][0]["specialist_skills"])
             self.assertIn("database-schema-designer", task["steps"][0]["specialist_skills"])
@@ -5941,6 +5974,12 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual(1, len(payload["authoring_tasks"]))
             task = payload["authoring_tasks"][0]
             self.assertEqual("FRONTEND-AUTHOR-001", task["task_id"])
+            self.assertEqual(1, task["sequence"])
+            self.assertEqual("frontend-design-authoring", task["execution"]["stage"])
+            self.assertEqual("designing-ui-interactions", task["execution"]["primary_skill"])
+            self.assertEqual("senior-frontend", task["execution"]["primary_specialist_skill"])
+            self.assertEqual("verify-frontend-authoring", task["execution"]["verify_step"])
+            self.assertEqual("refresh-frontend-authoring", task["execution"]["refresh_step"])
             self.assertEqual("A-001", task["acceptance_id"])
             self.assertEqual("Goal Flow", task["title"])
             self.assertEqual("docs/product/08-acceptance-criteria.md#a-001-goal-flow", task["source"]["reference"])
@@ -5995,6 +6034,7 @@ class GovernanceCliTest(unittest.TestCase):
                 ],
                 [step["id"] for step in task["steps"]],
             )
+            self.assertEqual(list(range(1, 11)), [step["sequence"] for step in task["steps"]])
             self.assertEqual(["designing-ui-interactions", "designing-frontend-modules"], task["steps"][0]["skills"])
             self.assertIn("senior-frontend", task["steps"][0]["specialist_skills"])
             self.assertIn("a11y-audit", task["steps"][0]["specialist_skills"])
@@ -6073,6 +6113,12 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual(1, len(payload["authoring_tasks"]))
             task = payload["authoring_tasks"][0]
             self.assertEqual("TEST-AUTHOR-001", task["task_id"])
+            self.assertEqual(1, task["sequence"])
+            self.assertEqual("test-strategy-authoring", task["execution"]["stage"])
+            self.assertEqual("designing-test-strategy", task["execution"]["primary_skill"])
+            self.assertEqual("senior-qa", task["execution"]["primary_specialist_skill"])
+            self.assertEqual("verify-test-strategy-authoring", task["execution"]["verify_step"])
+            self.assertEqual("refresh-test-strategy-authoring", task["execution"]["refresh_step"])
             self.assertEqual("A-001", task["acceptance_id"])
             self.assertEqual("Goal Flow", task["title"])
             self.assertEqual("docs/product/08-acceptance-criteria.md#a-001-goal-flow", task["source"]["reference"])
@@ -6122,6 +6168,7 @@ class GovernanceCliTest(unittest.TestCase):
                 ],
                 [step["id"] for step in task["steps"]],
             )
+            self.assertEqual(list(range(1, 10)), [step["sequence"] for step in task["steps"]])
             self.assertEqual(["designing-test-strategy"], task["steps"][0]["skills"])
             self.assertIn("senior-qa", task["steps"][0]["specialist_skills"])
             self.assertIn("playwright-pro", task["steps"][0]["specialist_skills"])
@@ -6200,6 +6247,18 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual(1, len(payload["authoring_tasks"]))
             task = payload["authoring_tasks"][0]
             self.assertEqual("PLAN-AUTHOR-001", task["task_id"])
+            self.assertEqual(1, task["sequence"])
+            self.assertEqual("implementation-planning-authoring", task["execution"]["stage"])
+            self.assertEqual("planning-implementation-work", task["execution"]["primary_skill"])
+            self.assertEqual("senior-fullstack", task["execution"]["primary_specialist_skill"])
+            self.assertEqual(
+                "verify-implementation-planning-authoring",
+                task["execution"]["verify_step"],
+            )
+            self.assertEqual(
+                "refresh-implementation-planning-authoring",
+                task["execution"]["refresh_step"],
+            )
             self.assertEqual("A-001", task["acceptance_id"])
             self.assertEqual("Goal Flow", task["title"])
             self.assertEqual("TASK-001", task["suggested_task_id"])
@@ -6252,6 +6311,7 @@ class GovernanceCliTest(unittest.TestCase):
                 ],
                 [step["id"] for step in task["steps"]],
             )
+            self.assertEqual(list(range(1, 11)), [step["sequence"] for step in task["steps"]])
             self.assertEqual(["planning-implementation-work"], task["steps"][0]["skills"])
             self.assertIn("senior-fullstack", task["steps"][0]["specialist_skills"])
             self.assertIn("ci-cd-pipeline-builder", task["steps"][0]["specialist_skills"])
@@ -6333,6 +6393,18 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual(1, len(payload["authoring_tasks"]))
             task = payload["authoring_tasks"][0]
             self.assertEqual("ADR-AUTHOR-001", task["task_id"])
+            self.assertEqual(1, task["sequence"])
+            self.assertEqual("architecture-decision-authoring", task["execution"]["stage"])
+            self.assertEqual("capturing-architecture-decisions", task["execution"]["primary_skill"])
+            self.assertEqual("senior-architect", task["execution"]["primary_specialist_skill"])
+            self.assertEqual(
+                "verify-architecture-decisions-authoring",
+                task["execution"]["verify_step"],
+            )
+            self.assertEqual(
+                "refresh-architecture-decisions-authoring",
+                task["execution"]["refresh_step"],
+            )
             self.assertEqual("A-001", task["acceptance_id"])
             self.assertEqual("Goal Flow", task["title"])
             self.assertEqual("undetermined", task["requires_adr"])
@@ -6377,6 +6449,7 @@ class GovernanceCliTest(unittest.TestCase):
                 ],
                 [step["id"] for step in task["steps"]],
             )
+            self.assertEqual(list(range(1, 10)), [step["sequence"] for step in task["steps"]])
             self.assertEqual(["capturing-architecture-decisions"], task["steps"][0]["skills"])
             self.assertIn("senior-architect", task["steps"][0]["specialist_skills"])
             self.assertIn("migration-architect", task["steps"][0]["specialist_skills"])
