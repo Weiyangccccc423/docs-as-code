@@ -146,7 +146,7 @@ bin/governance status /path/to/new-project
 
 If the target folder contains exactly one supported root product document (`.md`, `.markdown`, `.docx`, `.pdf`, `.html`, `.htm`, or `.txt`), `init` auto-discovers it and reports `product.selection: "auto-discovered"` in JSON. When the product document is outside the target or multiple candidates exist, pass `--product /path/to/product.md`; ambiguous discovery is a preflight conflict instead of a guess.
 
-For agent automation, append `--json` to `init`, `verify`, `status`, `env`, `product mark-ready`, or `advance`:
+For agent automation, append `--json` to `init`, `verify`, `status`, `env`, `product mark-ready`, `product plan`, or `advance`:
 
 ```bash
 bin/governance verify /path/to/new-project --check --json
@@ -172,10 +172,12 @@ bin/governance product mark-ready /path/to/new-project --reviewed --method manua
 bin/governance gate product-structuring /path/to/new-project --json
 ```
 
-After the product-structuring gate passes, scaffold only the product chapters supported by the PRD. Scaffolded product chapters contain `governance:scaffold-placeholder` and block verification until replaced with source-backed content.
+After the product-structuring gate passes, run `product plan --json` before scaffolding. The read-only plan returns `source_documents`, `available_chapters`, `prd_headings`, conservative `suggested_mappings`, `required_decisions`, local workflow `skills`, `skill_requirements`, `authority_skill_requirements`, and ordered executable `steps`; its `decision_policy` is `do_not_guess_product_meaning`. Accept `suggested_mappings[].command_arg` only after source review, and resolve `required_decisions[]` with an explicit `key=PRD Heading`, manual PRD-backed authoring, or omission of an unsupported chapter.
+Then scaffold only the product chapters supported by the PRD. Scaffolded product chapters contain `governance:scaffold-placeholder` and block verification until replaced with source-backed content.
 Successful scaffold write payloads include `scaffold_phase`, showing the recorded workflow phase and the phase this scaffold belongs to. When `scaffold_phase.matches` is false, keep following returned `next_actions` to advance recorded phases in order before treating the scaffold as current-phase work. Payloads also include `next_actions_blocked_by` while placeholders remain; keep returned `next_actions` for later, but do not run them until every listed blocker is resolved.
 
 ```bash
+bin/governance product plan /path/to/new-project --json
 bin/governance scaffold product /path/to/new-project --chapter goals-and-requirements --chapter acceptance-criteria --check --json
 bin/governance scaffold product /path/to/new-project --chapter goals-and-requirements --chapter acceptance-criteria --json
 ```

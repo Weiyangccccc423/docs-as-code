@@ -42,7 +42,7 @@ from design_plan import (
 from gates import GATE_NAMES, evaluate_gate
 from phases import PHASE_NAMES, advance_phase, check_advance_phase
 from product_import import check_product_import_ready, mark_product_import_ready
-from product_structure import check_structure_product, structure_product
+from product_structure import build_product_plan, check_structure_product, structure_product
 from scaffold import (
     PRODUCT_CHAPTER_CHOICES,
     ScaffoldResult,
@@ -619,6 +619,23 @@ def _cmd_product_structure(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_product_plan(args: argparse.Namespace) -> int:
+    target = Path(args.target)
+    payload = build_product_plan(target)
+    if args.json:
+        _print_json(payload)
+        return 0 if payload["ok"] else 1
+    if not payload["ok"]:
+        print("Product structuring plan failed:")
+        for error in payload["errors"]:
+            print(f"- ERROR: {error}")
+        return 1
+    print(f"Product structuring plan: {payload['phase']}")
+    for mapping in payload["suggested_mappings"]:
+        print(f"- {mapping['chapter']}: {mapping['command_arg']}")
+    return 0
+
+
 def _cmd_design_plan(args: argparse.Namespace) -> int:
     target = Path(args.target)
     payload = build_design_plan(target)
@@ -843,6 +860,13 @@ def build_parser() -> argparse.ArgumentParser:
     mark_ready.add_argument("--check", action="store_true", help="Run readiness preflight without writing files.")
     mark_ready.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     mark_ready.set_defaults(func=_cmd_product_mark_ready)
+    product_plan = product_sub.add_parser(
+        "plan",
+        help="Show PRD headings, supported product chapters, conservative mappings, decisions, and command steps.",
+    )
+    product_plan.add_argument("target", nargs="?", default=".")
+    product_plan.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    product_plan.set_defaults(func=_cmd_product_plan)
     structure = product_sub.add_parser("structure", help="Fill scaffolded product chapters from explicit PRD sections.")
     structure.add_argument("target", nargs="?", default=".")
     structure.add_argument(

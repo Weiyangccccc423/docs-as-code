@@ -650,6 +650,8 @@ DRY_RUN_WORKFLOW_REQUIRED_PHRASES = (
     '"status"',
     '"scaffold"',
     '"product"',
+    "product_plan",
+    "suggested_mappings",
     '"structure"',
     "goals-and-requirements=Goals and Requirements",
     "acceptance-criteria=Acceptance Criteria",
@@ -987,6 +989,17 @@ PRODUCT_STRUCTURE_DOC_PATHS = (
     "skills/structuring-product-requirements/SKILL.md",
 )
 PRODUCT_STRUCTURE_REQUIRED_PHRASES = (
+    "product plan",
+    "source_documents",
+    "available_chapters",
+    "prd_headings",
+    "suggested_mappings",
+    "required_decisions",
+    "skill_requirements",
+    "authority_skill_requirements",
+    "decision_policy",
+    "do_not_guess_product_meaning",
+    "steps",
     "scaffold product",
     "would_create",
     "would_skip",
@@ -2451,7 +2464,7 @@ GOVERNANCE_CLI_REQUIRED_COMMANDS = (
 )
 GOVERNANCE_CLI_REQUIRED_SUBCOMMANDS = {
     "runtime": ("refresh",),
-    "product": ("mark-ready", "structure"),
+    "product": ("mark-ready", "plan", "structure"),
     "design": (
         "plan",
         "api-candidates",

@@ -310,6 +310,31 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
     _require(isinstance(product_state, dict), "product advance did not return state", payload=product_advanced)
     _require(product_state.get("phase") == "product-structuring", "product phase mismatch", payload=product_advanced)
 
+    product_plan = _run_json(
+        steps,
+        "product_plan",
+        ["bin/governance", "product", "plan", ".", "--json"],
+        target,
+    )
+    _require(product_plan.get("ok") is True, "product plan failed", payload=product_plan)
+    suggested_mappings = product_plan.get("suggested_mappings")
+    _require(isinstance(suggested_mappings, list), "product plan did not return suggested mappings", payload=product_plan)
+    command_args = {
+        str(mapping.get("command_arg"))
+        for mapping in suggested_mappings
+        if isinstance(mapping, dict)
+    }
+    _require(
+        "goals-and-requirements=Goals and Requirements" in command_args,
+        "product plan did not suggest goals mapping",
+        payload=product_plan,
+    )
+    _require(
+        "acceptance-criteria=Acceptance Criteria" in command_args,
+        "product plan did not suggest acceptance mapping",
+        payload=product_plan,
+    )
+
     product_scaffold_check = _run_json(
         steps,
         "product_scaffold_check",

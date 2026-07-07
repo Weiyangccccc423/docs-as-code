@@ -52,6 +52,7 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertFalse(payload["implementation_gate"]["ok"])
             self.assertTrue(payload["implementation_gate"]["expected_blocked"])
             step_ids = {step["id"] for step in payload["steps"]}
+            self.assertIn("product_plan", step_ids)
             self.assertIn("product_structure", step_ids)
             self.assertIn("design_plan", step_ids)
             self.assertIn("implementation_advance_check", step_ids)

@@ -21,6 +21,62 @@ except ImportError:  # pragma: no cover - direct script execution
 
 
 PRD_REL = Path("docs/product/core/PRD.md")
+PRODUCT_WORKFLOW_PATH = "workflows/03-product-structuring.md"
+PRODUCT_PHASE = "product-structuring"
+TARGET_WORKFLOW_PACK_ROOT = "docs/agent-workflow/workflow-pack"
+LOCAL_WORKFLOW_SKILL_MISSING_POLICY = "workflow_pack_integrity_error"
+PRODUCT_STRUCTURING_SKILLS = (
+    "structuring-product-requirements",
+    "archiving-product-document",
+    "verifying-governance-docs",
+)
+PRODUCT_SOURCE_DOCUMENTS = (
+    "docs/product/core/PRD.md",
+    "docs/product/core/product-meta.md",
+    "docs/unresolved.md",
+    "docs/glossary.md",
+)
+HEADING_RE = re.compile(r"^(?P<hashes>#{1,6})\s+(?P<title>.+?)\s*#*\s*$")
+PRODUCT_CHAPTER_ALIASES: dict[str, tuple[str, ...]] = {
+    "background-and-problems": (
+        "background and problems",
+        "background",
+        "problem statement",
+        "problems",
+        "context",
+    ),
+    "change-log": (
+        "change log",
+        "changelog",
+        "revision history",
+        "document history",
+    ),
+    "goals-and-requirements": (
+        "goals and requirements",
+        "requirements and goals",
+        "goals",
+        "requirements",
+        "product requirements",
+    ),
+    "functional-spec": (
+        "functional spec",
+        "functional specification",
+        "functional behavior",
+        "features",
+    ),
+    "acceptance-criteria": (
+        "acceptance criteria",
+        "acceptance",
+        "definition of done",
+    ),
+    "success-metrics": (
+        "success metrics",
+        "success criteria",
+        "key metrics",
+        "kpis",
+        "metrics",
+    ),
+}
 
 
 @dataclass
@@ -179,6 +235,57 @@ def structure_product(root: Path, chapters: list[str] | tuple[str, ...]) -> Prod
     )
 
 
+def build_product_plan(root: Path) -> dict[str, object]:
+    root = root.resolve()
+    state = load_state(root)
+    phase = state.get("phase") if isinstance(state.get("phase"), str) else ""
+    errors: list[str] = []
+    if not state:
+        errors.append("No governance state found.")
+    elif phase != PRODUCT_PHASE:
+        errors.append(f"product plan requires recorded phase {PRODUCT_PHASE}")
+    prd_path = root / PRD_REL
+    prd_text = ""
+    if not prd_path.exists():
+        errors.append(f"required product plan file is missing: {PRD_REL.as_posix()}")
+    elif not prd_path.is_file():
+        errors.append(f"required product plan path is not a file: {PRD_REL.as_posix()}")
+    else:
+        try:
+            prd_text = prd_path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            errors.append(f"required product plan file must be UTF-8 Markdown: {PRD_REL.as_posix()}")
+        except OSError as error:
+            errors.append(f"required product plan file is unreadable: {PRD_REL.as_posix()}: {_os_error_reason(error)}")
+    prd_headings = _markdown_heading_payloads(prd_text)
+    available_chapters = _available_chapter_payloads()
+    suggested_mappings = _suggest_chapter_mappings(prd_headings)
+    required_decisions = _required_product_decisions(suggested_mappings)
+    steps = _product_plan_steps(root, suggested_mappings, required_decisions)
+    payload: dict[str, object] = {
+        "ok": not errors,
+        "target": str(root),
+        "phase": phase,
+        "workflow": PRODUCT_WORKFLOW_PATH,
+        "decision_policy": "do_not_guess_product_meaning",
+        "primary_skill": "structuring-product-requirements",
+        "skills": list(PRODUCT_STRUCTURING_SKILLS),
+        "skill_requirements": _product_skill_requirements(root),
+        "authority_skill_requirements": [],
+        "source_documents": list(PRODUCT_SOURCE_DOCUMENTS),
+        "available_chapters": available_chapters,
+        "prd_headings": prd_headings,
+        "suggested_mappings": suggested_mappings,
+        "required_decisions": required_decisions,
+        "steps": steps,
+        "errors": errors,
+    }
+    if not errors:
+        payload["local_commands"] = target_local_commands_payload(cwd=str(root))
+        payload["next_actions"] = next_actions_payload(state, cwd=str(root))
+    return payload
+
+
 @dataclass
 class _StructurePlan:
     target: str
@@ -242,6 +349,295 @@ def _build_structure_plan(root: Path, chapters: list[str] | tuple[str, ...]) -> 
         )
     extra_files = _product_readme_updates(root, plans, errors)
     return _StructurePlan(str(root), errors, warnings, plans, extra_files, state)
+
+
+def _available_chapter_payloads() -> list[dict[str, object]]:
+    return [
+        {
+            "key": key,
+            "path": spec.path,
+            "title": spec.title,
+            "purpose": spec.purpose,
+            "sections": list(spec.sections),
+        }
+        for key, spec in PRODUCT_SCAFFOLD_BY_KEY.items()
+    ]
+
+
+def _markdown_heading_payloads(text: str) -> list[dict[str, object]]:
+    headings: list[dict[str, object]] = []
+    for line_number, line in enumerate(text.splitlines(), start=1):
+        match = HEADING_RE.match(line)
+        if not match:
+            continue
+        title = match.group("title").strip()
+        headings.append(
+            {
+                "level": len(match.group("hashes")),
+                "title": title,
+                "anchor": _heading_anchor(title),
+                "line": line_number,
+            }
+        )
+    return headings
+
+
+def _suggest_chapter_mappings(prd_headings: list[dict[str, object]]) -> list[dict[str, object]]:
+    suggestions: list[dict[str, object]] = []
+    for key, spec in PRODUCT_SCAFFOLD_BY_KEY.items():
+        match = _best_heading_match(spec.title, PRODUCT_CHAPTER_ALIASES.get(key, ()), prd_headings)
+        if match is None:
+            continue
+        heading, confidence, basis = match
+        heading_title = str(heading["title"])
+        suggestions.append(
+            {
+                "chapter": key,
+                "path": spec.path,
+                "title": spec.title,
+                "heading": heading_title,
+                "heading_level": heading["level"],
+                "heading_anchor": heading["anchor"],
+                "heading_line": heading["line"],
+                "confidence": confidence,
+                "basis": basis,
+                "command_arg": f"{key}={heading_title}",
+            }
+        )
+    return suggestions
+
+
+def _best_heading_match(
+    title: str,
+    aliases: tuple[str, ...],
+    prd_headings: list[dict[str, object]],
+) -> tuple[dict[str, object], str, str] | None:
+    title_normalized = _normalize_heading(title)
+    alias_normalized = {_normalize_heading(alias) for alias in aliases}
+    candidates: list[tuple[int, int, dict[str, object], str, str]] = []
+    for heading in prd_headings:
+        heading_title = str(heading.get("title", ""))
+        normalized = _normalize_heading(heading_title)
+        if not normalized:
+            continue
+        line = int(heading.get("line", 0))
+        if normalized == title_normalized:
+            candidates.append((0, line, heading, "exact-title", "PRD heading exactly matches product scaffold title"))
+        elif normalized in alias_normalized:
+            candidates.append((1, line, heading, "known-alias", "PRD heading matches a conservative built-in alias"))
+    if not candidates:
+        return None
+    _, _, heading, confidence, basis = sorted(candidates, key=lambda item: (item[0], item[1]))[0]
+    return heading, confidence, basis
+
+
+def _required_product_decisions(suggested_mappings: list[dict[str, object]]) -> list[dict[str, str]]:
+    mapped = {str(mapping["chapter"]) for mapping in suggested_mappings}
+    decisions: list[dict[str, str]] = []
+    for key, spec in PRODUCT_SCAFFOLD_BY_KEY.items():
+        if key in mapped:
+            continue
+        decisions.append(
+            {
+                "chapter": key,
+                "title": spec.title,
+                "path": spec.path,
+                "reason": "no conservative PRD heading match found",
+                "decision": (
+                    "provide an explicit key=PRD Heading mapping, author this chapter manually from PRD, "
+                    "or omit it when the source does not support the chapter"
+                ),
+            }
+        )
+    return decisions
+
+
+def _product_plan_steps(
+    root: Path,
+    suggested_mappings: list[dict[str, object]],
+    required_decisions: list[dict[str, str]],
+) -> list[dict[str, object]]:
+    selected_chapters = [str(mapping["chapter"]) for mapping in suggested_mappings]
+    mapping_args = [str(mapping["command_arg"]) for mapping in suggested_mappings]
+    decision_blockers = [
+        {"chapter": decision["chapter"], "reason": decision["reason"]}
+        for decision in required_decisions
+    ]
+    steps: list[dict[str, object]] = [
+        {
+            "id": "load-product-structuring-skills",
+            "kind": "skill-load",
+            "skills": list(PRODUCT_STRUCTURING_SKILLS),
+            "skill_requirements": _product_skill_requirements(root),
+            "authority_skill_requirements": [],
+            "description": "Load product structuring, archiving, and verification skills before deriving product chapters.",
+        },
+        {
+            "id": "read-product-sources",
+            "kind": "read",
+            "documents": list(PRODUCT_SOURCE_DOCUMENTS),
+            "description": "Read PRD, product metadata, glossary, and unresolved registry before selecting chapters.",
+        },
+        {
+            "id": "read-product-rubric",
+            "kind": "read",
+            "references": ["references/product-requirements-checklist.md"],
+            "description": "Read the product requirements rubric before copying or rewriting product content.",
+        },
+        {
+            "id": "select-source-supported-chapters",
+            "kind": "decision",
+            "suggested_mappings": copy.deepcopy(suggested_mappings),
+            "required_decisions": copy.deepcopy(required_decisions),
+            "description": "Accept conservative suggestions only after source review; resolve required decisions without guessing.",
+        },
+        _command_step(
+            root,
+            "scaffold-product-check",
+            "Preview product chapter scaffolds for the selected source-supported chapters.",
+            _scaffold_product_argv(selected_chapters, check=True),
+            writes_state=False,
+            blocked_by=decision_blockers if not selected_chapters else [],
+        ),
+        _command_step(
+            root,
+            "scaffold-product",
+            "Create selected product chapter scaffolds after preflight passes.",
+            _scaffold_product_argv(selected_chapters, check=False),
+            writes_state=True,
+            blocked_by=decision_blockers if not selected_chapters else [],
+        ),
+        _command_step(
+            root,
+            "structure-product-check",
+            "Preview scaffold replacement from explicit PRD heading mappings.",
+            _structure_product_argv(mapping_args, check=True),
+            writes_state=False,
+            blocked_by=decision_blockers if not mapping_args else [],
+        ),
+        _command_step(
+            root,
+            "structure-product",
+            "Replace product scaffold placeholders only from explicit PRD heading mappings.",
+            _structure_product_argv(mapping_args, check=False),
+            writes_state=True,
+            blocked_by=decision_blockers if not mapping_args else [],
+        ),
+        _command_step(
+            root,
+            "verify-product-structuring",
+            "Run read-only governance verification after product structuring.",
+            ["bin/governance", "verify", ".", "--check", "--json"],
+            writes_state=False,
+        ),
+        _command_step(
+            root,
+            "refresh-product-plan",
+            "Refresh the product structuring plan after decisions or edits.",
+            ["bin/governance", "product", "plan", ".", "--json"],
+            writes_state=False,
+        ),
+    ]
+    return _sequence_steps(steps)
+
+
+def _scaffold_product_argv(chapters: list[str], *, check: bool) -> list[str]:
+    argv = ["bin/governance", "scaffold", "product", "."]
+    for chapter in chapters:
+        argv.extend(["--chapter", chapter])
+    if check:
+        argv.append("--check")
+    argv.append("--json")
+    return argv
+
+
+def _structure_product_argv(mapping_args: list[str], *, check: bool) -> list[str]:
+    argv = ["bin/governance", "product", "structure", "."]
+    for mapping in mapping_args:
+        argv.extend(["--chapter", mapping])
+    if check:
+        argv.append("--check")
+    argv.append("--json")
+    return argv
+
+
+def _command_step(
+    root: Path,
+    step_id: str,
+    description: str,
+    argv: list[str],
+    *,
+    writes_state: bool,
+    blocked_by: list[dict[str, str]] | None = None,
+) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "id": step_id,
+        "kind": "command",
+        "cwd": str(root),
+        "command": " ".join(argv),
+        "argv": list(argv),
+        "writes_state": writes_state,
+        "approval_required": False,
+        "description": description,
+    }
+    if blocked_by:
+        payload["blocked_by"] = copy.deepcopy(blocked_by)
+    return payload
+
+
+def _sequence_steps(steps: list[dict[str, object]]) -> list[dict[str, object]]:
+    return [
+        {
+            "sequence": index,
+            **step,
+        }
+        for index, step in enumerate(steps, start=1)
+    ]
+
+
+def _product_skill_requirements(root: Path) -> list[dict[str, object]]:
+    return [_local_workflow_skill_requirement(root, skill) for skill in PRODUCT_STRUCTURING_SKILLS]
+
+
+def _local_workflow_skill_requirement(root: Path, skill: str) -> dict[str, object]:
+    path, available = _local_workflow_skill_path(root, skill)
+    return {
+        "name": skill,
+        "type": "local-workflow",
+        "required": True,
+        "available_in_workflow_pack": available,
+        "availability_scope": "workflow-pack",
+        "path": path,
+        "missing_policy": LOCAL_WORKFLOW_SKILL_MISSING_POLICY,
+    }
+
+
+def _local_workflow_skill_path(root: Path, skill: str) -> tuple[str, bool]:
+    snapshot_rel = Path(TARGET_WORKFLOW_PACK_ROOT) / "skills" / skill / "SKILL.md"
+    source_rel = Path("skills") / skill / "SKILL.md"
+    for rel in (snapshot_rel, source_rel):
+        if (root / rel).is_file():
+            return rel.as_posix(), True
+    return snapshot_rel.as_posix(), False
+
+
+def _heading_anchor(title: str) -> str:
+    normalized = title.casefold().replace("&", " and ")
+    tokens: list[str] = []
+    current: list[str] = []
+    for char in normalized:
+        if char.isalnum():
+            current.append(char)
+        elif current:
+            tokens.append("".join(current))
+            current = []
+    if current:
+        tokens.append("".join(current))
+    return "-".join(tokens) or "heading"
+
+
+def _normalize_heading(title: str) -> str:
+    return _heading_anchor(title).replace("-", " ")
 
 
 def _product_readme_updates(root: Path, chapters: list[_ChapterPlan], errors: list[str]) -> dict[str, str]:

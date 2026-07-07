@@ -4575,6 +4575,222 @@ class GovernanceCliTest(unittest.TestCase):
                 verify_payload["errors"],
             )
 
+    def test_product_plan_maps_prd_headings_to_structuring_steps(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text(
+                "# Product\n\n"
+                "## Goals and Requirements\n\n"
+                "- Ship a governed project from one product document.\n\n"
+                "## Acceptance Criteria\n\n"
+                "- The initialized repository exposes local governance checks.\n",
+                encoding="utf-8",
+            )
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            advance_result = subprocess.run(
+                [sys.executable, str(CLI), "advance", "product-structuring", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, advance_result.returncode, advance_result.stderr)
+
+            result = subprocess.run(
+                [sys.executable, str(CLI), "product", "plan", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertEqual(str(target.resolve()), payload["target"])
+            self.assertEqual("product-structuring", payload["phase"])
+            self.assertEqual("workflows/03-product-structuring.md", payload["workflow"])
+            self.assertEqual("do_not_guess_product_meaning", payload["decision_policy"])
+            self.assertEqual("structuring-product-requirements", payload["primary_skill"])
+            self.assertIn("docs/product/core/PRD.md", payload["source_documents"])
+            self.assertIn("docs/product/core/product-meta.md", payload["source_documents"])
+            self.assertIn("docs/unresolved.md", payload["source_documents"])
+            self.assertIn("docs/glossary.md", payload["source_documents"])
+            available = {chapter["key"]: chapter for chapter in payload["available_chapters"]}
+            self.assertIn("goals-and-requirements", available)
+            self.assertEqual("docs/product/03-goals-and-requirements.md", available["goals-and-requirements"]["path"])
+            self.assertIn("acceptance-criteria", available)
+            heading_titles = [heading["title"] for heading in payload["prd_headings"]]
+            self.assertIn("Goals and Requirements", heading_titles)
+            self.assertIn("Acceptance Criteria", heading_titles)
+            suggestions = {mapping["chapter"]: mapping for mapping in payload["suggested_mappings"]}
+            self.assertEqual("goals-and-requirements=Goals and Requirements", suggestions["goals-and-requirements"]["command_arg"])
+            self.assertEqual("acceptance-criteria=Acceptance Criteria", suggestions["acceptance-criteria"]["command_arg"])
+            self.assertEqual("exact-title", suggestions["acceptance-criteria"]["confidence"])
+            required_decisions = {decision["chapter"]: decision for decision in payload["required_decisions"]}
+            self.assertIn("background-and-problems", required_decisions)
+            self.assertNotIn("acceptance-criteria", required_decisions)
+            skill_requirements = _requirements_by_name(payload["skill_requirements"])
+            self.assertEqual("local-workflow", skill_requirements["structuring-product-requirements"]["type"])
+            self.assertTrue(skill_requirements["structuring-product-requirements"]["available_in_workflow_pack"])
+            self.assertEqual(
+                "docs/agent-workflow/workflow-pack/skills/structuring-product-requirements/SKILL.md",
+                skill_requirements["structuring-product-requirements"]["path"],
+            )
+            self.assertEqual([], payload["authority_skill_requirements"])
+            self.assertIn("local_commands", payload)
+            self.assertEqual("advance-design-derivation-check", payload["next_actions"][0]["id"])
+            self.assertEqual(str(target.resolve()), payload["next_actions"][0]["cwd"])
+            steps = payload["steps"]
+            self.assertEqual(
+                [
+                    "load-product-structuring-skills",
+                    "read-product-sources",
+                    "read-product-rubric",
+                    "select-source-supported-chapters",
+                    "scaffold-product-check",
+                    "scaffold-product",
+                    "structure-product-check",
+                    "structure-product",
+                    "verify-product-structuring",
+                    "refresh-product-plan",
+                ],
+                [step["id"] for step in steps],
+            )
+            self.assertEqual(list(range(1, 11)), [step["sequence"] for step in steps])
+            self.assertEqual("skill-load", steps[0]["kind"])
+            self.assertIn("structuring-product-requirements", steps[0]["skills"])
+            self.assertEqual(
+                [
+                    "bin/governance",
+                    "scaffold",
+                    "product",
+                    ".",
+                    "--chapter",
+                    "goals-and-requirements",
+                    "--chapter",
+                    "acceptance-criteria",
+                    "--check",
+                    "--json",
+                ],
+                steps[4]["argv"],
+            )
+            self.assertFalse(steps[4]["writes_state"])
+            self.assertTrue(steps[5]["writes_state"])
+            self.assertEqual(
+                [
+                    "bin/governance",
+                    "product",
+                    "structure",
+                    ".",
+                    "--chapter",
+                    "goals-and-requirements=Goals and Requirements",
+                    "--chapter",
+                    "acceptance-criteria=Acceptance Criteria",
+                    "--check",
+                    "--json",
+                ],
+                steps[6]["argv"],
+            )
+            self.assertFalse(steps[6]["writes_state"])
+            self.assertTrue(steps[7]["writes_state"])
+            self.assertEqual(["bin/governance", "verify", ".", "--check", "--json"], steps[8]["argv"])
+            self.assertEqual(["bin/governance", "product", "plan", ".", "--json"], steps[9]["argv"])
+
+    def test_product_plan_reports_required_decision_when_heading_is_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text(
+                "# Product\n\n"
+                "## Goals and Requirements\n\n"
+                "- Ship a governed project from one product document.\n",
+                encoding="utf-8",
+            )
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            advance_result = subprocess.run(
+                [sys.executable, str(CLI), "advance", "product-structuring", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, advance_result.returncode, advance_result.stderr)
+
+            result = subprocess.run(
+                [sys.executable, str(CLI), "product", "plan", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            payload = json.loads(result.stdout)
+            suggestions = {mapping["chapter"]: mapping for mapping in payload["suggested_mappings"]}
+            self.assertIn("goals-and-requirements", suggestions)
+            self.assertNotIn("acceptance-criteria", suggestions)
+            required_decisions = {decision["chapter"]: decision for decision in payload["required_decisions"]}
+            self.assertIn("acceptance-criteria", required_decisions)
+            self.assertEqual("no conservative PRD heading match found", required_decisions["acceptance-criteria"]["reason"])
+            self.assertIn("key=PRD Heading", required_decisions["acceptance-criteria"]["decision"])
+            structure_check = {step["id"]: step for step in payload["steps"]}["structure-product-check"]
+            self.assertEqual(
+                [
+                    "bin/governance",
+                    "product",
+                    "structure",
+                    ".",
+                    "--chapter",
+                    "goals-and-requirements=Goals and Requirements",
+                    "--check",
+                    "--json",
+                ],
+                structure_check["argv"],
+            )
+
+    def test_product_plan_requires_product_structuring_phase(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text(
+                "# Product\n\n"
+                "## Goals and Requirements\n\n"
+                "- Ship a governed project from one product document.\n",
+                encoding="utf-8",
+            )
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+
+            result = subprocess.run(
+                [sys.executable, str(CLI), "product", "plan", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, result.returncode)
+            payload = json.loads(result.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertEqual("initialized", payload["phase"])
+            self.assertIn("product plan requires recorded phase product-structuring", payload["errors"])
+            self.assertNotIn("local_commands", payload)
+            self.assertNotIn("next_actions", payload)
+
     def test_product_structure_fills_scaffolded_chapters_from_prd_sections(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "target"
