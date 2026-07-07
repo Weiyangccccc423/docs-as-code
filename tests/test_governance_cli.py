@@ -4652,14 +4652,29 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertTrue(required_links["product_index"]["exists"])
             self.assertTrue(required_links["product_meta"]["exists"])
             self.assertTrue(required_links["unresolved_registry"]["exists"])
+            required_evidence = {item["id"]: item for item in background_task["required_evidence"]}
+            self.assertEqual("docs/product/core/PRD.md", required_evidence["prd-source-evidence"]["target"])
+            self.assertTrue(required_evidence["prd-source-evidence"]["exists"])
+            self.assertEqual("docs/product/01-background-and-problems.md", required_evidence["chapter-file-authored"]["target"])
+            self.assertFalse(required_evidence["chapter-file-authored"]["exists"])
+            self.assertEqual("docs/product/README.md", required_evidence["product-readme-indexed"]["target"])
+            self.assertEqual("docs/product/core/product-meta.md", required_evidence["product-meta-linked"]["target"])
+            self.assertEqual("docs/unresolved.md", required_evidence["unresolved-reviewed"]["target"])
+            self.assertEqual("docs/glossary.md", required_evidence["glossary-reviewed"]["target"])
+            self.assertEqual(
+                "bin/governance verify . --check --json",
+                required_evidence["chapter-file-authored"]["verification"],
+            )
             self.assertIn("chapter_in_scope", background_task["open_decisions"])
             self.assertIn("source_evidence", background_task["open_decisions"])
             self.assertIn("provide_explicit_key_heading_mapping", background_task["action_options"])
             task_steps = background_task["steps"]
-            self.assertEqual(list(range(1, 11)), [step["sequence"] for step in task_steps])
+            self.assertEqual(list(range(1, 12)), [step["sequence"] for step in task_steps])
             self.assertEqual("load-product-structuring-skills", task_steps[0]["id"])
             self.assertEqual("author-product-chapter", task_steps[6]["id"])
             self.assertEqual("docs/product/01-background-and-problems.md", task_steps[6]["document"])
+            self.assertEqual("collect-authoring-evidence", task_steps[8]["id"])
+            self.assertEqual("evidence", task_steps[8]["kind"])
             self.assertEqual(
                 [
                     "bin/governance",
@@ -4673,8 +4688,8 @@ class GovernanceCliTest(unittest.TestCase):
                 ],
                 task_steps[4]["argv"],
             )
-            self.assertEqual(["bin/governance", "verify", ".", "--check", "--json"], task_steps[8]["argv"])
-            self.assertEqual(["bin/governance", "product", "plan", ".", "--json"], task_steps[9]["argv"])
+            self.assertEqual(["bin/governance", "verify", ".", "--check", "--json"], task_steps[9]["argv"])
+            self.assertEqual(["bin/governance", "product", "plan", ".", "--json"], task_steps[10]["argv"])
             skill_requirements = _requirements_by_name(payload["skill_requirements"])
             self.assertEqual("local-workflow", skill_requirements["structuring-product-requirements"]["type"])
             self.assertTrue(skill_requirements["structuring-product-requirements"]["available_in_workflow_pack"])
@@ -4790,6 +4805,9 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn("acceptance_id_strategy", acceptance_task["open_decisions"])
             self.assertIn("Acceptance Criteria", acceptance_task["required_sections"])
             self.assertEqual("docs/product/08-acceptance-criteria.md", acceptance_task["path"])
+            acceptance_evidence = {item["id"]: item for item in acceptance_task["required_evidence"]}
+            self.assertIn("acceptance-ids-stable", acceptance_evidence)
+            self.assertEqual("docs/product/08-acceptance-criteria.md", acceptance_evidence["acceptance-ids-stable"]["target"])
             self.assertEqual(
                 [
                     "bin/governance",

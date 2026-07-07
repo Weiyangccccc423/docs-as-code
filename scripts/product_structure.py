@@ -497,6 +497,7 @@ def _manual_authoring_task(root: Path, decision: dict[str, str], index: int) -> 
             _product_required_link(root, "product_meta", "docs/product/core/product-meta.md"),
             _product_required_link(root, "unresolved_registry", "docs/unresolved.md"),
         ],
+        "required_evidence": _manual_authoring_required_evidence(root, chapter, spec.path),
         "open_decisions": _manual_authoring_open_decisions(chapter),
         "steps": _manual_authoring_steps(root, chapter, spec.path, spec.sections),
     }
@@ -522,6 +523,76 @@ def _product_required_link(root: Path, kind: str, target: str) -> dict[str, obje
         "kind": kind,
         "target": target,
         "exists": (root / target).is_file(),
+    }
+
+
+def _manual_authoring_required_evidence(root: Path, chapter: str, path: str) -> list[dict[str, object]]:
+    evidence = [
+        _evidence_item(
+            root,
+            "prd-source-evidence",
+            "docs/product/core/PRD.md",
+            "PRD source passages or headings that justify including this chapter are identified before authoring.",
+        ),
+        _evidence_item(
+            root,
+            "chapter-file-authored",
+            path,
+            "Chapter exists, links back to core/PRD.md, and contains no governance scaffold placeholder.",
+        ),
+        _evidence_item(
+            root,
+            "product-readme-indexed",
+            "docs/product/README.md",
+            "Product README indexes the authored chapter filename.",
+        ),
+        _evidence_item(
+            root,
+            "product-meta-linked",
+            "docs/product/core/product-meta.md",
+            "Product metadata chapter map links the authored chapter.",
+        ),
+        _evidence_item(
+            root,
+            "unresolved-reviewed",
+            "docs/unresolved.md",
+            "Open product ambiguities are recorded with U-NNN IDs or explicitly judged non-blocking/resolved.",
+        ),
+        _evidence_item(
+            root,
+            "glossary-reviewed",
+            "docs/glossary.md",
+            "Cross-domain terms introduced by the chapter are linked to local Markdown sources or explicitly judged unnecessary.",
+        ),
+    ]
+    if chapter == "acceptance-criteria":
+        evidence.append(
+            _evidence_item(
+                root,
+                "acceptance-ids-stable",
+                path,
+                "Acceptance criteria use stable unique A-NNN headings before design derivation.",
+            )
+        )
+    if chapter == "success-metrics":
+        evidence.append(
+            _evidence_item(
+                root,
+                "measurement-source-recorded",
+                path,
+                "Success metrics state measurement source, target, and unresolved measurement assumptions.",
+            )
+        )
+    return evidence
+
+
+def _evidence_item(root: Path, evidence_id: str, target: str, condition: str) -> dict[str, object]:
+    return {
+        "id": evidence_id,
+        "target": target,
+        "exists": (root / target).is_file(),
+        "condition": condition,
+        "verification": "bin/governance verify . --check --json",
     }
 
 
@@ -595,6 +666,12 @@ def _manual_authoring_steps(
                     "docs/unresolved.md",
                 ],
                 "description": "Link the chapter to the canonical PRD, product index, metadata, and unresolved registry.",
+            },
+            {
+                "id": "collect-authoring-evidence",
+                "kind": "evidence",
+                "required_evidence": _manual_authoring_required_evidence(root, chapter, path),
+                "description": "Confirm traceability, indexing, unresolved, glossary, and chapter-specific evidence before verification.",
             },
             _command_step(
                 root,
