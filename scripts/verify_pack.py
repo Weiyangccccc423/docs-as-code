@@ -1021,6 +1021,7 @@ DESIGN_PLAN_REQUIRED_PHRASES = (
     "source_documents",
     "tracks",
     "skills",
+    "specialist_skills",
     "references",
     "documents",
     "blockers",
@@ -1044,6 +1045,10 @@ API_CANDIDATES_REQUIRED_PHRASES = (
     "replaceable_starter_endpoint",
     "open_decisions",
     "method/path",
+    "specialist_skills",
+    "api-design-reviewer",
+    "senior-backend",
+    "senior-security",
 )
 API_AUTHORING_DOC_PATHS = (
     "README.md",
@@ -1061,6 +1066,10 @@ API_AUTHORING_REQUIRED_PHRASES = (
     "sections",
     "required_links",
     "open_decisions",
+    "specialist_skills",
+    "api-design-reviewer",
+    "senior-backend",
+    "senior-security",
     "verify-api-authoring",
     "refresh-api-authoring",
 )
@@ -1083,6 +1092,13 @@ BACKEND_AUTHORING_REQUIRED_PHRASES = (
     "open_decisions",
     "module_boundaries",
     "transaction_boundaries",
+    "specialist_skills",
+    "senior-backend",
+    "database-designer",
+    "database-schema-designer",
+    "migration-architect",
+    "observability-designer",
+    "senior-security",
     "verify-backend-authoring",
     "refresh-backend-authoring",
 )
@@ -1105,6 +1121,10 @@ FRONTEND_AUTHORING_REQUIRED_PHRASES = (
     "open_decisions",
     "state_ownership",
     "error_actions",
+    "specialist_skills",
+    "senior-frontend",
+    "a11y-audit",
+    "performance-profiler",
     "verify-frontend-authoring",
     "refresh-frontend-authoring",
 )
@@ -1126,6 +1146,11 @@ TEST_STRATEGY_AUTHORING_REQUIRED_PHRASES = (
     "open_decisions",
     "acceptance_coverage",
     "evidence_targets",
+    "specialist_skills",
+    "senior-qa",
+    "playwright-pro",
+    "a11y-audit",
+    "security-pen-testing",
     "verify-test-strategy-authoring",
     "refresh-test-strategy-authoring",
 )
@@ -1149,6 +1174,10 @@ IMPLEMENTATION_PLANNING_AUTHORING_REQUIRED_PHRASES = (
     "ready_criteria",
     "verification_plan",
     "agent_handoff",
+    "specialist_skills",
+    "senior-fullstack",
+    "ci-cd-pipeline-builder",
+    "tech-debt-tracker",
     "verify-implementation-planning-authoring",
     "refresh-implementation-planning-authoring",
 )
@@ -1172,6 +1201,10 @@ ARCHITECTURE_DECISIONS_AUTHORING_REQUIRED_PHRASES = (
     "decision_scope",
     "alternatives",
     "requires_adr",
+    "specialist_skills",
+    "senior-architect",
+    "migration-architect",
+    "tech-stack-evaluator",
     "verify-architecture-decisions-authoring",
     "refresh-architecture-decisions-authoring",
 )
@@ -2478,6 +2511,29 @@ MARKDOWN_LINK_RE = re.compile(r"(?<!!)\[[^\]]*]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 MARKDOWN_REFERENCE_DEFINITION_RE = re.compile(r"^\s{0,3}\[[^\]]+]:\s*(\S+)", re.MULTILINE)
 README_INDEX_ENTRY_RE = re.compile(r"^\s*-\s+`([^`\n]+)`(?P<trailing>[^\n]*)$")
 SKILL_NAME_RE = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)+$")
+AUTHORITY_ROUTING_SPECIALIST_SKILLS = frozenset(
+    {
+        "a11y-audit",
+        "api-design-reviewer",
+        "ci-cd-pipeline-builder",
+        "database-designer",
+        "database-schema-designer",
+        "migration-architect",
+        "observability-designer",
+        "performance-profiler",
+        "playwright-pro",
+        "security-pen-testing",
+        "senior-architect",
+        "senior-backend",
+        "senior-frontend",
+        "senior-fullstack",
+        "senior-qa",
+        "senior-security",
+        "slo-architect",
+        "tech-debt-tracker",
+        "tech-stack-evaluator",
+    }
+)
 PHASE_WORKFLOW_PATHS = (
     "workflows/01-empty-repo-initialization.md",
     "workflows/02-product-document-archiving.md",
@@ -4790,7 +4846,7 @@ def _check_skill_references(root: Path, findings: list[PackFinding]) -> None:
             continue
         for skill in _extract_skill_tokens(section_text):
             references.setdefault(skill, set()).add(rel)
-            if skill in skill_names:
+            if skill in skill_names or skill in AUTHORITY_ROUTING_SPECIALIST_SKILLS:
                 continue
             findings.append(
                 PackFinding(

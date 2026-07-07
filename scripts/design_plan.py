@@ -19,8 +19,10 @@ except ImportError:  # pragma: no cover - direct script execution
 
 DESIGN_WORKFLOW_PATH = "workflows/04-design-derivation.md"
 DESIGN_PHASE = "design-derivation"
+UI_INTERACTION_TRACK_ID = "ui-interaction"
 API_TRACK_ID = "api-contracts"
 BACKEND_TRACK_ID = "backend-modules"
+DATA_MODEL_TRACK_ID = "data-model"
 FRONTEND_TRACK_ID = "frontend-modules"
 TEST_STRATEGY_TRACK_ID = "test-strategy"
 IMPLEMENTATION_PLANNING_TRACK_ID = "implementation-planning"
@@ -233,6 +235,7 @@ class DesignTrack:
     title: str
     purpose: str
     skills: tuple[str, ...]
+    specialist_skills: tuple[str, ...]
     references: tuple[str, ...]
     documents: tuple[str, ...]
     procedure: str
@@ -244,6 +247,7 @@ DESIGN_TRACKS: tuple[DesignTrack, ...] = (
         title="System Architecture",
         purpose="Replace architecture placeholders with product-derived boundaries, C4-style views, and quality scenarios.",
         skills=("designing-system-architecture",),
+        specialist_skills=("senior-architect", "senior-security", "observability-designer", "slo-architect"),
         references=("references/architecture-methods.md", "references/architecture-quality-checklist.md"),
         documents=(
             "docs/architecture/01-system-context.md",
@@ -257,6 +261,7 @@ DESIGN_TRACKS: tuple[DesignTrack, ...] = (
         title="UI Interaction",
         purpose="Replace UI placeholders with product-derived flows, screens, states, errors, and accessibility expectations.",
         skills=("designing-ui-interactions",),
+        specialist_skills=("senior-frontend", "a11y-audit"),
         references=("references/frontend-interaction-checklist.md", "references/security-design-checklist.md"),
         documents=("docs/ui/01-interaction-model.md",),
         procedure="Derive visible behavior from product sources and register unresolved interaction or accessibility gaps instead of guessing.",
@@ -266,6 +271,7 @@ DESIGN_TRACKS: tuple[DesignTrack, ...] = (
         title="API Contracts",
         purpose="Replace API placeholders with traceable conventions, endpoint contracts, error handling, auth, and compatibility notes.",
         skills=("designing-api-contracts",),
+        specialist_skills=("api-design-reviewer", "senior-backend", "senior-security"),
         references=(
             "references/architecture-methods.md",
             "references/api-design-checklist.md",
@@ -285,6 +291,7 @@ DESIGN_TRACKS: tuple[DesignTrack, ...] = (
         title="Backend Modules",
         purpose="Replace backend placeholders with module boundaries, API ownership, failure modes, operability, and dependency behavior.",
         skills=("designing-backend-modules",),
+        specialist_skills=("senior-backend", "database-designer", "observability-designer", "senior-security"),
         references=(
             "references/backend-design-checklist.md",
             "references/backend-operability-checklist.md",
@@ -298,6 +305,7 @@ DESIGN_TRACKS: tuple[DesignTrack, ...] = (
         title="Data Model",
         purpose="Replace data-model placeholders with entity ownership, states, constraints, indexes, migrations, retention, and audit decisions.",
         skills=("designing-data-models",),
+        specialist_skills=("database-designer", "database-schema-designer", "migration-architect"),
         references=("references/backend-design-checklist.md", "references/data-model-design-checklist.md"),
         documents=("docs/backend/02-data-model.md",),
         procedure="Start from product nouns and backend ownership; define lifecycle and concurrency behavior before fields and indexes.",
@@ -307,6 +315,7 @@ DESIGN_TRACKS: tuple[DesignTrack, ...] = (
         title="Frontend Modules",
         purpose="Replace frontend placeholders with module boundaries, state ownership, routes, API consumption, and error actions.",
         skills=("designing-frontend-modules",),
+        specialist_skills=("senior-frontend", "a11y-audit", "performance-profiler"),
         references=("references/frontend-interaction-checklist.md", "references/security-design-checklist.md"),
         documents=("docs/frontend/01-modules.md", "docs/frontend/02-api-consumption.md"),
         procedure="Use UI interaction design and API contracts before assigning route, state, loading, retry, and error handling behavior.",
@@ -316,6 +325,7 @@ DESIGN_TRACKS: tuple[DesignTrack, ...] = (
         title="Test Strategy",
         purpose="Replace test placeholders with acceptance traceability, risk coverage, verification layers, and non-functional checks.",
         skills=("designing-test-strategy",),
+        specialist_skills=("senior-qa", "playwright-pro", "a11y-audit", "security-pen-testing"),
         references=("references/test-strategy-checklist.md", "references/security-design-checklist.md"),
         documents=("docs/tests/01-strategy.md", "docs/tests/02-acceptance-matrix.md"),
         procedure="Map each product-defined A-NNN to design, concrete endpoint contracts, and test evidence, or list it under uncovered criteria with a source-backed reason.",
@@ -325,6 +335,7 @@ DESIGN_TRACKS: tuple[DesignTrack, ...] = (
         title="Implementation Planning",
         purpose="Replace development placeholders with roadmap milestones, task board rows, Ready criteria, and verification evidence targets.",
         skills=("planning-implementation-work",),
+        specialist_skills=("senior-fullstack", "ci-cd-pipeline-builder", "tech-debt-tracker"),
         references=("references/implementation-readiness-checklist.md", "references/implementation-execution-checklist.md"),
         documents=(
             "docs/development/01-roadmap.md",
@@ -338,6 +349,7 @@ DESIGN_TRACKS: tuple[DesignTrack, ...] = (
         title="Architecture Decisions",
         purpose="Capture cross-module, high-cost, or reversible-later decisions as ADRs with source-backed context.",
         skills=("capturing-architecture-decisions",),
+        specialist_skills=("senior-architect", "migration-architect", "tech-stack-evaluator"),
         references=("references/architecture-decision-record-checklist.md",),
         documents=("docs/decisions/_template.md",),
         procedure="Create a numbered ADR only when the design work makes a consequential decision; keep references local and traceable.",
@@ -393,6 +405,7 @@ def build_api_candidates(root: Path) -> dict[str, object]:
         "workflow": DESIGN_WORKFLOW_PATH,
         "track": API_TRACK_ID,
         "skills": ["designing-api-contracts"],
+        "specialist_skills": _specialist_skills(API_TRACK_ID),
         "references": [
             "references/architecture-methods.md",
             "references/api-design-checklist.md",
@@ -428,6 +441,7 @@ def build_api_authoring(root: Path) -> dict[str, object]:
         "track": API_TRACK_ID,
         "decision_policy": "do_not_guess_contract_details",
         "skills": ["designing-api-contracts"],
+        "specialist_skills": _specialist_skills(API_TRACK_ID),
         "references": [
             "references/architecture-methods.md",
             "references/api-design-checklist.md",
@@ -466,6 +480,7 @@ def build_backend_authoring(root: Path) -> dict[str, object]:
         "track": BACKEND_TRACK_ID,
         "decision_policy": "do_not_guess_backend_boundaries",
         "skills": ["designing-backend-modules", "designing-data-models"],
+        "specialist_skills": _combined_specialist_skills(BACKEND_TRACK_ID, DATA_MODEL_TRACK_ID),
         "references": [
             "references/backend-design-checklist.md",
             "references/data-model-design-checklist.md",
@@ -505,6 +520,7 @@ def build_frontend_authoring(root: Path) -> dict[str, object]:
         "track": FRONTEND_TRACK_ID,
         "decision_policy": "do_not_guess_frontend_behavior",
         "skills": ["designing-ui-interactions", "designing-frontend-modules"],
+        "specialist_skills": _combined_specialist_skills(UI_INTERACTION_TRACK_ID, FRONTEND_TRACK_ID),
         "references": [
             "references/frontend-interaction-checklist.md",
             "references/security-design-checklist.md",
@@ -542,6 +558,7 @@ def build_test_strategy_authoring(root: Path) -> dict[str, object]:
         "track": TEST_STRATEGY_TRACK_ID,
         "decision_policy": "do_not_guess_verification_scope",
         "skills": ["designing-test-strategy"],
+        "specialist_skills": _specialist_skills(TEST_STRATEGY_TRACK_ID),
         "references": [
             "references/test-strategy-checklist.md",
             "references/security-design-checklist.md",
@@ -580,6 +597,7 @@ def build_implementation_planning_authoring(root: Path) -> dict[str, object]:
         "track": IMPLEMENTATION_PLANNING_TRACK_ID,
         "decision_policy": "do_not_guess_task_scope",
         "skills": ["planning-implementation-work"],
+        "specialist_skills": _specialist_skills(IMPLEMENTATION_PLANNING_TRACK_ID),
         "references": [
             "references/implementation-readiness-checklist.md",
             "references/implementation-execution-checklist.md",
@@ -623,6 +641,7 @@ def build_architecture_decisions_authoring(root: Path) -> dict[str, object]:
         "track": ARCHITECTURE_DECISIONS_TRACK_ID,
         "decision_policy": "do_not_guess_architecture_decisions",
         "skills": ["capturing-architecture-decisions"],
+        "specialist_skills": _specialist_skills(ARCHITECTURE_DECISIONS_TRACK_ID),
         "references": [
             "references/architecture-methods.md",
             "references/architecture-decision-record-checklist.md",
@@ -651,6 +670,20 @@ def _source_documents(root: Path) -> list[str]:
             if path.is_file():
                 candidates.append(path.relative_to(root).as_posix())
     return sorted(dict.fromkeys(candidates))
+
+
+def _specialist_skills(track_id: str) -> list[str]:
+    for track in DESIGN_TRACKS:
+        if track.id == track_id:
+            return list(track.specialist_skills)
+    return []
+
+
+def _combined_specialist_skills(*track_ids: str) -> list[str]:
+    skills: list[str] = []
+    for track_id in track_ids:
+        skills.extend(_specialist_skills(track_id))
+    return list(dict.fromkeys(skills))
 
 
 def _api_candidates(root: Path) -> list[dict[str, object]]:
@@ -727,6 +760,7 @@ def _api_authoring_task(root: Path, candidate: dict[str, object], index: int) ->
         "endpoint_file": endpoint_file,
         "endpoint_exists": candidate["endpoint_exists"],
         "replaceable_starter_endpoint": candidate["replaceable_starter_endpoint"],
+        "specialist_skills": _specialist_skills(API_TRACK_ID),
         "documents": documents,
         "required_links": required_links,
         "open_decisions": list(candidate["open_decisions"]),
@@ -763,6 +797,7 @@ def _api_authoring_steps(
             "id": "load-api-contract-skill",
             "kind": "skill-load",
             "skills": ["designing-api-contracts"],
+            "specialist_skills": _specialist_skills(API_TRACK_ID),
             "description": "Load the API contract skill before authoring shared conventions or endpoint files.",
         },
         {
@@ -864,6 +899,7 @@ def _backend_authoring_task(root: Path, candidate: dict[str, object], index: int
         "acceptance_id": candidate["acceptance_id"],
         "title": candidate["title"],
         "source": source,
+        "specialist_skills": _combined_specialist_skills(BACKEND_TRACK_ID, DATA_MODEL_TRACK_ID),
         "documents": documents,
         "required_links": required_links,
         "open_decisions": list(OPEN_BACKEND_DECISIONS),
@@ -882,6 +918,7 @@ def _backend_authoring_steps(
             "id": "load-backend-design-skills",
             "kind": "skill-load",
             "skills": ["designing-backend-modules", "designing-data-models"],
+            "specialist_skills": _combined_specialist_skills(BACKEND_TRACK_ID, DATA_MODEL_TRACK_ID),
             "description": "Load backend and data-model skills before assigning modules, persistence, or operability responsibilities.",
         },
         {
@@ -995,6 +1032,7 @@ def _frontend_authoring_task(root: Path, candidate: dict[str, object], index: in
         "acceptance_id": candidate["acceptance_id"],
         "title": candidate["title"],
         "source": source,
+        "specialist_skills": _combined_specialist_skills(UI_INTERACTION_TRACK_ID, FRONTEND_TRACK_ID),
         "documents": documents,
         "required_links": required_links,
         "open_decisions": list(OPEN_FRONTEND_DECISIONS),
@@ -1013,6 +1051,7 @@ def _frontend_authoring_steps(
             "id": "load-frontend-design-skills",
             "kind": "skill-load",
             "skills": ["designing-ui-interactions", "designing-frontend-modules"],
+            "specialist_skills": _combined_specialist_skills(UI_INTERACTION_TRACK_ID, FRONTEND_TRACK_ID),
             "description": "Load UI and frontend module skills before assigning flows, routes, state, or API consumption.",
         },
         {
@@ -1120,6 +1159,7 @@ def _test_strategy_authoring_task(root: Path, candidate: dict[str, object], inde
         "acceptance_id": candidate["acceptance_id"],
         "title": candidate["title"],
         "source": source,
+        "specialist_skills": _specialist_skills(TEST_STRATEGY_TRACK_ID),
         "documents": documents,
         "required_links": required_links,
         "open_decisions": list(OPEN_TEST_STRATEGY_DECISIONS),
@@ -1138,6 +1178,7 @@ def _test_strategy_authoring_steps(
             "id": "load-test-strategy-skill",
             "kind": "skill-load",
             "skills": ["designing-test-strategy"],
+            "specialist_skills": _specialist_skills(TEST_STRATEGY_TRACK_ID),
             "description": "Load the test strategy skill before assigning verification layers, commands, or evidence targets.",
         },
         {
@@ -1256,6 +1297,7 @@ def _implementation_planning_authoring_task(
         "title": candidate["title"],
         "suggested_task_id": suggested_task_id,
         "source": source,
+        "specialist_skills": _specialist_skills(IMPLEMENTATION_PLANNING_TRACK_ID),
         "documents": documents,
         "required_links": required_links,
         "open_decisions": list(OPEN_IMPLEMENTATION_PLANNING_DECISIONS),
@@ -1279,6 +1321,7 @@ def _implementation_planning_authoring_steps(
             "id": "load-implementation-planning-skill",
             "kind": "skill-load",
             "skills": ["planning-implementation-work"],
+            "specialist_skills": _specialist_skills(IMPLEMENTATION_PLANNING_TRACK_ID),
             "description": "Load the implementation planning skill before assigning TASK-NNN scope, status, readiness, or evidence targets.",
         },
         {
@@ -1404,6 +1447,7 @@ def _architecture_decision_authoring_task(
         "requires_adr": "undetermined",
         "next_adr_prefix": next_adr_prefix,
         "source": source,
+        "specialist_skills": _specialist_skills(ARCHITECTURE_DECISIONS_TRACK_ID),
         "documents": documents,
         "required_links": required_links,
         "open_decisions": list(OPEN_ARCHITECTURE_DECISION_DECISIONS),
@@ -1422,6 +1466,7 @@ def _architecture_decision_authoring_steps(
             "id": "load-adr-skill",
             "kind": "skill-load",
             "skills": ["capturing-architecture-decisions"],
+            "specialist_skills": _specialist_skills(ARCHITECTURE_DECISIONS_TRACK_ID),
             "description": "Load the ADR skill before deciding whether a source-backed architecture decision record is required.",
         },
         {
@@ -1618,6 +1663,7 @@ def _track_payload(
         "purpose": track.purpose,
         "status": _track_status(document_status, blockers),
         "skills": list(track.skills),
+        "specialist_skills": list(track.specialist_skills),
         "references": list(track.references),
         "documents": documents,
         "document_status": document_status,
@@ -1639,6 +1685,7 @@ def _track_steps(
             "id": "load-track-skills",
             "kind": "skill-load",
             "skills": list(track.skills),
+            "specialist_skills": list(track.specialist_skills),
             "description": "Load the listed skills before interpreting or editing this design track.",
         },
         {

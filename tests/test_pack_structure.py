@@ -143,6 +143,17 @@ class PackStructureTest(unittest.TestCase):
         self.assertEqual([], payload["errors"])
         self.assertEqual([], payload["findings"])
 
+    def test_verify_pack_allows_authority_routing_specialist_skill_references(self) -> None:
+        report = verify_pack(ROOT)
+
+        self.assertFalse(
+            any(
+                finding.code == "pack_skill_reference_missing"
+                and "api-design-reviewer" in finding.message
+                for finding in report.findings
+            )
+        )
+
     def test_verify_pack_script_json_reports_missing_required_files(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
