@@ -715,6 +715,41 @@ SOURCE_PACK_EXPORT_DOC_REQUIREMENTS = {
         "python3 scripts/export_workflow_pack.py --output dist/docs-as-code-workflow-pack --archive dist/docs-as-code-workflow-pack.tar.gz --force --json",
     ),
 }
+ARTIFACT_SMOKE_PATH = "scripts/smoke_workflow_pack_artifact.py"
+ARTIFACT_SMOKE_REQUIRED_PHRASES = (
+    "run_artifact_smoke",
+    "export_artifact",
+    "unpacked_verify_pack",
+    "unpacked_dry_run",
+    "safe_extract_archive",
+    "pack-manifest.json",
+    "archive_member_count",
+    "target_retained",
+    "scripts/export_workflow_pack.py",
+    "scripts/verify_pack.py",
+    "scripts/dry_run_workflow.py",
+)
+ARTIFACT_SMOKE_DOC_REQUIREMENTS = {
+    "README.md": (
+        "make artifact-smoke",
+        "python3 scripts/smoke_workflow_pack_artifact.py --json",
+        "unpacks the tar.gz artifact",
+    ),
+    "workflows/00-overview.md": (
+        "make artifact-smoke",
+        "python3 scripts/smoke_workflow_pack_artifact.py --json",
+        "unpacks the tar.gz artifact",
+    ),
+    "references/release-readiness-checklist.md": (
+        "make artifact-smoke",
+        "python3 scripts/smoke_workflow_pack_artifact.py --json",
+        "unpacked artifact",
+    ),
+    "skills/verifying-governance-docs/SKILL.md": (
+        "make artifact-smoke",
+        "python3 scripts/smoke_workflow_pack_artifact.py --json",
+    ),
+}
 RELEASE_READINESS_PATH = "scripts/release_readiness.py"
 RELEASE_READINESS_REQUIRED_PHRASES = (
     "run_release_readiness",
@@ -727,11 +762,14 @@ RELEASE_READINESS_REQUIRED_PHRASES = (
     "environment_inventory",
     "fresh_target_dry_run",
     "source_pack_export",
+    "release_artifact_smoke",
+    "release-artifact-smoke",
     "--skip-tests",
     "scripts/verify_pack.py",
     "scripts/check_env.py",
     "scripts/dry_run_workflow.py",
     "scripts/export_workflow_pack.py",
+    "scripts/smoke_workflow_pack_artifact.py",
 )
 RELEASE_READINESS_DOC_REQUIREMENTS = {
     "README.md": (
@@ -2173,6 +2211,7 @@ MAKEFILE_REQUIRED_TARGETS = (
     "test",
     "dry-run",
     "package",
+    "artifact-smoke",
     "release-check",
     "verify-pack",
 )
@@ -2185,6 +2224,9 @@ MAKEFILE_REQUIRED_TARGET_RECIPES = {
     ),
     "package": (
         "python3 scripts/export_workflow_pack.py --output dist/docs-as-code-workflow-pack --archive dist/docs-as-code-workflow-pack.tar.gz --force --json",
+    ),
+    "artifact-smoke": (
+        "python3 scripts/smoke_workflow_pack_artifact.py --json",
     ),
     "release-check": (
         "python3 scripts/release_readiness.py --json",
@@ -2479,6 +2521,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_fresh_target_workflow_smoke_test(root, findings)
     _check_dry_run_workflow(root, findings)
     _check_source_pack_export_workflow(root, findings)
+    _check_artifact_smoke_workflow(root, findings)
     _check_release_readiness_workflow(root, findings)
     _check_runtime_continuation_calls(root, findings)
     _check_target_local_command_source(root, findings)
@@ -2490,6 +2533,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_readme_quick_start(root, findings)
     _check_dry_run_docs(root, findings)
     _check_source_pack_export_docs(root, findings)
+    _check_artifact_smoke_docs(root, findings)
     _check_release_readiness_docs(root, findings)
     _check_target_makefile_command_docs(root, findings)
     _check_env_repair_docs(root, findings)
@@ -2637,6 +2681,35 @@ def _check_source_pack_export_workflow(root: Path, findings: list[PackFinding]) 
                 f"missing phrase(s): {', '.join(missing)}"
             ),
             SOURCE_PACK_EXPORT_PATH,
+        )
+    )
+
+
+def _check_artifact_smoke_workflow(root: Path, findings: list[PackFinding]) -> None:
+    path = root / ARTIFACT_SMOKE_PATH
+    if not path.is_file():
+        findings.append(
+            PackFinding(
+                "pack_artifact_smoke_missing",
+                f"missing artifact smoke script: {ARTIFACT_SMOKE_PATH}",
+                ARTIFACT_SMOKE_PATH,
+            )
+        )
+        return
+    text = _read_utf8_text_or_none(path)
+    if text is None:
+        return
+    missing = [phrase for phrase in ARTIFACT_SMOKE_REQUIRED_PHRASES if phrase not in text]
+    if not missing:
+        return
+    findings.append(
+        PackFinding(
+            "pack_artifact_smoke_incomplete",
+            (
+                f"{ARTIFACT_SMOKE_PATH} must unpack and smoke-test the exported workflow-pack artifact; "
+                f"missing phrase(s): {', '.join(missing)}"
+            ),
+            ARTIFACT_SMOKE_PATH,
         )
     )
 
@@ -3836,6 +3909,23 @@ def _check_source_pack_export_docs(root: Path, findings: list[PackFinding]) -> N
                 PackFinding(
                     "pack_source_pack_export_doc_missing",
                     f"{rel} must document source-pack export command or behavior: {phrase}",
+                    rel,
+                )
+            )
+
+
+def _check_artifact_smoke_docs(root: Path, findings: list[PackFinding]) -> None:
+    for rel, required_phrases in ARTIFACT_SMOKE_DOC_REQUIREMENTS.items():
+        text = _read_utf8_text_or_none(root / rel)
+        if text is None:
+            continue
+        for phrase in required_phrases:
+            if phrase in text:
+                continue
+            findings.append(
+                PackFinding(
+                    "pack_artifact_smoke_doc_missing",
+                    f"{rel} must document artifact smoke command or behavior: {phrase}",
                     rel,
                 )
             )

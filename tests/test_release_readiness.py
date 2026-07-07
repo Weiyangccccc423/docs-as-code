@@ -39,6 +39,7 @@ class ReleaseReadinessTest(unittest.TestCase):
             "environment-inventory",
             "fresh-target-dry-run",
             "source-pack-export",
+            "release-artifact-smoke",
         ):
             self.assertEqual("pass", criteria[criterion_id]["status"])
         step_ids = {step["id"] for step in payload["steps"]}
@@ -46,6 +47,7 @@ class ReleaseReadinessTest(unittest.TestCase):
         self.assertIn("environment_inventory", step_ids)
         self.assertIn("fresh_target_dry_run", step_ids)
         self.assertIn("source_pack_export", step_ids)
+        self.assertIn("release_artifact_smoke", step_ids)
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-.PHONY: test dry-run package release-check verify-pack check-env
+.PHONY: test dry-run package artifact-smoke release-check verify-pack check-env
 
 test:
 	python3 -m unittest discover -s tests
@@ -8,6 +8,9 @@ dry-run:
 
 package:
 	python3 scripts/export_workflow_pack.py --output dist/docs-as-code-workflow-pack --archive dist/docs-as-code-workflow-pack.tar.gz --force --json
+
+artifact-smoke:
+	python3 scripts/smoke_workflow_pack_artifact.py --json
 
 release-check:
 	python3 scripts/release_readiness.py --json

@@ -205,6 +205,24 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
         },
     )
 
+    artifact_smoke_payload = _run_step(
+        steps,
+        "release_artifact_smoke",
+        [sys.executable, "scripts/smoke_workflow_pack_artifact.py", "--json"],
+        parse_json=True,
+    )
+    _criterion(
+        criteria,
+        "release-artifact-smoke",
+        bool(steps[-1]["ok"]) and bool(artifact_smoke_payload and artifact_smoke_payload.get("ok") is True),
+        evidence="python3 scripts/smoke_workflow_pack_artifact.py --json",
+        details={
+            "archive_member_count": artifact_smoke_payload.get("archive_member_count") if artifact_smoke_payload else 0,
+            "archive_sha256": artifact_smoke_payload.get("archive_sha256") if artifact_smoke_payload else "",
+            "manifest_sha256": artifact_smoke_payload.get("manifest_sha256") if artifact_smoke_payload else "",
+        },
+    )
+
     ok = all(bool(item["ok"]) or item["status"] == "skipped" for item in criteria)
     release_ready = ok and not any(item["status"] == "skipped" for item in criteria)
     return {

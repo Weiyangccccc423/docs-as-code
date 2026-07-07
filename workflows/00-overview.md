@@ -38,6 +38,13 @@ python3 scripts/export_workflow_pack.py --output dist/docs-as-code-workflow-pack
 
 The export writes `pack-manifest.json` with SHA-256 evidence for the included source-pack files, runs `verify_pack` on the exported directory, and can create a tar.gz artifact for transfer.
 
+To prove the transfer artifact is self-contained, smoke-test it with a command that unpacks the tar.gz artifact and runs checks from the unpacked workflow pack:
+
+```bash
+make artifact-smoke
+python3 scripts/smoke_workflow_pack_artifact.py --json
+```
+
 Before tagging or handing off a source workflow-pack release, run the release readiness gate and use `references/release-readiness-checklist.md` as the rubric:
 
 ```bash
