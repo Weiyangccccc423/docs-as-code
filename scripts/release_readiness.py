@@ -11,6 +11,7 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
+MULTI_ACCEPTANCE_PRODUCT_FIXTURE = ROOT / "tests/fixtures/product-docs/field-service-ops.md"
 
 
 def _agent_env() -> dict[str, str]:
@@ -169,6 +170,39 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
         details={
             "final_phase": dry_run_payload.get("final_phase") if dry_run_payload else "",
             "api_candidate_count": dry_run_payload.get("api_candidate_count") if dry_run_payload else 0,
+        },
+    )
+
+    multi_acceptance_payload = _run_step(
+        steps,
+        "multi_acceptance_dry_run",
+        [
+            sys.executable,
+            "scripts/dry_run_workflow.py",
+            "--product",
+            MULTI_ACCEPTANCE_PRODUCT_FIXTURE,
+            "--json",
+        ],
+        parse_json=True,
+    )
+    authoring_counts = multi_acceptance_payload.get("authoring_task_counts", {}) if multi_acceptance_payload else {}
+    _criterion(
+        criteria,
+        "multi-acceptance-dry-run",
+        bool(steps[-1]["ok"])
+        and bool(multi_acceptance_payload and multi_acceptance_payload.get("ok") is True)
+        and multi_acceptance_payload.get("acceptance_id_count") == 4
+        and multi_acceptance_payload.get("api_candidate_count") == 4
+        and isinstance(authoring_counts, dict)
+        and len(authoring_counts) == 6
+        and all(value == 4 for value in authoring_counts.values()),
+        evidence="python3 scripts/dry_run_workflow.py --product tests/fixtures/product-docs/field-service-ops.md --json",
+        details={
+            "acceptance_id_count": multi_acceptance_payload.get("acceptance_id_count")
+            if multi_acceptance_payload
+            else 0,
+            "api_candidate_count": multi_acceptance_payload.get("api_candidate_count") if multi_acceptance_payload else 0,
+            "authoring_task_counts": authoring_counts,
         },
     )
 

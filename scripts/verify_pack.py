@@ -629,6 +629,9 @@ DRY_RUN_WORKFLOW_REQUIRED_PHRASES = (
     "run_dry_run",
     "fresh-target-governance-dry-run",
     "SAMPLE_PRODUCT",
+    "ACCEPTANCE_ID_HEADING_RE",
+    "acceptance_id_count",
+    "expected_task_count",
     "mkdtemp",
     '"env"',
     '"--repair"',
@@ -659,23 +662,52 @@ DRY_RUN_WORKFLOW_REQUIRED_PHRASES = (
     "authoring_task_counts",
     "target_retained",
 )
+DRY_RUN_GOLDEN_FIXTURE_PATH = "tests/fixtures/product-docs/field-service-ops.md"
+DRY_RUN_GOLDEN_TEST_PATH = "tests/test_dry_run_workflow.py"
+DRY_RUN_GOLDEN_FIXTURE_REQUIRED_PHRASES = (
+    "Field Service Operations Portal",
+    "Goals and Requirements",
+    "Acceptance Criteria",
+    "coordinator can submit a complete service request",
+    "dispatcher can assign an unassigned request",
+    "technician can mark an assigned work order as checked in",
+    "operations manager can view an audit timeline",
+)
+DRY_RUN_GOLDEN_TEST_REQUIRED_PHRASES = (
+    "test_dry_run_handles_realistic_multi_acceptance_product_fixture",
+    "tests/fixtures/product-docs/field-service-ops.md",
+    "acceptance_id_count",
+    "api_candidate_count",
+    "authoring_task_counts",
+    "A-004",
+)
 DRY_RUN_DOC_REQUIREMENTS = {
     "README.md": (
         "make dry-run",
         "python3 scripts/dry_run_workflow.py --json",
+        "python3 scripts/dry_run_workflow.py --product tests/fixtures/product-docs/field-service-ops.md --json",
         "temporary target",
+        "multi-acceptance",
         "implementation gate remains blocked",
     ),
     "workflows/00-overview.md": (
         "make dry-run",
         "python3 scripts/dry_run_workflow.py --json",
+        "python3 scripts/dry_run_workflow.py --product tests/fixtures/product-docs/field-service-ops.md --json",
         "temporary target",
+        "multi-acceptance",
         "implementation gate remains blocked",
     ),
     "skills/verifying-governance-docs/SKILL.md": (
         "source workflow-pack health",
         "make dry-run",
         "python3 scripts/dry_run_workflow.py --json",
+        "python3 scripts/dry_run_workflow.py --product tests/fixtures/product-docs/field-service-ops.md --json",
+    ),
+    "references/release-readiness-checklist.md": (
+        "python3 scripts/dry_run_workflow.py --product tests/fixtures/product-docs/field-service-ops.md --json",
+        "acceptance_id_count: 4",
+        "api_candidate_count: 4",
     ),
 }
 SOURCE_PACK_EXPORT_PATH = "scripts/export_workflow_pack.py"
@@ -796,6 +828,10 @@ RELEASE_READINESS_REQUIRED_PHRASES = (
     "pack_verification",
     "environment_inventory",
     "fresh_target_dry_run",
+    "multi_acceptance_dry_run",
+    "multi-acceptance-dry-run",
+    "tests/fixtures/product-docs/field-service-ops.md",
+    "acceptance_id_count",
     "source_pack_export",
     "release_artifact_smoke",
     "release-artifact-smoke",
@@ -2556,6 +2592,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_governance_cli_commands(root, findings)
     _check_fresh_target_workflow_smoke_test(root, findings)
     _check_dry_run_workflow(root, findings)
+    _check_dry_run_golden_fixture(root, findings)
     _check_source_pack_export_workflow(root, findings)
     _check_pack_manifest_verify_workflow(root, findings)
     _check_artifact_smoke_workflow(root, findings)
@@ -2690,6 +2727,60 @@ def _check_dry_run_workflow(root: Path, findings: list[PackFinding]) -> None:
                 f"missing phrase(s): {', '.join(missing)}"
             ),
             DRY_RUN_WORKFLOW_PATH,
+        )
+    )
+
+
+def _check_dry_run_golden_fixture(root: Path, findings: list[PackFinding]) -> None:
+    fixture = root / DRY_RUN_GOLDEN_FIXTURE_PATH
+    if not fixture.is_file():
+        findings.append(
+            PackFinding(
+                "pack_dry_run_golden_fixture_missing",
+                f"missing dry-run product-doc golden fixture: {DRY_RUN_GOLDEN_FIXTURE_PATH}",
+                DRY_RUN_GOLDEN_FIXTURE_PATH,
+            )
+        )
+        return
+    fixture_text = _read_utf8_text_or_none(fixture)
+    if fixture_text is not None:
+        missing = [phrase for phrase in DRY_RUN_GOLDEN_FIXTURE_REQUIRED_PHRASES if phrase not in fixture_text]
+        if missing:
+            findings.append(
+                PackFinding(
+                    "pack_dry_run_golden_fixture_incomplete",
+                    (
+                        f"{DRY_RUN_GOLDEN_FIXTURE_PATH} must exercise a realistic multi-acceptance PRD; "
+                        f"missing phrase(s): {', '.join(missing)}"
+                    ),
+                    DRY_RUN_GOLDEN_FIXTURE_PATH,
+                )
+            )
+
+    test = root / DRY_RUN_GOLDEN_TEST_PATH
+    if not test.is_file():
+        findings.append(
+            PackFinding(
+                "pack_dry_run_golden_test_missing",
+                f"missing dry-run golden fixture test: {DRY_RUN_GOLDEN_TEST_PATH}",
+                DRY_RUN_GOLDEN_TEST_PATH,
+            )
+        )
+        return
+    test_text = _read_utf8_text_or_none(test)
+    if test_text is None:
+        return
+    missing = [phrase for phrase in DRY_RUN_GOLDEN_TEST_REQUIRED_PHRASES if phrase not in test_text]
+    if not missing:
+        return
+    findings.append(
+        PackFinding(
+            "pack_dry_run_golden_test_incomplete",
+            (
+                f"{DRY_RUN_GOLDEN_TEST_PATH} must run dry-run against the realistic product-doc fixture; "
+                f"missing phrase(s): {', '.join(missing)}"
+            ),
+            DRY_RUN_GOLDEN_TEST_PATH,
         )
     )
 

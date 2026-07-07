@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -46,6 +47,7 @@ AUTHORING_COMMANDS = [
     ("implementation_planning_authoring", "implementation-planning-authoring", "implementation-planning"),
     ("architecture_decisions_authoring", "architecture-decisions-authoring", "architecture-decisions"),
 ]
+ACCEPTANCE_ID_HEADING_RE = re.compile(r"^##[ \t]+(?P<id>A-[0-9]{3})\b", re.MULTILINE)
 
 
 class DryRunFailure(Exception):
@@ -398,8 +400,9 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
     _require(product_structured.get("ok") is True, "product structure failed", payload=product_structured)
     goals = (target / "docs/product/03-goals-and-requirements.md").read_text(encoding="utf-8")
     acceptance = (target / "docs/product/08-acceptance-criteria.md").read_text(encoding="utf-8")
+    acceptance_ids = ACCEPTANCE_ID_HEADING_RE.findall(acceptance)
     _require("governance:scaffold-placeholder" not in goals, "goals chapter still contains scaffold placeholder")
-    _require("A-001" in acceptance, "acceptance chapter did not receive stable acceptance ID")
+    _require(acceptance_ids, "acceptance chapter did not receive stable acceptance IDs")
 
     clean_verify = _run_json(
         steps,
@@ -472,7 +475,12 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         target,
     )
     _require(api_candidates.get("ok") is True, "API candidate extraction failed", payload=api_candidates)
-    _require(len(api_candidates.get("candidates", [])) == 1, "API candidate count mismatch", payload=api_candidates)
+    expected_task_count = len(acceptance_ids)
+    _require(
+        len(api_candidates.get("candidates", [])) == expected_task_count,
+        "API candidate count mismatch",
+        payload=api_candidates,
+    )
 
     authoring_task_counts: dict[str, int] = {}
     for step_id, command, expected_track in AUTHORING_COMMANDS:
@@ -487,7 +495,7 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         tasks = payload.get("authoring_tasks")
         _require(isinstance(tasks, list), f"{command} did not return authoring_tasks", payload=payload)
         authoring_task_counts[command] = len(tasks)
-        _require(len(tasks) == 1, f"{command} task count mismatch", payload=payload)
+        _require(len(tasks) == expected_task_count, f"{command} task count mismatch", payload=payload)
 
     implementation_preflight = _run_json(
         steps,
@@ -513,6 +521,8 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         "steps": steps,
         "final_phase": final_state.get("phase"),
         "design_tracks": track_ids,
+        "acceptance_ids": acceptance_ids,
+        "acceptance_id_count": len(acceptance_ids),
         "api_candidate_count": len(api_candidates.get("candidates", [])),
         "authoring_task_counts": authoring_task_counts,
         "implementation_gate": {

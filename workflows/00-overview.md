@@ -24,9 +24,11 @@ From the source workflow-pack checkout, run the disposable end-to-end dry run be
 ```bash
 make dry-run
 python3 scripts/dry_run_workflow.py --json
+python3 scripts/dry_run_workflow.py --product tests/fixtures/product-docs/field-service-ops.md --json
 ```
 
 The dry run creates a temporary target, imports a sample product document, advances through product structuring and design derivation, builds the API, backend, frontend, test, implementation-planning, and ADR authoring queues, and confirms the implementation gate remains blocked until design scaffold placeholders are replaced with source-backed content.
+The explicit product fixture command runs the same workflow against a realistic multi-acceptance product document so queue counts prove they scale beyond the one-criterion sample.
 
 When the source workflow pack needs to move to another workspace or agent environment, export it instead of copying ad hoc files:
 

@@ -38,6 +38,7 @@ class ReleaseReadinessTest(unittest.TestCase):
             "pack-verification",
             "environment-inventory",
             "fresh-target-dry-run",
+            "multi-acceptance-dry-run",
             "source-pack-export",
             "release-artifact-smoke",
         ):
@@ -46,6 +47,7 @@ class ReleaseReadinessTest(unittest.TestCase):
         self.assertIn("pack_verification", step_ids)
         self.assertIn("environment_inventory", step_ids)
         self.assertIn("fresh_target_dry_run", step_ids)
+        self.assertIn("multi_acceptance_dry_run", step_ids)
         self.assertIn("source_pack_export", step_ids)
         self.assertIn("release_artifact_smoke", step_ids)
 

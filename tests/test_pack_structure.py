@@ -331,6 +331,58 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_missing_dry_run_golden_fixture(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            fixture = target / "tests/fixtures/product-docs/field-service-ops.md"
+            if fixture.exists():
+                fixture.unlink()
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_dry_run_golden_fixture_missing"
+                    and finding.path == "tests/fixtures/product-docs/field-service-ops.md"
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_incomplete_dry_run_golden_fixture_test(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            test = target / "tests/test_dry_run_workflow.py"
+            test.write_text(
+                test.read_text(encoding="utf-8").replace(
+                    "test_dry_run_handles_realistic_multi_acceptance_product_fixture",
+                    "test_dry_run_handles_fixture",
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_dry_run_golden_test_incomplete"
+                    and finding.path == "tests/test_dry_run_workflow.py"
+                    and "test_dry_run_handles_realistic_multi_acceptance_product_fixture" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_missing_source_pack_export_script(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"

@@ -16,6 +16,7 @@ For source workflow-pack health before using the pack on a real target:
 ```bash
 make dry-run
 python3 scripts/dry_run_workflow.py --json
+python3 scripts/dry_run_workflow.py --product tests/fixtures/product-docs/field-service-ops.md --json
 make package
 python3 scripts/export_workflow_pack.py --check --json
 python3 scripts/export_workflow_pack.py --output dist/docs-as-code-workflow-pack --archive dist/docs-as-code-workflow-pack.tar.gz --force --json
