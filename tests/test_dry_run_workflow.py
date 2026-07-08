@@ -198,6 +198,19 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertTrue(payload["implementation_closeout"]["applied_status_updates"])
             self.assertTrue(payload["implementation_closeout"]["implementation_plan_complete"])
             self.assertTrue(payload["implementation_closeout"]["workflow_plan_complete"])
+            self.assertTrue(payload["runtime_refresh"]["check_ok"])
+            self.assertTrue(payload["runtime_refresh"]["applied"])
+            self.assertTrue(payload["runtime_refresh"]["runtime_refreshed_at"])
+            self.assertTrue(payload["runtime_refresh"]["workflow_plan_complete_after_refresh"])
+            self.assertEqual(
+                [
+                    "bin/governance",
+                    "scripts/governance_cli.py",
+                    "docs/agent-workflow/runtime-manifest.json",
+                    "docs/agent-workflow/workflow-pack/manifest.json",
+                ],
+                payload["runtime_refresh"]["refreshed_required_paths"],
+            )
             self.assertEqual(
                 [
                     "verification_log_row_present",
@@ -233,6 +246,9 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertIn("implementation_closeout_apply", step_ids)
             self.assertIn("implementation_plan_after_closeout_apply", step_ids)
             self.assertIn("workflow_plan_after_closeout_apply", step_ids)
+            self.assertIn("runtime_refresh_check_after_complete", step_ids)
+            self.assertIn("runtime_refresh_after_complete", step_ids)
+            self.assertIn("make_workflow_plan_after_runtime_refresh", step_ids)
             self.assertTrue((target / "bin/governance").is_file())
             self.assertTrue((target / "docs/api/endpoints/01-endpoint-contract.md").is_file())
 
@@ -286,6 +302,9 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertTrue(payload["implementation_closeout"]["applied_status_updates"])
             self.assertTrue(payload["implementation_closeout"]["implementation_plan_complete"])
             self.assertTrue(payload["implementation_closeout"]["workflow_plan_complete"])
+            self.assertTrue(payload["runtime_refresh"]["check_ok"])
+            self.assertTrue(payload["runtime_refresh"]["applied"])
+            self.assertTrue(payload["runtime_refresh"]["workflow_plan_complete_after_refresh"])
             self.assertEqual([], payload["target_local_make_coverage"]["missing_step_ids"])
 
 

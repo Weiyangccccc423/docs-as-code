@@ -105,6 +105,7 @@ def _criterion(
 def _dry_run_closeout_evidence_ok(payload: dict[str, object]) -> bool:
     gate = payload.get("implementation_gate")
     closeout = payload.get("implementation_closeout")
+    runtime_refresh = payload.get("runtime_refresh")
     return (
         isinstance(gate, dict)
         and gate.get("placeholder_blocked_ok") is False
@@ -116,6 +117,10 @@ def _dry_run_closeout_evidence_ok(payload: dict[str, object]) -> bool:
         and closeout.get("applied_status_updates") is True
         and closeout.get("implementation_plan_complete") is True
         and closeout.get("workflow_plan_complete") is True
+        and isinstance(runtime_refresh, dict)
+        and runtime_refresh.get("check_ok") is True
+        and runtime_refresh.get("applied") is True
+        and runtime_refresh.get("workflow_plan_complete_after_refresh") is True
     )
 
 

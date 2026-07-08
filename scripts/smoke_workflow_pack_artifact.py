@@ -159,6 +159,7 @@ def run_artifact_smoke(*, keep: bool = False) -> dict[str, object]:
             payload=dry_run_payload,
         )
         closeout = dry_run_payload.get("implementation_closeout")
+        runtime_refresh = dry_run_payload.get("runtime_refresh")
         _require(
             isinstance(closeout, dict)
             and closeout.get("blocked_without_evidence") is True
@@ -167,6 +168,14 @@ def run_artifact_smoke(*, keep: bool = False) -> dict[str, object]:
             and closeout.get("implementation_plan_complete") is True
             and closeout.get("workflow_plan_complete") is True,
             "unpacked artifact dry-run did not prove implementation closeout evidence gates",
+            payload=dry_run_payload,
+        )
+        _require(
+            isinstance(runtime_refresh, dict)
+            and runtime_refresh.get("check_ok") is True
+            and runtime_refresh.get("applied") is True
+            and runtime_refresh.get("workflow_plan_complete_after_refresh") is True,
+            "unpacked artifact dry-run did not prove runtime refresh preserves completion state",
             payload=dry_run_payload,
         )
         target_local_make_coverage = _dry_run_target_local_make_details(dry_run_payload)

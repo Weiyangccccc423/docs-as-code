@@ -961,6 +961,39 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         "workflow plan did not report implementation complete after closeout apply",
         payload=workflow_plan_after_closeout,
     )
+    runtime_refresh_check = _run_json(
+        steps,
+        "runtime_refresh_check_after_complete",
+        [sys.executable, CLI, "runtime", "refresh", target, "--check", "--json"],
+        ROOT,
+    )
+    _require(
+        _runtime_refresh_check_is_ready(runtime_refresh_check),
+        "runtime refresh check did not return a safe refresh plan after implementation complete",
+        payload=runtime_refresh_check,
+    )
+    runtime_refresh = _run_json(
+        steps,
+        "runtime_refresh_after_complete",
+        [sys.executable, CLI, "runtime", "refresh", target, "--json"],
+        ROOT,
+    )
+    _require(
+        _runtime_refresh_completed(runtime_refresh),
+        "runtime refresh did not refresh target runtime and workflow-pack snapshot",
+        payload=runtime_refresh,
+    )
+    make_workflow_plan_after_runtime_refresh = _run_json(
+        steps,
+        "make_workflow_plan_after_runtime_refresh",
+        ["make", "workflow-plan"],
+        target,
+    )
+    _require(
+        _workflow_plan_is_implementation_complete(make_workflow_plan_after_runtime_refresh),
+        "target-local make workflow-plan did not remain complete after runtime refresh",
+        payload=make_workflow_plan_after_runtime_refresh,
+    )
 
     final_status = _run_json(
         steps,
@@ -1007,6 +1040,23 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
             "apply_updated_paths": [
                 str(path)
                 for path in closeout_apply.get("updated_paths", [])
+            ],
+        },
+        "runtime_refresh": {
+            "check_ok": runtime_refresh_check.get("ok") is True,
+            "applied": runtime_refresh.get("ok") is True,
+            "runtime_refreshed_at": isinstance(runtime_refresh.get("state"), dict)
+            and isinstance(runtime_refresh["state"].get("runtime_refreshed_at"), str),
+            "workflow_plan_complete_after_refresh": make_workflow_plan_after_runtime_refresh.get("blocked") is False,
+            "refreshed_required_paths": [
+                path
+                for path in (
+                    "bin/governance",
+                    "scripts/governance_cli.py",
+                    "docs/agent-workflow/runtime-manifest.json",
+                    "docs/agent-workflow/workflow-pack/manifest.json",
+                )
+                if path in runtime_refresh.get("refreshed", [])
             ],
         },
         "next": "execute exactly one Ready implementation task and apply closeout status updates after evidence passes",
@@ -1685,6 +1735,55 @@ def _workflow_plan_is_implementation_complete(payload: dict[str, object]) -> boo
         and active_work.get("kind") == "implementation-complete"
         and active_work.get("status") == "complete"
         and active_work.get("queue_status") == "complete"
+    )
+
+
+def _runtime_refresh_check_is_ready(payload: dict[str, object]) -> bool:
+    if payload.get("ok") is not True or payload.get("check") is not True:
+        return False
+    would_refresh = payload.get("would_refresh")
+    if not isinstance(would_refresh, list):
+        return False
+    required_paths = {
+        "bin/governance",
+        "scripts/governance_cli.py",
+        "docs/agent-workflow/runtime-manifest.json",
+        "docs/agent-workflow/workflow-pack/manifest.json",
+    }
+    if not required_paths.issubset({str(path) for path in would_refresh}):
+        return False
+    if payload.get("refreshed") not in (None, []):
+        return False
+    if payload.get("removed") not in (None, []):
+        return False
+    return True
+
+
+def _runtime_refresh_completed(payload: dict[str, object]) -> bool:
+    if payload.get("ok") is not True or payload.get("check") is not False:
+        return False
+    refreshed = payload.get("refreshed")
+    if not isinstance(refreshed, list):
+        return False
+    required_paths = {
+        "bin/governance",
+        "scripts/governance_cli.py",
+        "docs/agent-workflow/runtime-manifest.json",
+        "docs/agent-workflow/workflow-pack/manifest.json",
+    }
+    if not required_paths.issubset({str(path) for path in refreshed}):
+        return False
+    state = payload.get("state")
+    if not isinstance(state, dict) or not isinstance(state.get("runtime_refreshed_at"), str):
+        return False
+    local_commands = payload.get("local_commands")
+    if not isinstance(local_commands, list):
+        return False
+    return any(
+        isinstance(command, dict)
+        and command.get("make_target") == "workflow-plan"
+        and command.get("argv") == ["make", "workflow-plan"]
+        for command in local_commands
     )
 
 
