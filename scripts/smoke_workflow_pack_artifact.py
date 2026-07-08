@@ -152,6 +152,12 @@ def run_artifact_smoke(*, keep: bool = False) -> dict[str, object]:
             "unpacked artifact dry-run did not prove implementation closeout evidence gates",
             payload=dry_run_payload,
         )
+        target_local_make_coverage = _dry_run_target_local_make_details(dry_run_payload)
+        _require(
+            target_local_make_coverage["missing_step_ids"] == [],
+            "unpacked artifact dry-run did not prove target-local Make command coverage",
+            payload=dry_run_payload,
+        )
 
         payload = {
             "ok": True,
@@ -161,6 +167,7 @@ def run_artifact_smoke(*, keep: bool = False) -> dict[str, object]:
             "archive_member_count": len(archive_members),
             "archive_sha256": export_payload.get("archive_sha256"),
             "manifest_sha256": export_payload.get("manifest_sha256"),
+            "target_local_make_coverage": target_local_make_coverage,
             "steps": steps,
             "target_retained": True,
         }
@@ -209,6 +216,27 @@ def _validate_member(destination: Path, member: tarfile.TarInfo) -> None:
         raise ArtifactSmokeError(f"archive member escapes destination: {member.name}") from error
     if member.issym() or member.islnk():
         raise ArtifactSmokeError(f"archive member links are not allowed: {member.name}")
+
+
+def _dry_run_target_local_make_details(payload: dict[str, object]) -> dict[str, object]:
+    required = [
+        "make_workflow_plan_product_structuring",
+        "make_workflow_plan_design_derivation",
+        "make_workflow_plan_implementation",
+        "make_product_plan",
+        "make_design_plan",
+        "make_implementation_plan",
+    ]
+    steps = payload.get("steps")
+    step_ids = (
+        {str(step.get("id")) for step in steps if isinstance(step, dict)}
+        if isinstance(steps, list)
+        else set()
+    )
+    return {
+        "required_step_ids": required,
+        "missing_step_ids": [step_id for step_id in required if step_id not in step_ids],
+    }
 
 
 def _require(condition: bool, message: str, *, payload: dict[str, object] | None = None) -> None:

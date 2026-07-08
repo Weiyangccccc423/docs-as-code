@@ -862,6 +862,14 @@ ARTIFACT_SMOKE_REQUIRED_PHRASES = (
     "implementation_closeout",
     "blocked_without_evidence",
     "ready_with_evidence",
+    "_dry_run_target_local_make_details",
+    "target_local_make_coverage",
+    "make_workflow_plan_product_structuring",
+    "make_workflow_plan_design_derivation",
+    "make_workflow_plan_implementation",
+    "make_product_plan",
+    "make_design_plan",
+    "make_implementation_plan",
 )
 ARTIFACT_SMOKE_DOC_REQUIREMENTS = {
     "README.md": (

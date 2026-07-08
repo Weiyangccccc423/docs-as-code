@@ -31,6 +31,7 @@ class ArtifactSmokeTest(unittest.TestCase):
         self.assertGreater(payload["archive_member_count"], 20)
         self.assertIsInstance(payload["archive_sha256"], str)
         self.assertIsInstance(payload["manifest_sha256"], str)
+        self.assertEqual([], payload["target_local_make_coverage"]["missing_step_ids"])
         step_ids = {step["id"] for step in payload["steps"]}
         self.assertIn("export_artifact", step_ids)
         self.assertIn("unpacked_verify_pack_manifest", step_ids)

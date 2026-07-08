@@ -577,33 +577,39 @@ class PackStructureTest(unittest.TestCase):
             )
 
     def test_verify_pack_reports_incomplete_artifact_smoke_script(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            target = Path(tmp) / "pack"
-            shutil.copytree(
-                ROOT,
-                target,
-                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
-            )
-            script = target / "scripts/smoke_workflow_pack_artifact.py"
-            script.write_text(
-                script.read_text(encoding="utf-8").replace(
-                    "unpacked_dry_run",
-                    "unpacked_preview",
-                ),
-                encoding="utf-8",
-            )
+        cases = (
+            ("unpacked_dry_run", "unpacked_preview"),
+            ("_dry_run_target_local_make_details", "_dry_run_local_command_details"),
+        )
+        for required_phrase, replacement in cases:
+            with self.subTest(required_phrase=required_phrase):
+                with tempfile.TemporaryDirectory() as tmp:
+                    target = Path(tmp) / "pack"
+                    shutil.copytree(
+                        ROOT,
+                        target,
+                        ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+                    )
+                    script = target / "scripts/smoke_workflow_pack_artifact.py"
+                    script.write_text(
+                        script.read_text(encoding="utf-8").replace(
+                            required_phrase,
+                            replacement,
+                        ),
+                        encoding="utf-8",
+                    )
 
-            report = verify_pack(target)
+                    report = verify_pack(target)
 
-            self.assertFalse(report.ok)
-            self.assertTrue(
-                any(
-                    finding.code == "pack_artifact_smoke_incomplete"
-                    and finding.path == "scripts/smoke_workflow_pack_artifact.py"
-                    and "unpacked_dry_run" in finding.message
-                    for finding in report.findings
-                )
-            )
+                    self.assertFalse(report.ok)
+                    self.assertTrue(
+                        any(
+                            finding.code == "pack_artifact_smoke_incomplete"
+                            and finding.path == "scripts/smoke_workflow_pack_artifact.py"
+                            and required_phrase in finding.message
+                            for finding in report.findings
+                        )
+                    )
 
     def test_verify_pack_reports_artifact_smoke_missing_closeout_gate(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
