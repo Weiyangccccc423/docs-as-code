@@ -98,7 +98,7 @@ Create reliable project governance before and during implementation:
 
 ## Quick Start
 
-Before using the pack on a real project, run the disposable source-pack dry run. It creates a temporary target, imports a sample product document, advances through product structuring and design derivation, builds the design authoring queues, and confirms the implementation gate remains blocked while scaffold placeholders are unresolved:
+Before using the pack on a real project, run the disposable source-pack dry run. It creates a temporary target, imports a sample product document, advances through product structuring and design derivation, builds the design authoring queues, confirms the implementation gate remains blocked while scaffold placeholders are unresolved, then advances a minimal source-backed target into implementation and proves closeout blocks `Done` until passing local evidence is linked:
 
 ```bash
 make dry-run

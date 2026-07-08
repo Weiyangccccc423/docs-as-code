@@ -140,8 +140,16 @@ def run_artifact_smoke(*, keep: bool = False) -> dict[str, object]:
         )
         _require(dry_run_payload.get("ok") is True, "unpacked artifact dry-run failed", payload=dry_run_payload)
         _require(
-            dry_run_payload.get("final_phase") == "design-derivation",
-            "unpacked artifact dry-run did not reach design-derivation",
+            dry_run_payload.get("final_phase") == "implementation",
+            "unpacked artifact dry-run did not reach implementation",
+            payload=dry_run_payload,
+        )
+        closeout = dry_run_payload.get("implementation_closeout")
+        _require(
+            isinstance(closeout, dict)
+            and closeout.get("blocked_without_evidence") is True
+            and closeout.get("ready_with_evidence") is True,
+            "unpacked artifact dry-run did not prove implementation closeout evidence gates",
             payload=dry_run_payload,
         )
 

@@ -48,6 +48,7 @@ AUTHORING_COMMANDS = [
     ("architecture_decisions_authoring", "architecture-decisions-authoring", "architecture-decisions"),
 ]
 ACCEPTANCE_ID_HEADING_RE = re.compile(r"^##[ \t]+(?P<id>A-[0-9]{3})\b", re.MULTILINE)
+IMPLEMENTATION_TASK_ID = "TASK-001"
 
 
 class DryRunFailure(Exception):
@@ -693,6 +694,79 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
     )
     _require(implementation_preflight.get("ok") is False, "implementation gate unexpectedly passed")
 
+    _write_minimal_implementation_ready_docs(target, acceptance_ids)
+    implementation_ready_verify = _run_json(
+        steps,
+        "implementation_ready_verify_check",
+        ["bin/governance", "verify", ".", "--check", "--json"],
+        target,
+    )
+    _require(implementation_ready_verify.get("ok") is True, "verification failed after implementation-ready docs")
+    _require(
+        implementation_ready_verify.get("findings") == [],
+        "verification returned findings after implementation-ready docs",
+        payload=implementation_ready_verify,
+    )
+
+    implementation_gate = _run_json(
+        steps,
+        "implementation_gate",
+        ["bin/governance", "gate", "implementation", ".", "--json"],
+        target,
+    )
+    _require(implementation_gate.get("ok") is True, "implementation gate did not pass after authored docs")
+
+    implementation_advanced = _run_json(
+        steps,
+        "advance_implementation",
+        ["bin/governance", "advance", "implementation", ".", "--json"],
+        target,
+    )
+    _require(implementation_advanced.get("ok") is True, "implementation advance failed", payload=implementation_advanced)
+    implementation_state = implementation_advanced.get("state")
+    _require(
+        isinstance(implementation_state, dict) and implementation_state.get("phase") == "implementation",
+        "implementation advance did not record implementation phase",
+        payload=implementation_advanced,
+    )
+
+    implementation_plan = _run_json(
+        steps,
+        "implementation_plan",
+        ["bin/governance", "implementation", "plan", ".", "--json"],
+        target,
+    )
+    _require(
+        _implementation_plan_is_actionable(implementation_plan),
+        "implementation plan did not expose one actionable task with closeout command",
+        payload=implementation_plan,
+    )
+
+    closeout_without_evidence = _run_json(
+        steps,
+        "implementation_closeout_without_evidence",
+        ["bin/governance", "implementation", "closeout", ".", "--task", IMPLEMENTATION_TASK_ID, "--json"],
+        target,
+    )
+    _require(
+        _closeout_blocks_without_evidence(closeout_without_evidence),
+        "implementation closeout did not block Done without verification evidence",
+        payload=closeout_without_evidence,
+    )
+
+    _write_minimal_closeout_evidence(target, acceptance_ids[0])
+    closeout_with_evidence = _run_json(
+        steps,
+        "implementation_closeout_with_evidence",
+        ["bin/governance", "implementation", "closeout", ".", "--task", IMPLEMENTATION_TASK_ID, "--json"],
+        target,
+    )
+    _require(
+        _closeout_ready_with_evidence(closeout_with_evidence),
+        "implementation closeout did not become ready with passing local evidence",
+        payload=closeout_with_evidence,
+    )
+
     final_status = _run_json(
         steps,
         "final_status",
@@ -713,11 +787,400 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         "api_candidate_count": len(api_candidates.get("candidates", [])),
         "authoring_task_counts": authoring_task_counts,
         "implementation_gate": {
-            "ok": implementation_preflight.get("ok"),
-            "expected_blocked": True,
+            "placeholder_blocked_ok": implementation_preflight.get("ok"),
+            "placeholder_expected_blocked": True,
+            "ready_ok": implementation_gate.get("ok"),
         },
-        "next": "replace design scaffold placeholders with source-backed content before implementation handoff",
+        "implementation_closeout": {
+            "task_id": IMPLEMENTATION_TASK_ID,
+            "blocked_without_evidence": closeout_without_evidence.get("closeout_ready") is False,
+            "ready_with_evidence": closeout_with_evidence.get("closeout_ready") is True,
+            "blocking_codes_without_evidence": [
+                str(requirement.get("code"))
+                for requirement in closeout_without_evidence.get("blocking_requirements", [])
+                if isinstance(requirement, dict)
+            ],
+            "status_update_paths": [
+                str(update.get("path"))
+                for update in closeout_with_evidence.get("status_update_plan", {}).get("updates", [])
+                if isinstance(update, dict)
+            ],
+        },
+        "next": "execute exactly one Ready implementation task and apply closeout status updates after evidence passes",
     }
+
+
+def _write_minimal_implementation_ready_docs(target: Path, acceptance_ids: list[str]) -> None:
+    selected_acceptance = acceptance_ids[0]
+    documents = {
+        "docs/architecture/01-system-context.md": _architecture_system_context_doc(),
+        "docs/architecture/02-containers.md": _architecture_containers_doc(),
+        "docs/architecture/03-quality-attributes.md": _architecture_quality_attributes_doc(),
+        "docs/api/00-conventions.md": _api_conventions_doc(),
+        "docs/api/error-codes.md": _api_error_codes_doc(),
+        "docs/api/changelog.md": _api_changelog_doc(),
+        "docs/api/endpoints/01-endpoint-contract.md": _api_endpoint_contract_doc(),
+        "docs/backend/01-modules.md": _backend_modules_doc(),
+        "docs/backend/02-data-model.md": _backend_data_model_doc(),
+        "docs/backend/03-external-services.md": _backend_external_services_doc(),
+        "docs/ui/01-interaction-model.md": _ui_interaction_model_doc(),
+        "docs/frontend/01-modules.md": _frontend_modules_doc(),
+        "docs/frontend/02-api-consumption.md": _frontend_api_consumption_doc(),
+        "docs/tests/01-strategy.md": _test_strategy_doc(),
+        "docs/tests/02-acceptance-matrix.md": _acceptance_matrix_doc(acceptance_ids),
+        "docs/development/01-roadmap.md": _roadmap_doc(),
+        "docs/development/02-task-board.md": _task_board_doc(selected_acceptance, verification="make test"),
+        "docs/development/03-verification-log.md": _verification_log_doc(),
+    }
+    for rel, text in documents.items():
+        (target / rel).write_text(text, encoding="utf-8")
+
+
+def _write_minimal_closeout_evidence(target: Path, acceptance_id: str) -> None:
+    (target / "docs/development/02-task-board.md").write_text(
+        _task_board_doc(acceptance_id, verification="docs/development/03-verification-log.md"),
+        encoding="utf-8",
+    )
+    (target / "docs/development/03-verification-log.md").write_text(
+        _verification_log_doc(
+            f"| {IMPLEMENTATION_TASK_ID} | make test | pass | 2026-07-08 | Local dry-run verification evidence. |\n"
+        ),
+        encoding="utf-8",
+    )
+
+
+def _architecture_system_context_doc() -> str:
+    return (
+        "# System Context\n\n"
+        "## Product Links\n\n"
+        "- [Product scope](../product/03-goals-and-requirements.md)\n"
+        "- [Acceptance](../product/08-acceptance-criteria.md)\n\n"
+        "## Actors\n\n"
+        "- Maintainers use the governed workspace to run local checks.\n\n"
+        "## External Systems\n\n"
+        "- Git and local shell tools provide repository and verification execution.\n\n"
+        "## Trust Boundaries\n\n"
+        "- Product documents remain local Markdown sources before derived implementation.\n\n"
+        "## Open Decisions\n\n"
+        "- none\n"
+    )
+
+
+def _architecture_containers_doc() -> str:
+    return (
+        "# Containers\n\n"
+        "## Product Links\n\n"
+        "- [Acceptance](../product/08-acceptance-criteria.md)\n"
+        "- [System context](01-system-context.md)\n\n"
+        "## Containers\n\n"
+        "- Governance CLI, docs tree, and project code form the first implementation boundary.\n\n"
+        "## Runtime Responsibilities\n\n"
+        "- The CLI checks repository state and reports machine-readable continuation payloads.\n\n"
+        "## Data Ownership\n\n"
+        "- Governance state is owned by `.governance/state.json` and Markdown sources.\n\n"
+        "## Open Decisions\n\n"
+        "- none\n"
+    )
+
+
+def _architecture_quality_attributes_doc() -> str:
+    return (
+        "# Quality Attributes\n\n"
+        "## Product Links\n\n"
+        "- [Acceptance](../product/08-acceptance-criteria.md)\n"
+        "- [Containers](02-containers.md)\n\n"
+        "## Availability\n\n"
+        "- Local checks must fail clearly when required documents are incomplete.\n\n"
+        "## Performance\n\n"
+        "- Routine governance checks should run without network access or package installation.\n\n"
+        "## Security\n\n"
+        "- Agents must not guess behavior outside product and design sources.\n\n"
+        "## Observability\n\n"
+        "- Verification evidence is recorded in the local verification log.\n\n"
+        "## Tradeoffs\n\n"
+        "- Keep the first implementation slice small enough for a single Ready task.\n"
+    )
+
+
+def _api_conventions_doc() -> str:
+    return (
+        "# API Conventions\n\n"
+        "## Product Links\n\n"
+        "- [Product scope](../product/03-goals-and-requirements.md)\n"
+        "- [Acceptance](../product/08-acceptance-criteria.md)\n\n"
+        "## HTTP Conventions\n\n"
+        "- Use JSON for governance-related request and response examples.\n\n"
+        "## Authentication\n\n"
+        "- Local dry-run commands require no network authentication.\n\n"
+        "## Idempotency\n\n"
+        "- Repeated read-only checks must not write repository state.\n\n"
+        "## Compatibility\n\n"
+        "- Machine-readable payload fields should remain additive across workflow changes.\n\n"
+        "## Open Decisions\n\n"
+        "- none\n"
+    )
+
+
+def _api_error_codes_doc() -> str:
+    return (
+        "# API Error Codes\n\n"
+        "## Product Links\n\n"
+        "- [Product scope](../product/03-goals-and-requirements.md)\n"
+        "- [Acceptance](../product/08-acceptance-criteria.md)\n\n"
+        "## Error Taxonomy\n\n"
+        "- Governance failures are reported as stable findings with repair guidance.\n\n"
+        "## Error Codes\n\n"
+        "- GOVERNANCE_CHECK_FAILED: a local governance check failed before implementation.\n\n"
+        "## Retry Semantics\n\n"
+        "- Retry only after repairing the reported local source or environment issue.\n\n"
+        "## Frontend Handling\n\n"
+        "- User-facing agents summarize failures and stop before unsafe writes.\n"
+    )
+
+
+def _api_changelog_doc() -> str:
+    return (
+        "# API Changelog\n\n"
+        "## Change Log\n\n"
+        "- Initial governance dry-run contract baseline.\n\n"
+        "## Compatibility Notes\n\n"
+        "- Breaking payload changes require documentation and verification updates.\n"
+    )
+
+
+def _api_endpoint_contract_doc() -> str:
+    return (
+        "# Governance Check Endpoint\n\n"
+        "## Method and Path\n\n"
+        "POST /governance/checks\n\n"
+        "## Auth\n\n"
+        "- Local command execution uses repository permissions only.\n\n"
+        "## Idempotency\n\n"
+        "- Check requests are read-only unless explicitly marked as state-writing actions.\n\n"
+        "## Request Fields\n\n"
+        "- target: repository root to inspect.\n\n"
+        "## Response Fields\n\n"
+        "- ok: whether the governance check passed.\n"
+        "- next_actions: ordered continuation actions when state is readable.\n\n"
+        "## Error Codes\n\n"
+        "- [GOVERNANCE_CHECK_FAILED](../error-codes.md)\n\n"
+        "## Upstream Links\n\n"
+        "- [Acceptance](../../product/08-acceptance-criteria.md#a-001)\n"
+        "- [Backend owner](../../backend/01-modules.md)\n\n"
+        "## Frontend Consumers\n\n"
+        "- [Interaction model](../../ui/01-interaction-model.md)\n"
+        "- [API consumption](../../frontend/02-api-consumption.md)\n"
+    )
+
+
+def _backend_modules_doc() -> str:
+    return (
+        "# Backend Modules\n\n"
+        "## Product Links\n\n"
+        "- [Acceptance](../product/08-acceptance-criteria.md)\n\n"
+        "## Architecture Links\n\n"
+        "- [Architecture context](../architecture/01-system-context.md)\n\n"
+        "## Modules\n\n"
+        "- Governance module owns local verification and continuation payload assembly.\n\n"
+        "## API Ownership\n\n"
+        "- Governance APIs follow [API conventions](../api/00-conventions.md).\n\n"
+        "## Failure Modes\n\n"
+        "- State failures follow [Data model](02-data-model.md).\n"
+        "- Dependency failures follow [External services](03-external-services.md).\n\n"
+        "## Open Decisions\n\n"
+        "- none\n"
+    )
+
+
+def _backend_data_model_doc() -> str:
+    return (
+        "# Data Model\n\n"
+        "## Product Links\n\n"
+        "- [Acceptance](../product/08-acceptance-criteria.md)\n"
+        "- [API conventions](../api/00-conventions.md)\n"
+        "- [Backend modules](01-modules.md)\n\n"
+        "## Owners\n\n"
+        "- Workflow state and verification evidence are local repository-owned data.\n\n"
+        "## Entities\n\n"
+        "- Task: a traceable implementation row with source and verification links.\n\n"
+        "## State Machines\n\n"
+        "- Task status moves from Backlog to Ready, In Progress, Blocked, Done, or Deferred.\n\n"
+        "## Constraints\n\n"
+        "- Done requires passing verification evidence linked from local Markdown.\n\n"
+        "## Indexes\n\n"
+        "- Task IDs and acceptance IDs provide lookup keys across governance documents.\n\n"
+        "## Migrations\n\n"
+        "- Schema changes require updated docs, tests, and verification evidence.\n"
+    )
+
+
+def _backend_external_services_doc() -> str:
+    return (
+        "# External Services\n\n"
+        "## Product Links\n\n"
+        "- [Acceptance](../product/08-acceptance-criteria.md)\n"
+        "- [API conventions](../api/00-conventions.md)\n"
+        "- [Backend modules](01-modules.md)\n\n"
+        "## Dependencies\n\n"
+        "- Git, Python, ripgrep, Node, Corepack, and optional Pandoc are detected locally.\n\n"
+        "## Contracts\n\n"
+        "- Tool availability is reported by environment preflight JSON.\n\n"
+        "## Retries\n\n"
+        "- Retry environment repair only after explicit approval when escalation is required.\n\n"
+        "## Timeouts\n\n"
+        "- Long-running project checks should be recorded with their command and result.\n\n"
+        "## Authentication\n\n"
+        "- No external credentials are required for dry-run governance checks.\n\n"
+        "## Observability\n\n"
+        "- Tool status and command results are summarized in verification payloads.\n"
+    )
+
+
+def _ui_interaction_model_doc() -> str:
+    return (
+        "# Interaction Model\n\n"
+        "## Product Links\n\n"
+        "- [Product scope](../product/03-goals-and-requirements.md)\n"
+        "- [Acceptance](../product/08-acceptance-criteria.md)\n\n"
+        "## Primary Flows\n\n"
+        "- An agent follows local commands, reads blockers, and continues from active work.\n\n"
+        "## Screens\n\n"
+        "- CLI JSON payloads are the primary interface for workflow continuation.\n\n"
+        "## States\n\n"
+        "- Ready, blocked, and closeout-ready states are explicit in payload fields.\n\n"
+        "## Errors\n\n"
+        "- Failed gates report repairable findings and stop before unsafe writes.\n\n"
+        "## Accessibility\n\n"
+        "- Human summaries keep command outcomes and next actions visible in text.\n"
+    )
+
+
+def _frontend_modules_doc() -> str:
+    return (
+        "# Frontend Modules\n\n"
+        "## Product Links\n\n"
+        "- [Acceptance](../product/08-acceptance-criteria.md)\n\n"
+        "## UI Links\n\n"
+        "- [Interaction model](../ui/01-interaction-model.md)\n\n"
+        "## Modules\n\n"
+        "- Agent-facing workflow module reads JSON commands and active work payloads.\n\n"
+        "## State Ownership\n\n"
+        "- API-backed state follows [API consumption](02-api-consumption.md).\n\n"
+        "## Routes\n\n"
+        "- Implementation execution routes through task plan and closeout checks.\n\n"
+        "## Open Decisions\n\n"
+        "- API behavior follows [API conventions](../api/00-conventions.md).\n"
+    )
+
+
+def _frontend_api_consumption_doc() -> str:
+    return (
+        "# Frontend API Consumption\n\n"
+        "## Product Links\n\n"
+        "- [Acceptance](../product/08-acceptance-criteria.md)\n\n"
+        "## API Links\n\n"
+        "- [API conventions](../api/00-conventions.md)\n"
+        "- [Governance check endpoint](../api/endpoints/01-endpoint-contract.md)\n"
+        "- [Frontend modules](01-modules.md)\n\n"
+        "## Consumption Map\n\n"
+        "- Implementation agents consume plan, gate, verify, and closeout payloads.\n\n"
+        "## Loading States\n\n"
+        "- Long checks report command progress through the local execution channel.\n\n"
+        "## Error Actions\n\n"
+        "- Missing evidence keeps Done unavailable until the closeout payload is ready.\n"
+    )
+
+
+def _test_strategy_doc() -> str:
+    return (
+        "# Test Strategy\n\n"
+        "## Product Links\n\n"
+        "- [Acceptance](../product/08-acceptance-criteria.md)\n"
+        "- [API conventions](../api/00-conventions.md)\n"
+        "- [Architecture context](../architecture/01-system-context.md)\n\n"
+        "## Acceptance Links\n\n"
+        "- [Acceptance](../product/08-acceptance-criteria.md)\n\n"
+        "## Test Layers\n\n"
+        "- Unit tests cover script behavior and JSON payload contracts.\n"
+        "- Dry-run checks cover the repository workflow from product import to implementation planning.\n\n"
+        "## Risk Coverage\n\n"
+        "- Evidence gates prevent marking implementation tasks Done without passing local checks.\n\n"
+        "## Non-Functional Checks\n\n"
+        "- Pack verification and environment checks run before release handoff.\n"
+    )
+
+
+def _acceptance_matrix_doc(acceptance_ids: list[str]) -> str:
+    rows = [
+        f"| [{acceptance_id}](../product/08-acceptance-criteria.md#{acceptance_id.lower()}) | "
+        "[Architecture context](../architecture/01-system-context.md) | "
+        "[Governance check endpoint](../api/endpoints/01-endpoint-contract.md) | "
+        "[Test strategy](01-strategy.md) |"
+        for acceptance_id in acceptance_ids
+    ]
+    return (
+        "# Acceptance Matrix\n\n"
+        "## Matrix\n\n"
+        "| Acceptance | Design | API | Test |\n"
+        "| --- | --- | --- | --- |\n"
+        + "\n".join(rows)
+        + "\n\n"
+        "## Uncovered Criteria\n\n"
+        "- none\n"
+    )
+
+
+def _roadmap_doc() -> str:
+    return (
+        "# Roadmap\n\n"
+        "## Product Links\n\n"
+        "- [Product scope](../product/03-goals-and-requirements.md)\n"
+        "- [Acceptance](../product/08-acceptance-criteria.md)\n\n"
+        "## Milestones\n\n"
+        "| ID | Status | Milestone |\n"
+        "| --- | --- | --- |\n"
+        f"| {IMPLEMENTATION_TASK_ID} | Ready | Implement local governance check flow |\n\n"
+        "## Sequencing\n\n"
+        "- Complete the first Ready task before marking downstream tasks Done.\n\n"
+        "## Risks\n\n"
+        "- Missing verification evidence must block Done status.\n\n"
+        "## Deferred Scope\n\n"
+        "- none\n"
+    )
+
+
+def _task_board_doc(acceptance_id: str, *, verification: str) -> str:
+    return (
+        "# Task Board\n\n"
+        "## Task Table\n\n"
+        "| ID | Status | Task | Product | Design | API | Acceptance | Verification |\n"
+        "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+        f"| {IMPLEMENTATION_TASK_ID} | Ready | Implement local governance check flow | "
+        "docs/product/03-goals-and-requirements.md | "
+        "docs/architecture/01-system-context.md | "
+        "docs/api/endpoints/01-endpoint-contract.md | "
+        f"[{acceptance_id}](docs/product/08-acceptance-criteria.md#{acceptance_id.lower()}) | "
+        f"{verification} |\n\n"
+        "## Status Policy\n\n"
+        "- Use Backlog, Ready, In Progress, Blocked, Done, or Deferred consistently.\n\n"
+        "## Traceability Rules\n\n"
+        "- Product, Design, API, and Acceptance fields must link to existing local Markdown sources.\n"
+        "- Done tasks must link Verification to local Markdown evidence.\n"
+    )
+
+
+def _verification_log_doc(rows: str = "") -> str:
+    return (
+        "# Verification Log\n\n"
+        "## Verification Runs\n\n"
+        "| Task | Command | Result | Date | Notes |\n"
+        "| --- | --- | --- | --- | --- |\n"
+        f"{rows}"
+        "\n## Artifacts\n\n"
+        "- none\n\n"
+        "## Open Follow-ups\n\n"
+        "- none\n"
+    )
 
 
 def _workflow_plan_has_queue(payload: dict[str, object], queue_id: str) -> bool:
@@ -733,6 +1196,105 @@ def _workflow_plan_has_skill(payload: dict[str, object], field: str, skill: str)
         return False
     skills = summary.get(field)
     return isinstance(skills, list) and skill in skills
+
+
+def _implementation_plan_is_actionable(payload: dict[str, object]) -> bool:
+    if payload.get("ok") is not True:
+        return False
+    if payload.get("decision_policy") != "execute_exactly_one_ready_task":
+        return False
+    if payload.get("gate_ok") is not True:
+        return False
+    summary = payload.get("implementation_summary")
+    if not isinstance(summary, dict) or summary.get("actionable_ready_task_count") != 1:
+        return False
+    active_work = payload.get("active_work")
+    if not isinstance(active_work, dict):
+        return False
+    if active_work.get("kind") != "implementation-task":
+        return False
+    if active_work.get("task_id") != IMPLEMENTATION_TASK_ID or active_work.get("status") != "ready":
+        return False
+    closeout_command = active_work.get("closeout_command")
+    if not _valid_embedded_command(closeout_command):
+        return False
+    if closeout_command.get("argv") != [
+        "bin/governance",
+        "implementation",
+        "closeout",
+        ".",
+        "--task",
+        IMPLEMENTATION_TASK_ID,
+        "--json",
+    ]:
+        return False
+    tasks = payload.get("tasks")
+    if not isinstance(tasks, list) or len(tasks) != 1 or not isinstance(tasks[0], dict):
+        return False
+    task = tasks[0]
+    if task.get("task_id") != IMPLEMENTATION_TASK_ID or task.get("actionable") is not True:
+        return False
+    steps = task.get("steps")
+    if not isinstance(steps, list):
+        return False
+    return any(isinstance(step, dict) and step.get("id") == "implementation-closeout" for step in steps)
+
+
+def _closeout_blocks_without_evidence(payload: dict[str, object]) -> bool:
+    if payload.get("ok") is not True:
+        return False
+    if payload.get("decision_policy") != "do_not_mark_done_without_passing_evidence":
+        return False
+    if payload.get("closeout_ready") is not False:
+        return False
+    blocking_codes = {
+        str(requirement.get("code"))
+        for requirement in payload.get("blocking_requirements", [])
+        if isinstance(requirement, dict)
+    }
+    required_codes = {
+        "verification_log_row_present",
+        "verification_result_passing",
+        "task_verification_links_local_evidence",
+    }
+    if not required_codes.issubset(blocking_codes):
+        return False
+    evidence = payload.get("evidence_summary")
+    if not isinstance(evidence, dict):
+        return False
+    return (
+        evidence.get("verification_logged") is False
+        and evidence.get("passing_verification_logged") is False
+        and evidence.get("verification_links_local_evidence") is False
+    )
+
+
+def _closeout_ready_with_evidence(payload: dict[str, object]) -> bool:
+    if payload.get("ok") is not True:
+        return False
+    if payload.get("closeout_ready") is not True:
+        return False
+    if payload.get("blocking_requirements") != []:
+        return False
+    evidence = payload.get("evidence_summary")
+    if not isinstance(evidence, dict):
+        return False
+    if evidence.get("verification_logged") is not True:
+        return False
+    if evidence.get("passing_verification_logged") is not True:
+        return False
+    if evidence.get("verification_links_local_evidence") is not True:
+        return False
+    status_update_plan = payload.get("status_update_plan")
+    if not isinstance(status_update_plan, dict):
+        return False
+    if status_update_plan.get("can_auto_apply") is not False:
+        return False
+    updates = status_update_plan.get("updates")
+    if not isinstance(updates, list):
+        return False
+    update_paths = {str(update.get("path")) for update in updates if isinstance(update, dict)}
+    return update_paths == {"docs/development/01-roadmap.md", "docs/development/02-task-board.md"}
 
 
 def _design_tracks_have_skill_loading_plans(tracks: object) -> bool:

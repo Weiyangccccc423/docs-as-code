@@ -88,6 +88,20 @@ def _criterion(
     criteria.append(item)
 
 
+def _dry_run_closeout_evidence_ok(payload: dict[str, object]) -> bool:
+    gate = payload.get("implementation_gate")
+    closeout = payload.get("implementation_closeout")
+    return (
+        isinstance(gate, dict)
+        and gate.get("placeholder_blocked_ok") is False
+        and gate.get("placeholder_expected_blocked") is True
+        and gate.get("ready_ok") is True
+        and isinstance(closeout, dict)
+        and closeout.get("blocked_without_evidence") is True
+        and closeout.get("ready_with_evidence") is True
+    )
+
+
 def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
     steps: list[dict[str, object]] = []
     criteria: list[dict[str, object]] = []
@@ -165,11 +179,15 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
     _criterion(
         criteria,
         "fresh-target-dry-run",
-        bool(steps[-1]["ok"]) and bool(dry_run_payload and dry_run_payload.get("ok") is True),
+        bool(steps[-1]["ok"])
+        and bool(dry_run_payload and dry_run_payload.get("ok") is True)
+        and dry_run_payload.get("final_phase") == "implementation"
+        and _dry_run_closeout_evidence_ok(dry_run_payload),
         evidence="python3 scripts/dry_run_workflow.py --json",
         details={
             "final_phase": dry_run_payload.get("final_phase") if dry_run_payload else "",
             "api_candidate_count": dry_run_payload.get("api_candidate_count") if dry_run_payload else 0,
+            "implementation_closeout": dry_run_payload.get("implementation_closeout") if dry_run_payload else {},
         },
     )
 
@@ -191,6 +209,8 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
         "multi-acceptance-dry-run",
         bool(steps[-1]["ok"])
         and bool(multi_acceptance_payload and multi_acceptance_payload.get("ok") is True)
+        and multi_acceptance_payload.get("final_phase") == "implementation"
+        and _dry_run_closeout_evidence_ok(multi_acceptance_payload)
         and multi_acceptance_payload.get("acceptance_id_count") == 4
         and multi_acceptance_payload.get("api_candidate_count") == 4
         and isinstance(authoring_counts, dict)
@@ -203,6 +223,9 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
             else 0,
             "api_candidate_count": multi_acceptance_payload.get("api_candidate_count") if multi_acceptance_payload else 0,
             "authoring_task_counts": authoring_counts,
+            "implementation_closeout": multi_acceptance_payload.get("implementation_closeout")
+            if multi_acceptance_payload
+            else {},
         },
     )
 

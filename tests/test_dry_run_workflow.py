@@ -156,7 +156,7 @@ class DryRunWorkflowTest(unittest.TestCase):
             payload = json.loads(result.stdout)
             self.assertTrue(payload["ok"])
             self.assertTrue(payload["target_retained"])
-            self.assertEqual("design-derivation", payload["final_phase"])
+            self.assertEqual("implementation", payload["final_phase"])
             self.assertEqual("fresh-target-governance-dry-run", payload["workflow"])
             self.assertEqual(["A-001"], payload["acceptance_ids"])
             self.assertEqual(1, payload["acceptance_id_count"])
@@ -172,8 +172,20 @@ class DryRunWorkflowTest(unittest.TestCase):
                 },
                 payload["authoring_task_counts"],
             )
-            self.assertFalse(payload["implementation_gate"]["ok"])
-            self.assertTrue(payload["implementation_gate"]["expected_blocked"])
+            self.assertFalse(payload["implementation_gate"]["placeholder_blocked_ok"])
+            self.assertTrue(payload["implementation_gate"]["placeholder_expected_blocked"])
+            self.assertTrue(payload["implementation_gate"]["ready_ok"])
+            self.assertEqual("TASK-001", payload["implementation_closeout"]["task_id"])
+            self.assertTrue(payload["implementation_closeout"]["blocked_without_evidence"])
+            self.assertTrue(payload["implementation_closeout"]["ready_with_evidence"])
+            self.assertEqual(
+                [
+                    "verification_log_row_present",
+                    "verification_result_passing",
+                    "task_verification_links_local_evidence",
+                ],
+                payload["implementation_closeout"]["blocking_codes_without_evidence"],
+            )
             step_ids = {step["id"] for step in payload["steps"]}
             self.assertIn("product_plan", step_ids)
             self.assertIn("workflow_plan_product_structuring", step_ids)
@@ -181,6 +193,10 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertIn("design_plan", step_ids)
             self.assertIn("workflow_plan_design_derivation", step_ids)
             self.assertIn("implementation_advance_check", step_ids)
+            self.assertIn("implementation_ready_verify_check", step_ids)
+            self.assertIn("implementation_plan", step_ids)
+            self.assertIn("implementation_closeout_without_evidence", step_ids)
+            self.assertIn("implementation_closeout_with_evidence", step_ids)
             self.assertTrue((target / "bin/governance").is_file())
             self.assertTrue((target / "docs/api/endpoints/01-endpoint-contract.md").is_file())
 
@@ -209,7 +225,7 @@ class DryRunWorkflowTest(unittest.TestCase):
             payload = json.loads(result.stdout)
             self.assertTrue(payload["ok"])
             self.assertTrue(payload["target_retained"])
-            self.assertEqual("design-derivation", payload["final_phase"])
+            self.assertEqual("implementation", payload["final_phase"])
             self.assertEqual(["A-001", "A-002", "A-003", "A-004"], payload["acceptance_ids"])
             self.assertEqual(4, payload["acceptance_id_count"])
             self.assertEqual(4, payload["api_candidate_count"])
@@ -226,8 +242,11 @@ class DryRunWorkflowTest(unittest.TestCase):
             )
             acceptance = (target / "docs/product/08-acceptance-criteria.md").read_text(encoding="utf-8")
             self.assertIn("## A-004 Operations Manager Can View An Audit Timeline", acceptance)
-            self.assertFalse(payload["implementation_gate"]["ok"])
-            self.assertTrue(payload["implementation_gate"]["expected_blocked"])
+            self.assertFalse(payload["implementation_gate"]["placeholder_blocked_ok"])
+            self.assertTrue(payload["implementation_gate"]["placeholder_expected_blocked"])
+            self.assertTrue(payload["implementation_gate"]["ready_ok"])
+            self.assertTrue(payload["implementation_closeout"]["blocked_without_evidence"])
+            self.assertTrue(payload["implementation_closeout"]["ready_with_evidence"])
 
 
 def _repair_action(
