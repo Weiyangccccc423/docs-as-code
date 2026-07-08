@@ -217,6 +217,16 @@ class FreshTargetWorkflowTest(unittest.TestCase):
             self.assertEqual("product-structuring", advanced["state"]["phase"])
             self.assertEqual("advance-design-derivation-check", advanced["next_actions"][0]["id"])
 
+            make_product_plan = _run_json(self, ["make", "product-plan"], cwd=target)
+            self.assertTrue(make_product_plan["ok"])
+            self.assertEqual("product-structuring", make_product_plan["phase"])
+            self.assertEqual("do_not_guess_product_meaning", make_product_plan["decision_policy"])
+            self.assertIn("docs/product/core/PRD.md", make_product_plan["source_documents"])
+            self.assertIn("manual_authoring_summary", make_product_plan)
+            self.assertGreaterEqual(make_product_plan["manual_authoring_summary"]["task_count"], 0)
+            self.assertEqual("product-manual-authoring-task", make_product_plan["active_work"]["kind"])
+            self.assertEqual("advance-design-derivation-check", make_product_plan["next_actions"][0]["id"])
+
             scaffold_check = _run_json(
                 self,
                 [
@@ -480,15 +490,16 @@ class FreshTargetWorkflowTest(unittest.TestCase):
                 )
             )
 
-            design_plan = _run_json(
-                self,
-                ["bin/governance", "design", "plan", ".", "--json"],
-                cwd=target,
-            )
+            make_design_plan = _run_json(self, ["make", "design-plan"], cwd=target)
+            design_plan = make_design_plan
             self.assertTrue(design_plan["ok"])
             self.assertEqual("design-derivation", design_plan["phase"])
             self.assertIn("docs/product/core/PRD.md", design_plan["source_documents"])
             self.assertIn("docs/product/08-acceptance-criteria.md", design_plan["source_documents"])
+            self.assertEqual(
+                ["bin/governance", "design", "plan", ".", "--json"],
+                design_plan["active_work"]["refresh_command"]["argv"],
+            )
             self.assertEqual(
                 [
                     "architecture",

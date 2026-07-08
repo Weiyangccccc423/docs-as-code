@@ -204,33 +204,40 @@ class PackStructureTest(unittest.TestCase):
             )
 
     def test_verify_pack_reports_incomplete_fresh_target_workflow_smoke_test(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            target = Path(tmp) / "pack"
-            shutil.copytree(
-                ROOT,
-                target,
-                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
-            )
-            smoke_test = target / "tests/test_fresh_target_workflow.py"
-            smoke_test.write_text(
-                smoke_test.read_text(encoding="utf-8").replace(
-                    "repair-env-check",
-                    "repair-env-preview",
-                ),
-                encoding="utf-8",
-            )
+        cases = (
+            ("repair-env-check", "repair-env-preview"),
+            ("make_product_plan", "source_product_plan"),
+            ("make_design_plan", "source_design_plan"),
+        )
+        for required_phrase, replacement in cases:
+            with self.subTest(required_phrase=required_phrase):
+                with tempfile.TemporaryDirectory() as tmp:
+                    target = Path(tmp) / "pack"
+                    shutil.copytree(
+                        ROOT,
+                        target,
+                        ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+                    )
+                    smoke_test = target / "tests/test_fresh_target_workflow.py"
+                    smoke_test.write_text(
+                        smoke_test.read_text(encoding="utf-8").replace(
+                            required_phrase,
+                            replacement,
+                        ),
+                        encoding="utf-8",
+                    )
 
-            report = verify_pack(target)
+                    report = verify_pack(target)
 
-            self.assertFalse(report.ok)
-            self.assertTrue(
-                any(
-                    finding.code == "pack_fresh_target_smoke_test_incomplete"
-                    and finding.path == "tests/test_fresh_target_workflow.py"
-                    and "repair-env-check" in finding.message
-                    for finding in report.findings
-                )
-            )
+                    self.assertFalse(report.ok)
+                    self.assertTrue(
+                        any(
+                            finding.code == "pack_fresh_target_smoke_test_incomplete"
+                            and finding.path == "tests/test_fresh_target_workflow.py"
+                            and required_phrase in finding.message
+                            for finding in report.findings
+                        )
+                    )
 
     def test_verify_pack_reports_fresh_target_smoke_missing_product_structuring_flow(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
