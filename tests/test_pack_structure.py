@@ -324,6 +324,8 @@ class PackStructureTest(unittest.TestCase):
         cases = (
             ("implementation_advance_check", "implementation_gate_preview"),
             ("make_workflow_plan_implementation", "local_workflow_plan_implementation"),
+            ("make_product_plan", "local_product_plan"),
+            ("make_design_plan", "local_design_plan"),
             ("make_implementation_plan", "local_implementation_plan"),
         )
         for required_phrase, replacement in cases:
@@ -739,6 +741,35 @@ class PackStructureTest(unittest.TestCase):
                     finding.code == "pack_release_readiness_incomplete"
                     and finding.path == "scripts/release_readiness.py"
                     and "_dry_run_closeout_evidence_ok" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_release_readiness_missing_target_local_make_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/release_readiness.py"
+            script.write_text(
+                script.read_text(encoding="utf-8").replace(
+                    "_dry_run_target_local_make_coverage_ok",
+                    "_dry_run_local_command_preview_ok",
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_release_readiness_incomplete"
+                    and finding.path == "scripts/release_readiness.py"
+                    and "_dry_run_target_local_make_coverage_ok" in finding.message
                     for finding in report.findings
                 )
             )

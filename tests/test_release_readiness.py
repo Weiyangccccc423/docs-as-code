@@ -43,6 +43,14 @@ class ReleaseReadinessTest(unittest.TestCase):
             "release-artifact-smoke",
         ):
             self.assertEqual("pass", criteria[criterion_id]["status"])
+        self.assertEqual(
+            [],
+            criteria["fresh-target-dry-run"]["details"]["target_local_make_coverage"]["missing_step_ids"],
+        )
+        self.assertEqual(
+            [],
+            criteria["multi-acceptance-dry-run"]["details"]["target_local_make_coverage"]["missing_step_ids"],
+        )
         step_ids = {step["id"] for step in payload["steps"]}
         self.assertIn("pack_verification", step_ids)
         self.assertIn("environment_inventory", step_ids)

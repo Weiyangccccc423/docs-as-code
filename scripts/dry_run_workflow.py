@@ -386,6 +386,24 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         "product plan did not expose actionable active work",
         payload=product_plan,
     )
+
+    make_product_plan = _run_json(
+        steps,
+        "make_product_plan",
+        ["make", "product-plan"],
+        target,
+    )
+    _require(make_product_plan.get("ok") is True, "make product-plan failed", payload=make_product_plan)
+    _require(
+        isinstance(make_product_plan.get("suggested_mappings"), list),
+        "make product-plan did not return suggested mappings",
+        payload=make_product_plan,
+    )
+    _require(
+        _active_work_is_actionable(make_product_plan.get("active_work")),
+        "make product-plan did not expose actionable active work",
+        payload=make_product_plan,
+    )
     product_workflow_plan = _run_json(
         steps,
         "workflow_plan_product_structuring",
@@ -568,6 +586,23 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         _active_work_is_actionable(design_plan.get("active_work")),
         "design plan did not expose actionable active work",
         payload=design_plan,
+    )
+
+    make_design_plan = _run_json(
+        steps,
+        "make_design_plan",
+        ["make", "design-plan"],
+        target,
+    )
+    _require(make_design_plan.get("ok") is True, "make design-plan failed", payload=make_design_plan)
+    make_design_tracks = make_design_plan.get("tracks")
+    _require(isinstance(make_design_tracks, list), "make design-plan did not return tracks", payload=make_design_plan)
+    make_design_track_ids = [track.get("id") for track in make_design_tracks if isinstance(track, dict)]
+    _require(make_design_track_ids == DESIGN_TRACK_IDS, "make design-plan track order changed", payload=make_design_plan)
+    _require(
+        _active_work_is_actionable(make_design_plan.get("active_work")),
+        "make design-plan did not expose actionable active work",
+        payload=make_design_plan,
     )
 
     api_candidates = _run_json(

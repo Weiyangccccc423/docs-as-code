@@ -102,6 +102,41 @@ def _dry_run_closeout_evidence_ok(payload: dict[str, object]) -> bool:
     )
 
 
+def _dry_run_target_local_make_coverage_ok(payload: dict[str, object] | None) -> bool:
+    if payload is None:
+        return False
+    steps = payload.get("steps")
+    if not isinstance(steps, list):
+        return False
+    step_ids = {str(step.get("id")) for step in steps if isinstance(step, dict)}
+    required = {
+        "make_workflow_plan_product_structuring",
+        "make_workflow_plan_design_derivation",
+        "make_workflow_plan_implementation",
+        "make_product_plan",
+        "make_design_plan",
+        "make_implementation_plan",
+    }
+    return required <= step_ids
+
+
+def _dry_run_target_local_make_details(payload: dict[str, object] | None) -> dict[str, object]:
+    required = [
+        "make_workflow_plan_product_structuring",
+        "make_workflow_plan_design_derivation",
+        "make_workflow_plan_implementation",
+        "make_product_plan",
+        "make_design_plan",
+        "make_implementation_plan",
+    ]
+    steps = payload.get("steps") if payload else []
+    step_ids = {str(step.get("id")) for step in steps if isinstance(step, dict)} if isinstance(steps, list) else set()
+    return {
+        "required_step_ids": required,
+        "missing_step_ids": [step_id for step_id in required if step_id not in step_ids],
+    }
+
+
 def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
     steps: list[dict[str, object]] = []
     criteria: list[dict[str, object]] = []
@@ -182,12 +217,14 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
         bool(steps[-1]["ok"])
         and bool(dry_run_payload and dry_run_payload.get("ok") is True)
         and dry_run_payload.get("final_phase") == "implementation"
-        and _dry_run_closeout_evidence_ok(dry_run_payload),
+        and _dry_run_closeout_evidence_ok(dry_run_payload)
+        and _dry_run_target_local_make_coverage_ok(dry_run_payload),
         evidence="python3 scripts/dry_run_workflow.py --json",
         details={
             "final_phase": dry_run_payload.get("final_phase") if dry_run_payload else "",
             "api_candidate_count": dry_run_payload.get("api_candidate_count") if dry_run_payload else 0,
             "implementation_closeout": dry_run_payload.get("implementation_closeout") if dry_run_payload else {},
+            "target_local_make_coverage": _dry_run_target_local_make_details(dry_run_payload),
         },
     )
 
@@ -215,7 +252,8 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
         and multi_acceptance_payload.get("api_candidate_count") == 4
         and isinstance(authoring_counts, dict)
         and len(authoring_counts) == 6
-        and all(value == 4 for value in authoring_counts.values()),
+        and all(value == 4 for value in authoring_counts.values())
+        and _dry_run_target_local_make_coverage_ok(multi_acceptance_payload),
         evidence="python3 scripts/dry_run_workflow.py --product tests/fixtures/product-docs/field-service-ops.md --json",
         details={
             "acceptance_id_count": multi_acceptance_payload.get("acceptance_id_count")
@@ -226,6 +264,7 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
             "implementation_closeout": multi_acceptance_payload.get("implementation_closeout")
             if multi_acceptance_payload
             else {},
+            "target_local_make_coverage": _dry_run_target_local_make_details(multi_acceptance_payload),
         },
     )
 

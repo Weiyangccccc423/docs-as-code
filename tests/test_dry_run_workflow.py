@@ -188,10 +188,12 @@ class DryRunWorkflowTest(unittest.TestCase):
             )
             step_ids = {step["id"] for step in payload["steps"]}
             self.assertIn("product_plan", step_ids)
+            self.assertIn("make_product_plan", step_ids)
             self.assertIn("workflow_plan_product_structuring", step_ids)
             self.assertIn("make_workflow_plan_product_structuring", step_ids)
             self.assertIn("product_structure", step_ids)
             self.assertIn("design_plan", step_ids)
+            self.assertIn("make_design_plan", step_ids)
             self.assertIn("workflow_plan_design_derivation", step_ids)
             self.assertIn("make_workflow_plan_design_derivation", step_ids)
             self.assertIn("implementation_advance_check", step_ids)
