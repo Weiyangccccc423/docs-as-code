@@ -26,6 +26,7 @@ Reference: `https://www.omg.org/spec/BPMN/2.0.2/`
 - Are product `manual_authoring_tasks[]` sorted by `sequence`, with `required_evidence[].status` and `evidence_repair_actions[]` used before manual product authoring continues?
 - Are design `authoring_tasks[]` sorted by `sequence`, with `execution.primary_skill`, `execution.primary_specialist_skill`, `execution.verify_step`, `execution.refresh_step`, and `execution.stop_condition` used instead of guessing from prose?
 - Are design `skill_requirements[]` and `authority_skill_requirements[]` inspected for `type`, `available_in_workflow_pack`, `availability_scope`, and `missing_policy` before loading local or authority-routing skills?
+- Is `workflow plan --json` `skill_summary` used to load local workflow skills and authority-routing skills before entering architecture, API, backend, data-model, security, or implementation-planning work?
 - Are `command` strings kept for human display while `argv` remains the automation contract?
 - Is initialization `product.selection` used to distinguish `explicit`, `auto-discovered`, `none`, and `ambiguous` product input states before downstream product work starts?
 

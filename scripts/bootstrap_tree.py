@@ -109,7 +109,7 @@ TARGET_LOCAL_COMMANDS = (
     (
         "workflow-plan",
         "bin/governance workflow plan . --json",
-        "print current workflow route and active queue summaries as JSON",
+        "print current workflow route plus active queue and skill summaries as JSON",
         False,
     ),
     (

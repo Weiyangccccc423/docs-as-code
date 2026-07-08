@@ -397,6 +397,11 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         "product workflow plan did not expose product-plan queue",
         payload=product_workflow_plan,
     )
+    _require(
+        _workflow_plan_has_skill(product_workflow_plan, "local_workflow_skills", "structuring-product-requirements"),
+        "product workflow plan did not expose product structuring skill summary",
+        payload=product_workflow_plan,
+    )
 
     product_scaffold_check = _run_json(
         steps,
@@ -628,6 +633,12 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
             f"design workflow plan did not expose {queue_id} queue",
             payload=design_workflow_plan,
         )
+    for skill in ("senior-architect", "api-design-reviewer", "senior-backend", "database-schema-designer"):
+        _require(
+            _workflow_plan_has_skill(design_workflow_plan, "authority_routing_skills", skill),
+            f"design workflow plan did not expose authority skill {skill}",
+            payload=design_workflow_plan,
+        )
 
     implementation_preflight = _run_json(
         steps,
@@ -670,6 +681,14 @@ def _workflow_plan_has_queue(payload: dict[str, object], queue_id: str) -> bool:
     if not isinstance(queues, list):
         return False
     return any(isinstance(queue, dict) and queue.get("id") == queue_id for queue in queues)
+
+
+def _workflow_plan_has_skill(payload: dict[str, object], field: str, skill: str) -> bool:
+    summary = payload.get("skill_summary")
+    if not isinstance(summary, dict):
+        return False
+    skills = summary.get(field)
+    return isinstance(skills, list) and skill in skills
 
 
 def _manual_authoring_summary_matches_tasks(payload: dict[str, object]) -> bool:

@@ -2487,6 +2487,19 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual(2, product_queue["summary"]["suggested_mapping_count"])
             self.assertEqual(4, product_queue["summary"]["required_decision_count"])
             self.assertEqual(4, product_queue["summary"]["manual_authoring_summary"]["task_count"])
+            self.assertEqual(
+                [
+                    "structuring-product-requirements",
+                    "archiving-product-document",
+                    "verifying-governance-docs",
+                ],
+                product_queue["summary"]["skill_summary"]["local_workflow_skills"],
+            )
+            self.assertEqual([], product_queue["summary"]["skill_summary"]["authority_routing_skills"])
+            self.assertIn(
+                "structuring-product-requirements",
+                payload["skill_summary"]["local_workflow_skills"],
+            )
             self.assertGreater(
                 product_queue["summary"]["manual_authoring_summary"]["non_satisfied_required_evidence_count"],
                 0,
@@ -2561,11 +2574,52 @@ class GovernanceCliTest(unittest.TestCase):
             )
             self.assertEqual(9, queues["design-plan"]["summary"]["track_count"])
             self.assertGreater(queues["design-plan"]["summary"]["blocker_count"], 0)
+            self.assertIn(
+                "designing-system-architecture",
+                queues["design-plan"]["summary"]["skill_summary"]["local_workflow_skills"],
+            )
+            self.assertIn(
+                "senior-architect",
+                queues["design-plan"]["summary"]["skill_summary"]["authority_routing_skills"],
+            )
+            self.assertIn(
+                "api-design-reviewer",
+                queues["design-plan"]["summary"]["skill_summary"]["authority_routing_skills"],
+            )
             self.assertEqual(1, queues["api-candidates"]["summary"]["candidate_count"])
             self.assertEqual(1, queues["api-authoring"]["summary"]["authoring_summary"]["task_count"])
+            self.assertIn(
+                "api-design-reviewer",
+                queues["api-authoring"]["summary"]["skill_summary"]["authority_routing_skills"],
+            )
             self.assertGreater(
                 queues["backend-authoring"]["summary"]["authoring_summary"]["non_satisfied_required_link_count"],
                 0,
+            )
+            self.assertIn(
+                "designing-backend-modules",
+                queues["backend-authoring"]["summary"]["skill_summary"]["local_workflow_skills"],
+            )
+            self.assertIn(
+                "designing-data-models",
+                queues["backend-authoring"]["summary"]["skill_summary"]["local_workflow_skills"],
+            )
+            self.assertIn(
+                "senior-backend",
+                queues["backend-authoring"]["summary"]["skill_summary"]["authority_routing_skills"],
+            )
+            self.assertIn(
+                "database-schema-designer",
+                queues["backend-authoring"]["summary"]["skill_summary"]["authority_routing_skills"],
+            )
+            self.assertIn("senior-architect", payload["skill_summary"]["authority_routing_skills"])
+            self.assertIn("api-design-reviewer", payload["skill_summary"]["authority_routing_skills"])
+            self.assertIn("senior-backend", payload["skill_summary"]["authority_routing_skills"])
+            self.assertIn("database-schema-designer", payload["skill_summary"]["authority_routing_skills"])
+            self.assertIn("senior-security", payload["skill_summary"]["authority_routing_skills"])
+            self.assertEqual(
+                "load_from_agent_environment_or_stop_before_guessing",
+                payload["skill_summary"]["authority_missing_policy"],
             )
             commands = {command["id"]: command for command in payload["commands"]}
             self.assertEqual(

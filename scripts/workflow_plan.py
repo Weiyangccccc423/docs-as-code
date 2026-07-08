@@ -72,6 +72,7 @@ def build_workflow_plan(root: Path) -> dict[str, object]:
             "blocked": True,
             "queues": [],
             "commands": [],
+            "skill_summary": _empty_skill_summary(),
             "errors": ["No governance state found."],
         }
 
@@ -96,6 +97,7 @@ def build_workflow_plan(root: Path) -> dict[str, object]:
         "blocked": any(queue.get("status") != "ready" for queue in queues),
         "queues": queues,
         "commands": commands,
+        "skill_summary": _queue_skill_summary(queues),
         "local_commands": target_local_commands_payload(cwd=str(root)),
         "next_actions": next_actions_payload(state, cwd=str(root)),
         "errors": [],
@@ -112,6 +114,7 @@ def _product_plan_queue(root: Path) -> dict[str, object]:
         "required_decision_count": _list_count(payload.get("required_decisions")),
         "manual_authoring_summary": payload.get("manual_authoring_summary", {}),
         "step_count": _list_count(payload.get("steps")),
+        "skill_summary": _payload_skill_summary(payload),
     }
     return _queue(
         "product-plan",
@@ -168,6 +171,7 @@ def _design_queues(root: Path) -> list[dict[str, object]]:
             {
                 "candidate_count": _list_count(api_candidates.get("candidates")),
                 "source_document_count": _list_count(api_candidates.get("source_documents")),
+                "skill_summary": _payload_skill_summary(api_candidates),
             },
             api_candidates.get("errors"),
         )
@@ -179,6 +183,7 @@ def _design_queues(root: Path) -> list[dict[str, object]]:
             "authoring_summary": payload.get("authoring_summary", {}),
             "source_document_count": _list_count(payload.get("source_documents")),
             "step_count": _authoring_step_count(payload.get("authoring_tasks")),
+            "skill_summary": _payload_skill_summary(payload),
         }
         queues.append(
             _queue(
@@ -265,6 +270,7 @@ def _design_plan_summary(payload: dict[str, object]) -> dict[str, object]:
         "track_status_counts": dict(sorted(status_counts.items())),
         "blocker_count": blocker_count,
         "step_count": _design_step_count(tracks),
+        "skill_summary": _payload_skill_summary(payload),
     }
 
 
@@ -308,3 +314,135 @@ def _authoring_step_count(tasks: object) -> int:
 
 def _list_count(value: object) -> int:
     return len(value) if isinstance(value, list) else 0
+
+
+def _payload_skill_summary(payload: dict[str, object]) -> dict[str, object]:
+    requirements = _payload_skill_requirements(payload)
+    return _skill_summary_from_requirements(requirements)
+
+
+def _queue_skill_summary(queues: list[dict[str, object]]) -> dict[str, object]:
+    summaries: list[dict[str, object]] = []
+    for queue in queues:
+        summary = queue.get("summary")
+        if not isinstance(summary, dict):
+            continue
+        skill_summary = summary.get("skill_summary")
+        if isinstance(skill_summary, dict):
+            summaries.append(skill_summary)
+    return _merge_skill_summaries(summaries)
+
+
+def _payload_skill_requirements(payload: dict[str, object]) -> list[dict[str, object]]:
+    requirements: list[dict[str, object]] = []
+    _extend_requirement_objects(requirements, payload.get("skill_requirements"))
+    _extend_requirement_objects(requirements, payload.get("authority_skill_requirements"))
+
+    tracks = payload.get("tracks")
+    if isinstance(tracks, list):
+        for track in tracks:
+            if not isinstance(track, dict):
+                continue
+            _extend_requirement_objects(requirements, track.get("skill_requirements"))
+            _extend_requirement_objects(requirements, track.get("authority_skill_requirements"))
+    return requirements
+
+
+def _extend_requirement_objects(target: list[dict[str, object]], value: object) -> None:
+    if not isinstance(value, list):
+        return
+    for item in value:
+        if isinstance(item, dict):
+            target.append(item)
+
+
+def _skill_summary_from_requirements(requirements: list[dict[str, object]]) -> dict[str, object]:
+    local_skills: list[str] = []
+    authority_skills: list[str] = []
+    specialist_skills: list[str] = []
+    missing_local_skills: list[str] = []
+    authority_missing_policy = ""
+    seen_requirements: set[str] = set()
+
+    for requirement in requirements:
+        name = requirement.get("name")
+        if not isinstance(name, str) or not name or name in seen_requirements:
+            continue
+        seen_requirements.add(name)
+        kind = requirement.get("type")
+        if kind == "local-workflow":
+            _append_unique(local_skills, name)
+            if requirement.get("available_in_workflow_pack") is not True:
+                _append_unique(missing_local_skills, name)
+        elif kind == "authority-routing":
+            _append_unique(authority_skills, name)
+            policy = requirement.get("missing_policy")
+            if isinstance(policy, str) and policy and not authority_missing_policy:
+                authority_missing_policy = policy
+        else:
+            _append_unique(specialist_skills, name)
+
+    return {
+        "local_workflow_skills": local_skills,
+        "authority_routing_skills": authority_skills,
+        "specialist_routing_skills": specialist_skills,
+        "missing_local_workflow_skills": missing_local_skills,
+        "local_workflow_skill_count": len(local_skills),
+        "authority_routing_skill_count": len(authority_skills),
+        "specialist_routing_skill_count": len(specialist_skills),
+        "missing_local_workflow_skill_count": len(missing_local_skills),
+        "authority_missing_policy": authority_missing_policy,
+    }
+
+
+def _merge_skill_summaries(summaries: list[dict[str, object]]) -> dict[str, object]:
+    merged = _empty_skill_summary()
+    for summary in summaries:
+        _merge_skill_list(merged, "local_workflow_skills", summary.get("local_workflow_skills"))
+        _merge_skill_list(merged, "authority_routing_skills", summary.get("authority_routing_skills"))
+        _merge_skill_list(merged, "specialist_routing_skills", summary.get("specialist_routing_skills"))
+        _merge_skill_list(
+            merged,
+            "missing_local_workflow_skills",
+            summary.get("missing_local_workflow_skills"),
+        )
+        if not merged["authority_missing_policy"]:
+            policy = summary.get("authority_missing_policy")
+            if isinstance(policy, str):
+                merged["authority_missing_policy"] = policy
+
+    merged["local_workflow_skill_count"] = len(merged["local_workflow_skills"])
+    merged["authority_routing_skill_count"] = len(merged["authority_routing_skills"])
+    merged["specialist_routing_skill_count"] = len(merged["specialist_routing_skills"])
+    merged["missing_local_workflow_skill_count"] = len(merged["missing_local_workflow_skills"])
+    return merged
+
+
+def _merge_skill_list(summary: dict[str, object], key: str, value: object) -> None:
+    if not isinstance(value, list):
+        return
+    target = summary.get(key)
+    if not isinstance(target, list):  # pragma: no cover - internal invariant
+        return
+    for item in value:
+        if isinstance(item, str):
+            _append_unique(target, item)
+
+
+def _empty_skill_summary() -> dict[str, object]:
+    return {
+        "local_workflow_skills": [],
+        "authority_routing_skills": [],
+        "specialist_routing_skills": [],
+        "missing_local_workflow_skills": [],
+        "local_workflow_skill_count": 0,
+        "authority_routing_skill_count": 0,
+        "specialist_routing_skill_count": 0,
+        "missing_local_workflow_skill_count": 0,
+        "authority_missing_policy": "",
+    }
+
+
+def _append_unique(items: list[str], value: str) -> None:
+    if value not in items:
+        items.append(value)
