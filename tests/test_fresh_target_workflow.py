@@ -169,6 +169,14 @@ class FreshTargetWorkflowTest(unittest.TestCase):
 
             local_commands = {command["make_target"]: command for command in status["local_commands"]}
             self.assertEqual(
+                ["make", "product-plan"],
+                local_commands["product-plan"]["argv"],
+            )
+            self.assertEqual(
+                ["make", "design-plan"],
+                local_commands["design-plan"]["argv"],
+            )
+            self.assertEqual(
                 ["make", "implementation-plan"],
                 local_commands["implementation-plan"]["argv"],
             )

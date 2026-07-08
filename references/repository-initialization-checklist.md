@@ -36,7 +36,7 @@ Reference: `https://docs.github.com/en/repositories/managing-your-repositorys-se
 - Are target-local `bin/` and `scripts/` files generated with executable runtime entry points?
 - Does `docs/agent-workflow/runtime-manifest.json` cover target-local runtime files?
 - Does `docs/agent-workflow/workflow-pack/manifest.json` cover the copied workflow-pack snapshot?
-- Are `make verify-governance`, `make verify-check`, `make governance-status`, `make workflow-plan`, `make check-env`, and `make repair-env-check` available after initialization?
+- Are `make verify-governance`, `make verify-check`, `make governance-status`, `make workflow-plan`, `make product-plan`, `make design-plan`, `make check-env`, and `make repair-env-check` available after initialization?
 
 ## Product Seed
 

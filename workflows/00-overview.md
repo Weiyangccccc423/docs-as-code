@@ -72,6 +72,8 @@ make verify-governance
 make verify-check
 make governance-status
 make workflow-plan
+make product-plan
+make design-plan
 make implementation-plan
 make check-env
 make repair-env-check

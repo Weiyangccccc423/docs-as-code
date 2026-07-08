@@ -16,6 +16,8 @@ One-sentence project summary.
 - `make verify-check` - run read-only JSON verification without updating state.
 - `make governance-status` - print workflow state as JSON.
 - `make workflow-plan` - print current workflow route plus active queue and skill summaries as JSON.
+- `make product-plan` - print product structuring plan as JSON.
+- `make design-plan` - print design derivation plan as JSON.
 - `make implementation-plan` - print Ready implementation task execution plan as JSON.
 - `make check-env` - inventory local governance tools as JSON.
 - `make repair-env-check` - preview environment repair without writing files.

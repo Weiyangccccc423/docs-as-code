@@ -114,6 +114,18 @@ TARGET_LOCAL_COMMANDS = (
         False,
     ),
     (
+        "product-plan",
+        "bin/governance product plan . --json",
+        "print product structuring plan as JSON",
+        False,
+    ),
+    (
+        "design-plan",
+        "bin/governance design plan . --json",
+        "print design derivation plan as JSON",
+        False,
+    ),
+    (
         "implementation-plan",
         "bin/governance implementation plan . --json",
         "print Ready implementation task execution plan as JSON",
