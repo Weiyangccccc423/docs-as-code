@@ -134,6 +134,23 @@ class DryRunWorkflowTest(unittest.TestCase):
         payload["authoring_summary"]["required_link_status_counts"]["missing"] = 2
         self.assertFalse(dry_run_workflow._authoring_summary_matches_tasks(payload))
 
+    def test_env_repair_decision_requires_explicit_continue_signal(self) -> None:
+        payload = {
+            "repair_decision": {
+                "decision": "continue_workflow",
+                "stop_before_workflow": False,
+                "can_continue": True,
+                "runnable_action_ids": [],
+                "approval_action_ids": [],
+                "manual_action_ids": [],
+            }
+        }
+
+        self.assertTrue(dry_run_workflow._env_repair_decision_allows_workflow(payload))
+
+        payload["repair_decision"]["approval_action_ids"] = ["env-repair-apt-install"]
+        self.assertFalse(dry_run_workflow._env_repair_decision_allows_workflow(payload))
+
     def test_dry_run_reaches_design_authoring_queues(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "dry-target"

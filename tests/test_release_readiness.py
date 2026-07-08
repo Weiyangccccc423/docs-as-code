@@ -44,6 +44,13 @@ class ReleaseReadinessTest(unittest.TestCase):
             "release-artifact-smoke",
         ):
             self.assertEqual("pass", criteria[criterion_id]["status"])
+        self.assertEqual(
+            "continue_workflow",
+            criteria["environment-inventory"]["details"]["repair_decision"]["decision"],
+        )
+        self.assertFalse(
+            criteria["environment-inventory"]["details"]["repair_decision"]["stop_before_workflow"],
+        )
         self.assertGreater(criteria["source-pack-export-check"]["details"]["would_write_count"], 0)
         self.assertTrue(criteria["source-pack-export-check"]["details"]["would_archive"])
         self.assertEqual(

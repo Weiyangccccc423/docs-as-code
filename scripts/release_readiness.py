@@ -136,6 +136,21 @@ def _dry_run_target_local_make_details(payload: dict[str, object] | None) -> dic
     }
 
 
+def _env_repair_decision_allows_workflow(payload: dict[str, object] | None) -> bool:
+    if payload is None:
+        return False
+    decision = payload.get("repair_decision")
+    return (
+        isinstance(decision, dict)
+        and decision.get("decision") == "continue_workflow"
+        and decision.get("stop_before_workflow") is False
+        and decision.get("can_continue") is True
+        and decision.get("runnable_action_ids") == []
+        and decision.get("approval_action_ids") == []
+        and decision.get("manual_action_ids") == []
+    )
+
+
 def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
     steps: list[dict[str, object]] = []
     criteria: list[dict[str, object]] = []
@@ -196,11 +211,14 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
     _criterion(
         criteria,
         "environment-inventory",
-        bool(steps[-1]["ok"]) and bool(env_payload and env_payload.get("ok") is True),
+        bool(steps[-1]["ok"])
+        and bool(env_payload and env_payload.get("ok") is True)
+        and _env_repair_decision_allows_workflow(env_payload),
         evidence="python3 scripts/check_env.py --json",
         details={
             "missing_required": env_payload.get("missing_required", []) if env_payload else [],
             "missing_recommended": env_payload.get("missing_recommended", []) if env_payload else [],
+            "repair_decision": env_payload.get("repair_decision", {}) if env_payload else {},
         },
     )
 

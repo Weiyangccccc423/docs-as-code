@@ -406,6 +406,11 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
     )
     _require(make_check_env.get("ok") is True, "make check-env failed", payload=make_check_env)
     _require(make_check_env.get("target") == ".", "make check-env target mismatch", payload=make_check_env)
+    _require(
+        _env_repair_decision_allows_workflow(make_check_env),
+        "make check-env did not expose a continue-workflow repair decision",
+        payload=make_check_env,
+    )
 
     make_repair_env_check = _run_json(
         steps,
@@ -417,6 +422,11 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
     _require(
         make_repair_env_check.get("check") is True,
         "make repair-env-check did not run in check mode",
+        payload=make_repair_env_check,
+    )
+    _require(
+        _env_repair_decision_allows_workflow(make_repair_env_check),
+        "make repair-env-check did not expose a continue-workflow repair decision",
         payload=make_repair_env_check,
     )
 
@@ -1357,6 +1367,19 @@ def _target_local_make_coverage_details(steps: list[dict[str, object]]) -> dict[
         "required_step_ids": TARGET_LOCAL_MAKE_STEP_IDS,
         "missing_step_ids": [step_id for step_id in TARGET_LOCAL_MAKE_STEP_IDS if step_id not in step_ids],
     }
+
+
+def _env_repair_decision_allows_workflow(payload: dict[str, object]) -> bool:
+    decision = payload.get("repair_decision")
+    return (
+        isinstance(decision, dict)
+        and decision.get("decision") == "continue_workflow"
+        and decision.get("stop_before_workflow") is False
+        and decision.get("can_continue") is True
+        and decision.get("runnable_action_ids") == []
+        and decision.get("approval_action_ids") == []
+        and decision.get("manual_action_ids") == []
+    )
 
 
 def _require_initialized_workflow_plan(payload: dict[str, object], label: str) -> None:

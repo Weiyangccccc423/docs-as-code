@@ -33,6 +33,7 @@ Use this checklist before tagging, exporting, or handing off this source workflo
 
 - Run `python3 scripts/check_env.py --json`.
 - Require `ok: true` and `missing_required: []`.
+- Require `repair_decision.decision: continue_workflow` and `repair_decision.stop_before_workflow: false`.
 - Treat missing recommended tools as a release note or environment follow-up unless `--strict` is part of the target release policy.
 
 ## Release Evidence
