@@ -3180,6 +3180,66 @@ class GovernanceScriptsTest(unittest.TestCase):
             ],
             payload["repair_actions"],
         )
+        self.assertEqual(
+            {
+                "decision": "request_approval",
+                "status": "approval_required",
+                "stop_before_workflow": True,
+                "can_continue": False,
+                "can_auto_apply": False,
+                "requires_approval": True,
+                "manual_repair_required": False,
+                "runnable_action_ids": [],
+                "approval_action_ids": ["env-repair-apt-update", "env-repair-apt-install"],
+                "manual_action_ids": [],
+                "next_step": "request approval before running repair_commands",
+            },
+            payload["repair_decision"],
+        )
+
+    def test_check_env_payload_reports_auto_apply_repair_decision(self) -> None:
+        statuses = [
+            check_env_module.ToolStatus(
+                "git",
+                False,
+                "",
+                "Required for version control.",
+                "required",
+                "git",
+            ),
+        ]
+        payload = check_env_module._env_payload(
+            Path("/tmp/project"),
+            strict=False,
+            check=True,
+            statuses=statuses,
+            system=check_env_module.SystemStatus("linux", "ubuntu", "debian", "Ubuntu", True),
+            package_manager=check_env_module.PackageManager("apt", "/usr/bin/apt-get", True),
+            git=check_env_module.GitStatus(False, False, "", "", ""),
+            install_plan=[check_env_module.InstallPlanItem("git", "git", "apt")],
+            needs_escalation=False,
+            install_results=[],
+            repairs=[],
+            repair_plan=None,
+        )
+
+        self.assertEqual("ready_to_apply", payload["repair_execution"]["status"])
+        self.assertEqual(
+            {
+                "decision": "run_repair_actions",
+                "status": "ready_to_apply",
+                "stop_before_workflow": True,
+                "can_continue": False,
+                "can_auto_apply": True,
+                "requires_approval": False,
+                "manual_repair_required": False,
+                "runnable_action_ids": ["env-repair-apt-update", "env-repair-apt-install"],
+                "approval_action_ids": [],
+                "manual_action_ids": [],
+                "next_step": "run repair_commands[].argv from repair_commands[].cwd",
+            },
+            payload["repair_decision"],
+        )
 
     def test_check_env_payload_suppresses_applied_package_actions(self) -> None:
         statuses = [
@@ -3227,6 +3287,9 @@ class GovernanceScriptsTest(unittest.TestCase):
         self.assertTrue(execution["install_attempted"])
         self.assertFalse(execution["install_failed"])
         self.assertEqual([], execution["post_repair_missing_required"])
+        self.assertEqual("continue_workflow", payload["repair_decision"]["decision"])
+        self.assertFalse(payload["repair_decision"]["stop_before_workflow"])
+        self.assertTrue(payload["repair_decision"]["can_continue"])
 
     def test_check_env_payload_reports_applied_but_unresolved_after_successful_install(self) -> None:
         statuses = [
@@ -3326,6 +3389,22 @@ class GovernanceScriptsTest(unittest.TestCase):
             ],
             payload["repair_actions"],
         )
+        self.assertEqual(
+            {
+                "decision": "complete_manual_repairs",
+                "status": "manual_repair_required",
+                "stop_before_workflow": True,
+                "can_continue": False,
+                "can_auto_apply": False,
+                "requires_approval": True,
+                "manual_repair_required": True,
+                "runnable_action_ids": [],
+                "approval_action_ids": ["env-manual-repair-node"],
+                "manual_action_ids": ["env-manual-repair-node"],
+                "next_step": "complete manual_repairs before continuing",
+            },
+            payload["repair_decision"],
+        )
 
     def test_check_env_payload_reports_empty_errors_for_success(self) -> None:
         statuses = [
@@ -3357,6 +3436,22 @@ class GovernanceScriptsTest(unittest.TestCase):
         self.assertEqual([], payload["errors"])
         self.assertEqual([], payload["manual_repairs"])
         self.assertEqual([], payload["repair_actions"])
+        self.assertEqual(
+            {
+                "decision": "continue_workflow",
+                "status": "continue",
+                "stop_before_workflow": False,
+                "can_continue": True,
+                "can_auto_apply": False,
+                "requires_approval": False,
+                "manual_repair_required": False,
+                "runnable_action_ids": [],
+                "approval_action_ids": [],
+                "manual_action_ids": [],
+                "next_step": "continue workflow",
+            },
+            payload["repair_decision"],
+        )
 
     def test_phases_main_json_advances_product_structuring(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -15779,6 +15874,9 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertEqual([], payload["repairs"])
             self.assertIsNone(payload["repair_plan"])
             self.assertTrue(any(item["kind"] == "repair_plan" for item in payload["would_repair"]))
+            self.assertEqual("run_repair_actions", payload["repair_decision"]["decision"])
+            self.assertEqual(["env-repair-apt-update", "env-repair-apt-install"], payload["repair_decision"]["runnable_action_ids"])
+            self.assertFalse(payload["repair_decision"]["requires_approval"])
             self.assertNotIn("local_commands", payload)
             self.assertNotIn("next_actions", payload)
             self.assertFalse((target / ".governance/env-repair.md").exists())

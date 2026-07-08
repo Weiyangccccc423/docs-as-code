@@ -468,6 +468,53 @@ def repair_actions_payload(
     return actions
 
 
+def repair_decision_payload(
+    repair_execution: dict[str, object],
+    repair_actions: list[dict[str, object]],
+) -> dict[str, object]:
+    status = str(repair_execution.get("status", ""))
+    decision_by_status = {
+        "continue": "continue_workflow",
+        "applied": "continue_workflow",
+        "ready_to_apply": "run_repair_actions",
+        "approval_required": "request_approval",
+        "manual_repair_required": "complete_manual_repairs",
+        "install_failed": "inspect_install_failure",
+        "applied_but_unresolved": "inspect_unresolved_tools",
+        "blocked_by_error": "fix_repair_error",
+        "unresolved": "inspect_missing_tools",
+    }
+    decision = decision_by_status.get(status, "inspect_environment")
+    approval_action_ids = [
+        str(action.get("id"))
+        for action in repair_actions
+        if action.get("approval_required") is True and action.get("id")
+    ]
+    runnable_action_ids = [
+        str(action.get("id"))
+        for action in repair_actions
+        if action.get("approval_required") is not True and isinstance(action.get("argv"), list) and action.get("id")
+    ]
+    manual_action_ids = [
+        str(action.get("id"))
+        for action in repair_actions
+        if action.get("kind") == "manual-repair" and action.get("id")
+    ]
+    return {
+        "decision": decision,
+        "status": status,
+        "stop_before_workflow": decision != "continue_workflow",
+        "can_continue": repair_execution.get("can_continue") is True,
+        "can_auto_apply": repair_execution.get("can_auto_apply") is True,
+        "requires_approval": repair_execution.get("approval_required") is True or bool(approval_action_ids),
+        "manual_repair_required": repair_execution.get("manual_repair_required") is True or bool(manual_action_ids),
+        "runnable_action_ids": runnable_action_ids,
+        "approval_action_ids": approval_action_ids,
+        "manual_action_ids": manual_action_ids,
+        "next_step": str(repair_execution.get("next_step", "")),
+    }
+
+
 def manual_repair_items(
     statuses: list[ToolStatus],
     strict: bool,
@@ -584,6 +631,21 @@ def _env_payload(
         needs_escalation=needs_escalation,
     )
     error_list = list(errors or [])
+    repair_action_items = repair_actions_payload(
+        repair_command_items,
+        manual_repairs,
+        install_results=install_results,
+        errors=error_list,
+    )
+    repair_execution = repair_execution_summary(
+        statuses,
+        strict,
+        repair_command_items,
+        manual_repairs,
+        needs_escalation=needs_escalation,
+        install_results=install_results,
+        errors=error_list,
+    )
     payload: dict[str, object] = {
         "ok": environment_ok(statuses, strict) and not error_list,
         "target": str(target),
@@ -601,21 +663,9 @@ def _env_payload(
         "install_command": install_command_text(commands),
         "repair_commands": repair_command_items,
         "manual_repairs": [item.to_dict() for item in manual_repairs],
-        "repair_actions": repair_actions_payload(
-            repair_command_items,
-            manual_repairs,
-            install_results=install_results,
-            errors=error_list,
-        ),
-        "repair_execution": repair_execution_summary(
-            statuses,
-            strict,
-            repair_command_items,
-            manual_repairs,
-            needs_escalation=needs_escalation,
-            install_results=install_results,
-            errors=error_list,
-        ),
+        "repair_actions": repair_action_items,
+        "repair_execution": repair_execution,
+        "repair_decision": repair_decision_payload(repair_execution, repair_action_items),
         "needs_escalation": needs_escalation,
         "install_results": copy.deepcopy(install_results),
         "repairs": copy.deepcopy(repairs),
