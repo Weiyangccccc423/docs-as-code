@@ -173,6 +173,7 @@ bin/governance gate product-structuring /path/to/new-project --json
 ```
 
 After the product-structuring gate passes, run `product plan --json` before scaffolding. The read-only plan returns `source_documents`, `available_chapters`, `prd_headings`, conservative `suggested_mappings`, `required_decisions`, `manual_authoring_tasks`, `manual_authoring_summary`, local workflow `skills`, `skill_requirements`, `authority_skill_requirements`, and ordered executable `steps`; its `decision_policy` is `do_not_guess_product_meaning`. Use `manual_authoring_summary` for `task_count`, `open_decision_count`, `required_evidence_status_counts`, `non_satisfied_required_evidence_count`, and `evidence_repair_action_count` before drilling into task details. Accept `suggested_mappings[].command_arg` only after source review, and resolve `required_decisions[]` with an explicit `key=PRD Heading`, manual PRD-backed authoring, or omission of an unsupported chapter. Use `manual_authoring_tasks[]` as the `status: decision_required` queue for chapters that need PRD-backed manual authoring; each task lists `execution`, `required_sections`, `required_links`, `required_evidence`, `evidence_repair_actions`, and `open_decisions`. Each `required_evidence[]` item includes a machine-readable `status` such as `missing`, `not_indexed`, `not_linked`, `placeholder_present`, `pending_review`, or `satisfied`; `evidence_repair_actions[]` gives every non-satisfied evidence item a `repair_strategy`, `verify_command`, and `refresh_command`.
+Use `workflow plan --json` at any initialized phase to get the current phase, read-only queue commands, `blocked` status, compact active queue summaries, `local_commands`, and `next_actions` without manually probing each phase-specific command.
 Then scaffold only the product chapters supported by the PRD. Scaffolded product chapters contain `governance:scaffold-placeholder` and block verification until replaced with source-backed content.
 Successful scaffold write payloads include `scaffold_phase`, showing the recorded workflow phase and the phase this scaffold belongs to. When `scaffold_phase.matches` is false, keep following returned `next_actions` to advance recorded phases in order before treating the scaffold as current-phase work. Payloads also include `next_actions_blocked_by` while placeholders remain; keep returned `next_actions` for later, but do not run them until every listed blocker is resolved.
 
@@ -249,6 +250,7 @@ Core governance commands use POSIX shell wrappers and Python standard-library sc
 make verify-governance
 make verify-check
 make governance-status
+make workflow-plan
 make check-env
 make repair-env-check
 ```

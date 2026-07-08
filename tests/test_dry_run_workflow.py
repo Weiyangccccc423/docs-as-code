@@ -176,8 +176,10 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertTrue(payload["implementation_gate"]["expected_blocked"])
             step_ids = {step["id"] for step in payload["steps"]}
             self.assertIn("product_plan", step_ids)
+            self.assertIn("workflow_plan_product_structuring", step_ids)
             self.assertIn("product_structure", step_ids)
             self.assertIn("design_plan", step_ids)
+            self.assertIn("workflow_plan_design_derivation", step_ids)
             self.assertIn("implementation_advance_check", step_ids)
             self.assertTrue((target / "bin/governance").is_file())
             self.assertTrue((target / "docs/api/endpoints/01-endpoint-contract.md").is_file())

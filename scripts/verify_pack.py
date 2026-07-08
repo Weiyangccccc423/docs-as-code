@@ -71,6 +71,8 @@ TEMPLATE_REQUIRED_GUARDRAILS = {
         '`["bin/governance", "verify", ".", "--check", "--json"]`',
         "| governance-status |",
         '`["bin/governance", "status", ".", "--json"]`',
+        "| workflow-plan |",
+        '`["bin/governance", "workflow", "plan", ".", "--json"]`',
         "| check-env |",
         '`["bin/governance", "env", "--target", "."]`',
         "| repair-env-check |",
@@ -516,6 +518,7 @@ TARGET_LOCAL_COMMAND_REQUIRED_TARGETS = (
     "verify-governance",
     "verify-check",
     "governance-status",
+    "workflow-plan",
     "check-env",
     "repair-env-check",
 )
@@ -2528,6 +2531,7 @@ GOVERNANCE_CLI_REQUIRED_COMMANDS = (
     "verify",
     "status",
     "env",
+    "workflow",
     "runtime",
     "gate",
     "scaffold",
@@ -2537,6 +2541,7 @@ GOVERNANCE_CLI_REQUIRED_COMMANDS = (
 )
 GOVERNANCE_CLI_REQUIRED_SUBCOMMANDS = {
     "runtime": ("refresh",),
+    "workflow": ("plan",),
     "product": ("mark-ready", "plan", "structure"),
     "design": (
         "plan",
@@ -2552,6 +2557,7 @@ GOVERNANCE_CLI_REQUIRED_SUBCOMMANDS = {
 GOVERNANCE_CLI_PARSER_VARIABLES = {
     "top-level": "sub",
     "runtime": "runtime_sub",
+    "workflow": "workflow_sub",
     "product": "product_sub",
     "design": "design_sub",
 }

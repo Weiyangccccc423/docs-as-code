@@ -55,6 +55,7 @@ from scaffold import (
 from state import STATE_REL, StateFileError, load_state, merge_state, utc_now
 from verify_governance import verify
 from workflow_actions import next_actions_payload
+from workflow_plan import build_workflow_plan
 
 
 def _print_json(payload: dict[str, object]) -> None:
@@ -265,6 +266,23 @@ def _cmd_status(args: argparse.Namespace) -> int:
     last = state.get("last_verification")
     if isinstance(last, dict):
         print(f"last_verification.ok: {last.get('ok')}")
+    return 0
+
+
+def _cmd_workflow_plan(args: argparse.Namespace) -> int:
+    target = Path(args.target)
+    payload = build_workflow_plan(target)
+    if args.json:
+        _print_json(payload)
+        return 0 if payload["ok"] else 1
+    if not payload["ok"]:
+        print("Workflow plan failed:")
+        for error in payload["errors"]:
+            print(f"- ERROR: {error}")
+        return 1
+    print(f"Workflow plan: {payload['phase']}")
+    for queue in payload["queues"]:
+        print(f"- {queue['id']}: {queue['status']}")
     return 0
 
 
@@ -796,6 +814,16 @@ def build_parser() -> argparse.ArgumentParser:
     status.add_argument("target", nargs="?", default=".")
     status.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     status.set_defaults(func=_cmd_status)
+
+    workflow = sub.add_parser("workflow", help="Plan current workflow routing and active authoring queues.")
+    workflow_sub = workflow.add_subparsers(dest="workflow_command", required=True)
+    workflow_plan = workflow_sub.add_parser(
+        "plan",
+        help="Show the current phase, queue summaries, read-only commands, and continuation actions.",
+    )
+    workflow_plan.add_argument("target", nargs="?", default=".")
+    workflow_plan.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    workflow_plan.set_defaults(func=_cmd_workflow_plan)
 
     env = sub.add_parser("env", help="Check local workflow environment.")
     env.add_argument(

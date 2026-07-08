@@ -380,6 +380,23 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         "product plan manual authoring summary did not match task details",
         payload=product_plan,
     )
+    product_workflow_plan = _run_json(
+        steps,
+        "workflow_plan_product_structuring",
+        ["bin/governance", "workflow", "plan", ".", "--json"],
+        target,
+    )
+    _require(product_workflow_plan.get("ok") is True, "product workflow plan failed", payload=product_workflow_plan)
+    _require(
+        product_workflow_plan.get("phase") == "product-structuring",
+        "product workflow plan phase mismatch",
+        payload=product_workflow_plan,
+    )
+    _require(
+        _workflow_plan_has_queue(product_workflow_plan, "product-plan"),
+        "product workflow plan did not expose product-plan queue",
+        payload=product_workflow_plan,
+    )
 
     product_scaffold_check = _run_json(
         steps,
@@ -593,6 +610,25 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
             payload=payload,
         )
 
+    design_workflow_plan = _run_json(
+        steps,
+        "workflow_plan_design_derivation",
+        ["bin/governance", "workflow", "plan", ".", "--json"],
+        target,
+    )
+    _require(design_workflow_plan.get("ok") is True, "design workflow plan failed", payload=design_workflow_plan)
+    _require(
+        design_workflow_plan.get("phase") == "design-derivation",
+        "design workflow plan phase mismatch",
+        payload=design_workflow_plan,
+    )
+    for queue_id in ("design-plan", "api-candidates", "api-authoring", "backend-authoring"):
+        _require(
+            _workflow_plan_has_queue(design_workflow_plan, queue_id),
+            f"design workflow plan did not expose {queue_id} queue",
+            payload=design_workflow_plan,
+        )
+
     implementation_preflight = _run_json(
         steps,
         "implementation_advance_check",
@@ -627,6 +663,13 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         },
         "next": "replace design scaffold placeholders with source-backed content before implementation handoff",
     }
+
+
+def _workflow_plan_has_queue(payload: dict[str, object], queue_id: str) -> bool:
+    queues = payload.get("queues")
+    if not isinstance(queues, list):
+        return False
+    return any(isinstance(queue, dict) and queue.get("id") == queue_id for queue in queues)
 
 
 def _manual_authoring_summary_matches_tasks(payload: dict[str, object]) -> bool:

@@ -15,5 +15,6 @@ One-sentence project summary.
 - `make verify-governance` - run governance verification and update verification state.
 - `make verify-check` - run read-only JSON verification without updating state.
 - `make governance-status` - print workflow state as JSON.
+- `make workflow-plan` - print current workflow route and active queue summaries as JSON.
 - `make check-env` - inventory local governance tools.
 - `make repair-env-check` - preview environment repair without writing files.

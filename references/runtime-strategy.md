@@ -42,6 +42,7 @@ Generated targets also include stable Makefile entries for routine checks:
 make verify-governance
 make verify-check
 make governance-status
+make workflow-plan
 make check-env
 make repair-env-check
 ```

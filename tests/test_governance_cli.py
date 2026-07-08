@@ -2426,6 +2426,154 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn("invalid governance state file", payload["error"])
             self.assertIn("not a file", payload["error"])
 
+    def test_target_local_workflow_plan_reports_product_authoring_queue(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text(
+                "# Product\n\n"
+                "## Goals and Requirements\n\n"
+                "- Ship a governed project from one product document.\n\n"
+                "## Acceptance Criteria\n\n"
+                "- The initialized repository exposes local governance checks.\n",
+                encoding="utf-8",
+            )
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            advance_result = subprocess.run(
+                ["bin/governance", "advance", "product-structuring", ".", "--json"],
+                cwd=target,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, advance_result.returncode, advance_result.stderr)
+
+            result = subprocess.run(
+                ["bin/governance", "workflow", "plan", ".", "--json"],
+                cwd=target,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertTrue(payload["blocked"])
+            self.assertEqual("workflow-plan", payload["workflow"])
+            self.assertEqual("product-structuring", payload["phase"])
+            commands = {command["id"]: command for command in payload["commands"]}
+            self.assertEqual(
+                ["bin/governance", "product", "plan", ".", "--json"],
+                commands["product-plan"]["argv"],
+            )
+            self.assertFalse(commands["product-plan"]["writes_state"])
+            local_commands = {command["make_target"]: command for command in payload["local_commands"]}
+            self.assertIn("workflow-plan", local_commands)
+            self.assertEqual(["make", "workflow-plan"], local_commands["workflow-plan"]["argv"])
+            self.assertEqual("advance-design-derivation-check", payload["next_actions"][0]["id"])
+            queues = {queue["id"]: queue for queue in payload["queues"]}
+            self.assertEqual(["product-plan"], list(queues))
+            product_queue = queues["product-plan"]
+            self.assertTrue(product_queue["ok"])
+            self.assertEqual("blocked", product_queue["status"])
+            self.assertEqual("product-structuring", product_queue["phase"])
+            self.assertEqual(2, product_queue["summary"]["suggested_mapping_count"])
+            self.assertEqual(4, product_queue["summary"]["required_decision_count"])
+            self.assertEqual(4, product_queue["summary"]["manual_authoring_summary"]["task_count"])
+            self.assertGreater(
+                product_queue["summary"]["manual_authoring_summary"]["non_satisfied_required_evidence_count"],
+                0,
+            )
+
+    def test_workflow_plan_reports_design_authoring_summaries(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            (target / "docs/product/01-goals.md").write_text("# Goals\n\nSource: [PRD](core/PRD.md).\n", encoding="utf-8")
+            _append_index(target / "docs/product/README.md", "01-goals.md")
+            _append_product_meta_chapter(target, "01-goals.md")
+            (target / "docs/product/08-acceptance-criteria.md").write_text(_acceptance_doc(), encoding="utf-8")
+            _append_index(target / "docs/product/README.md", "08-acceptance-criteria.md")
+            _append_product_meta_chapter(target, "08-acceptance-criteria.md")
+            advance_product = subprocess.run(
+                [sys.executable, str(CLI), "advance", "product-structuring", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, advance_product.returncode, advance_product.stderr)
+            advance_design = subprocess.run(
+                [sys.executable, str(CLI), "advance", "design-derivation", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, advance_design.returncode, advance_design.stderr)
+            scaffold_design = subprocess.run(
+                [sys.executable, str(CLI), "scaffold", "design", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, scaffold_design.returncode, scaffold_design.stderr)
+
+            result = subprocess.run(
+                [sys.executable, str(CLI), "workflow", "plan", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertTrue(payload["blocked"])
+            self.assertEqual("workflow-plan", payload["workflow"])
+            self.assertEqual("design-derivation", payload["phase"])
+            queues = {queue["id"]: queue for queue in payload["queues"]}
+            self.assertEqual(
+                [
+                    "design-plan",
+                    "api-candidates",
+                    "api-authoring",
+                    "backend-authoring",
+                    "frontend-authoring",
+                    "test-strategy-authoring",
+                    "implementation-planning-authoring",
+                    "architecture-decisions-authoring",
+                ],
+                list(queues),
+            )
+            self.assertEqual(9, queues["design-plan"]["summary"]["track_count"])
+            self.assertGreater(queues["design-plan"]["summary"]["blocker_count"], 0)
+            self.assertEqual(1, queues["api-candidates"]["summary"]["candidate_count"])
+            self.assertEqual(1, queues["api-authoring"]["summary"]["authoring_summary"]["task_count"])
+            self.assertGreater(
+                queues["backend-authoring"]["summary"]["authoring_summary"]["non_satisfied_required_link_count"],
+                0,
+            )
+            commands = {command["id"]: command for command in payload["commands"]}
+            self.assertEqual(
+                ["bin/governance", "design", "backend-authoring", ".", "--json"],
+                commands["backend-authoring"]["argv"],
+            )
+            self.assertFalse(commands["backend-authoring"]["writes_state"])
+
     def test_verify_json_reports_invalid_state_without_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "target"

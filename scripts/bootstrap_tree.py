@@ -50,6 +50,7 @@ RUNTIME_SCRIPT_FILES = [
     "scaffold.py",
     "state.py",
     "verify_governance.py",
+    "workflow_plan.py",
     "workflow_actions.py",
 ]
 RUNTIME_MANIFEST_REL = "docs/agent-workflow/runtime-manifest.json"
@@ -103,6 +104,12 @@ TARGET_LOCAL_COMMANDS = (
         "governance-status",
         "bin/governance status . --json",
         "print workflow state as JSON",
+        False,
+    ),
+    (
+        "workflow-plan",
+        "bin/governance workflow plan . --json",
+        "print current workflow route and active queue summaries as JSON",
         False,
     ),
     (
