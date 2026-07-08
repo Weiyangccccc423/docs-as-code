@@ -321,33 +321,39 @@ class PackStructureTest(unittest.TestCase):
             )
 
     def test_verify_pack_reports_incomplete_dry_run_workflow_script(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            target = Path(tmp) / "pack"
-            shutil.copytree(
-                ROOT,
-                target,
-                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
-            )
-            script = target / "scripts/dry_run_workflow.py"
-            script.write_text(
-                script.read_text(encoding="utf-8").replace(
-                    "implementation_advance_check",
-                    "implementation_gate_preview",
-                ),
-                encoding="utf-8",
-            )
+        cases = (
+            ("implementation_advance_check", "implementation_gate_preview"),
+            ("make_implementation_plan", "local_implementation_plan"),
+        )
+        for required_phrase, replacement in cases:
+            with self.subTest(required_phrase=required_phrase):
+                with tempfile.TemporaryDirectory() as tmp:
+                    target = Path(tmp) / "pack"
+                    shutil.copytree(
+                        ROOT,
+                        target,
+                        ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+                    )
+                    script = target / "scripts/dry_run_workflow.py"
+                    script.write_text(
+                        script.read_text(encoding="utf-8").replace(
+                            required_phrase,
+                            replacement,
+                        ),
+                        encoding="utf-8",
+                    )
 
-            report = verify_pack(target)
+                    report = verify_pack(target)
 
-            self.assertFalse(report.ok)
-            self.assertTrue(
-                any(
-                    finding.code == "pack_dry_run_workflow_incomplete"
-                    and finding.path == "scripts/dry_run_workflow.py"
-                    and "implementation_advance_check" in finding.message
-                    for finding in report.findings
-                )
-            )
+                    self.assertFalse(report.ok)
+                    self.assertTrue(
+                        any(
+                            finding.code == "pack_dry_run_workflow_incomplete"
+                            and finding.path == "scripts/dry_run_workflow.py"
+                            and required_phrase in finding.message
+                            for finding in report.findings
+                        )
+                    )
 
     def test_verify_pack_reports_dry_run_missing_closeout_evidence_gate(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -742,6 +742,18 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         payload=implementation_plan,
     )
 
+    make_implementation_plan = _run_json(
+        steps,
+        "make_implementation_plan",
+        ["make", "implementation-plan"],
+        target,
+    )
+    _require(
+        _implementation_plan_is_actionable(make_implementation_plan),
+        "make implementation-plan did not expose one actionable task with closeout command",
+        payload=make_implementation_plan,
+    )
+
     closeout_without_evidence = _run_json(
         steps,
         "implementation_closeout_without_evidence",

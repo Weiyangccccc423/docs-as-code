@@ -690,6 +690,8 @@ DRY_RUN_WORKFLOW_REQUIRED_PHRASES = (
     '"architecture-decisions-authoring"',
     "implementation_advance_check",
     "implementation_plan",
+    "make_implementation_plan",
+    '["make", "implementation-plan"]',
     "implementation_closeout_without_evidence",
     "implementation_closeout_with_evidence",
     "implementation_closeout",

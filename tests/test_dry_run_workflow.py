@@ -195,6 +195,7 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertIn("implementation_advance_check", step_ids)
             self.assertIn("implementation_ready_verify_check", step_ids)
             self.assertIn("implementation_plan", step_ids)
+            self.assertIn("make_implementation_plan", step_ids)
             self.assertIn("implementation_closeout_without_evidence", step_ids)
             self.assertIn("implementation_closeout_with_evidence", step_ids)
             self.assertTrue((target / "bin/governance").is_file())
