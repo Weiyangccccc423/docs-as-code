@@ -2876,6 +2876,10 @@ class GovernanceCliTest(unittest.TestCase):
                     "actionable_ready_task_count": 1,
                     "blocked_task_count": 0,
                     "done_task_count": 0,
+                    "done_task_with_passing_evidence_count": 0,
+                    "all_tasks_done": False,
+                    "execution_complete": False,
+                    "remaining_task_count": 1,
                     "invalid_task_count": 0,
                     "task_status_counts": {"ready": 1},
                     "verification_evidence_task_count": 0,
@@ -3142,6 +3146,116 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual("Done", payload["evidence_summary"]["roadmap_status"])
             self.assertIn("| TASK-001 | Done | Implement goal flow |", (target / "docs/development/02-task-board.md").read_text(encoding="utf-8"))
             self.assertIn("| TASK-001 | Done | Goal flow |", (target / "docs/development/01-roadmap.md").read_text(encoding="utf-8"))
+
+    def test_implementation_plan_reports_complete_after_all_tasks_done(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp)
+            (target / "docs/development/02-task-board.md").write_text(
+                _task_board_doc(
+                    "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | "
+                    "docs/architecture/01-system-context.md | docs/api/00-conventions.md | "
+                    "docs/product/08-acceptance-criteria.md | docs/development/03-verification-log.md |\n"
+                ),
+                encoding="utf-8",
+            )
+            (target / "docs/development/03-verification-log.md").write_text(
+                _verification_log_doc(
+                    "| TASK-001 | make test | pass | 2026-07-08 | Local verification passed. |\n"
+                ),
+                encoding="utf-8",
+            )
+            apply_result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "implementation",
+                    "closeout",
+                    str(target),
+                    "--task",
+                    "TASK-001",
+                    "--apply",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, apply_result.returncode, apply_result.stderr)
+
+            result = subprocess.run(
+                [sys.executable, str(CLI), "implementation", "plan", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertFalse(payload["blocked"])
+            self.assertFalse(payload["gate_ok"])
+            self.assertTrue(payload["implementation_summary"]["execution_complete"])
+            self.assertTrue(payload["implementation_summary"]["all_tasks_done"])
+            self.assertEqual(1, payload["implementation_summary"]["done_task_with_passing_evidence_count"])
+            self.assertEqual("implementation-complete", payload["active_work"]["kind"])
+            self.assertEqual("complete", payload["active_work"]["status"])
+            self.assertEqual(1, payload["active_work"]["completed_task_count"])
+            self.assertEqual([], payload["active_work"]["next_actions"])
+
+    def test_workflow_plan_reports_complete_after_all_implementation_tasks_done(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp)
+            (target / "docs/development/02-task-board.md").write_text(
+                _task_board_doc(
+                    "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | "
+                    "docs/architecture/01-system-context.md | docs/api/00-conventions.md | "
+                    "docs/product/08-acceptance-criteria.md | docs/development/03-verification-log.md |\n"
+                ),
+                encoding="utf-8",
+            )
+            (target / "docs/development/03-verification-log.md").write_text(
+                _verification_log_doc(
+                    "| TASK-001 | make test | pass | 2026-07-08 | Local verification passed. |\n"
+                ),
+                encoding="utf-8",
+            )
+            apply_result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "implementation",
+                    "closeout",
+                    str(target),
+                    "--task",
+                    "TASK-001",
+                    "--apply",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, apply_result.returncode, apply_result.stderr)
+
+            result = subprocess.run(
+                [sys.executable, str(CLI), "workflow", "plan", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertFalse(payload["blocked"])
+            self.assertEqual("implementation", payload["phase"])
+            queue = payload["queues"][0]
+            self.assertEqual("implementation-plan", queue["id"])
+            self.assertEqual("complete", queue["status"])
+            self.assertTrue(queue["summary"]["implementation_summary"]["execution_complete"])
+            self.assertEqual("implementation-complete", queue["summary"]["active_work"]["kind"])
+            self.assertEqual("complete", payload["active_work"]["status"])
+            self.assertEqual("complete", payload["active_work"]["queue_status"])
 
     def test_workflow_plan_reports_implementation_task_queue(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

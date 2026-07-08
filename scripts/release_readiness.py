@@ -114,6 +114,8 @@ def _dry_run_closeout_evidence_ok(payload: dict[str, object]) -> bool:
         and closeout.get("blocked_without_evidence") is True
         and closeout.get("ready_with_evidence") is True
         and closeout.get("applied_status_updates") is True
+        and closeout.get("implementation_plan_complete") is True
+        and closeout.get("workflow_plan_complete") is True
     )
 
 

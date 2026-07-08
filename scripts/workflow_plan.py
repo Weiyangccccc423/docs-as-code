@@ -103,7 +103,7 @@ def build_workflow_plan(root: Path) -> dict[str, object]:
         "workflow": "workflow-plan",
         "phase": phase,
         "state": state,
-        "blocked": any(queue.get("status") != "ready" for queue in queues),
+        "blocked": any(queue.get("status") not in {"ready", "complete"} for queue in queues),
         "queues": queues,
         "commands": commands,
         "active_work": _workflow_active_work(queues),
@@ -242,6 +242,7 @@ def _implementation_plan_queue(root: Path) -> dict[str, object]:
         ),
         summary,
         payload.get("errors"),
+        complete=_implementation_summary_complete(summary),
     )
 
 
@@ -254,22 +255,26 @@ def _queue(
     command: dict[str, object],
     summary: dict[str, object],
     errors: object,
+    *,
+    complete: bool = False,
 ) -> dict[str, object]:
     return {
         "id": queue_id,
         "phase": phase,
         "kind": kind,
         "ok": ok,
-        "status": _queue_status(ok, blocked),
+        "status": _queue_status(ok, blocked, complete),
         "command": command,
         "summary": summary,
         "errors": list(errors) if isinstance(errors, list) else [],
     }
 
 
-def _queue_status(ok: bool, blocked: bool) -> str:
+def _queue_status(ok: bool, blocked: bool, complete: bool = False) -> str:
     if not ok:
         return "failed"
+    if complete:
+        return "complete"
     if blocked:
         return "blocked"
     return "ready"
@@ -337,12 +342,25 @@ def _implementation_summary_blocked(summary: dict[str, object]) -> bool:
     implementation_summary = summary.get("implementation_summary")
     if not isinstance(implementation_summary, dict):
         return True
+    if implementation_summary.get("execution_complete") is True:
+        return False
     active_work = summary.get("active_work")
     return (
         implementation_summary.get("gate_ok") is not True
         or int(implementation_summary.get("actionable_ready_task_count", 0)) == 0
         or not isinstance(active_work, dict)
         or active_work.get("status") != "ready"
+    )
+
+
+def _implementation_summary_complete(summary: dict[str, object]) -> bool:
+    implementation_summary = summary.get("implementation_summary")
+    active_work = summary.get("active_work")
+    return (
+        isinstance(implementation_summary, dict)
+        and implementation_summary.get("execution_complete") is True
+        and isinstance(active_work, dict)
+        and active_work.get("status") == "complete"
     )
 
 
@@ -397,7 +415,7 @@ def _payload_active_work(payload: dict[str, object]) -> dict[str, object]:
 def _workflow_active_work(queues: list[dict[str, object]]) -> dict[str, object]:
     if not queues:
         return {}
-    queue = next((item for item in queues if item.get("status") != "ready"), queues[0])
+    queue = next((item for item in queues if item.get("status") not in {"ready", "complete"}), queues[0])
     summary = queue.get("summary")
     active_work = {}
     if isinstance(summary, dict):

@@ -31,7 +31,7 @@ Read `references/implementation-execution-checklist.md` before editing code, cha
 
    Stop on `ok: false` and route repair through `verifying-governance-docs`.
 
-2. Inspect `implementation plan --json` before editing. Its `decision_policy` is `execute_exactly_one_ready_task`; use `implementation_summary`, `gate_ok`, `active_work`, `tasks[]`, `source_references`, `read_order`, `skill_requirements`, `authority_skill_requirements`, `skill_loading_plan`, `gate_command`, `verify_command`, `closeout_command`, and `refresh_command` to choose the task and repair blockers. Stop when `active_work.status` is not `ready`.
+2. Inspect `implementation plan --json` before editing. Its `decision_policy` is `execute_exactly_one_ready_task`; use `implementation_summary`, `gate_ok`, `active_work`, `tasks[]`, `source_references`, `read_order`, `skill_requirements`, `authority_skill_requirements`, `skill_loading_plan`, `gate_command`, `verify_command`, `closeout_command`, and `refresh_command` to choose the task and repair blockers. Stop successfully when `active_work.status` is `complete`; stop for repair when it is neither `ready` nor `complete`.
 3. Select exactly one task row from `active_work.task_id` or the first actionable `tasks[]` item. Confirm it uses a stable `TASK-NNN` ID, links local Markdown Product, Design, API, Acceptance, and Verification sources, and references a product-defined `A-NNN` mapped in `docs/tests/02-acceptance-matrix.md`.
 4. Read the selected task `read_order`, the acceptance matrix row, and the task handoff before editing implementation files.
 5. Inspect existing code, tests, generated files, build scripts, and local conventions around the changed surface.
@@ -48,7 +48,7 @@ Read `references/implementation-execution-checklist.md` before editing code, cha
 
 - More than one task is being changed without explicit task-board grouping.
 - The task is not `Ready`.
-- `implementation plan --json` reports `active_work.status` other than `ready`.
+- `implementation plan --json` reports `active_work.status` other than `ready` or `complete`.
 - `implementation closeout --task TASK-NNN --json` reports `closeout_ready: false` before a `Done` status change.
 - Required local Markdown sources are missing or contradictory.
 - The acceptance ID is not mapped in `docs/tests/02-acceptance-matrix.md`.

@@ -939,6 +939,28 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         "implementation closeout apply did not synchronize Done statuses",
         payload=closeout_apply,
     )
+    implementation_plan_after_closeout = _run_json(
+        steps,
+        "implementation_plan_after_closeout_apply",
+        ["bin/governance", "implementation", "plan", ".", "--json"],
+        target,
+    )
+    _require(
+        _implementation_plan_is_complete(implementation_plan_after_closeout),
+        "implementation plan did not report complete after closeout apply",
+        payload=implementation_plan_after_closeout,
+    )
+    workflow_plan_after_closeout = _run_json(
+        steps,
+        "workflow_plan_after_closeout_apply",
+        ["bin/governance", "workflow", "plan", ".", "--json"],
+        target,
+    )
+    _require(
+        _workflow_plan_is_implementation_complete(workflow_plan_after_closeout),
+        "workflow plan did not report implementation complete after closeout apply",
+        payload=workflow_plan_after_closeout,
+    )
 
     final_status = _run_json(
         steps,
@@ -970,6 +992,8 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
             "blocked_without_evidence": closeout_without_evidence.get("closeout_ready") is False,
             "ready_with_evidence": closeout_with_evidence.get("closeout_ready") is True,
             "applied_status_updates": closeout_apply.get("applied") is True,
+            "implementation_plan_complete": implementation_plan_after_closeout.get("blocked") is False,
+            "workflow_plan_complete": workflow_plan_after_closeout.get("blocked") is False,
             "blocking_codes_without_evidence": [
                 str(requirement.get("code"))
                 for requirement in closeout_without_evidence.get("blocking_requirements", [])
@@ -1621,6 +1645,46 @@ def _closeout_apply_completed(payload: dict[str, object]) -> bool:
         status_update_plan.get("updates_required") is False
         and status_update_plan.get("can_auto_apply") is False
         and status_update_plan.get("updates") == []
+    )
+
+
+def _implementation_plan_is_complete(payload: dict[str, object]) -> bool:
+    if payload.get("ok") is not True:
+        return False
+    if payload.get("blocked") is not False:
+        return False
+    summary = payload.get("implementation_summary")
+    if not isinstance(summary, dict):
+        return False
+    if summary.get("execution_complete") is not True or summary.get("all_tasks_done") is not True:
+        return False
+    if int(summary.get("done_task_with_passing_evidence_count", 0)) != int(summary.get("task_count", -1)):
+        return False
+    active_work = payload.get("active_work")
+    return (
+        isinstance(active_work, dict)
+        and active_work.get("kind") == "implementation-complete"
+        and active_work.get("status") == "complete"
+    )
+
+
+def _workflow_plan_is_implementation_complete(payload: dict[str, object]) -> bool:
+    if payload.get("ok") is not True:
+        return False
+    if payload.get("blocked") is not False:
+        return False
+    queues = payload.get("queues")
+    if not isinstance(queues, list) or len(queues) != 1 or not isinstance(queues[0], dict):
+        return False
+    queue = queues[0]
+    if queue.get("id") != "implementation-plan" or queue.get("status") != "complete":
+        return False
+    active_work = payload.get("active_work")
+    return (
+        isinstance(active_work, dict)
+        and active_work.get("kind") == "implementation-complete"
+        and active_work.get("status") == "complete"
+        and active_work.get("queue_status") == "complete"
     )
 
 

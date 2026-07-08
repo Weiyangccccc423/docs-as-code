@@ -103,7 +103,8 @@ def build_implementation_plan(root: Path) -> dict[str, object]:
     errors.extend(row_errors)
     matrix_ids = _acceptance_matrix_mapped_acceptance_ids(root)
     verification_task_ids = _verification_log_task_ids(root)
-    tasks = _implementation_tasks(root, rows, matrix_ids, verification_task_ids)
+    passing_verification_task_ids = _verification_log_passing_task_ids(root)
+    tasks = _implementation_tasks(root, rows, matrix_ids, verification_task_ids, passing_verification_task_ids)
     gate = evaluate_gate(root, IMPLEMENTATION_PHASE).to_dict() if state else {}
     specialist_skills = _implementation_specialist_skills(tasks)
     active_work = _active_implementation_work(root, tasks, gate)
@@ -329,6 +330,20 @@ def _verification_rows_for_task(root: Path, task_id: str) -> list[dict[str, str]
     if missing:
         return []
     return [row for row in rows if row.get("task", "").strip() == task_id]
+
+
+def _verification_log_passing_task_ids(root: Path) -> set[str] | None:
+    path = root / VERIFICATION_LOG_REL
+    if not path.is_file():
+        return None
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
+    rows, missing = _verification_log_rows(text)
+    if missing:
+        return None
+    return {row.get("task", "").strip() for row in rows if _verification_row_passed(row)}
 
 
 def _roadmap_row_for_task(root: Path, task_id: str) -> dict[str, str] | None:
@@ -682,11 +697,20 @@ def _implementation_tasks(
     rows: list[dict[str, str]],
     matrix_ids: set[str] | None,
     verification_task_ids: set[str] | None,
+    passing_verification_task_ids: set[str] | None,
 ) -> list[dict[str, object]]:
     seen_ids: set[str] = set()
     tasks: list[dict[str, object]] = []
     for sequence, row in enumerate(rows, start=1):
-        task = _implementation_task(root, row, sequence, matrix_ids, verification_task_ids, seen_ids)
+        task = _implementation_task(
+            root,
+            row,
+            sequence,
+            matrix_ids,
+            verification_task_ids,
+            passing_verification_task_ids,
+            seen_ids,
+        )
         task_id = str(task.get("task_id", ""))
         if TASK_ID_RE.fullmatch(task_id) is not None:
             seen_ids.add(_normalize_cell(task_id))
@@ -700,6 +724,7 @@ def _implementation_task(
     sequence: int,
     matrix_ids: set[str] | None,
     verification_task_ids: set[str] | None,
+    passing_verification_task_ids: set[str] | None,
     seen_ids: set[str],
 ) -> dict[str, object]:
     task_id = row.get("id", "").strip()
@@ -728,6 +753,7 @@ def _implementation_task(
         "source_references": source_references,
         "verification": row.get("verification", "").strip(),
         "verification_logged": task_id in verification_task_ids if verification_task_ids is not None else False,
+        "passing_verification_logged": task_id in passing_verification_task_ids if passing_verification_task_ids is not None else False,
         "blockers": blockers,
         "blocker_count": len(blockers),
         "open_decisions": [],
@@ -763,7 +789,7 @@ def _task_blockers(
         blockers.append(_blocker(root, "task_board_duplicate_id", TASK_BOARD_REL.as_posix(), task_id))
     if normalized_status and normalized_status not in TASK_BOARD_ALLOWED_STATUSES:
         blockers.append(_blocker(root, "task_board_invalid_status", TASK_BOARD_REL.as_posix(), row.get("status", "").strip()))
-    if normalized_status not in TASK_BOARD_READY_STATUSES:
+    if normalized_status not in TASK_BOARD_READY_STATUSES and normalized_status != "done":
         blockers.append(_blocker(root, "task_board_task_not_ready", TASK_BOARD_REL.as_posix(), row.get("status", "").strip()))
     if not _task_board_row_trace_complete(row):
         blockers.append(_blocker(root, "task_board_trace_incomplete", TASK_BOARD_REL.as_posix(), "traceability fields"))
@@ -937,6 +963,27 @@ def _active_implementation_work(
     tasks: list[dict[str, object]],
     gate: dict[str, object],
 ) -> dict[str, object]:
+    if _implementation_execution_complete(tasks):
+        return {
+            "kind": "implementation-complete",
+            "status": "complete",
+            "primary_skill": "executing-implementation-task",
+            "primary_specialist_skill": "senior-fullstack",
+            "specialist_skills": _implementation_specialist_skills(tasks),
+            "completed_task_count": len(tasks),
+            "blocker_count": 0,
+            "open_decision_count": 0,
+            "next_blocker": {},
+            "next_repair_action": {},
+            "next_actions": [],
+            "read_order": _source_documents(root),
+            "verify_step": "verify-implementation-execution",
+            "refresh_step": "refresh-implementation-plan",
+            "stop_condition": "implementation_tasks_complete",
+            "gate_ok": gate.get("ok") is True,
+            "verify_command": _embedded_command(root, "verify-implementation-execution", "Run read-only governance verification.", ["bin/governance", "verify", ".", "--check", "--json"]),
+            "refresh_command": _embedded_command(root, "refresh-implementation-plan", "Refresh the implementation task plan.", ["bin/governance", "implementation", "plan", ".", "--json"]),
+        }
     selected = _selected_task(tasks)
     if not selected:
         blocker = {
@@ -1035,12 +1082,26 @@ def _implementation_summary(
         status = str(task.get("normalized_status", "unknown") or "unknown")
         status_counts[status] = status_counts.get(status, 0) + 1
     actionable_count = sum(1 for task in tasks if task.get("actionable") is True)
+    done_count = status_counts.get("done", 0)
+    done_with_passing_evidence_count = sum(
+        1
+        for task in tasks
+        if task.get("normalized_status") == "done"
+        and task.get("passing_verification_logged") is True
+        and int(task.get("blocker_count", 0)) == 0
+    )
+    all_tasks_done = bool(tasks) and done_count == len(tasks)
+    execution_complete = all_tasks_done and done_with_passing_evidence_count == len(tasks)
     return {
         "task_count": len(tasks),
         "ready_task_count": status_counts.get("ready", 0),
         "actionable_ready_task_count": actionable_count,
         "blocked_task_count": status_counts.get("blocked", 0),
-        "done_task_count": status_counts.get("done", 0),
+        "done_task_count": done_count,
+        "done_task_with_passing_evidence_count": done_with_passing_evidence_count,
+        "all_tasks_done": all_tasks_done,
+        "execution_complete": execution_complete,
+        "remaining_task_count": len(tasks) - done_count,
         "invalid_task_count": sum(1 for task in tasks if int(task.get("blocker_count", 0)) > 0),
         "task_status_counts": dict(sorted(status_counts.items())),
         "verification_evidence_task_count": len(verification_task_ids) if verification_task_ids is not None else 0,
@@ -1049,10 +1110,23 @@ def _implementation_summary(
 
 
 def _implementation_blocked(summary: dict[str, object], active_work: dict[str, object]) -> bool:
+    if summary.get("execution_complete") is True and active_work.get("status") == "complete":
+        return False
     return (
         summary.get("gate_ok") is not True
         or int(summary.get("actionable_ready_task_count", 0)) == 0
         or active_work.get("status") != "ready"
+    )
+
+
+def _implementation_execution_complete(tasks: list[dict[str, object]]) -> bool:
+    if not tasks:
+        return False
+    return all(
+        task.get("normalized_status") == "done"
+        and task.get("passing_verification_logged") is True
+        and int(task.get("blocker_count", 0)) == 0
+        for task in tasks
     )
 
 
