@@ -564,6 +564,15 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
             f"{command} required links did not expose machine-readable statuses",
             payload=payload,
         )
+        _require(
+            all(
+                _task_link_repairs_cover_required_statuses(task)
+                for task in tasks
+                if isinstance(task, dict)
+            ),
+            f"{command} link repair actions did not cover non-satisfied required links",
+            payload=payload,
+        )
 
     implementation_preflight = _run_json(
         steps,
@@ -599,6 +608,27 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         },
         "next": "replace design scaffold placeholders with source-backed content before implementation handoff",
     }
+
+
+def _task_link_repairs_cover_required_statuses(task: dict[str, object]) -> bool:
+    links = task.get("required_links")
+    actions = task.get("link_repair_actions")
+    if not isinstance(links, list) or not isinstance(actions, list):
+        return False
+    action_keys = {
+        (str(action.get("link_kind")), str(action.get("target")))
+        for action in actions
+        if isinstance(action, dict)
+    }
+    for link in links:
+        if not isinstance(link, dict):
+            return False
+        if link.get("status") == "satisfied":
+            continue
+        key = (str(link.get("kind")), str(link.get("target")))
+        if key not in action_keys:
+            return False
+    return True
 
 
 def build_parser() -> argparse.ArgumentParser:

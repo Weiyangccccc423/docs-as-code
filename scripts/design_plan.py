@@ -903,6 +903,12 @@ def _api_authoring_task(root: Path, candidate: dict[str, object], index: int) ->
         ),
         "documents": documents,
         "required_links": required_links,
+        "link_repair_actions": _link_repair_actions(
+            root,
+            required_links,
+            "refresh-api-authoring",
+            ["bin/governance", "design", "api-authoring", ".", "--json"],
+        ),
         "open_decisions": list(candidate["open_decisions"]),
         "steps": _api_authoring_steps(root, source_reference, endpoint_file, documents, required_links),
     }
@@ -950,6 +956,72 @@ def _required_link_status(root: Path, target: str) -> tuple[str, str]:
     if anchor and not _markdown_anchor_exists(text, anchor):
         return "anchor_missing", f"{path_part} does not define anchor #{anchor}"
     return "satisfied", f"{target} resolves to a local Markdown source"
+
+
+def _link_repair_actions(
+    root: Path,
+    required_links: list[dict[str, object]],
+    refresh_step: str,
+    refresh_argv: list[str],
+) -> list[dict[str, object]]:
+    actions: list[dict[str, object]] = []
+    for link in required_links:
+        status = str(link.get("status", ""))
+        if status == "satisfied":
+            continue
+        kind = str(link.get("kind", "required_link"))
+        target = str(link.get("target", ""))
+        actions.append(
+            {
+                "id": f"repair-required-link-{_slugify(kind)}",
+                "sequence": len(actions) + 1,
+                "kind": "required-link-repair",
+                "link_kind": kind,
+                "target": target,
+                "status": status or "unknown",
+                "reason": str(link.get("details", "")),
+                "repair_strategy": _required_link_repair_strategy(status),
+                "can_auto_apply": False,
+                "writes_state": True,
+                "approval_required": False,
+                "success_condition": "required link status becomes satisfied after verify and refresh",
+                "verify_command": _embedded_command(
+                    root,
+                    "verify-design-authoring-repair",
+                    "Run read-only governance verification after repairing the linked source.",
+                    ["bin/governance", "verify", ".", "--check", "--json"],
+                ),
+                "refresh_command": _embedded_command(
+                    root,
+                    refresh_step,
+                    "Refresh this design authoring queue after repairing the linked source.",
+                    refresh_argv,
+                ),
+            }
+        )
+    return actions
+
+
+def _required_link_repair_strategy(status: str) -> str:
+    strategies = {
+        "missing": "create_or_restore_required_local_markdown_source_before_authoring_downstream_content",
+        "anchor_missing": "add_or_correct_the_referenced_heading_anchor_without_changing_product_meaning",
+        "placeholder_present": "replace_scaffold_placeholder_with_source_backed_content",
+        "unreadable": "restore_target_as_utf8_markdown_file",
+    }
+    return strategies.get(status, "inspect_required_link_and_repair_before_continuing")
+
+
+def _embedded_command(root: Path, command_id: str, description: str, argv: list[str]) -> dict[str, object]:
+    return {
+        "id": command_id,
+        "cwd": str(root),
+        "command": " ".join(argv),
+        "argv": list(argv),
+        "writes_state": False,
+        "approval_required": False,
+        "description": description,
+    }
 
 
 def _split_markdown_reference(target: str) -> tuple[str, str]:
@@ -1098,6 +1170,12 @@ def _backend_authoring_task(root: Path, candidate: dict[str, object], index: int
         ),
         "documents": documents,
         "required_links": required_links,
+        "link_repair_actions": _link_repair_actions(
+            root,
+            required_links,
+            "refresh-backend-authoring",
+            ["bin/governance", "design", "backend-authoring", ".", "--json"],
+        ),
         "open_decisions": list(OPEN_BACKEND_DECISIONS),
         "steps": _backend_authoring_steps(root, source_reference, api_contract, required_links),
     }
@@ -1249,6 +1327,12 @@ def _frontend_authoring_task(root: Path, candidate: dict[str, object], index: in
         ),
         "documents": documents,
         "required_links": required_links,
+        "link_repair_actions": _link_repair_actions(
+            root,
+            required_links,
+            "refresh-frontend-authoring",
+            ["bin/governance", "design", "frontend-authoring", ".", "--json"],
+        ),
         "open_decisions": list(OPEN_FRONTEND_DECISIONS),
         "steps": _frontend_authoring_steps(root, source_reference, api_contract, required_links),
     }
@@ -1390,6 +1474,12 @@ def _test_strategy_authoring_task(root: Path, candidate: dict[str, object], inde
         ),
         "documents": documents,
         "required_links": required_links,
+        "link_repair_actions": _link_repair_actions(
+            root,
+            required_links,
+            "refresh-test-strategy-authoring",
+            ["bin/governance", "design", "test-strategy-authoring", ".", "--json"],
+        ),
         "open_decisions": list(OPEN_TEST_STRATEGY_DECISIONS),
         "steps": _test_strategy_authoring_steps(root, source_reference, api_contract, required_links),
     }
@@ -1542,6 +1632,12 @@ def _implementation_planning_authoring_task(
         ),
         "documents": documents,
         "required_links": required_links,
+        "link_repair_actions": _link_repair_actions(
+            root,
+            required_links,
+            "refresh-implementation-planning-authoring",
+            ["bin/governance", "design", "implementation-planning-authoring", ".", "--json"],
+        ),
         "open_decisions": list(OPEN_IMPLEMENTATION_PLANNING_DECISIONS),
         "steps": _implementation_planning_authoring_steps(
             root,
@@ -1710,6 +1806,12 @@ def _architecture_decision_authoring_task(
         ),
         "documents": documents,
         "required_links": required_links,
+        "link_repair_actions": _link_repair_actions(
+            root,
+            required_links,
+            "refresh-architecture-decisions-authoring",
+            ["bin/governance", "design", "architecture-decisions-authoring", ".", "--json"],
+        ),
         "open_decisions": list(OPEN_ARCHITECTURE_DECISION_DECISIONS),
         "steps": _architecture_decision_authoring_steps(root, source_reference, api_contract, required_links),
     }

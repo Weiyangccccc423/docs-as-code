@@ -42,6 +42,10 @@ def _link_statuses(links: list[dict[str, object]]) -> dict[str, str]:
     return {str(link["kind"]): str(link["status"]) for link in links}
 
 
+def _repair_actions_by_link_kind(actions: list[dict[str, object]]) -> dict[str, dict[str, object]]:
+    return {str(action["link_kind"]): action for action in actions}
+
+
 def _api_conventions_doc() -> str:
     return (
         "# API Conventions\n\n"
@@ -6233,6 +6237,19 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual("placeholder_present", required_link_statuses["frontend_consumers"])
             self.assertEqual("placeholder_present", required_link_statuses["acceptance_matrix"])
             self.assertEqual("satisfied", required_link_statuses["unresolved_decisions"])
+            repair_actions = _repair_actions_by_link_kind(task["link_repair_actions"])
+            self.assertNotIn("product_acceptance", repair_actions)
+            self.assertEqual("placeholder_present", repair_actions["backend_owner"]["status"])
+            self.assertEqual(
+                "replace_scaffold_placeholder_with_source_backed_content",
+                repair_actions["backend_owner"]["repair_strategy"],
+            )
+            self.assertFalse(repair_actions["backend_owner"]["can_auto_apply"])
+            self.assertEqual(["bin/governance", "verify", ".", "--check", "--json"], repair_actions["backend_owner"]["verify_command"]["argv"])
+            self.assertEqual(
+                ["bin/governance", "design", "api-authoring", ".", "--json"],
+                repair_actions["backend_owner"]["refresh_command"]["argv"],
+            )
             self.assertIn("method_path", task["open_decisions"])
             self.assertIn("auth", task["open_decisions"])
             self.assertIn("request_fields", task["open_decisions"])
@@ -6405,6 +6422,16 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual("placeholder_present", required_link_statuses["data_model"])
             self.assertEqual("placeholder_present", required_link_statuses["test_strategy"])
             self.assertEqual("satisfied", required_link_statuses["unresolved_decisions"])
+            repair_actions = _repair_actions_by_link_kind(task["link_repair_actions"])
+            self.assertEqual("missing", repair_actions["api_contract"]["status"])
+            self.assertEqual(
+                "create_or_restore_required_local_markdown_source_before_authoring_downstream_content",
+                repair_actions["api_contract"]["repair_strategy"],
+            )
+            self.assertEqual(
+                ["bin/governance", "design", "backend-authoring", ".", "--json"],
+                repair_actions["api_contract"]["refresh_command"]["argv"],
+            )
             self.assertIn("module_boundaries", task["open_decisions"])
             self.assertIn("api_ownership", task["open_decisions"])
             self.assertIn("data_ownership", task["open_decisions"])
@@ -6992,6 +7019,13 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual("missing", required_link_statuses["api_contract"])
             self.assertEqual("placeholder_present", required_link_statuses["backend_modules"])
             self.assertEqual("satisfied", required_link_statuses["unresolved_decisions"])
+            repair_actions = _repair_actions_by_link_kind(task["link_repair_actions"])
+            self.assertEqual("placeholder_present", repair_actions["architecture_context"]["status"])
+            self.assertEqual("missing", repair_actions["api_contract"]["status"])
+            self.assertEqual(
+                ["bin/governance", "design", "architecture-decisions-authoring", ".", "--json"],
+                repair_actions["api_contract"]["refresh_command"]["argv"],
+            )
             self.assertIn("adr_trigger", task["open_decisions"])
             self.assertIn("decision_scope", task["open_decisions"])
             self.assertIn("alternatives", task["open_decisions"])
