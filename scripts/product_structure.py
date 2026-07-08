@@ -466,6 +466,7 @@ def _manual_authoring_tasks(root: Path, required_decisions: list[dict[str, str]]
 def _manual_authoring_task(root: Path, decision: dict[str, str], index: int) -> dict[str, object]:
     chapter = decision["chapter"]
     spec = PRODUCT_SCAFFOLD_BY_KEY[chapter]
+    required_evidence = _manual_authoring_required_evidence(root, chapter, spec.path)
     return {
         "task_id": f"PRODUCT-AUTHOR-{index:03d}",
         "sequence": index,
@@ -499,7 +500,8 @@ def _manual_authoring_task(root: Path, decision: dict[str, str], index: int) -> 
             _product_required_link(root, "product_meta", "docs/product/core/product-meta.md"),
             _product_required_link(root, "unresolved_registry", "docs/unresolved.md"),
         ],
-        "required_evidence": _manual_authoring_required_evidence(root, chapter, spec.path),
+        "required_evidence": required_evidence,
+        "evidence_repair_actions": _evidence_repair_actions(root, required_evidence),
         "open_decisions": _manual_authoring_open_decisions(chapter),
         "steps": _manual_authoring_steps(root, chapter, spec.path, spec.sections),
     }
@@ -627,6 +629,75 @@ def _evidence_status(root: Path, evidence_id: str, target: str, subject: str | N
     if resolver is None:
         return _file_presence_status(root, target)
     return resolver(root, subject or target)
+
+
+def _evidence_repair_actions(root: Path, required_evidence: list[dict[str, object]]) -> list[dict[str, object]]:
+    actions: list[dict[str, object]] = []
+    for evidence in required_evidence:
+        status = str(evidence.get("status", ""))
+        if status == "satisfied":
+            continue
+        evidence_id = str(evidence.get("id", "required-evidence"))
+        target = str(evidence.get("target", ""))
+        actions.append(
+            {
+                "id": f"repair-required-evidence-{_slugify(evidence_id)}",
+                "sequence": len(actions) + 1,
+                "kind": "required-evidence-repair",
+                "evidence_id": evidence_id,
+                "target": target,
+                "status": status or "unknown",
+                "reason": str(evidence.get("details", "")),
+                "repair_strategy": _evidence_repair_strategy(status),
+                "can_auto_apply": False,
+                "writes_state": True,
+                "approval_required": False,
+                "success_condition": "required evidence status becomes satisfied after verify and refresh",
+                "verify_command": _embedded_command(
+                    root,
+                    "verify-product-authoring-repair",
+                    "Run read-only governance verification after repairing product evidence.",
+                    ["bin/governance", "verify", ".", "--check", "--json"],
+                ),
+                "refresh_command": _embedded_command(
+                    root,
+                    "refresh-product-plan",
+                    "Refresh the product structuring plan after repairing product evidence.",
+                    ["bin/governance", "product", "plan", ".", "--json"],
+                ),
+            }
+        )
+    return actions
+
+
+def _evidence_repair_strategy(status: str) -> str:
+    strategies = {
+        "missing": "create_or_restore_required_product_markdown_source_before_phase_verification",
+        "placeholder_present": "replace_product_scaffold_placeholder_with_prd_backed_content",
+        "missing_prd_link": "link_product_chapter_back_to_canonical_prd_without_changing_product_meaning",
+        "not_indexed": "add_product_chapter_to_readme_index",
+        "not_linked": "add_product_chapter_to_product_meta_map",
+        "pending_review": "complete_manual_prd_evidence_review_before_downstream_design",
+        "needs_manual_review": "repair_or_complete_required_manual_review_record",
+        "acceptance_ids_missing": "add_stable_product_defined_acceptance_ids_before_design_derivation",
+    }
+    return strategies.get(status, "inspect_required_evidence_and_repair_before_continuing")
+
+
+def _embedded_command(root: Path, command_id: str, description: str, argv: list[str]) -> dict[str, object]:
+    return {
+        "id": command_id,
+        "cwd": str(root),
+        "command": " ".join(argv),
+        "argv": list(argv),
+        "writes_state": False,
+        "approval_required": False,
+        "description": description,
+    }
+
+
+def _slugify(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", value.casefold()).strip("-") or "item"
 
 
 def _file_presence_status(root: Path, target: str) -> tuple[str, str]:

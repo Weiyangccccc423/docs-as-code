@@ -46,6 +46,10 @@ def _repair_actions_by_link_kind(actions: list[dict[str, object]]) -> dict[str, 
     return {str(action["link_kind"]): action for action in actions}
 
 
+def _repair_actions_by_evidence_id(actions: list[dict[str, object]]) -> dict[str, dict[str, object]]:
+    return {str(action["evidence_id"]): action for action in actions}
+
+
 def _api_conventions_doc() -> str:
     return (
         "# API Conventions\n\n"
@@ -4823,6 +4827,22 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn("acceptance-ids-stable", acceptance_evidence)
             self.assertEqual("docs/product/08-acceptance-criteria.md", acceptance_evidence["acceptance-ids-stable"]["target"])
             self.assertEqual("missing", acceptance_evidence["acceptance-ids-stable"]["status"])
+            evidence_repairs = _repair_actions_by_evidence_id(acceptance_task["evidence_repair_actions"])
+            self.assertIn("acceptance-ids-stable", evidence_repairs)
+            self.assertEqual("missing", evidence_repairs["acceptance-ids-stable"]["status"])
+            self.assertEqual(
+                "create_or_restore_required_product_markdown_source_before_phase_verification",
+                evidence_repairs["acceptance-ids-stable"]["repair_strategy"],
+            )
+            self.assertFalse(evidence_repairs["acceptance-ids-stable"]["can_auto_apply"])
+            self.assertEqual(
+                ["bin/governance", "verify", ".", "--check", "--json"],
+                evidence_repairs["acceptance-ids-stable"]["verify_command"]["argv"],
+            )
+            self.assertEqual(
+                ["bin/governance", "product", "plan", ".", "--json"],
+                evidence_repairs["acceptance-ids-stable"]["refresh_command"]["argv"],
+            )
             self.assertEqual(
                 [
                     "bin/governance",
@@ -4908,6 +4928,19 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual("placeholder_present", required_evidence["chapter-file-authored"]["status"])
             self.assertEqual("satisfied", required_evidence["product-readme-indexed"]["status"])
             self.assertEqual("satisfied", required_evidence["product-meta-linked"]["status"])
+            evidence_repairs = _repair_actions_by_evidence_id(background_task["evidence_repair_actions"])
+            self.assertIn("chapter-file-authored", evidence_repairs)
+            self.assertNotIn("product-readme-indexed", evidence_repairs)
+            self.assertNotIn("product-meta-linked", evidence_repairs)
+            self.assertEqual("placeholder_present", evidence_repairs["chapter-file-authored"]["status"])
+            self.assertEqual(
+                "replace_product_scaffold_placeholder_with_prd_backed_content",
+                evidence_repairs["chapter-file-authored"]["repair_strategy"],
+            )
+            self.assertEqual(
+                ["bin/governance", "product", "plan", ".", "--json"],
+                evidence_repairs["chapter-file-authored"]["refresh_command"]["argv"],
+            )
 
     def test_product_plan_requires_product_structuring_phase(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

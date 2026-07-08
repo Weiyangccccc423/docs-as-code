@@ -366,6 +366,15 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         "product plan evidence requirements did not expose machine-readable statuses",
         payload=product_plan,
     )
+    _require(
+        all(
+            _task_evidence_repairs_cover_required_statuses(task)
+            for task in manual_authoring_tasks
+            if isinstance(task, dict)
+        ),
+        "product plan evidence repair actions did not cover non-satisfied required evidence",
+        payload=product_plan,
+    )
 
     product_scaffold_check = _run_json(
         steps,
@@ -626,6 +635,27 @@ def _task_link_repairs_cover_required_statuses(task: dict[str, object]) -> bool:
         if link.get("status") == "satisfied":
             continue
         key = (str(link.get("kind")), str(link.get("target")))
+        if key not in action_keys:
+            return False
+    return True
+
+
+def _task_evidence_repairs_cover_required_statuses(task: dict[str, object]) -> bool:
+    evidence_items = task.get("required_evidence")
+    actions = task.get("evidence_repair_actions")
+    if not isinstance(evidence_items, list) or not isinstance(actions, list):
+        return False
+    action_keys = {
+        (str(action.get("evidence_id")), str(action.get("target")))
+        for action in actions
+        if isinstance(action, dict)
+    }
+    for evidence in evidence_items:
+        if not isinstance(evidence, dict):
+            return False
+        if evidence.get("status") == "satisfied":
+            continue
+        key = (str(evidence.get("id")), str(evidence.get("target")))
         if key not in action_keys:
             return False
     return True

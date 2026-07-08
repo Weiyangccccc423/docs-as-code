@@ -23,6 +23,7 @@ Reference: `https://www.omg.org/spec/BPMN/2.0.2/`
 - Are `writes_state: false` commands preferred for inspection before state-changing actions?
 - Are `approval_required: true` commands treated as stop-and-ask actions until explicit authorization is available?
 - Are `next_actions` sorted by `sequence`, with `preflight_for`, `requires_action`, and `success_condition` used to pair preflight/apply commands instead of guessing from IDs?
+- Are product `manual_authoring_tasks[]` sorted by `sequence`, with `required_evidence[].status` and `evidence_repair_actions[]` used before manual product authoring continues?
 - Are design `authoring_tasks[]` sorted by `sequence`, with `execution.primary_skill`, `execution.primary_specialist_skill`, `execution.verify_step`, `execution.refresh_step`, and `execution.stop_condition` used instead of guessing from prose?
 - Are design `skill_requirements[]` and `authority_skill_requirements[]` inspected for `type`, `available_in_workflow_pack`, `availability_scope`, and `missing_policy` before loading local or authority-routing skills?
 - Are `command` strings kept for human display while `argv` remains the automation contract?
