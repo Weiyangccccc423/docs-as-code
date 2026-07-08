@@ -410,6 +410,7 @@ def build_design_plan(root: Path) -> dict[str, object]:
         "errors": errors,
         "source_documents": source_documents,
         "tracks": tracks,
+        "active_work": _active_design_track_work(root, tracks),
     }
     if not errors:
         payload["local_commands"] = target_local_commands_payload(cwd=str(root))
@@ -447,6 +448,7 @@ def build_api_candidates(root: Path) -> dict[str, object]:
         ],
         "source_documents": _source_documents(root),
         "candidates": candidates,
+        "active_work": _active_api_candidate_work(root, candidates),
         "errors": errors,
     }
     if not errors:
@@ -491,6 +493,11 @@ def build_api_authoring(root: Path) -> dict[str, object]:
         "source_documents": _source_documents(root),
         "authoring_tasks": authoring_tasks,
         "authoring_summary": _authoring_summary(authoring_tasks),
+        "active_work": _active_design_authoring_work(
+            root,
+            authoring_tasks,
+            ["bin/governance", "design", "api-authoring", ".", "--json"],
+        ),
         "errors": errors,
     }
     if not errors:
@@ -536,6 +543,11 @@ def build_backend_authoring(root: Path) -> dict[str, object]:
         "source_documents": _source_documents(root),
         "authoring_tasks": authoring_tasks,
         "authoring_summary": _authoring_summary(authoring_tasks),
+        "active_work": _active_design_authoring_work(
+            root,
+            authoring_tasks,
+            ["bin/governance", "design", "backend-authoring", ".", "--json"],
+        ),
         "errors": errors,
     }
     if not errors:
@@ -579,6 +591,11 @@ def build_frontend_authoring(root: Path) -> dict[str, object]:
         "source_documents": _source_documents(root),
         "authoring_tasks": authoring_tasks,
         "authoring_summary": _authoring_summary(authoring_tasks),
+        "active_work": _active_design_authoring_work(
+            root,
+            authoring_tasks,
+            ["bin/governance", "design", "frontend-authoring", ".", "--json"],
+        ),
         "errors": errors,
     }
     if not errors:
@@ -622,6 +639,11 @@ def build_test_strategy_authoring(root: Path) -> dict[str, object]:
         "source_documents": _source_documents(root),
         "authoring_tasks": authoring_tasks,
         "authoring_summary": _authoring_summary(authoring_tasks),
+        "active_work": _active_design_authoring_work(
+            root,
+            authoring_tasks,
+            ["bin/governance", "design", "test-strategy-authoring", ".", "--json"],
+        ),
         "errors": errors,
     }
     if not errors:
@@ -671,6 +693,11 @@ def build_implementation_planning_authoring(root: Path) -> dict[str, object]:
         "source_documents": _source_documents(root),
         "authoring_tasks": authoring_tasks,
         "authoring_summary": _authoring_summary(authoring_tasks),
+        "active_work": _active_design_authoring_work(
+            root,
+            authoring_tasks,
+            ["bin/governance", "design", "implementation-planning-authoring", ".", "--json"],
+        ),
         "errors": errors,
     }
     if not errors:
@@ -715,6 +742,11 @@ def build_architecture_decisions_authoring(root: Path) -> dict[str, object]:
         "source_documents": _source_documents(root),
         "authoring_tasks": authoring_tasks,
         "authoring_summary": _authoring_summary(authoring_tasks),
+        "active_work": _active_design_authoring_work(
+            root,
+            authoring_tasks,
+            ["bin/governance", "design", "architecture-decisions-authoring", ".", "--json"],
+        ),
         "errors": errors,
     }
     if not errors:
@@ -752,6 +784,217 @@ def _authoring_summary(tasks: list[dict[str, object]]) -> dict[str, object]:
         "non_satisfied_required_link_count": non_satisfied_count,
         "link_repair_action_count": repair_action_count,
     }
+
+
+def _active_design_track_work(root: Path, tracks: list[dict[str, object]]) -> dict[str, object]:
+    if not tracks:
+        return {
+            "kind": "design-track",
+            "status": "ready",
+            "blocker_count": 0,
+            "open_decision_count": 0,
+            "next_repair_action": {},
+        }
+
+    track = next((item for item in tracks if item.get("status") != "ready_for_review"), tracks[0])
+    blockers = track.get("blockers") if isinstance(track.get("blockers"), list) else []
+    steps = track.get("steps") if isinstance(track.get("steps"), list) else []
+    verify_step = "verify-track"
+    refresh_step = "refresh-design-plan"
+    return {
+        "kind": "design-track",
+        "track_id": str(track.get("id", "")),
+        "sequence": int(track.get("sequence", 0)) if isinstance(track.get("sequence"), int) else 0,
+        "status": str(track.get("status", "unknown")),
+        "title": str(track.get("title", "")),
+        "primary_skill": str(track.get("primary_skill", "")),
+        "primary_specialist_skill": str(track.get("primary_specialist_skill", "")),
+        "documents": list(track.get("documents")) if isinstance(track.get("documents"), list) else [],
+        "blocker_count": len(blockers),
+        "open_decision_count": 0,
+        "next_blocker": dict(blockers[0]) if blockers and isinstance(blockers[0], dict) else {},
+        "next_repair_action": {},
+        "verify_step": verify_step,
+        "refresh_step": refresh_step,
+        "stop_condition": "track_blockers_unresolved",
+        "skill_loading_plan": track.get("skill_loading_plan", {}),
+        "verify_command": _command_from_steps_or_default(
+            root,
+            steps,
+            verify_step,
+            "Run read-only governance verification after authoring this track.",
+            ["bin/governance", "verify", ".", "--check", "--json"],
+        ),
+        "refresh_command": _command_from_steps_or_default(
+            root,
+            steps,
+            refresh_step,
+            "Refresh the design track plan after active work changes.",
+            ["bin/governance", "design", "plan", ".", "--json"],
+        ),
+    }
+
+
+def _active_api_candidate_work(root: Path, candidates: list[dict[str, object]]) -> dict[str, object]:
+    if not candidates:
+        return {
+            "kind": "api-candidate",
+            "status": "ready",
+            "blocker_count": 0,
+            "open_decision_count": 0,
+            "next_repair_action": {},
+        }
+
+    candidate = next(
+        (item for item in candidates if isinstance(item.get("open_decisions"), list) and item["open_decisions"]),
+        candidates[0],
+    )
+    open_decisions = candidate.get("open_decisions") if isinstance(candidate.get("open_decisions"), list) else []
+    refresh_step = "refresh-api-candidates"
+    return {
+        "kind": "api-candidate",
+        "candidate_id": str(candidate.get("candidate_id", "")),
+        "sequence": int(str(candidate.get("candidate_id", "0")).rsplit("-", 1)[-1])
+        if str(candidate.get("candidate_id", "")).rsplit("-", 1)[-1].isdigit()
+        else 0,
+        "status": "decision_required" if open_decisions else "ready",
+        "acceptance_id": str(candidate.get("acceptance_id", "")),
+        "title": str(candidate.get("title", "")),
+        "source": candidate.get("source", {}),
+        "suggested_endpoint_file": str(candidate.get("suggested_endpoint_file", "")),
+        "replaceable_starter_endpoint": str(candidate.get("replaceable_starter_endpoint", "")),
+        "primary_skill": "designing-api-contracts",
+        "primary_specialist_skill": "api-design-reviewer",
+        "blocker_count": len(open_decisions),
+        "open_decision_count": len(open_decisions),
+        "next_open_decision": str(open_decisions[0]) if open_decisions else "",
+        "next_repair_action": {},
+        "refresh_step": refresh_step,
+        "stop_condition": "api_candidate_open_decisions_unresolved",
+        "refresh_command": _embedded_command(
+            root,
+            refresh_step,
+            "Refresh API candidates after product acceptance changes.",
+            ["bin/governance", "design", "api-candidates", ".", "--json"],
+        ),
+    }
+
+
+def _active_design_authoring_work(
+    root: Path,
+    tasks: list[dict[str, object]],
+    refresh_argv: list[str],
+) -> dict[str, object]:
+    if not tasks:
+        return {
+            "kind": "design-authoring-task",
+            "status": "ready",
+            "blocker_count": 0,
+            "open_decision_count": 0,
+            "next_repair_action": {},
+        }
+
+    task = _first_blocked_task(tasks, item_key="required_links")
+    links = task.get("required_links")
+    open_decisions = task.get("open_decisions") if isinstance(task.get("open_decisions"), list) else []
+    execution = task.get("execution") if isinstance(task.get("execution"), dict) else {}
+    verify_step = str(execution.get("verify_step", "verify-design-authoring"))
+    refresh_step = str(execution.get("refresh_step", "refresh-design-authoring"))
+    blocker_count = _non_satisfied_item_count(links)
+    return {
+        "kind": "design-authoring-task",
+        "task_id": str(task.get("task_id", "")),
+        "sequence": int(task.get("sequence", 0)) if isinstance(task.get("sequence"), int) else 0,
+        "status": _authoring_work_status(blocker_count, len(open_decisions)),
+        "acceptance_id": str(task.get("acceptance_id", "")),
+        "title": str(task.get("title", "")),
+        "documents": [
+            str(document.get("path", ""))
+            for document in task.get("documents", [])
+            if isinstance(document, dict)
+        ]
+        if isinstance(task.get("documents"), list)
+        else [],
+        "primary_skill": str(execution.get("primary_skill", "")),
+        "primary_specialist_skill": str(execution.get("primary_specialist_skill", "")),
+        "verify_step": verify_step,
+        "refresh_step": refresh_step,
+        "stop_condition": str(execution.get("stop_condition", "")),
+        "blocker_count": blocker_count,
+        "open_decision_count": len(open_decisions),
+        "next_required_link": _first_non_satisfied_item(links),
+        "next_open_decision": str(open_decisions[0]) if open_decisions else "",
+        "next_repair_action": _first_dict(task.get("link_repair_actions")),
+        "skill_loading_plan": task.get("skill_loading_plan", {}),
+        "verify_command": _embedded_command(
+            root,
+            verify_step,
+            "Run read-only governance verification after repairing design authoring links.",
+            ["bin/governance", "verify", ".", "--check", "--json"],
+        ),
+        "refresh_command": _embedded_command(
+            root,
+            refresh_step,
+            "Refresh this design authoring queue after active work changes.",
+            refresh_argv,
+        ),
+    }
+
+
+def _authoring_work_status(blocker_count: int, open_decision_count: int) -> str:
+    if blocker_count > 0:
+        return "blocked"
+    if open_decision_count > 0:
+        return "decision_required"
+    return "ready"
+
+
+def _first_blocked_task(tasks: list[dict[str, object]], *, item_key: str) -> dict[str, object]:
+    for task in tasks:
+        if _non_satisfied_item_count(task.get(item_key)) > 0 or _list_count(task.get("open_decisions")) > 0:
+            return task
+    return tasks[0]
+
+
+def _first_non_satisfied_item(items: object) -> dict[str, object]:
+    if not isinstance(items, list):
+        return {}
+    for item in items:
+        if isinstance(item, dict) and item.get("status") != "satisfied":
+            return dict(item)
+    return {}
+
+
+def _first_dict(items: object) -> dict[str, object]:
+    if not isinstance(items, list):
+        return {}
+    for item in items:
+        if isinstance(item, dict):
+            return dict(item)
+    return {}
+
+
+def _non_satisfied_item_count(items: object) -> int:
+    if not isinstance(items, list):
+        return 0
+    return sum(1 for item in items if isinstance(item, dict) and item.get("status") != "satisfied")
+
+
+def _list_count(value: object) -> int:
+    return len(value) if isinstance(value, list) else 0
+
+
+def _command_from_steps_or_default(
+    root: Path,
+    steps: list[object],
+    step_id: str,
+    description: str,
+    argv: list[str],
+) -> dict[str, object]:
+    for step in steps:
+        if isinstance(step, dict) and step.get("id") == step_id:
+            return dict(step)
+    return _embedded_command(root, step_id, description, argv)
 
 
 def _source_documents(root: Path) -> list[str]:

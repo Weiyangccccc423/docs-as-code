@@ -380,6 +380,11 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         "product plan manual authoring summary did not match task details",
         payload=product_plan,
     )
+    _require(
+        _active_work_is_actionable(product_plan.get("active_work")),
+        "product plan did not expose actionable active work",
+        payload=product_plan,
+    )
     product_workflow_plan = _run_json(
         steps,
         "workflow_plan_product_structuring",
@@ -400,6 +405,11 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
     _require(
         _workflow_plan_has_skill(product_workflow_plan, "local_workflow_skills", "structuring-product-requirements"),
         "product workflow plan did not expose product structuring skill summary",
+        payload=product_workflow_plan,
+    )
+    _require(
+        _active_work_is_actionable(product_workflow_plan.get("active_work")),
+        "product workflow plan did not expose actionable active work",
         payload=product_workflow_plan,
     )
 
@@ -565,6 +575,11 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         "design plan tracks did not expose ordered skill loading plans",
         payload=design_plan,
     )
+    _require(
+        _active_work_is_actionable(design_plan.get("active_work")),
+        "design plan did not expose actionable active work",
+        payload=design_plan,
+    )
 
     api_candidates = _run_json(
         steps,
@@ -602,6 +617,11 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         _require(
             _skill_loading_plan_is_actionable(payload.get("skill_loading_plan")),
             f"{command} did not expose an actionable skill loading plan",
+            payload=payload,
+        )
+        _require(
+            _active_work_is_actionable(payload.get("active_work")),
+            f"{command} did not expose actionable active work",
             payload=payload,
         )
         _require(
@@ -658,6 +678,11 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
             f"design workflow plan did not expose authority skill {skill}",
             payload=design_workflow_plan,
         )
+    _require(
+        _active_work_is_actionable(design_workflow_plan.get("active_work")),
+        "design workflow plan did not expose actionable active work",
+        payload=design_workflow_plan,
+    )
 
     implementation_preflight = _run_json(
         steps,
@@ -742,6 +767,28 @@ def _skill_loading_plan_is_actionable(plan: object) -> bool:
         and step["missing_policy"]
         for step in steps
     )
+
+
+def _active_work_is_actionable(work: object) -> bool:
+    if not isinstance(work, dict):
+        return False
+    if not isinstance(work.get("kind"), str) or not work["kind"]:
+        return False
+    if not isinstance(work.get("status"), str) or not work["status"]:
+        return False
+    if not isinstance(work.get("blocker_count"), int):
+        return False
+    if not isinstance(work.get("open_decision_count"), int):
+        return False
+    if "queue_id" in work and not _valid_embedded_command(work.get("inspect_command")):
+        return False
+    if work["kind"] == "api-candidate":
+        return _valid_embedded_command(work.get("refresh_command"))
+    if work["kind"] in {"product-manual-authoring-task", "design-track", "design-authoring-task"}:
+        return _valid_embedded_command(work.get("verify_command")) and _valid_embedded_command(
+            work.get("refresh_command")
+        )
+    return False
 
 
 def _manual_authoring_summary_matches_tasks(payload: dict[str, object]) -> bool:

@@ -283,6 +283,7 @@ def build_product_plan(root: Path) -> dict[str, object]:
         "required_decisions": required_decisions,
         "manual_authoring_tasks": manual_authoring_tasks,
         "manual_authoring_summary": manual_authoring_summary,
+        "active_work": _active_manual_authoring_work(root, manual_authoring_tasks),
         "steps": steps,
         "errors": errors,
     }
@@ -494,6 +495,91 @@ def _manual_authoring_summary(tasks: list[dict[str, object]]) -> dict[str, objec
         "non_satisfied_required_evidence_count": non_satisfied_count,
         "evidence_repair_action_count": repair_action_count,
     }
+
+
+def _active_manual_authoring_work(root: Path, tasks: list[dict[str, object]]) -> dict[str, object]:
+    if not tasks:
+        return {
+            "kind": "product-manual-authoring-task",
+            "status": "ready",
+            "blocker_count": 0,
+            "open_decision_count": 0,
+            "next_repair_action": {},
+        }
+
+    task = _first_blocked_task(tasks, item_key="required_evidence")
+    evidence = _first_non_satisfied_item(task.get("required_evidence"))
+    repair_action = _first_dict(task.get("evidence_repair_actions"))
+    execution = task.get("execution") if isinstance(task.get("execution"), dict) else {}
+    open_decisions = task.get("open_decisions") if isinstance(task.get("open_decisions"), list) else []
+    verify_step = str(execution.get("verify_step", "verify-product-authoring"))
+    refresh_step = str(execution.get("refresh_step", "refresh-product-plan"))
+    return {
+        "kind": "product-manual-authoring-task",
+        "task_id": str(task.get("task_id", "")),
+        "sequence": int(task.get("sequence", 0)) if isinstance(task.get("sequence"), int) else 0,
+        "status": str(task.get("status", "decision_required")),
+        "chapter": str(task.get("chapter", "")),
+        "title": str(task.get("title", "")),
+        "target": str(task.get("path", "")),
+        "decision_policy": str(task.get("decision_policy", "do_not_guess_product_meaning")),
+        "primary_skill": str(execution.get("primary_skill", "")),
+        "verify_step": verify_step,
+        "refresh_step": refresh_step,
+        "stop_condition": str(execution.get("stop_condition", "")),
+        "blocker_count": _non_satisfied_item_count(task.get("required_evidence")),
+        "open_decision_count": len(open_decisions),
+        "next_required_evidence": evidence,
+        "next_open_decision": str(open_decisions[0]) if open_decisions else "",
+        "next_repair_action": repair_action,
+        "verify_command": _embedded_command(
+            root,
+            verify_step,
+            "Run read-only governance verification after repairing product authoring evidence.",
+            ["bin/governance", "verify", ".", "--check", "--json"],
+        ),
+        "refresh_command": _embedded_command(
+            root,
+            refresh_step,
+            "Refresh the product structuring plan after active work changes.",
+            ["bin/governance", "product", "plan", ".", "--json"],
+        ),
+    }
+
+
+def _first_blocked_task(tasks: list[dict[str, object]], *, item_key: str) -> dict[str, object]:
+    for task in tasks:
+        if _non_satisfied_item_count(task.get(item_key)) > 0 or _list_count(task.get("open_decisions")) > 0:
+            return task
+    return tasks[0]
+
+
+def _first_non_satisfied_item(items: object) -> dict[str, object]:
+    if not isinstance(items, list):
+        return {}
+    for item in items:
+        if isinstance(item, dict) and item.get("status") != "satisfied":
+            return dict(item)
+    return {}
+
+
+def _first_dict(items: object) -> dict[str, object]:
+    if not isinstance(items, list):
+        return {}
+    for item in items:
+        if isinstance(item, dict):
+            return dict(item)
+    return {}
+
+
+def _non_satisfied_item_count(items: object) -> int:
+    if not isinstance(items, list):
+        return 0
+    return sum(1 for item in items if isinstance(item, dict) and item.get("status") != "satisfied")
+
+
+def _list_count(value: object) -> int:
+    return len(value) if isinstance(value, list) else 0
 
 
 def _manual_authoring_task(root: Path, decision: dict[str, str], index: int) -> dict[str, object]:

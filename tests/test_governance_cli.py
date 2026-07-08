@@ -2508,6 +2508,24 @@ class GovernanceCliTest(unittest.TestCase):
                 product_queue["summary"]["manual_authoring_summary"]["non_satisfied_required_evidence_count"],
                 0,
             )
+            self.assertEqual("product-plan", payload["active_work"]["queue_id"])
+            self.assertEqual("PRODUCT-AUTHOR-001", payload["active_work"]["task_id"])
+            self.assertEqual("background-and-problems", payload["active_work"]["chapter"])
+            self.assertEqual("decision_required", payload["active_work"]["status"])
+            self.assertGreater(payload["active_work"]["blocker_count"], 0)
+            self.assertEqual("chapter_in_scope", payload["active_work"]["next_open_decision"])
+            self.assertEqual(
+                ["bin/governance", "product", "plan", ".", "--json"],
+                payload["active_work"]["inspect_command"]["argv"],
+            )
+            self.assertEqual(
+                ["bin/governance", "verify", ".", "--check", "--json"],
+                product_queue["summary"]["active_work"]["verify_command"]["argv"],
+            )
+            self.assertEqual(
+                ["bin/governance", "product", "plan", ".", "--json"],
+                product_queue["summary"]["active_work"]["refresh_command"]["argv"],
+            )
 
     def test_workflow_plan_reports_design_authoring_summaries(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -2634,6 +2652,28 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual(
                 "load_from_agent_environment_or_stop_before_guessing",
                 payload["skill_summary"]["authority_missing_policy"],
+            )
+            self.assertEqual("design-plan", payload["active_work"]["queue_id"])
+            self.assertEqual("architecture", payload["active_work"]["track_id"])
+            self.assertEqual("authoring_blocked", payload["active_work"]["status"])
+            self.assertGreater(payload["active_work"]["blocker_count"], 0)
+            self.assertEqual(
+                ["bin/governance", "design", "plan", ".", "--json"],
+                payload["active_work"]["inspect_command"]["argv"],
+            )
+            self.assertEqual("architecture", queues["design-plan"]["summary"]["active_work"]["track_id"])
+            self.assertEqual("API-AUTHOR-001", queues["api-authoring"]["summary"]["active_work"]["task_id"])
+            self.assertEqual(
+                "error_registry",
+                queues["api-authoring"]["summary"]["active_work"]["next_required_link"]["kind"],
+            )
+            self.assertEqual(
+                ["bin/governance", "design", "api-authoring", ".", "--json"],
+                queues["api-authoring"]["summary"]["active_work"]["refresh_command"]["argv"],
+            )
+            self.assertEqual(
+                "api-design-reviewer",
+                queues["api-candidates"]["summary"]["active_work"]["primary_specialist_skill"],
             )
             commands = {command["id"]: command for command in payload["commands"]}
             self.assertEqual(
@@ -4881,6 +4921,22 @@ class GovernanceCliTest(unittest.TestCase):
             )
             self.assertIn("background-and-problems", manual_tasks)
             self.assertNotIn("acceptance-criteria", manual_tasks)
+            self.assertEqual("PRODUCT-AUTHOR-001", payload["active_work"]["task_id"])
+            self.assertEqual("product-manual-authoring-task", payload["active_work"]["kind"])
+            self.assertEqual("background-and-problems", payload["active_work"]["chapter"])
+            self.assertEqual("decision_required", payload["active_work"]["status"])
+            self.assertEqual(6, payload["active_work"]["blocker_count"])
+            self.assertEqual(5, payload["active_work"]["open_decision_count"])
+            self.assertEqual("chapter_in_scope", payload["active_work"]["next_open_decision"])
+            self.assertEqual("prd-source-evidence", payload["active_work"]["next_repair_action"]["evidence_id"])
+            self.assertEqual(
+                ["bin/governance", "verify", ".", "--check", "--json"],
+                payload["active_work"]["verify_command"]["argv"],
+            )
+            self.assertEqual(
+                ["bin/governance", "product", "plan", ".", "--json"],
+                payload["active_work"]["refresh_command"]["argv"],
+            )
             background_task = manual_tasks["background-and-problems"]
             self.assertEqual("PRODUCT-AUTHOR-001", background_task["task_id"])
             self.assertEqual("decision_required", background_task["status"])
@@ -6508,6 +6564,21 @@ class GovernanceCliTest(unittest.TestCase):
                 },
                 payload["authoring_summary"],
             )
+            self.assertEqual("API-AUTHOR-001", payload["active_work"]["task_id"])
+            self.assertEqual("design-authoring-task", payload["active_work"]["kind"])
+            self.assertEqual("blocked", payload["active_work"]["status"])
+            self.assertEqual("api-design-reviewer", payload["active_work"]["primary_specialist_skill"])
+            self.assertEqual("error_registry", payload["active_work"]["next_required_link"]["kind"])
+            self.assertEqual("method_path", payload["active_work"]["next_open_decision"])
+            self.assertEqual("error_registry", payload["active_work"]["next_repair_action"]["link_kind"])
+            self.assertEqual(
+                ["bin/governance", "verify", ".", "--check", "--json"],
+                payload["active_work"]["verify_command"]["argv"],
+            )
+            self.assertEqual(
+                ["bin/governance", "design", "api-authoring", ".", "--json"],
+                payload["active_work"]["refresh_command"]["argv"],
+            )
             self.assertEqual(1, len(payload["authoring_tasks"]))
             task = payload["authoring_tasks"][0]
             self.assertEqual("API-AUTHOR-001", task["task_id"])
@@ -6688,6 +6759,15 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn("local_commands", payload)
             self.assertEqual("advance-implementation-check", payload["next_actions"][0]["id"])
             self.assertEqual(1, len(payload["authoring_tasks"]))
+            self.assertEqual("BACKEND-AUTHOR-001", payload["active_work"]["task_id"])
+            self.assertEqual("blocked", payload["active_work"]["status"])
+            self.assertEqual("senior-backend", payload["active_work"]["primary_specialist_skill"])
+            self.assertEqual("architecture_context", payload["active_work"]["next_required_link"]["kind"])
+            self.assertEqual("module_boundaries", payload["active_work"]["next_open_decision"])
+            self.assertEqual(
+                ["bin/governance", "design", "backend-authoring", ".", "--json"],
+                payload["active_work"]["refresh_command"]["argv"],
+            )
             task = payload["authoring_tasks"][0]
             self.assertEqual("BACKEND-AUTHOR-001", task["task_id"])
             self.assertEqual(1, task["sequence"])

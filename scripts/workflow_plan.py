@@ -72,6 +72,7 @@ def build_workflow_plan(root: Path) -> dict[str, object]:
             "blocked": True,
             "queues": [],
             "commands": [],
+            "active_work": {},
             "skill_summary": _empty_skill_summary(),
             "skill_loading_plan": _empty_skill_loading_plan(),
             "errors": ["No governance state found."],
@@ -98,6 +99,7 @@ def build_workflow_plan(root: Path) -> dict[str, object]:
         "blocked": any(queue.get("status") != "ready" for queue in queues),
         "queues": queues,
         "commands": commands,
+        "active_work": _workflow_active_work(queues),
         "skill_summary": _queue_skill_summary(queues),
         "skill_loading_plan": _queue_skill_loading_plan(queues),
         "local_commands": target_local_commands_payload(cwd=str(root)),
@@ -115,6 +117,7 @@ def _product_plan_queue(root: Path) -> dict[str, object]:
         "suggested_mapping_count": _list_count(payload.get("suggested_mappings")),
         "required_decision_count": _list_count(payload.get("required_decisions")),
         "manual_authoring_summary": payload.get("manual_authoring_summary", {}),
+        "active_work": _payload_active_work(payload),
         "step_count": _list_count(payload.get("steps")),
         "skill_summary": _payload_skill_summary(payload),
         "skill_loading_plan": _payload_skill_loading_plan(payload),
@@ -174,6 +177,7 @@ def _design_queues(root: Path) -> list[dict[str, object]]:
             {
                 "candidate_count": _list_count(api_candidates.get("candidates")),
                 "source_document_count": _list_count(api_candidates.get("source_documents")),
+                "active_work": _payload_active_work(api_candidates),
                 "skill_summary": _payload_skill_summary(api_candidates),
                 "skill_loading_plan": _payload_skill_loading_plan(api_candidates),
             },
@@ -186,6 +190,7 @@ def _design_queues(root: Path) -> list[dict[str, object]]:
         summary = {
             "authoring_summary": payload.get("authoring_summary", {}),
             "source_document_count": _list_count(payload.get("source_documents")),
+            "active_work": _payload_active_work(payload),
             "step_count": _authoring_step_count(payload.get("authoring_tasks")),
             "skill_summary": _payload_skill_summary(payload),
             "skill_loading_plan": _payload_skill_loading_plan(payload),
@@ -274,6 +279,7 @@ def _design_plan_summary(payload: dict[str, object]) -> dict[str, object]:
         "track_count": _list_count(tracks),
         "track_status_counts": dict(sorted(status_counts.items())),
         "blocker_count": blocker_count,
+        "active_work": _payload_active_work(payload),
         "step_count": _design_step_count(tracks),
         "skill_summary": _payload_skill_summary(payload),
         "skill_loading_plan": _payload_skill_loading_plan(payload),
@@ -320,6 +326,28 @@ def _authoring_step_count(tasks: object) -> int:
 
 def _list_count(value: object) -> int:
     return len(value) if isinstance(value, list) else 0
+
+
+def _payload_active_work(payload: dict[str, object]) -> dict[str, object]:
+    active_work = payload.get("active_work")
+    return dict(active_work) if isinstance(active_work, dict) else {}
+
+
+def _workflow_active_work(queues: list[dict[str, object]]) -> dict[str, object]:
+    if not queues:
+        return {}
+    queue = next((item for item in queues if item.get("status") != "ready"), queues[0])
+    summary = queue.get("summary")
+    active_work = {}
+    if isinstance(summary, dict):
+        active = summary.get("active_work")
+        if isinstance(active, dict):
+            active_work = dict(active)
+    active_work["queue_id"] = str(queue.get("id", ""))
+    active_work["queue_status"] = str(queue.get("status", ""))
+    command = queue.get("command")
+    active_work["inspect_command"] = dict(command) if isinstance(command, dict) else {}
+    return active_work
 
 
 def _payload_skill_summary(payload: dict[str, object]) -> dict[str, object]:
