@@ -774,6 +774,35 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_release_readiness_missing_export_preflight_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/release_readiness.py"
+            script.write_text(
+                script.read_text(encoding="utf-8").replace(
+                    "source_pack_export_check",
+                    "source_pack_export_preview",
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_release_readiness_incomplete"
+                    and finding.path == "scripts/release_readiness.py"
+                    and "source_pack_export_check" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_missing_makefile_target(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"

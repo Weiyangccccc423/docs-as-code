@@ -270,6 +270,39 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
 
     with tempfile.TemporaryDirectory(prefix="docs-as-code-release-") as tmp:
         base = Path(tmp)
+        export_check_payload = _run_step(
+            steps,
+            "source_pack_export_check",
+            [
+                sys.executable,
+                "scripts/export_workflow_pack.py",
+                "--check",
+                "--output",
+                base / "docs-as-code-workflow-pack",
+                "--archive",
+                base / "docs-as-code-workflow-pack.tar.gz",
+                "--json",
+            ],
+            parse_json=True,
+        )
+        export_check_would_write = export_check_payload.get("would_write", []) if export_check_payload else []
+        _criterion(
+            criteria,
+            "source-pack-export-check",
+            bool(steps[-1]["ok"])
+            and bool(export_check_payload and export_check_payload.get("ok") is True)
+            and export_check_payload.get("check") is True
+            and isinstance(export_check_would_write, list)
+            and "pack-manifest.json" in export_check_would_write
+            and bool(export_check_payload.get("would_archive")),
+            evidence="python3 scripts/export_workflow_pack.py --check --output <tmp>/docs-as-code-workflow-pack --archive <tmp>/docs-as-code-workflow-pack.tar.gz --json",
+            details={
+                "file_count": export_check_payload.get("file_count") if export_check_payload else 0,
+                "would_write_count": len(export_check_would_write) if isinstance(export_check_would_write, list) else 0,
+                "would_archive": export_check_payload.get("would_archive") if export_check_payload else "",
+            },
+        )
+
         export_payload = _run_step(
             steps,
             "source_pack_export",

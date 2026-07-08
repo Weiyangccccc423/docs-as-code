@@ -39,10 +39,13 @@ class ReleaseReadinessTest(unittest.TestCase):
             "environment-inventory",
             "fresh-target-dry-run",
             "multi-acceptance-dry-run",
+            "source-pack-export-check",
             "source-pack-export",
             "release-artifact-smoke",
         ):
             self.assertEqual("pass", criteria[criterion_id]["status"])
+        self.assertGreater(criteria["source-pack-export-check"]["details"]["would_write_count"], 0)
+        self.assertTrue(criteria["source-pack-export-check"]["details"]["would_archive"])
         self.assertEqual(
             [],
             criteria["fresh-target-dry-run"]["details"]["target_local_make_coverage"]["missing_step_ids"],
@@ -56,6 +59,7 @@ class ReleaseReadinessTest(unittest.TestCase):
         self.assertIn("environment_inventory", step_ids)
         self.assertIn("fresh_target_dry_run", step_ids)
         self.assertIn("multi_acceptance_dry_run", step_ids)
+        self.assertIn("source_pack_export_check", step_ids)
         self.assertIn("source_pack_export", step_ids)
         self.assertIn("release_artifact_smoke", step_ids)
 
