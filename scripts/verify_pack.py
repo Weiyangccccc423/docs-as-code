@@ -1024,6 +1024,16 @@ RUNTIME_REFRESH_DOC_REQUIREMENTS = {
         "next_actions",
     ),
 }
+RUNTIME_REFRESH_TEST_PATH = "tests/test_governance_cli.py"
+RUNTIME_REFRESH_TEST_REQUIRED_PHRASES = (
+    "test_runtime_refresh_repairs_target_runtime_and_workflow_pack",
+    "runtime_local_commands",
+    '"verify-check"',
+    '"workflow-plan"',
+    "runtime_preflight",
+    "advance-product-structuring-check",
+    "_agent_env()",
+)
 PRODUCT_ARCHIVE_DOC_PATHS = (
     "workflows/02-product-document-archiving.md",
     "skills/archiving-product-document/SKILL.md",
@@ -2939,6 +2949,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_release_readiness_docs(root, findings)
     _check_target_makefile_command_docs(root, findings)
     _check_env_repair_docs(root, findings)
+    _check_runtime_refresh_test_coverage(root, findings)
     _check_runtime_refresh_docs(root, findings)
     _check_product_archive_docs(root, findings)
     _check_product_structure_docs(root, findings)
@@ -4540,6 +4551,23 @@ def _check_runtime_refresh_docs(root: Path, findings: list[PackFinding]) -> None
                 rel,
             )
         )
+
+
+def _check_runtime_refresh_test_coverage(root: Path, findings: list[PackFinding]) -> None:
+    path = root / RUNTIME_REFRESH_TEST_PATH
+    text = _read_utf8_text_or_none(path)
+    if text is None:
+        return
+    missing = [phrase for phrase in RUNTIME_REFRESH_TEST_REQUIRED_PHRASES if phrase not in text]
+    if not missing:
+        return
+    findings.append(
+        PackFinding(
+            "pack_runtime_refresh_test_missing",
+            f"{RUNTIME_REFRESH_TEST_PATH} must cover runtime refresh continuation phrase(s): {', '.join(missing)}",
+            RUNTIME_REFRESH_TEST_PATH,
+        )
+    )
 
 
 def _check_product_archive_docs(root: Path, findings: list[PackFinding]) -> None:

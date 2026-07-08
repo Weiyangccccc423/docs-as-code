@@ -1732,6 +1732,35 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_missing_runtime_refresh_test_coverage(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            test_file = target / "tests/test_governance_cli.py"
+            test_file.write_text(
+                test_file.read_text(encoding="utf-8").replace(
+                    "runtime_local_commands",
+                    "runtime_commands",
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_runtime_refresh_test_missing"
+                    and finding.path == "tests/test_governance_cli.py"
+                    and "runtime_local_commands" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_missing_product_archive_doc_phrase(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"

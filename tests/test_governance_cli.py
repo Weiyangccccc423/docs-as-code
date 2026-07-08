@@ -16,6 +16,13 @@ ROOT = Path(__file__).resolve().parents[1]
 CLI = ROOT / "scripts" / "governance_cli.py"
 
 
+def _agent_env() -> dict[str, str]:
+    env = os.environ.copy()
+    env.pop("MAKEFLAGS", None)
+    env.pop("MAKELEVEL", None)
+    return env
+
+
 def _append_index(readme: Path, filename: str) -> None:
     readme.write_text(readme.read_text(encoding="utf-8") + f"\n- `{filename}` - generated for test\n", encoding="utf-8")
 
@@ -1710,6 +1717,46 @@ class GovernanceCliTest(unittest.TestCase):
                 },
                 payload["next_actions"],
             )
+            runtime_local_commands = {command["make_target"]: command for command in payload["local_commands"]}
+            for make_target in ("verify-check", "workflow-plan"):
+                command = runtime_local_commands[make_target]
+                self.assertFalse(command["writes_state"])
+                self.assertFalse(command["approval_required"])
+                command_result = subprocess.run(
+                    command["argv"],
+                    cwd=command["cwd"],
+                    env=_agent_env(),
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                self.assertEqual(0, command_result.returncode, command_result.stderr)
+                command_payload = json.loads(command_result.stdout)
+                self.assertTrue(command_payload["ok"])
+                if make_target == "verify-check":
+                    self.assertTrue(command_payload["check"])
+                    self.assertEqual([], command_payload["findings"])
+                if make_target == "workflow-plan":
+                    self.assertEqual("initialized", command_payload["phase"])
+                    self.assertEqual("advance-product-structuring-check", command_payload["next_actions"][0]["id"])
+
+            runtime_preflight = next(
+                action for action in payload["next_actions"] if action["id"] == "advance-product-structuring-check"
+            )
+            preflight_result = subprocess.run(
+                runtime_preflight["argv"],
+                cwd=runtime_preflight["cwd"],
+                env=_agent_env(),
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, preflight_result.returncode, preflight_result.stderr)
+            preflight_payload = json.loads(preflight_result.stdout)
+            self.assertTrue(preflight_payload["ok"])
+            self.assertTrue(preflight_payload["check"])
+            self.assertTrue(preflight_payload["would_advance"])
+            self.assertFalse(preflight_payload["advanced"])
             self.assertIn("Keep this content.", prd.read_text(encoding="utf-8"))
             self.assertTrue(wrapper.stat().st_mode & 0o100)
             self.assertFalse(stale_workflow.exists())
@@ -3333,13 +3380,10 @@ class GovernanceCliTest(unittest.TestCase):
             status_action = next(
                 action for action in applied_payload["local_commands"] if action["make_target"] == "governance-status"
             )
-            agent_env = os.environ.copy()
-            agent_env.pop("MAKEFLAGS", None)
-            agent_env.pop("MAKELEVEL", None)
             status = subprocess.run(
                 status_action["argv"],
                 cwd=status_action["cwd"],
-                env=agent_env,
+                env=_agent_env(),
                 text=True,
                 capture_output=True,
                 check=False,
