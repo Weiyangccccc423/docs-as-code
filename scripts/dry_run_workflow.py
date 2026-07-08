@@ -392,27 +392,15 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         ["bin/governance", "workflow", "plan", ".", "--json"],
         target,
     )
-    _require(product_workflow_plan.get("ok") is True, "product workflow plan failed", payload=product_workflow_plan)
-    _require(
-        product_workflow_plan.get("phase") == "product-structuring",
-        "product workflow plan phase mismatch",
-        payload=product_workflow_plan,
+    _require_product_workflow_plan(product_workflow_plan, "product workflow plan")
+
+    make_product_workflow_plan = _run_json(
+        steps,
+        "make_workflow_plan_product_structuring",
+        ["make", "workflow-plan"],
+        target,
     )
-    _require(
-        _workflow_plan_has_queue(product_workflow_plan, "product-plan"),
-        "product workflow plan did not expose product-plan queue",
-        payload=product_workflow_plan,
-    )
-    _require(
-        _workflow_plan_has_skill(product_workflow_plan, "local_workflow_skills", "structuring-product-requirements"),
-        "product workflow plan did not expose product structuring skill summary",
-        payload=product_workflow_plan,
-    )
-    _require(
-        _active_work_is_actionable(product_workflow_plan.get("active_work")),
-        "product workflow plan did not expose actionable active work",
-        payload=product_workflow_plan,
-    )
+    _require_product_workflow_plan(make_product_workflow_plan, "make workflow-plan product structuring")
 
     product_scaffold_check = _run_json(
         steps,
@@ -661,29 +649,15 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         ["bin/governance", "workflow", "plan", ".", "--json"],
         target,
     )
-    _require(design_workflow_plan.get("ok") is True, "design workflow plan failed", payload=design_workflow_plan)
-    _require(
-        design_workflow_plan.get("phase") == "design-derivation",
-        "design workflow plan phase mismatch",
-        payload=design_workflow_plan,
+    _require_design_workflow_plan(design_workflow_plan, "design workflow plan")
+
+    make_design_workflow_plan = _run_json(
+        steps,
+        "make_workflow_plan_design_derivation",
+        ["make", "workflow-plan"],
+        target,
     )
-    for queue_id in ("design-plan", "api-candidates", "api-authoring", "backend-authoring"):
-        _require(
-            _workflow_plan_has_queue(design_workflow_plan, queue_id),
-            f"design workflow plan did not expose {queue_id} queue",
-            payload=design_workflow_plan,
-        )
-    for skill in ("senior-architect", "api-design-reviewer", "senior-backend", "database-schema-designer"):
-        _require(
-            _workflow_plan_has_skill(design_workflow_plan, "authority_routing_skills", skill),
-            f"design workflow plan did not expose authority skill {skill}",
-            payload=design_workflow_plan,
-        )
-    _require(
-        _active_work_is_actionable(design_workflow_plan.get("active_work")),
-        "design workflow plan did not expose actionable active work",
-        payload=design_workflow_plan,
-    )
+    _require_design_workflow_plan(make_design_workflow_plan, "make workflow-plan design derivation")
 
     implementation_preflight = _run_json(
         steps,
@@ -728,6 +702,17 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         isinstance(implementation_state, dict) and implementation_state.get("phase") == "implementation",
         "implementation advance did not record implementation phase",
         payload=implementation_advanced,
+    )
+
+    make_implementation_workflow_plan = _run_json(
+        steps,
+        "make_workflow_plan_implementation",
+        ["make", "workflow-plan"],
+        target,
+    )
+    _require_implementation_workflow_plan(
+        make_implementation_workflow_plan,
+        "make workflow-plan implementation",
     )
 
     implementation_plan = _run_json(
@@ -1210,6 +1195,85 @@ def _workflow_plan_has_skill(payload: dict[str, object], field: str, skill: str)
     return isinstance(skills, list) and skill in skills
 
 
+def _require_product_workflow_plan(payload: dict[str, object], label: str) -> None:
+    _require(payload.get("ok") is True, f"{label} failed", payload=payload)
+    _require(
+        payload.get("phase") == "product-structuring",
+        f"{label} phase mismatch",
+        payload=payload,
+    )
+    _require(
+        _workflow_plan_has_queue(payload, "product-plan"),
+        f"{label} did not expose product-plan queue",
+        payload=payload,
+    )
+    _require(
+        _workflow_plan_has_skill(payload, "local_workflow_skills", "structuring-product-requirements"),
+        f"{label} did not expose product structuring skill summary",
+        payload=payload,
+    )
+    _require(
+        _active_work_is_actionable(payload.get("active_work")),
+        f"{label} did not expose actionable active work",
+        payload=payload,
+    )
+
+
+def _require_design_workflow_plan(payload: dict[str, object], label: str) -> None:
+    _require(payload.get("ok") is True, f"{label} failed", payload=payload)
+    _require(
+        payload.get("phase") == "design-derivation",
+        f"{label} phase mismatch",
+        payload=payload,
+    )
+    for queue_id in ("design-plan", "api-candidates", "api-authoring", "backend-authoring"):
+        _require(
+            _workflow_plan_has_queue(payload, queue_id),
+            f"{label} did not expose {queue_id} queue",
+            payload=payload,
+        )
+    for skill in ("senior-architect", "api-design-reviewer", "senior-backend", "database-schema-designer"):
+        _require(
+            _workflow_plan_has_skill(payload, "authority_routing_skills", skill),
+            f"{label} did not expose authority skill {skill}",
+            payload=payload,
+        )
+    _require(
+        _active_work_is_actionable(payload.get("active_work")),
+        f"{label} did not expose actionable active work",
+        payload=payload,
+    )
+
+
+def _require_implementation_workflow_plan(payload: dict[str, object], label: str) -> None:
+    _require(payload.get("ok") is True, f"{label} failed", payload=payload)
+    _require(
+        payload.get("phase") == "implementation",
+        f"{label} phase mismatch",
+        payload=payload,
+    )
+    _require(
+        _workflow_plan_has_queue(payload, "implementation-plan"),
+        f"{label} did not expose implementation-plan queue",
+        payload=payload,
+    )
+    _require(
+        _workflow_plan_has_skill(payload, "local_workflow_skills", "executing-implementation-task"),
+        f"{label} did not expose implementation execution skill summary",
+        payload=payload,
+    )
+    _require(
+        _workflow_plan_has_skill(payload, "authority_routing_skills", "senior-backend"),
+        f"{label} did not expose backend authority skill",
+        payload=payload,
+    )
+    _require(
+        _active_work_is_actionable(payload.get("active_work")),
+        f"{label} did not expose actionable active work",
+        payload=payload,
+    )
+
+
 def _implementation_plan_is_actionable(payload: dict[str, object]) -> bool:
     if payload.get("ok") is not True:
         return False
@@ -1362,6 +1426,16 @@ def _active_work_is_actionable(work: object) -> bool:
         return _valid_embedded_command(work.get("verify_command")) and _valid_embedded_command(
             work.get("refresh_command")
         )
+    if work["kind"] == "implementation-task":
+        if work.get("task_id") != IMPLEMENTATION_TASK_ID or work.get("status") != "ready":
+            return False
+        closeout_command = work.get("closeout_command")
+        refresh_command = work.get("refresh_command")
+        if closeout_command is not None and not _valid_embedded_command(closeout_command):
+            return False
+        if refresh_command is not None and not _valid_embedded_command(refresh_command):
+            return False
+        return True
     return False
 
 
