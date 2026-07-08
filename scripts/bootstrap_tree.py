@@ -121,8 +121,8 @@ TARGET_LOCAL_COMMANDS = (
     ),
     (
         "check-env",
-        "bin/governance env --target .",
-        "inventory local governance tools",
+        "bin/governance env --target . --json",
+        "inventory local governance tools as JSON",
         False,
     ),
     (

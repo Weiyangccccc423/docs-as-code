@@ -172,12 +172,15 @@ class FreshTargetWorkflowTest(unittest.TestCase):
                 ["make", "implementation-plan"],
                 local_commands["implementation-plan"]["argv"],
             )
-            for make_target in ("verify-check", "governance-status", "repair-env-check"):
+            for make_target in ("verify-check", "governance-status", "check-env", "repair-env-check"):
                 command = local_commands[make_target]
                 self.assertFalse(command["approval_required"])
                 self.assertFalse(command["writes_state"])
                 payload = _run_json(self, command["argv"], cwd=command["cwd"])
                 self.assertTrue(payload["ok"])
+                if make_target == "check-env":
+                    self.assertIn("tools", payload)
+                    self.assertEqual(".", payload["target"])
 
             target_local_verify = _run_json(
                 self,

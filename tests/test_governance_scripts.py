@@ -5557,7 +5557,7 @@ class GovernanceScriptsTest(unittest.TestCase):
                 argv = json.dumps(bootstrap_module._target_local_command_argv(recipe))
                 self.assertIn(f"| {target} |", contract)
                 self.assertIn(f"`{argv}` | {str(writes_state).lower()} | false |", contract)
-            self.assertIn('`["bin/governance", "env", "--target", "."]`', contract)
+            self.assertIn('`["bin/governance", "env", "--target", ".", "--json"]`', contract)
             self.assertIn(
                 '| repair-env-check | Preview environment repair without writing files. | `.` | '
                 '`["bin/governance", "env", "--repair", "--check", "--target", ".", "--json"]` |',
@@ -5606,8 +5606,8 @@ class GovernanceScriptsTest(unittest.TestCase):
             contract = root / "docs/agent-workflow/command-contract.md"
             contract.write_text(
                 contract.read_text(encoding="utf-8").replace(
-                    '| check-env | Inventory local governance tools. | `.` | `["bin/governance", "env", "--target", "."]`',
-                    '| check-env | Inventory local governance tools. | `.` | `["bin/governance", "env", "--repair", "--check", "--target", ".", "--json"]`',
+                    '| check-env | Inventory local governance tools as JSON. | `.` | `["bin/governance", "env", "--target", ".", "--json"]`',
+                    '| check-env | Inventory local governance tools as JSON. | `.` | `["bin/governance", "env", "--repair", "--check", "--target", ".", "--json"]`',
                     1,
                 ),
                 encoding="utf-8",
@@ -5616,7 +5616,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             report = verify(root)
 
             self.assertIn(
-                'command contract row check-env Argv must match default recipe: ["bin/governance", "env", "--target", "."]',
+                'command contract row check-env Argv must match default recipe: ["bin/governance", "env", "--target", ".", "--json"]',
                 report.errors,
             )
             self.assertIn(
@@ -5624,7 +5624,7 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "code": "target_command_contract_default_drift",
                     "severity": "error",
                     "path": "docs/agent-workflow/command-contract.md",
-                    "message": 'command contract row check-env Argv must match default recipe: ["bin/governance", "env", "--target", "."]',
+                    "message": 'command contract row check-env Argv must match default recipe: ["bin/governance", "env", "--target", ".", "--json"]',
                 },
                 [finding.to_dict() for finding in report.findings],
             )
@@ -9262,10 +9262,10 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "cwd": str(root.resolve()),
                     "command": "make check-env",
                     "argv": ["make", "check-env"],
-                    "recipe": "bin/governance env --target .",
+                    "recipe": "bin/governance env --target . --json",
                     "writes_state": False,
                     "approval_required": False,
-                    "description": "inventory local governance tools",
+                    "description": "inventory local governance tools as JSON",
                 },
                 env_payload["local_commands"],
             )

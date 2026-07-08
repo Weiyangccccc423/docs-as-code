@@ -76,7 +76,7 @@ TEMPLATE_REQUIRED_GUARDRAILS = {
         "| implementation-plan |",
         '`["bin/governance", "implementation", "plan", ".", "--json"]`',
         "| check-env |",
-        '`["bin/governance", "env", "--target", "."]`',
+        '`["bin/governance", "env", "--target", ".", "--json"]`',
         "| repair-env-check |",
         '`["bin/governance", "env", "--repair", "--check", "--target", ".", "--json"]`',
         "Add project-specific build, lint, typecheck, unit, integration, contract, end-to-end, migration, and security commands",

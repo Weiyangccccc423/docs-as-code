@@ -17,5 +17,5 @@ One-sentence project summary.
 - `make governance-status` - print workflow state as JSON.
 - `make workflow-plan` - print current workflow route plus active queue and skill summaries as JSON.
 - `make implementation-plan` - print Ready implementation task execution plan as JSON.
-- `make check-env` - inventory local governance tools.
+- `make check-env` - inventory local governance tools as JSON.
 - `make repair-env-check` - preview environment repair without writing files.

@@ -1552,8 +1552,8 @@ class PackStructureTest(unittest.TestCase):
             script = target / "scripts/bootstrap_tree.py"
             script.write_text(
                 script.read_text(encoding="utf-8").replace(
-                    '    (\n        "check-env",\n        "bin/governance env --target .",\n'
-                    '        "inventory local governance tools",\n        False,\n    ),\n',
+                    '    (\n        "check-env",\n        "bin/governance env --target . --json",\n'
+                    '        "inventory local governance tools as JSON",\n        False,\n    ),\n',
                     "",
                     1,
                 ),
@@ -4915,8 +4915,8 @@ class PackStructureTest(unittest.TestCase):
             template = target / "templates/docs/agent-workflow/command-contract.md"
             template.write_text(
                 template.read_text(encoding="utf-8").replace(
-                    '| check-env | Inventory local governance tools. | `.` | `["bin/governance", "env", "--target", "."]`',
-                    '| check-env | Inventory local governance tools. | `.` | `["bin/governance", "env", "--repair", "--check", "--target", ".", "--json"]`',
+                    '| check-env | Inventory local governance tools as JSON. | `.` | `["bin/governance", "env", "--target", ".", "--json"]`',
+                    '| check-env | Inventory local governance tools as JSON. | `.` | `["bin/governance", "env", "--repair", "--check", "--target", ".", "--json"]`',
                     1,
                 ),
                 encoding="utf-8",
