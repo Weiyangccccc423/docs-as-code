@@ -12,6 +12,20 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 MULTI_ACCEPTANCE_PRODUCT_FIXTURE = ROOT / "tests/fixtures/product-docs/field-service-ops.md"
+TARGET_LOCAL_MAKE_STEP_IDS = [
+    "make_verify_governance",
+    "make_verify_check",
+    "make_governance_status",
+    "make_workflow_plan_initialized",
+    "make_workflow_plan_product_structuring",
+    "make_workflow_plan_design_derivation",
+    "make_workflow_plan_implementation",
+    "make_product_plan",
+    "make_design_plan",
+    "make_implementation_plan",
+    "make_check_env",
+    "make_repair_env_check",
+]
 
 
 def _agent_env() -> dict[str, str]:
@@ -109,31 +123,16 @@ def _dry_run_target_local_make_coverage_ok(payload: dict[str, object] | None) ->
     if not isinstance(steps, list):
         return False
     step_ids = {str(step.get("id")) for step in steps if isinstance(step, dict)}
-    required = {
-        "make_workflow_plan_product_structuring",
-        "make_workflow_plan_design_derivation",
-        "make_workflow_plan_implementation",
-        "make_product_plan",
-        "make_design_plan",
-        "make_implementation_plan",
-    }
+    required = set(TARGET_LOCAL_MAKE_STEP_IDS)
     return required <= step_ids
 
 
 def _dry_run_target_local_make_details(payload: dict[str, object] | None) -> dict[str, object]:
-    required = [
-        "make_workflow_plan_product_structuring",
-        "make_workflow_plan_design_derivation",
-        "make_workflow_plan_implementation",
-        "make_product_plan",
-        "make_design_plan",
-        "make_implementation_plan",
-    ]
     steps = payload.get("steps") if payload else []
     step_ids = {str(step.get("id")) for step in steps if isinstance(step, dict)} if isinstance(steps, list) else set()
     return {
-        "required_step_ids": required,
-        "missing_step_ids": [step_id for step_id in required if step_id not in step_ids],
+        "required_step_ids": TARGET_LOCAL_MAKE_STEP_IDS,
+        "missing_step_ids": [step_id for step_id in TARGET_LOCAL_MAKE_STEP_IDS if step_id not in step_ids],
     }
 
 

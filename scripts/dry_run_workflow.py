@@ -49,6 +49,20 @@ AUTHORING_COMMANDS = [
 ]
 ACCEPTANCE_ID_HEADING_RE = re.compile(r"^##[ \t]+(?P<id>A-[0-9]{3})\b", re.MULTILINE)
 IMPLEMENTATION_TASK_ID = "TASK-001"
+TARGET_LOCAL_MAKE_STEP_IDS = [
+    "make_verify_governance",
+    "make_verify_check",
+    "make_governance_status",
+    "make_workflow_plan_initialized",
+    "make_workflow_plan_product_structuring",
+    "make_workflow_plan_design_derivation",
+    "make_workflow_plan_implementation",
+    "make_product_plan",
+    "make_design_plan",
+    "make_implementation_plan",
+    "make_check_env",
+    "make_repair_env_check",
+]
 
 
 class DryRunFailure(Exception):
@@ -121,6 +135,44 @@ def _run_json(
         raise DryRunFailure(f"step returned non-object JSON: {step_id}", step=step)
     step["payload_ok"] = payload.get("ok")
     return payload
+
+
+def _run_text(
+    steps: list[dict[str, object]],
+    step_id: str,
+    argv: list[str | Path],
+    cwd: Path,
+    *,
+    expected_returncode: int = 0,
+) -> str:
+    command = _stringify_argv(argv)
+    result = subprocess.run(
+        command,
+        cwd=cwd,
+        env=_agent_env(),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    step = {
+        "id": step_id,
+        "argv": command,
+        "cwd": str(cwd),
+        "returncode": result.returncode,
+        "expected_returncode": expected_returncode,
+    }
+    steps.append(step)
+    if result.returncode != expected_returncode or result.stderr:
+        failed = {
+            **step,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+        }
+        raise DryRunFailure(f"step failed: {step_id}", step=failed)
+    stdout = result.stdout.strip()
+    if stdout:
+        step["stdout_first_line"] = stdout.splitlines()[0]
+    return result.stdout
 
 
 def _require(condition: bool, message: str, *, payload: dict[str, object] | None = None) -> None:
@@ -299,6 +351,74 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         target,
     )
     _require(target_status.get("ok") is True, "target-local status failed", payload=target_status)
+
+    make_verify_governance = _run_text(
+        steps,
+        "make_verify_governance",
+        ["make", "verify-governance"],
+        target,
+    )
+    _require(
+        "Governance verification passed." in make_verify_governance,
+        "make verify-governance did not report success",
+    )
+
+    make_verify_check = _run_json(
+        steps,
+        "make_verify_check",
+        ["make", "verify-check"],
+        target,
+    )
+    _require(make_verify_check.get("ok") is True, "make verify-check failed", payload=make_verify_check)
+    _require(make_verify_check.get("findings") == [], "make verify-check returned findings", payload=make_verify_check)
+
+    make_governance_status = _run_json(
+        steps,
+        "make_governance_status",
+        ["make", "governance-status"],
+        target,
+    )
+    _require(
+        make_governance_status.get("ok") is True,
+        "make governance-status failed",
+        payload=make_governance_status,
+    )
+    make_status_state = make_governance_status.get("state")
+    _require(
+        isinstance(make_status_state, dict) and make_status_state.get("phase") == "initialized",
+        "make governance-status phase mismatch",
+        payload=make_governance_status,
+    )
+
+    make_initialized_workflow_plan = _run_json(
+        steps,
+        "make_workflow_plan_initialized",
+        ["make", "workflow-plan"],
+        target,
+    )
+    _require_initialized_workflow_plan(make_initialized_workflow_plan, "make workflow-plan initialized")
+
+    make_check_env = _run_json(
+        steps,
+        "make_check_env",
+        ["make", "check-env"],
+        target,
+    )
+    _require(make_check_env.get("ok") is True, "make check-env failed", payload=make_check_env)
+    _require(make_check_env.get("target") == ".", "make check-env target mismatch", payload=make_check_env)
+
+    make_repair_env_check = _run_json(
+        steps,
+        "make_repair_env_check",
+        ["make", "repair-env-check"],
+        target,
+    )
+    _require(make_repair_env_check.get("ok") is True, "make repair-env-check failed", payload=make_repair_env_check)
+    _require(
+        make_repair_env_check.get("check") is True,
+        "make repair-env-check did not run in check mode",
+        payload=make_repair_env_check,
+    )
 
     product_advanced = _run_json(
         steps,
@@ -818,6 +938,7 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         "acceptance_id_count": len(acceptance_ids),
         "api_candidate_count": len(api_candidates.get("candidates", [])),
         "authoring_task_counts": authoring_task_counts,
+        "target_local_make_coverage": _target_local_make_coverage_details(steps),
         "implementation_gate": {
             "placeholder_blocked_ok": implementation_preflight.get("ok"),
             "placeholder_expected_blocked": True,
@@ -1228,6 +1349,31 @@ def _workflow_plan_has_skill(payload: dict[str, object], field: str, skill: str)
         return False
     skills = summary.get(field)
     return isinstance(skills, list) and skill in skills
+
+
+def _target_local_make_coverage_details(steps: list[dict[str, object]]) -> dict[str, object]:
+    step_ids = {str(step.get("id")) for step in steps if isinstance(step, dict)}
+    return {
+        "required_step_ids": TARGET_LOCAL_MAKE_STEP_IDS,
+        "missing_step_ids": [step_id for step_id in TARGET_LOCAL_MAKE_STEP_IDS if step_id not in step_ids],
+    }
+
+
+def _require_initialized_workflow_plan(payload: dict[str, object], label: str) -> None:
+    _require(payload.get("ok") is True, f"{label} failed", payload=payload)
+    _require(
+        payload.get("phase") == "initialized",
+        f"{label} phase mismatch",
+        payload=payload,
+    )
+    _require(payload.get("queues") == [], f"{label} unexpectedly exposed phase queues", payload=payload)
+    next_actions = payload.get("next_actions")
+    _require(
+        isinstance(next_actions, list)
+        and any(isinstance(action, dict) and action.get("id") == "advance-product-structuring-check" for action in next_actions),
+        f"{label} did not expose product-structuring continuation",
+        payload=payload,
+    )
 
 
 def _require_product_workflow_plan(payload: dict[str, object], label: str) -> None:

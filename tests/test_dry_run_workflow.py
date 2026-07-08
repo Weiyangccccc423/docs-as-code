@@ -186,7 +186,12 @@ class DryRunWorkflowTest(unittest.TestCase):
                 ],
                 payload["implementation_closeout"]["blocking_codes_without_evidence"],
             )
+            self.assertEqual([], payload["target_local_make_coverage"]["missing_step_ids"])
             step_ids = {step["id"] for step in payload["steps"]}
+            self.assertIn("make_verify_governance", step_ids)
+            self.assertIn("make_verify_check", step_ids)
+            self.assertIn("make_governance_status", step_ids)
+            self.assertIn("make_workflow_plan_initialized", step_ids)
             self.assertIn("product_plan", step_ids)
             self.assertIn("make_product_plan", step_ids)
             self.assertIn("workflow_plan_product_structuring", step_ids)
@@ -201,6 +206,8 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertIn("make_workflow_plan_implementation", step_ids)
             self.assertIn("implementation_plan", step_ids)
             self.assertIn("make_implementation_plan", step_ids)
+            self.assertIn("make_check_env", step_ids)
+            self.assertIn("make_repair_env_check", step_ids)
             self.assertIn("implementation_closeout_without_evidence", step_ids)
             self.assertIn("implementation_closeout_with_evidence", step_ids)
             self.assertTrue((target / "bin/governance").is_file())
@@ -253,6 +260,7 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertTrue(payload["implementation_gate"]["ready_ok"])
             self.assertTrue(payload["implementation_closeout"]["blocked_without_evidence"])
             self.assertTrue(payload["implementation_closeout"]["ready_with_evidence"])
+            self.assertEqual([], payload["target_local_make_coverage"]["missing_step_ids"])
 
 
 def _repair_action(

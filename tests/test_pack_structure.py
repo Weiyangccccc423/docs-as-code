@@ -323,6 +323,7 @@ class PackStructureTest(unittest.TestCase):
     def test_verify_pack_reports_incomplete_dry_run_workflow_script(self) -> None:
         cases = (
             ("implementation_advance_check", "implementation_gate_preview"),
+            ("make_verify_check", "local_verify_check"),
             ("make_workflow_plan_implementation", "local_workflow_plan_implementation"),
             ("make_product_plan", "local_product_plan"),
             ("make_design_plan", "local_design_plan"),
@@ -580,6 +581,7 @@ class PackStructureTest(unittest.TestCase):
         cases = (
             ("unpacked_dry_run", "unpacked_preview"),
             ("_dry_run_target_local_make_details", "_dry_run_local_command_details"),
+            ("make_verify_check", "local_verify_check"),
         )
         for required_phrase, replacement in cases:
             with self.subTest(required_phrase=required_phrase):
