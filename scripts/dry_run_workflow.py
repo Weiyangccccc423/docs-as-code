@@ -627,7 +627,7 @@ def _task_link_repairs_cover_required_statuses(task: dict[str, object]) -> bool:
     action_keys = {
         (str(action.get("link_kind")), str(action.get("target")))
         for action in actions
-        if isinstance(action, dict)
+        if _valid_repair_action(action, expected_kind="required-link-repair", item_key="link_kind")
     }
     for link in links:
         if not isinstance(link, dict):
@@ -648,7 +648,7 @@ def _task_evidence_repairs_cover_required_statuses(task: dict[str, object]) -> b
     action_keys = {
         (str(action.get("evidence_id")), str(action.get("target")))
         for action in actions
-        if isinstance(action, dict)
+        if _valid_repair_action(action, expected_kind="required-evidence-repair", item_key="evidence_id")
     }
     for evidence in evidence_items:
         if not isinstance(evidence, dict):
@@ -658,6 +658,57 @@ def _task_evidence_repairs_cover_required_statuses(task: dict[str, object]) -> b
         key = (str(evidence.get("id")), str(evidence.get("target")))
         if key not in action_keys:
             return False
+    return True
+
+
+def _valid_repair_action(action: object, *, expected_kind: str, item_key: str) -> bool:
+    if not isinstance(action, dict):
+        return False
+    required_strings = ("id", item_key, "target", "status", "repair_strategy", "success_condition")
+    if any(not isinstance(action.get(key), str) or not action[key] for key in required_strings):
+        return False
+    if action.get("kind") != expected_kind:
+        return False
+    if not isinstance(action.get("sequence"), int) or action["sequence"] < 1:
+        return False
+    if not isinstance(action.get("reason"), str):
+        return False
+    if action.get("status") == "satisfied":
+        return False
+    if action.get("can_auto_apply") is not False:
+        return False
+    if action.get("writes_state") is not True:
+        return False
+    if action.get("approval_required") is not False:
+        return False
+    verify_command = action.get("verify_command")
+    if not _valid_embedded_command(verify_command):
+        return False
+    if verify_command.get("argv") != ["bin/governance", "verify", ".", "--check", "--json"]:
+        return False
+    if not _valid_embedded_command(action.get("refresh_command")):
+        return False
+    return True
+
+
+def _valid_embedded_command(command: object) -> bool:
+    if not isinstance(command, dict):
+        return False
+    if not isinstance(command.get("id"), str) or not command["id"]:
+        return False
+    if not isinstance(command.get("cwd"), str) or not command["cwd"]:
+        return False
+    if not isinstance(command.get("command"), str) or not command["command"]:
+        return False
+    argv = command.get("argv")
+    if not isinstance(argv, list) or not argv or not all(isinstance(item, str) and item for item in argv):
+        return False
+    if command.get("writes_state") is not False:
+        return False
+    if command.get("approval_required") is not False:
+        return False
+    if not isinstance(command.get("description"), str) or not command["description"]:
+        return False
     return True
 
 

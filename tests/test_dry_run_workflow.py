@@ -5,12 +5,59 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from scripts import dry_run_workflow
+
 
 ROOT = Path(__file__).resolve().parents[1]
 DRY_RUN = ROOT / "scripts" / "dry_run_workflow.py"
 
 
 class DryRunWorkflowTest(unittest.TestCase):
+    def test_product_evidence_repair_schema_requires_safe_commands(self) -> None:
+        task = {
+            "required_evidence": [
+                {"id": "chapter-file-authored", "target": "docs/product/01-background.md", "status": "placeholder_present"},
+                {"id": "product-readme-indexed", "target": "docs/product/README.md", "status": "satisfied"},
+            ],
+            "evidence_repair_actions": [
+                _repair_action(
+                    kind="required-evidence-repair",
+                    item_key="evidence_id",
+                    item_value="chapter-file-authored",
+                    target="docs/product/01-background.md",
+                    status="placeholder_present",
+                    refresh_argv=["bin/governance", "product", "plan", ".", "--json"],
+                )
+            ],
+        }
+
+        self.assertTrue(dry_run_workflow._task_evidence_repairs_cover_required_statuses(task))
+
+        task["evidence_repair_actions"][0]["verify_command"]["writes_state"] = True
+        self.assertFalse(dry_run_workflow._task_evidence_repairs_cover_required_statuses(task))
+
+    def test_design_link_repair_schema_requires_refresh_command(self) -> None:
+        task = {
+            "required_links": [
+                {"kind": "api_contract", "target": "docs/api/endpoints/01-flow.md", "status": "missing"},
+            ],
+            "link_repair_actions": [
+                _repair_action(
+                    kind="required-link-repair",
+                    item_key="link_kind",
+                    item_value="api_contract",
+                    target="docs/api/endpoints/01-flow.md",
+                    status="missing",
+                    refresh_argv=["bin/governance", "design", "backend-authoring", ".", "--json"],
+                )
+            ],
+        }
+
+        self.assertTrue(dry_run_workflow._task_link_repairs_cover_required_statuses(task))
+
+        del task["link_repair_actions"][0]["refresh_command"]
+        self.assertFalse(dry_run_workflow._task_link_repairs_cover_required_statuses(task))
+
     def test_dry_run_reaches_design_authoring_queues(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "dry-target"
@@ -103,6 +150,48 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertIn("## A-004 Operations Manager Can View An Audit Timeline", acceptance)
             self.assertFalse(payload["implementation_gate"]["ok"])
             self.assertTrue(payload["implementation_gate"]["expected_blocked"])
+
+
+def _repair_action(
+    *,
+    kind: str,
+    item_key: str,
+    item_value: str,
+    target: str,
+    status: str,
+    refresh_argv: list[str],
+) -> dict[str, object]:
+    return {
+        "id": f"repair-{item_value}",
+        "sequence": 1,
+        "kind": kind,
+        item_key: item_value,
+        "target": target,
+        "status": status,
+        "reason": "test repair",
+        "repair_strategy": "repair_for_test",
+        "can_auto_apply": False,
+        "writes_state": True,
+        "approval_required": False,
+        "success_condition": "required item status becomes satisfied after verify and refresh",
+        "verify_command": _embedded_command(
+            "verify-repair",
+            ["bin/governance", "verify", ".", "--check", "--json"],
+        ),
+        "refresh_command": _embedded_command("refresh-repair", refresh_argv),
+    }
+
+
+def _embedded_command(command_id: str, argv: list[str]) -> dict[str, object]:
+    return {
+        "id": command_id,
+        "cwd": "/tmp/target",
+        "command": " ".join(argv),
+        "argv": argv,
+        "writes_state": False,
+        "approval_required": False,
+        "description": "test command",
+    }
 
 
 if __name__ == "__main__":
