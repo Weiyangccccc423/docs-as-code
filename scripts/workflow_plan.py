@@ -73,6 +73,7 @@ def build_workflow_plan(root: Path) -> dict[str, object]:
             "queues": [],
             "commands": [],
             "skill_summary": _empty_skill_summary(),
+            "skill_loading_plan": _empty_skill_loading_plan(),
             "errors": ["No governance state found."],
         }
 
@@ -98,6 +99,7 @@ def build_workflow_plan(root: Path) -> dict[str, object]:
         "queues": queues,
         "commands": commands,
         "skill_summary": _queue_skill_summary(queues),
+        "skill_loading_plan": _queue_skill_loading_plan(queues),
         "local_commands": target_local_commands_payload(cwd=str(root)),
         "next_actions": next_actions_payload(state, cwd=str(root)),
         "errors": [],
@@ -115,6 +117,7 @@ def _product_plan_queue(root: Path) -> dict[str, object]:
         "manual_authoring_summary": payload.get("manual_authoring_summary", {}),
         "step_count": _list_count(payload.get("steps")),
         "skill_summary": _payload_skill_summary(payload),
+        "skill_loading_plan": _payload_skill_loading_plan(payload),
     }
     return _queue(
         "product-plan",
@@ -172,6 +175,7 @@ def _design_queues(root: Path) -> list[dict[str, object]]:
                 "candidate_count": _list_count(api_candidates.get("candidates")),
                 "source_document_count": _list_count(api_candidates.get("source_documents")),
                 "skill_summary": _payload_skill_summary(api_candidates),
+                "skill_loading_plan": _payload_skill_loading_plan(api_candidates),
             },
             api_candidates.get("errors"),
         )
@@ -184,6 +188,7 @@ def _design_queues(root: Path) -> list[dict[str, object]]:
             "source_document_count": _list_count(payload.get("source_documents")),
             "step_count": _authoring_step_count(payload.get("authoring_tasks")),
             "skill_summary": _payload_skill_summary(payload),
+            "skill_loading_plan": _payload_skill_loading_plan(payload),
         }
         queues.append(
             _queue(
@@ -271,6 +276,7 @@ def _design_plan_summary(payload: dict[str, object]) -> dict[str, object]:
         "blocker_count": blocker_count,
         "step_count": _design_step_count(tracks),
         "skill_summary": _payload_skill_summary(payload),
+        "skill_loading_plan": _payload_skill_loading_plan(payload),
     }
 
 
@@ -331,6 +337,39 @@ def _queue_skill_summary(queues: list[dict[str, object]]) -> dict[str, object]:
         if isinstance(skill_summary, dict):
             summaries.append(skill_summary)
     return _merge_skill_summaries(summaries)
+
+
+def _payload_skill_loading_plan(payload: dict[str, object]) -> dict[str, object]:
+    plan = payload.get("skill_loading_plan")
+    if isinstance(plan, dict):
+        return _normalize_skill_loading_plan(plan)
+
+    plans: list[dict[str, object]] = []
+    tracks = payload.get("tracks")
+    if isinstance(tracks, list):
+        for track in tracks:
+            if not isinstance(track, dict):
+                continue
+            track_plan = track.get("skill_loading_plan")
+            if isinstance(track_plan, dict):
+                plans.append(track_plan)
+    if plans:
+        return _merge_skill_loading_plans(plans)
+
+    requirements = _payload_skill_requirements(payload)
+    return _skill_loading_plan_from_requirements(requirements)
+
+
+def _queue_skill_loading_plan(queues: list[dict[str, object]]) -> dict[str, object]:
+    plans: list[dict[str, object]] = []
+    for queue in queues:
+        summary = queue.get("summary")
+        if not isinstance(summary, dict):
+            continue
+        plan = summary.get("skill_loading_plan")
+        if isinstance(plan, dict):
+            plans.append(plan)
+    return _merge_skill_loading_plans(plans)
 
 
 def _payload_skill_requirements(payload: dict[str, object]) -> list[dict[str, object]]:
@@ -418,6 +457,95 @@ def _merge_skill_summaries(summaries: list[dict[str, object]]) -> dict[str, obje
     return merged
 
 
+def _skill_loading_plan_from_requirements(requirements: list[dict[str, object]]) -> dict[str, object]:
+    steps = [
+        _skill_loading_step(sequence, requirement)
+        for sequence, requirement in enumerate(requirements, start=1)
+    ]
+    return _skill_loading_plan_from_steps(steps)
+
+
+def _skill_loading_step(sequence: int, requirement: dict[str, object]) -> dict[str, object]:
+    kind = str(requirement.get("type", ""))
+    return {
+        "sequence": sequence,
+        "name": str(requirement.get("name", "")),
+        "type": kind,
+        "required": requirement.get("required") is True,
+        "action": _skill_loading_action(kind),
+        "load_from": str(requirement.get("availability_scope", "")),
+        "available_in_workflow_pack": requirement.get("available_in_workflow_pack") is True,
+        "path": str(requirement.get("path", "")),
+        "missing_policy": str(requirement.get("missing_policy", "")),
+    }
+
+
+def _skill_loading_action(kind: str) -> str:
+    if kind == "local-workflow":
+        return "load_local_workflow_skill"
+    if kind == "authority-routing":
+        return "load_authority_routing_skill"
+    return "load_specialist_routing_skill"
+
+
+def _merge_skill_loading_plans(plans: list[dict[str, object]]) -> dict[str, object]:
+    steps: list[dict[str, object]] = []
+    seen: set[str] = set()
+    for plan in plans:
+        plan_steps = plan.get("steps")
+        if not isinstance(plan_steps, list):
+            continue
+        for item in plan_steps:
+            if not isinstance(item, dict):
+                continue
+            name = item.get("name")
+            if not isinstance(name, str) or not name or name in seen:
+                continue
+            seen.add(name)
+            copied = dict(item)
+            copied["sequence"] = len(steps) + 1
+            steps.append(copied)
+    return _skill_loading_plan_from_steps(steps)
+
+
+def _normalize_skill_loading_plan(plan: dict[str, object]) -> dict[str, object]:
+    steps = plan.get("steps")
+    if not isinstance(steps, list):
+        return _empty_skill_loading_plan()
+    normalized_steps: list[dict[str, object]] = []
+    for item in steps:
+        if not isinstance(item, dict):
+            continue
+        copied = dict(item)
+        copied["sequence"] = len(normalized_steps) + 1
+        normalized_steps.append(copied)
+    return _skill_loading_plan_from_steps(normalized_steps)
+
+
+def _skill_loading_plan_from_steps(steps: list[dict[str, object]]) -> dict[str, object]:
+    local_steps = [step for step in steps if step.get("type") == "local-workflow"]
+    authority_steps = [step for step in steps if step.get("type") == "authority-routing"]
+    missing_local_steps = [
+        step
+        for step in local_steps
+        if step.get("available_in_workflow_pack") is not True
+    ]
+    return {
+        "load_order": "local_workflow_then_authority_routing",
+        "stop_condition": "missing_required_local_workflow_skill_or_unavailable_authority_routing_skill",
+        "local_workflow_all_available": not missing_local_steps,
+        "authority_routing_requires_agent_environment": bool(authority_steps),
+        "local_workflow_skill_count": len(local_steps),
+        "authority_routing_skill_count": len(authority_steps),
+        "missing_local_workflow_skills": [
+            step["name"]
+            for step in missing_local_steps
+            if isinstance(step.get("name"), str)
+        ],
+        "steps": steps,
+    }
+
+
 def _merge_skill_list(summary: dict[str, object], key: str, value: object) -> None:
     if not isinstance(value, list):
         return
@@ -441,6 +569,10 @@ def _empty_skill_summary() -> dict[str, object]:
         "missing_local_workflow_skill_count": 0,
         "authority_missing_policy": "",
     }
+
+
+def _empty_skill_loading_plan() -> dict[str, object]:
+    return _skill_loading_plan_from_steps([])
 
 
 def _append_unique(items: list[str], value: str) -> None:

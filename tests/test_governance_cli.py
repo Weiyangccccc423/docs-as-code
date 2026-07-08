@@ -2496,6 +2496,10 @@ class GovernanceCliTest(unittest.TestCase):
                 product_queue["summary"]["skill_summary"]["local_workflow_skills"],
             )
             self.assertEqual([], product_queue["summary"]["skill_summary"]["authority_routing_skills"])
+            self.assertEqual(
+                ["structuring-product-requirements", "archiving-product-document", "verifying-governance-docs"],
+                [step["name"] for step in product_queue["summary"]["skill_loading_plan"]["steps"]],
+            )
             self.assertIn(
                 "structuring-product-requirements",
                 payload["skill_summary"]["local_workflow_skills"],
@@ -2586,11 +2590,19 @@ class GovernanceCliTest(unittest.TestCase):
                 "api-design-reviewer",
                 queues["design-plan"]["summary"]["skill_summary"]["authority_routing_skills"],
             )
+            self.assertIn(
+                "senior-architect",
+                [step["name"] for step in queues["design-plan"]["summary"]["skill_loading_plan"]["steps"]],
+            )
             self.assertEqual(1, queues["api-candidates"]["summary"]["candidate_count"])
             self.assertEqual(1, queues["api-authoring"]["summary"]["authoring_summary"]["task_count"])
             self.assertIn(
                 "api-design-reviewer",
                 queues["api-authoring"]["summary"]["skill_summary"]["authority_routing_skills"],
+            )
+            self.assertEqual(
+                "load_from_agent_environment_or_stop_before_guessing",
+                queues["api-authoring"]["summary"]["skill_loading_plan"]["steps"][1]["missing_policy"],
             )
             self.assertGreater(
                 queues["backend-authoring"]["summary"]["authoring_summary"]["non_satisfied_required_link_count"],
@@ -2617,6 +2629,8 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn("senior-backend", payload["skill_summary"]["authority_routing_skills"])
             self.assertIn("database-schema-designer", payload["skill_summary"]["authority_routing_skills"])
             self.assertIn("senior-security", payload["skill_summary"]["authority_routing_skills"])
+            self.assertIn("senior-architect", [step["name"] for step in payload["skill_loading_plan"]["steps"]])
+            self.assertIn("database-schema-designer", [step["name"] for step in payload["skill_loading_plan"]["steps"]])
             self.assertEqual(
                 "load_from_agent_environment_or_stop_before_guessing",
                 payload["skill_summary"]["authority_missing_policy"],
@@ -6254,6 +6268,27 @@ class GovernanceCliTest(unittest.TestCase):
             )
             self.assertIn("api-design-reviewer", api_authority_requirements)
             self.assertNotIn("designing-api-contracts", api_authority_requirements)
+            api_loading_plan = tracks["api-contracts"]["skill_loading_plan"]
+            self.assertEqual("local_workflow_then_authority_routing", api_loading_plan["load_order"])
+            self.assertEqual(
+                "missing_required_local_workflow_skill_or_unavailable_authority_routing_skill",
+                api_loading_plan["stop_condition"],
+            )
+            self.assertEqual(
+                ["designing-api-contracts", "api-design-reviewer", "senior-backend", "senior-security"],
+                [step["name"] for step in api_loading_plan["steps"]],
+            )
+            self.assertEqual("load_local_workflow_skill", api_loading_plan["steps"][0]["action"])
+            self.assertEqual("workflow-pack", api_loading_plan["steps"][0]["load_from"])
+            self.assertTrue(api_loading_plan["steps"][0]["available_in_workflow_pack"])
+            self.assertEqual("load_authority_routing_skill", api_loading_plan["steps"][1]["action"])
+            self.assertEqual("agent-environment", api_loading_plan["steps"][1]["load_from"])
+            self.assertEqual(
+                "load_from_agent_environment_or_stop_before_guessing",
+                api_loading_plan["steps"][1]["missing_policy"],
+            )
+            self.assertTrue(api_loading_plan["local_workflow_all_available"])
+            self.assertTrue(api_loading_plan["authority_routing_requires_agent_environment"])
             self.assertIn("references/api-design-checklist.md", tracks["api-contracts"]["references"])
             self.assertIn("references/security-design-checklist.md", tracks["api-contracts"]["references"])
             self.assertIn("docs/api/endpoints/01-endpoint-contract.md", tracks["api-contracts"]["documents"])
@@ -6276,6 +6311,10 @@ class GovernanceCliTest(unittest.TestCase):
             api_step_requirements = _requirements_by_name(api_steps[0]["skill_requirements"])
             self.assertEqual("local-workflow", api_step_requirements["designing-api-contracts"]["type"])
             self.assertEqual("authority-routing", api_step_requirements["api-design-reviewer"]["type"])
+            self.assertEqual(
+                ["designing-api-contracts", "api-design-reviewer", "senior-backend", "senior-security"],
+                [step["name"] for step in api_steps[0]["skill_loading_plan"]["steps"]],
+            )
             self.assertEqual("read", api_steps[1]["kind"])
             self.assertIn("docs/product/core/PRD.md", api_steps[1]["documents"])
             self.assertIn("docs/product/08-acceptance-criteria.md", api_steps[1]["documents"])
@@ -6305,6 +6344,10 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual("database-designer", tracks["data-model"]["primary_specialist_skill"])
             self.assertIn("database-schema-designer", tracks["data-model"]["specialist_skills"])
             self.assertIn("references/data-model-design-checklist.md", tracks["data-model"]["references"])
+            self.assertEqual(
+                ["designing-data-models", "database-designer", "database-schema-designer", "migration-architect"],
+                [step["name"] for step in tracks["data-model"]["skill_loading_plan"]["steps"]],
+            )
 
     def test_design_api_candidates_extracts_acceptance_inputs_without_guessing_contracts(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -6444,6 +6487,10 @@ class GovernanceCliTest(unittest.TestCase):
                 "load_from_agent_environment_or_stop_before_guessing",
                 payload_requirements["api-design-reviewer"]["missing_policy"],
             )
+            self.assertEqual(
+                ["designing-api-contracts", "api-design-reviewer", "senior-backend", "senior-security"],
+                [step["name"] for step in payload["skill_loading_plan"]["steps"]],
+            )
             self.assertIn("references/api-design-checklist.md", payload["references"])
             self.assertIn("references/security-design-checklist.md", payload["references"])
             self.assertIn("local_commands", payload)
@@ -6486,6 +6533,10 @@ class GovernanceCliTest(unittest.TestCase):
             task_requirements = _requirements_by_name(task["skill_requirements"])
             self.assertEqual("local-workflow", task_requirements["designing-api-contracts"]["type"])
             self.assertEqual("authority-routing", task_requirements["api-design-reviewer"]["type"])
+            self.assertEqual(
+                ["designing-api-contracts", "api-design-reviewer", "senior-backend", "senior-security"],
+                [step["name"] for step in task["skill_loading_plan"]["steps"]],
+            )
             document_paths = [document["path"] for document in task["documents"]]
             self.assertEqual(
                 [
@@ -6737,6 +6788,23 @@ class GovernanceCliTest(unittest.TestCase):
             step_requirements = _requirements_by_name(task["steps"][0]["skill_requirements"])
             self.assertEqual("authority-routing", step_requirements["senior-backend"]["type"])
             self.assertEqual("authority-routing", step_requirements["database-schema-designer"]["type"])
+            self.assertEqual(
+                [
+                    "designing-backend-modules",
+                    "designing-data-models",
+                    "senior-backend",
+                    "database-designer",
+                    "observability-designer",
+                    "senior-security",
+                    "database-schema-designer",
+                    "migration-architect",
+                ],
+                [step["name"] for step in task["skill_loading_plan"]["steps"]],
+            )
+            self.assertEqual(
+                "missing_required_local_workflow_skill_or_unavailable_authority_routing_skill",
+                task["skill_loading_plan"]["stop_condition"],
+            )
             self.assertEqual(["bin/governance", "verify", ".", "--check", "--json"], task["steps"][8]["argv"])
             self.assertFalse(task["steps"][8]["writes_state"])
             self.assertEqual(["bin/governance", "design", "backend-authoring", ".", "--json"], task["steps"][9]["argv"])

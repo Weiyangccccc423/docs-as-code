@@ -560,6 +560,11 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
     _require(isinstance(tracks, list), "design plan did not return tracks", payload=design_plan)
     track_ids = [track.get("id") for track in tracks if isinstance(track, dict)]
     _require(track_ids == DESIGN_TRACK_IDS, "design plan track order changed", payload=design_plan)
+    _require(
+        _design_tracks_have_skill_loading_plans(tracks),
+        "design plan tracks did not expose ordered skill loading plans",
+        payload=design_plan,
+    )
 
     api_candidates = _run_json(
         steps,
@@ -592,6 +597,20 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         _require(
             _authoring_summary_matches_tasks(payload),
             f"{command} authoring summary did not match task details",
+            payload=payload,
+        )
+        _require(
+            _skill_loading_plan_is_actionable(payload.get("skill_loading_plan")),
+            f"{command} did not expose an actionable skill loading plan",
+            payload=payload,
+        )
+        _require(
+            all(
+                isinstance(task, dict)
+                and _skill_loading_plan_is_actionable(task.get("skill_loading_plan"))
+                for task in tasks
+            ),
+            f"{command} tasks did not expose actionable skill loading plans",
             payload=payload,
         )
         _require(
@@ -689,6 +708,40 @@ def _workflow_plan_has_skill(payload: dict[str, object], field: str, skill: str)
         return False
     skills = summary.get(field)
     return isinstance(skills, list) and skill in skills
+
+
+def _design_tracks_have_skill_loading_plans(tracks: object) -> bool:
+    if not isinstance(tracks, list) or not tracks:
+        return False
+    return all(
+        isinstance(track, dict)
+        and _skill_loading_plan_is_actionable(track.get("skill_loading_plan"))
+        for track in tracks
+    )
+
+
+def _skill_loading_plan_is_actionable(plan: object) -> bool:
+    if not isinstance(plan, dict):
+        return False
+    if plan.get("load_order") != "local_workflow_then_authority_routing":
+        return False
+    if plan.get("stop_condition") != "missing_required_local_workflow_skill_or_unavailable_authority_routing_skill":
+        return False
+    steps = plan.get("steps")
+    if not isinstance(steps, list) or not steps:
+        return False
+    if [step.get("sequence") for step in steps if isinstance(step, dict)] != list(range(1, len(steps) + 1)):
+        return False
+    return all(
+        isinstance(step, dict)
+        and isinstance(step.get("name"), str)
+        and step["name"]
+        and step.get("action")
+        in {"load_local_workflow_skill", "load_authority_routing_skill", "load_specialist_routing_skill"}
+        and isinstance(step.get("missing_policy"), str)
+        and step["missing_policy"]
+        for step in steps
+    )
 
 
 def _manual_authoring_summary_matches_tasks(payload: dict[str, object]) -> bool:

@@ -786,9 +786,12 @@ def _skill_requirement_fields(
     skills: list[str] | tuple[str, ...],
     specialist_skills: list[str] | tuple[str, ...],
 ) -> dict[str, object]:
+    skill_requirements = _skill_requirements(root, skills, specialist_skills)
+    authority_requirements = _authority_skill_requirements(specialist_skills)
     return {
-        "skill_requirements": _skill_requirements(root, skills, specialist_skills),
-        "authority_skill_requirements": _authority_skill_requirements(specialist_skills),
+        "skill_requirements": skill_requirements,
+        "authority_skill_requirements": authority_requirements,
+        "skill_loading_plan": _skill_loading_plan(skill_requirements),
     }
 
 
@@ -849,6 +852,65 @@ def _authority_skill_requirement(skill: str) -> dict[str, object]:
         "availability_scope": "agent-environment",
         "missing_policy": AUTHORITY_ROUTING_SKILL_MISSING_POLICY,
     }
+
+
+def _skill_loading_plan(requirements: list[dict[str, object]]) -> dict[str, object]:
+    steps = [
+        _skill_loading_step(sequence, requirement)
+        for sequence, requirement in enumerate(requirements, start=1)
+    ]
+    local_steps = [
+        step
+        for step in steps
+        if step.get("type") == "local-workflow"
+    ]
+    authority_steps = [
+        step
+        for step in steps
+        if step.get("type") == "authority-routing"
+    ]
+    missing_local_steps = [
+        step
+        for step in local_steps
+        if step.get("available_in_workflow_pack") is not True
+    ]
+    return {
+        "load_order": "local_workflow_then_authority_routing",
+        "stop_condition": "missing_required_local_workflow_skill_or_unavailable_authority_routing_skill",
+        "local_workflow_all_available": not missing_local_steps,
+        "authority_routing_requires_agent_environment": bool(authority_steps),
+        "local_workflow_skill_count": len(local_steps),
+        "authority_routing_skill_count": len(authority_steps),
+        "missing_local_workflow_skills": [
+            step["name"]
+            for step in missing_local_steps
+            if isinstance(step.get("name"), str)
+        ],
+        "steps": steps,
+    }
+
+
+def _skill_loading_step(sequence: int, requirement: dict[str, object]) -> dict[str, object]:
+    kind = str(requirement.get("type", ""))
+    return {
+        "sequence": sequence,
+        "name": str(requirement.get("name", "")),
+        "type": kind,
+        "required": requirement.get("required") is True,
+        "action": _skill_loading_action(kind),
+        "load_from": str(requirement.get("availability_scope", "")),
+        "available_in_workflow_pack": requirement.get("available_in_workflow_pack") is True,
+        "path": str(requirement.get("path", "")),
+        "missing_policy": str(requirement.get("missing_policy", "")),
+    }
+
+
+def _skill_loading_action(kind: str) -> str:
+    if kind == "local-workflow":
+        return "load_local_workflow_skill"
+    if kind == "authority-routing":
+        return "load_authority_routing_skill"
+    return "load_specialist_routing_skill"
 
 
 def _local_workflow_skill_path(root: Path, skill: str) -> tuple[str, bool]:
