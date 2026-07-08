@@ -162,7 +162,8 @@ def run_artifact_smoke(*, keep: bool = False) -> dict[str, object]:
         _require(
             isinstance(closeout, dict)
             and closeout.get("blocked_without_evidence") is True
-            and closeout.get("ready_with_evidence") is True,
+            and closeout.get("ready_with_evidence") is True
+            and closeout.get("applied_status_updates") is True,
             "unpacked artifact dry-run did not prove implementation closeout evidence gates",
             payload=dry_run_payload,
         )

@@ -3030,8 +3030,12 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual("docs/development/03-verification-log.md", payload["evidence_summary"]["verification_references"][0]["path"])
             self.assertEqual("docs/product/01-goals.md", payload["task"]["source_references"]["product"]["references"][0]["path"])
             self.assertEqual("Done", payload["status_update_plan"]["target_status"])
-            self.assertFalse(payload["status_update_plan"]["can_auto_apply"])
+            self.assertTrue(payload["status_update_plan"]["can_auto_apply"])
             self.assertTrue(payload["status_update_plan"]["updates_required"])
+            self.assertEqual(
+                ["bin/governance", "implementation", "closeout", ".", "--task", "TASK-001", "--apply", "--json"],
+                payload["status_update_plan"]["apply_command"]["argv"],
+            )
             self.assertEqual(
                 [
                     {
@@ -3051,6 +3055,93 @@ class GovernanceCliTest(unittest.TestCase):
                 ],
                 payload["status_update_plan"]["updates"],
             )
+            self.assertIn("| TASK-001 | Ready | Implement goal flow |", (target / "docs/development/02-task-board.md").read_text(encoding="utf-8"))
+            self.assertIn("| TASK-001 | Ready | Goal flow |", (target / "docs/development/01-roadmap.md").read_text(encoding="utf-8"))
+
+    def test_implementation_closeout_apply_refuses_without_verification_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp)
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "implementation",
+                    "closeout",
+                    str(target),
+                    "--task",
+                    "TASK-001",
+                    "--apply",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, result.returncode, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertFalse(payload["closeout_ready"])
+            self.assertTrue(payload["apply_requested"])
+            self.assertFalse(payload["applied"])
+            self.assertIn("implementation closeout is not ready", payload["apply_errors"][0])
+            self.assertIn("| TASK-001 | Ready | Implement goal flow |", (target / "docs/development/02-task-board.md").read_text(encoding="utf-8"))
+            self.assertIn("| TASK-001 | Ready | Goal flow |", (target / "docs/development/01-roadmap.md").read_text(encoding="utf-8"))
+
+    def test_implementation_closeout_apply_marks_task_and_roadmap_done_with_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp)
+            (target / "docs/development/02-task-board.md").write_text(
+                _task_board_doc(
+                    "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | "
+                    "docs/architecture/01-system-context.md | docs/api/00-conventions.md | "
+                    "docs/product/08-acceptance-criteria.md | docs/development/03-verification-log.md |\n"
+                ),
+                encoding="utf-8",
+            )
+            (target / "docs/development/03-verification-log.md").write_text(
+                _verification_log_doc(
+                    "| TASK-001 | make test | pass | 2026-07-08 | Local verification passed. |\n"
+                ),
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "implementation",
+                    "closeout",
+                    str(target),
+                    "--task",
+                    "TASK-001",
+                    "--apply",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertTrue(payload["apply_requested"])
+            self.assertTrue(payload["applied"])
+            self.assertFalse(payload["already_current"])
+            self.assertEqual(
+                ["docs/development/02-task-board.md", "docs/development/01-roadmap.md"],
+                payload["updated_paths"],
+            )
+            self.assertTrue(payload["pre_apply_status_update_plan"]["can_auto_apply"])
+            self.assertFalse(payload["status_update_plan"]["updates_required"])
+            self.assertFalse(payload["status_update_plan"]["can_auto_apply"])
+            self.assertEqual("Done", payload["task"]["status"])
+            self.assertEqual("Done", payload["evidence_summary"]["task_status"])
+            self.assertEqual("Done", payload["evidence_summary"]["roadmap_status"])
+            self.assertIn("| TASK-001 | Done | Implement goal flow |", (target / "docs/development/02-task-board.md").read_text(encoding="utf-8"))
+            self.assertIn("| TASK-001 | Done | Goal flow |", (target / "docs/development/01-roadmap.md").read_text(encoding="utf-8"))
 
     def test_workflow_plan_reports_implementation_task_queue(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

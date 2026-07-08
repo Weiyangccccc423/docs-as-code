@@ -39,9 +39,9 @@ Read `references/implementation-execution-checklist.md` before editing code, cha
 7. Implement in small coherent steps and add or update tests next to the changed behavior.
 8. Run the task's verification commands. Prefer `local_commands[].argv`, `docs/agent-workflow/command-contract.md` `Argv` rows, and task-provided commands over reconstructed shell strings. Stop and ask before running any command-contract row with `Approval Required` set to `true` unless the task explicitly authorizes it.
 9. Record command, result, date, notes, and evidence path in `docs/development/03-verification-log.md`.
-10. Synchronize `docs/development/02-task-board.md` and `docs/development/01-roadmap.md` statuses.
+10. Synchronize `docs/development/02-task-board.md` and `docs/development/01-roadmap.md` statuses through closeout apply when available.
 11. Refresh `bin/governance implementation plan . --json` and confirm the selected task state, `gate_ok`, and evidence are consistent before claiming completion.
-12. Run `bin/governance implementation closeout . --task TASK-NNN --json` before marking `Done`. Its `decision_policy` is `do_not_mark_done_without_passing_evidence`; use `requirements[]`, `blocking_requirements[]`, `evidence_summary`, and `status_update_plan` to decide whether the verification log, local evidence links, and task/roadmap status updates are complete.
+12. Run `bin/governance implementation closeout . --task TASK-NNN --json` before marking `Done`. Its `decision_policy` is `do_not_mark_done_without_passing_evidence`; use `requirements[]`, `blocking_requirements[]`, `evidence_summary`, and `status_update_plan` to decide whether the verification log, local evidence links, and task/roadmap status updates are complete. When `status_update_plan.can_auto_apply` is true, run `status_update_plan.apply_command.argv` or `bin/governance implementation closeout . --task TASK-NNN --apply --json`.
 13. Mark `Done` only when closeout reports `closeout_ready: true` and code, tests, synchronized docs, local evidence, `references/implementation-readiness-checklist.md`, and `references/implementation-execution-checklist.md` are satisfied.
 
 ## Stop Conditions

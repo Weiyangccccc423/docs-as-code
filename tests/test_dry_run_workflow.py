@@ -195,6 +195,7 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertEqual("TASK-001", payload["implementation_closeout"]["task_id"])
             self.assertTrue(payload["implementation_closeout"]["blocked_without_evidence"])
             self.assertTrue(payload["implementation_closeout"]["ready_with_evidence"])
+            self.assertTrue(payload["implementation_closeout"]["applied_status_updates"])
             self.assertEqual(
                 [
                     "verification_log_row_present",
@@ -227,6 +228,7 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertIn("make_repair_env_check", step_ids)
             self.assertIn("implementation_closeout_without_evidence", step_ids)
             self.assertIn("implementation_closeout_with_evidence", step_ids)
+            self.assertIn("implementation_closeout_apply", step_ids)
             self.assertTrue((target / "bin/governance").is_file())
             self.assertTrue((target / "docs/api/endpoints/01-endpoint-contract.md").is_file())
 
@@ -277,6 +279,7 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertTrue(payload["implementation_gate"]["ready_ok"])
             self.assertTrue(payload["implementation_closeout"]["blocked_without_evidence"])
             self.assertTrue(payload["implementation_closeout"]["ready_with_evidence"])
+            self.assertTrue(payload["implementation_closeout"]["applied_status_updates"])
             self.assertEqual([], payload["target_local_make_coverage"]["missing_step_ids"])
 
 

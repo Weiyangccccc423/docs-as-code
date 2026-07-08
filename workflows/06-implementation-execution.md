@@ -60,11 +60,12 @@ Load:
    bin/governance verify <target> --check --json
    bin/governance implementation plan <target> --json
    bin/governance implementation closeout <target> --task TASK-NNN --json
+   bin/governance implementation closeout <target> --task TASK-NNN --apply --json
    ```
 
-10. Before marking `Done`, run `implementation closeout --task TASK-NNN --json`. Its `decision_policy` is `do_not_mark_done_without_passing_evidence`; inspect `closeout_ready`, `requirements[]`, `blocking_requirements[]`, `evidence_summary`, and `status_update_plan`. Do not mark `Done` unless `closeout_ready` is `true`. Apply the reported status updates manually and keep `docs/development/02-task-board.md` plus `docs/development/01-roadmap.md` synchronized.
+10. Before marking `Done`, run `implementation closeout --task TASK-NNN --json`. Its `decision_policy` is `do_not_mark_done_without_passing_evidence`; inspect `closeout_ready`, `requirements[]`, `blocking_requirements[]`, `evidence_summary`, and `status_update_plan`. Do not mark `Done` unless `closeout_ready` is `true`. When `status_update_plan.can_auto_apply` is true, run the returned `status_update_plan.apply_command.argv` or `implementation closeout --task TASK-NNN --apply --json` so the CLI updates `docs/development/02-task-board.md` and `docs/development/01-roadmap.md` together.
 
-11. Update `docs/development/02-task-board.md` and `docs/development/01-roadmap.md` statuses together:
+11. Keep `docs/development/02-task-board.md` and `docs/development/01-roadmap.md` statuses synchronized:
    - `Done` only when code, tests, docs, and local Markdown evidence satisfy `references/implementation-readiness-checklist.md` and `references/implementation-execution-checklist.md`
    - `Blocked` when a required source, credential, environment, dependency approval, or unresolved decision prevents completion
    - `Deferred` when the task remains valid but is intentionally postponed

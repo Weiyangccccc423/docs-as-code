@@ -928,6 +928,17 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         "implementation closeout did not become ready with passing local evidence",
         payload=closeout_with_evidence,
     )
+    closeout_apply = _run_json(
+        steps,
+        "implementation_closeout_apply",
+        ["bin/governance", "implementation", "closeout", ".", "--task", IMPLEMENTATION_TASK_ID, "--apply", "--json"],
+        target,
+    )
+    _require(
+        _closeout_apply_completed(closeout_apply),
+        "implementation closeout apply did not synchronize Done statuses",
+        payload=closeout_apply,
+    )
 
     final_status = _run_json(
         steps,
@@ -958,6 +969,7 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
             "task_id": IMPLEMENTATION_TASK_ID,
             "blocked_without_evidence": closeout_without_evidence.get("closeout_ready") is False,
             "ready_with_evidence": closeout_with_evidence.get("closeout_ready") is True,
+            "applied_status_updates": closeout_apply.get("applied") is True,
             "blocking_codes_without_evidence": [
                 str(requirement.get("code"))
                 for requirement in closeout_without_evidence.get("blocking_requirements", [])
@@ -967,6 +979,10 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
                 str(update.get("path"))
                 for update in closeout_with_evidence.get("status_update_plan", {}).get("updates", [])
                 if isinstance(update, dict)
+            ],
+            "apply_updated_paths": [
+                str(path)
+                for path in closeout_apply.get("updated_paths", [])
             ],
         },
         "next": "execute exactly one Ready implementation task and apply closeout status updates after evidence passes",
@@ -1568,13 +1584,44 @@ def _closeout_ready_with_evidence(payload: dict[str, object]) -> bool:
     status_update_plan = payload.get("status_update_plan")
     if not isinstance(status_update_plan, dict):
         return False
-    if status_update_plan.get("can_auto_apply") is not False:
+    if status_update_plan.get("can_auto_apply") is not True:
         return False
     updates = status_update_plan.get("updates")
     if not isinstance(updates, list):
         return False
     update_paths = {str(update.get("path")) for update in updates if isinstance(update, dict)}
     return update_paths == {"docs/development/01-roadmap.md", "docs/development/02-task-board.md"}
+
+
+def _closeout_apply_completed(payload: dict[str, object]) -> bool:
+    if payload.get("ok") is not True:
+        return False
+    if payload.get("apply_requested") is not True:
+        return False
+    if payload.get("applied") is not True:
+        return False
+    if payload.get("closeout_ready") is not True:
+        return False
+    if payload.get("blocking_requirements") != []:
+        return False
+    updated_paths = payload.get("updated_paths")
+    if not isinstance(updated_paths, list):
+        return False
+    if set(str(path) for path in updated_paths) != {"docs/development/01-roadmap.md", "docs/development/02-task-board.md"}:
+        return False
+    evidence = payload.get("evidence_summary")
+    if not isinstance(evidence, dict):
+        return False
+    if evidence.get("task_status") != "Done" or evidence.get("roadmap_status") != "Done":
+        return False
+    status_update_plan = payload.get("status_update_plan")
+    if not isinstance(status_update_plan, dict):
+        return False
+    return (
+        status_update_plan.get("updates_required") is False
+        and status_update_plan.get("can_auto_apply") is False
+        and status_update_plan.get("updates") == []
+    )
 
 
 def _design_tracks_have_skill_loading_plans(tracks: object) -> bool:

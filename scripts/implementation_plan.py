@@ -10,13 +10,16 @@ try:
     from .state import load_state
     from .verify_governance import (
         ACCEPTANCE_MATRIX_REL,
+        ROADMAP_MILESTONE_REQUIRED_COLUMNS,
         SCAFFOLD_PLACEHOLDER,
         TASK_BOARD_ALLOWED_STATUSES,
+        TASK_BOARD_REQUIRED_COLUMNS,
         TASK_BOARD_READY_STATUSES,
         TASK_BOARD_REL,
         TASK_ID_RE,
         VERIFICATION_LOG_REL,
         _acceptance_matrix_mapped_acceptance_ids,
+        _is_separator_row,
         _is_empty_task_board_value,
         _normalize_cell,
         _roadmap_milestone_rows,
@@ -37,13 +40,16 @@ except ImportError:  # pragma: no cover - direct script execution
     from state import load_state
     from verify_governance import (
         ACCEPTANCE_MATRIX_REL,
+        ROADMAP_MILESTONE_REQUIRED_COLUMNS,
         SCAFFOLD_PLACEHOLDER,
         TASK_BOARD_ALLOWED_STATUSES,
+        TASK_BOARD_REQUIRED_COLUMNS,
         TASK_BOARD_READY_STATUSES,
         TASK_BOARD_REL,
         TASK_ID_RE,
         VERIFICATION_LOG_REL,
         _acceptance_matrix_mapped_acceptance_ids,
+        _is_separator_row,
         _is_empty_task_board_value,
         _normalize_cell,
         _roadmap_milestone_rows,
@@ -158,6 +164,7 @@ def build_implementation_closeout(root: Path, task_id: str) -> dict[str, object]
     requirements = _closeout_requirements(root, row, task_id, gate, verification_report, verification_rows, roadmap_row)
     evidence_summary = _closeout_evidence_summary(root, row, task_id, verification_rows, roadmap_row)
     ready = not errors and all(requirement["status"] == "satisfied" for requirement in requirements)
+    status_update_plan = _status_update_plan(root, row, roadmap_row, "Done", can_auto_apply=ready) if row is not None else {}
     payload: dict[str, object] = {
         "ok": not errors,
         "target": str(root),
@@ -177,7 +184,7 @@ def build_implementation_closeout(root: Path, task_id: str) -> dict[str, object]
         "blocking_requirements": [
             requirement for requirement in requirements if requirement.get("status") != "satisfied"
         ],
-        "status_update_plan": _status_update_plan(row, roadmap_row, "Done") if row is not None else {},
+        "status_update_plan": status_update_plan,
         "verify_command": _embedded_command(
             root,
             "verify-implementation-closeout",
@@ -195,6 +202,88 @@ def build_implementation_closeout(root: Path, task_id: str) -> dict[str, object]
     if not errors:
         payload["local_commands"] = target_local_commands_payload(cwd=str(root))
         payload["next_actions"] = next_actions_payload(state, cwd=str(root))
+    return payload
+
+
+def apply_implementation_closeout(root: Path, task_id: str) -> dict[str, object]:
+    root = root.resolve()
+    pre_apply = build_implementation_closeout(root, task_id)
+    pre_apply_plan = pre_apply.get("status_update_plan")
+    base_apply_payload = {
+        "apply_requested": True,
+        "applied": False,
+        "already_current": False,
+        "updated_paths": [],
+        "pre_apply_status_update_plan": pre_apply_plan if isinstance(pre_apply_plan, dict) else {},
+        "apply_errors": [],
+    }
+    pre_apply.update(base_apply_payload)
+    if pre_apply.get("ok") is not True:
+        pre_apply["apply_errors"] = list(pre_apply.get("errors", []))
+        return pre_apply
+    if pre_apply.get("closeout_ready") is not True:
+        errors = ["implementation closeout is not ready; refusing to apply status updates"]
+        pre_apply["ok"] = False
+        pre_apply["errors"] = [*list(pre_apply.get("errors", [])), *errors]
+        pre_apply["apply_errors"] = errors
+        return pre_apply
+    if not isinstance(pre_apply_plan, dict):
+        return _closeout_apply_failed(pre_apply, "implementation closeout status_update_plan is unavailable")
+    updates = pre_apply_plan.get("updates")
+    if not isinstance(updates, list):
+        return _closeout_apply_failed(pre_apply, "implementation closeout status_update_plan updates are unavailable")
+    if not updates:
+        pre_apply["already_current"] = True
+        return pre_apply
+    if pre_apply_plan.get("can_auto_apply") is not True:
+        return _closeout_apply_failed(pre_apply, "implementation closeout status updates are not safe to auto-apply")
+    validation_error = _validate_closeout_apply_updates(updates, task_id)
+    if validation_error:
+        return _closeout_apply_failed(pre_apply, validation_error)
+
+    next_texts: dict[Path, str] = {}
+    updated_paths: list[str] = []
+    try:
+        for update in updates:
+            if not isinstance(update, dict):
+                return _closeout_apply_failed(pre_apply, "implementation closeout update is malformed")
+            rel = Path(str(update.get("path", "")))
+            path = root / rel
+            text = path.read_text(encoding="utf-8")
+            columns = _status_table_columns_for_path(rel)
+            next_text, changed = _replace_status_table_cell(
+                text,
+                task_id=task_id,
+                target_status=str(update.get("to", "Done")),
+                required_columns=columns,
+            )
+            next_texts[path] = next_text
+            if changed:
+                updated_paths.append(rel.as_posix())
+    except (OSError, UnicodeDecodeError, ValueError) as error:
+        reason = error.strerror if isinstance(error, OSError) and error.strerror else str(error)
+        return _closeout_apply_failed(pre_apply, f"implementation closeout apply failed: {reason}")
+
+    for path, text in next_texts.items():
+        path.write_text(text, encoding="utf-8")
+
+    payload = build_implementation_closeout(root, task_id)
+    payload.update(
+        {
+            "apply_requested": True,
+            "applied": bool(updated_paths),
+            "already_current": not updated_paths,
+            "updated_paths": updated_paths,
+            "pre_apply_status_update_plan": pre_apply_plan,
+            "post_apply_status_update_plan": payload.get("status_update_plan", {}),
+            "apply_errors": [],
+        }
+    )
+    if payload.get("ok") is not True or payload.get("closeout_ready") is not True:
+        message = "implementation closeout verification failed after applying status updates"
+        payload["ok"] = False
+        payload["errors"] = [*list(payload.get("errors", [])), message]
+        payload["apply_errors"] = [message]
     return payload
 
 
@@ -268,11 +357,14 @@ def _closeout_requirements(
     verification_rows: list[dict[str, str]],
     roadmap_row: dict[str, str] | None,
 ) -> list[dict[str, object]]:
+    task_status_done = row is not None and _normalize_cell(row.get("status", "")) == "done"
+    roadmap_status_done = roadmap_row is not None and _normalize_cell(roadmap_row.get("status", "")) == "done"
+    implementation_gate_satisfied = gate.get("ok") is True or (task_status_done and roadmap_status_done)
     requirements: list[dict[str, object]] = [
         _closeout_requirement(
             "implementation_gate_passed",
-            gate.get("ok") is True,
-            "implementation gate must pass before a task can be marked Done",
+            implementation_gate_satisfied,
+            "implementation gate must pass before a task can be marked Done; already-Done tasks must keep passing closeout evidence",
             repair_strategy="repair_failed_implementation_gate_requirement_before_marking_done",
         ),
         _closeout_requirement(
@@ -427,9 +519,12 @@ def _closeout_task_payload(root: Path, row: dict[str, str]) -> dict[str, object]
 
 
 def _status_update_plan(
+    root: Path,
     row: dict[str, str],
     roadmap_row: dict[str, str] | None,
     target_status: str,
+    *,
+    can_auto_apply: bool,
 ) -> dict[str, object]:
     updates: list[dict[str, object]] = []
     current_task_status = row.get("status", "").strip()
@@ -455,13 +550,131 @@ def _status_update_plan(
                 "to": target_status,
             }
         )
+    safe_to_apply = bool(updates) and can_auto_apply and _updates_are_closeout_status_updates(updates, task_id, target_status)
+    apply_command = _embedded_command(
+        root,
+        "apply-implementation-closeout",
+        "Apply synchronized Done status updates to task board and roadmap after closeout evidence passes.",
+        ["bin/governance", "implementation", "closeout", ".", "--task", task_id, "--apply", "--json"],
+    )
+    apply_command["writes_state"] = True
     return {
         "target_status": target_status,
-        "can_auto_apply": False,
+        "can_auto_apply": safe_to_apply,
         "updates_required": bool(updates),
         "updates": updates,
-        "manual_policy": "update_task_board_and_roadmap_together_after_closeout_ready",
+        "apply_command": apply_command,
+        "manual_policy": "prefer_apply_command_after_closeout_ready_do_not_hand_edit_when_available",
     }
+
+
+def _updates_are_closeout_status_updates(
+    updates: list[dict[str, object]],
+    task_id: str,
+    target_status: str,
+) -> bool:
+    expected_paths = {TASK_BOARD_REL.as_posix(), ROADMAP_REL.as_posix()}
+    seen_paths: set[str] = set()
+    for update in updates:
+        path = str(update.get("path", ""))
+        if path not in expected_paths:
+            return False
+        if update.get("task_id") != task_id:
+            return False
+        if update.get("field") != "Status":
+            return False
+        if _normalize_cell(str(update.get("to", ""))) != _normalize_cell(target_status):
+            return False
+        seen_paths.add(path)
+    return seen_paths == expected_paths
+
+
+def _validate_closeout_apply_updates(updates: list[object], task_id: str) -> str:
+    if not all(isinstance(update, dict) for update in updates):
+        return "implementation closeout update list contains a malformed item"
+    typed_updates = [update for update in updates if isinstance(update, dict)]
+    if not _updates_are_closeout_status_updates(typed_updates, task_id, "Done"):
+        return "implementation closeout apply only supports synchronized task-board and roadmap Done status updates"
+    return ""
+
+
+def _status_table_columns_for_path(rel: Path) -> tuple[str, ...]:
+    rel_posix = rel.as_posix()
+    if rel_posix == TASK_BOARD_REL.as_posix():
+        return tuple(TASK_BOARD_REQUIRED_COLUMNS)
+    if rel_posix == ROADMAP_REL.as_posix():
+        return tuple(ROADMAP_MILESTONE_REQUIRED_COLUMNS)
+    raise ValueError(f"unsupported closeout status update path: {rel_posix}")
+
+
+def _replace_status_table_cell(
+    text: str,
+    *,
+    task_id: str,
+    target_status: str,
+    required_columns: tuple[str, ...],
+) -> tuple[str, bool]:
+    lines = text.splitlines(keepends=True)
+    header: list[str] | None = None
+    id_index = -1
+    status_index = -1
+    in_target_table = False
+    for index, line in enumerate(lines):
+        cells = _markdown_line_cells(line)
+        if cells is None:
+            if in_target_table:
+                break
+            continue
+        normalized = [_normalize_cell(cell) for cell in cells]
+        if header is None and "id" in normalized and "status" in normalized:
+            missing = [column for column in required_columns if column not in normalized]
+            if missing:
+                raise ValueError(f"status table is missing required columns: {', '.join(missing)}")
+            header = normalized
+            id_index = header.index("id")
+            status_index = header.index("status")
+            in_target_table = True
+            continue
+        if not in_target_table:
+            continue
+        if _is_separator_row(cells):
+            continue
+        if id_index >= len(cells) or status_index >= len(cells):
+            raise ValueError(f"status table row is missing columns for {task_id}")
+        if cells[id_index].strip() != task_id:
+            continue
+        if _normalize_cell(cells[status_index]) == _normalize_cell(target_status):
+            return text, False
+        cells[status_index] = target_status
+        lines[index] = _render_markdown_table_line(cells, line)
+        return "".join(lines), True
+    raise ValueError(f"status table row not found for {task_id}")
+
+
+def _markdown_line_cells(line: str) -> list[str] | None:
+    stripped = line.strip()
+    if not stripped.startswith("|") or not stripped.endswith("|"):
+        return None
+    return [cell.strip() for cell in stripped.strip("|").split("|")]
+
+
+def _render_markdown_table_line(cells: list[str], original_line: str) -> str:
+    newline = ""
+    if original_line.endswith("\r\n"):
+        newline = "\r\n"
+    elif original_line.endswith("\n"):
+        newline = "\n"
+    return "| " + " | ".join(cells) + " |" + newline
+
+
+def _closeout_apply_failed(payload: dict[str, object], message: str) -> dict[str, object]:
+    payload["ok"] = False
+    payload["applied"] = False
+    payload["already_current"] = False
+    payload["updated_paths"] = []
+    payload["apply_errors"] = [message]
+    payload["errors"] = [*list(payload.get("errors", [])), message]
+    return payload
 
 
 def _implementation_tasks(

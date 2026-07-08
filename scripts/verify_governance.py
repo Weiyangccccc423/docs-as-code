@@ -4253,7 +4253,6 @@ def _check_task_board(root: Path, report: VerificationReport) -> None:
     if not rows:
         report.add_error("task_board_no_tasks", f"{rel} must contain at least one implementation task row", rel)
         return
-    ready_count = 0
     seen_ids: set[str] = set()
     for row in rows:
         task_id = row.get("id", "").strip() or "(missing id)"
@@ -4308,10 +4307,6 @@ def _check_task_board(root: Path, report: VerificationReport) -> None:
             for message in evidence_errors:
                 report.add_error("task_board_done_evidence_missing", message, rel)
             continue
-        if _normalize_cell(row.get("status", "")) in TASK_BOARD_READY_STATUSES:
-            ready_count += 1
-    if ready_count == 0:
-        report.add_error("task_board_ready_task_missing", f"{rel} must contain at least one Ready task", rel)
 
 
 def _check_verification_log(root: Path, report: VerificationReport) -> None:
