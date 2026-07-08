@@ -38,7 +38,7 @@ Load:
 
    Stop on `ok: false`; route repair through `verifying-governance-docs` and the owning design or planning skill before editing code.
 
-3. Use `implementation plan --json` before editing code. Its `decision_policy` is `execute_exactly_one_ready_task`; inspect `implementation_summary`, `gate_ok`, `active_work`, `tasks[]`, `source_references`, `read_order`, `skill_requirements`, `authority_skill_requirements`, `skill_loading_plan`, and embedded `gate_command`, `verify_command`, and `refresh_command`. Stop when `active_work.status` is not `ready`, when `active_work.next_repair_action` is non-empty, or when a required authority-routing skill cannot be loaded from the agent environment.
+3. Use `implementation plan --json` before editing code. Its `decision_policy` is `execute_exactly_one_ready_task`; inspect `implementation_summary`, `gate_ok`, `active_work`, `tasks[]`, `source_references`, `read_order`, `skill_requirements`, `authority_skill_requirements`, `skill_loading_plan`, and embedded `gate_command`, `verify_command`, `closeout_command`, and `refresh_command`. Stop when `active_work.status` is not `ready`, when `active_work.next_repair_action` is non-empty, or when a required authority-routing skill cannot be loaded from the agent environment.
 
 4. Select exactly one `Ready` `TASK-NNN` from `active_work.task_id` or the first actionable `tasks[]` item. Do not start multiple task rows in one implementation pass unless the task board explicitly groups them and their verification evidence is shared.
 
@@ -59,14 +59,17 @@ Load:
    ```bash
    bin/governance verify <target> --check --json
    bin/governance implementation plan <target> --json
+   bin/governance implementation closeout <target> --task TASK-NNN --json
    ```
 
-10. Update `docs/development/02-task-board.md` and `docs/development/01-roadmap.md` statuses together:
+10. Before marking `Done`, run `implementation closeout --task TASK-NNN --json`. Its `decision_policy` is `do_not_mark_done_without_passing_evidence`; inspect `closeout_ready`, `requirements[]`, `blocking_requirements[]`, `evidence_summary`, and `status_update_plan`. Do not mark `Done` unless `closeout_ready` is `true`. Apply the reported status updates manually and keep `docs/development/02-task-board.md` plus `docs/development/01-roadmap.md` synchronized.
+
+11. Update `docs/development/02-task-board.md` and `docs/development/01-roadmap.md` statuses together:
    - `Done` only when code, tests, docs, and local Markdown evidence satisfy `references/implementation-readiness-checklist.md` and `references/implementation-execution-checklist.md`
    - `Blocked` when a required source, credential, environment, dependency approval, or unresolved decision prevents completion
    - `Deferred` when the task remains valid but is intentionally postponed
 
-11. Produce a final implementation handoff that names changed files, commands run, evidence paths, failures, follow-ups, and remaining risks.
+12. Produce a final implementation handoff that names changed files, commands run, evidence paths, failures, follow-ups, and remaining risks.
 
 ## Output
 

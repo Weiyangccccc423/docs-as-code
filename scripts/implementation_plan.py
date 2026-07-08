@@ -19,12 +19,15 @@ try:
         _acceptance_matrix_mapped_acceptance_ids,
         _is_empty_task_board_value,
         _normalize_cell,
+        _roadmap_milestone_rows,
         _task_board_acceptance_id,
         _task_board_local_references,
         _task_board_row_trace_complete,
         _task_board_row_trace_reference_errors,
         _task_board_rows,
+        _verification_log_rows,
         _verification_log_task_ids,
+        verify,
     )
     from .workflow_actions import next_actions_payload
 except ImportError:  # pragma: no cover - direct script execution
@@ -43,12 +46,15 @@ except ImportError:  # pragma: no cover - direct script execution
         _acceptance_matrix_mapped_acceptance_ids,
         _is_empty_task_board_value,
         _normalize_cell,
+        _roadmap_milestone_rows,
         _task_board_acceptance_id,
         _task_board_local_references,
         _task_board_row_trace_complete,
         _task_board_row_trace_reference_errors,
         _task_board_rows,
+        _verification_log_rows,
         _verification_log_task_ids,
+        verify,
     )
     from workflow_actions import next_actions_payload
 
@@ -73,6 +79,8 @@ BASE_SOURCE_DOCUMENTS = (
 OPTIONAL_SOURCE_DOCUMENTS = (
     "docs/agent-workflow/task-handoff.md",
 )
+ROADMAP_REL = Path("docs/development/01-roadmap.md")
+PASSING_VERIFICATION_RESULTS = {"ok", "pass", "passed", "success", "succeeded", "green"}
 
 
 def build_implementation_plan(root: Path) -> dict[str, object]:
@@ -124,6 +132,72 @@ def build_implementation_plan(root: Path) -> dict[str, object]:
     return payload
 
 
+def build_implementation_closeout(root: Path, task_id: str) -> dict[str, object]:
+    root = root.resolve()
+    state = load_state(root)
+    phase = state.get("phase") if isinstance(state.get("phase"), str) else ""
+    task_id = task_id.strip()
+    errors: list[str] = []
+    if not state:
+        errors.append("No governance state found.")
+    elif phase != IMPLEMENTATION_PHASE:
+        errors.append(f"implementation closeout requires recorded phase {IMPLEMENTATION_PHASE}")
+    if TASK_ID_RE.fullmatch(task_id) is None:
+        errors.append("implementation closeout requires --task TASK-NNN")
+
+    rows, row_errors = _read_task_rows(root)
+    errors.extend(row_errors)
+    row = _task_row_by_id(rows, task_id)
+    if row is None and not any(error.startswith("implementation closeout requires --task") for error in errors):
+        errors.append(f"implementation closeout task not found: {task_id}")
+
+    verification_report = verify(root)
+    gate = evaluate_gate(root, IMPLEMENTATION_PHASE).to_dict() if state else {}
+    verification_rows = _verification_rows_for_task(root, task_id)
+    roadmap_row = _roadmap_row_for_task(root, task_id)
+    requirements = _closeout_requirements(root, row, task_id, gate, verification_report, verification_rows, roadmap_row)
+    evidence_summary = _closeout_evidence_summary(root, row, task_id, verification_rows, roadmap_row)
+    ready = not errors and all(requirement["status"] == "satisfied" for requirement in requirements)
+    payload: dict[str, object] = {
+        "ok": not errors,
+        "target": str(root),
+        "phase": phase,
+        "workflow": IMPLEMENTATION_WORKFLOW_PATH,
+        "decision_policy": "do_not_mark_done_without_passing_evidence",
+        "primary_skill": "executing-implementation-task",
+        "task_id": task_id,
+        "closeout_ready": ready,
+        "target_status": "Done",
+        "gate": gate,
+        "gate_ok": gate.get("ok") is True,
+        "verification_ok": verification_report.ok,
+        "task": _closeout_task_payload(root, row) if row is not None else {},
+        "evidence_summary": evidence_summary,
+        "requirements": requirements,
+        "blocking_requirements": [
+            requirement for requirement in requirements if requirement.get("status") != "satisfied"
+        ],
+        "status_update_plan": _status_update_plan(row, roadmap_row, "Done") if row is not None else {},
+        "verify_command": _embedded_command(
+            root,
+            "verify-implementation-closeout",
+            "Run read-only governance verification before and after task closeout evidence changes.",
+            ["bin/governance", "verify", ".", "--check", "--json"],
+        ),
+        "refresh_command": _embedded_command(
+            root,
+            "refresh-implementation-closeout",
+            "Refresh this implementation closeout plan after evidence or status changes.",
+            ["bin/governance", "implementation", "closeout", ".", "--task", task_id, "--json"],
+        ),
+        "errors": errors,
+    }
+    if not errors:
+        payload["local_commands"] = target_local_commands_payload(cwd=str(root))
+        payload["next_actions"] = next_actions_payload(state, cwd=str(root))
+    return payload
+
+
 def _read_task_rows(root: Path) -> tuple[list[dict[str, str]], list[str]]:
     path = root / TASK_BOARD_REL
     if not path.exists():
@@ -145,6 +219,249 @@ def _read_task_rows(root: Path) -> tuple[list[dict[str, str]], list[str]]:
             f"{TASK_BOARD_REL.as_posix()} table is missing required columns: {', '.join(missing)}"
         ]
     return rows, []
+
+
+def _task_row_by_id(rows: list[dict[str, str]], task_id: str) -> dict[str, str] | None:
+    for row in rows:
+        if row.get("id", "").strip() == task_id:
+            return row
+    return None
+
+
+def _verification_rows_for_task(root: Path, task_id: str) -> list[dict[str, str]]:
+    path = root / VERIFICATION_LOG_REL
+    if not path.is_file():
+        return []
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return []
+    rows, missing = _verification_log_rows(text)
+    if missing:
+        return []
+    return [row for row in rows if row.get("task", "").strip() == task_id]
+
+
+def _roadmap_row_for_task(root: Path, task_id: str) -> dict[str, str] | None:
+    path = root / ROADMAP_REL
+    if not path.is_file():
+        return None
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
+    rows, missing = _roadmap_milestone_rows(text)
+    if missing:
+        return None
+    for row in rows:
+        if row.get("id", "").strip() == task_id:
+            return row
+    return None
+
+
+def _closeout_requirements(
+    root: Path,
+    row: dict[str, str] | None,
+    task_id: str,
+    gate: dict[str, object],
+    verification_report: Any,
+    verification_rows: list[dict[str, str]],
+    roadmap_row: dict[str, str] | None,
+) -> list[dict[str, object]]:
+    requirements: list[dict[str, object]] = [
+        _closeout_requirement(
+            "implementation_gate_passed",
+            gate.get("ok") is True,
+            "implementation gate must pass before a task can be marked Done",
+            repair_strategy="repair_failed_implementation_gate_requirement_before_marking_done",
+        ),
+        _closeout_requirement(
+            "governance_verify_passed",
+            verification_report.ok,
+            "read-only governance verification must pass before closeout",
+            repair_strategy="repair_governance_verification_findings_before_marking_done",
+        ),
+    ]
+    if row is None:
+        requirements.append(
+            _closeout_requirement(
+                "task_board_row_present",
+                False,
+                f"{task_id} must exist in {TASK_BOARD_REL.as_posix()}",
+                path=TASK_BOARD_REL.as_posix(),
+                repair_strategy="add_or_restore_task_board_row_before_closeout",
+            )
+        )
+        return requirements
+
+    acceptance_id = _task_board_acceptance_id(row.get("acceptance", ""))
+    matrix_ids = _acceptance_matrix_mapped_acceptance_ids(root)
+    trace_errors = _task_board_row_trace_reference_errors(root, row, task_id)
+    requirements.extend(
+        [
+            _closeout_requirement(
+                "task_board_row_present",
+                True,
+                f"{task_id} exists in {TASK_BOARD_REL.as_posix()}",
+                path=TASK_BOARD_REL.as_posix(),
+            ),
+            _closeout_requirement(
+                "task_trace_links_valid",
+                not trace_errors and _task_board_row_trace_complete(row),
+                "task Product, Design, API, Acceptance, and Verification sources must be traceable",
+                path=TASK_BOARD_REL.as_posix(),
+                detail="; ".join(message for _code, message in trace_errors),
+                repair_strategy="repair_task_board_traceability_before_marking_done",
+            ),
+            _closeout_requirement(
+                "acceptance_matrix_mapped",
+                matrix_ids is not None and acceptance_id is not None and acceptance_id in matrix_ids,
+                "task acceptance ID must be mapped in the acceptance matrix",
+                path=ACCEPTANCE_MATRIX_REL.as_posix(),
+                detail=acceptance_id or "missing acceptance ID",
+                repair_strategy="map_task_acceptance_in_acceptance_matrix_before_marking_done",
+            ),
+            _closeout_requirement(
+                "verification_log_row_present",
+                bool(verification_rows),
+                "verification log must contain a row for the task",
+                path=VERIFICATION_LOG_REL.as_posix(),
+                repair_strategy="record_task_verification_run_before_marking_done",
+            ),
+            _closeout_requirement(
+                "verification_result_passing",
+                any(_verification_row_passed(row) for row in verification_rows),
+                "at least one task verification result must be passing",
+                path=VERIFICATION_LOG_REL.as_posix(),
+                detail=", ".join(row.get("result", "").strip() for row in verification_rows),
+                repair_strategy="run_required_task_checks_and_record_passing_result",
+            ),
+            _closeout_requirement(
+                "task_verification_links_local_evidence",
+                _verification_cell_has_local_evidence(root, row),
+                "task Verification cell must link local Markdown evidence before Done",
+                path=TASK_BOARD_REL.as_posix(),
+                repair_strategy="link_task_verification_to_local_markdown_evidence",
+            ),
+            _closeout_requirement(
+                "roadmap_row_present",
+                roadmap_row is not None,
+                f"{task_id} must exist in {ROADMAP_REL.as_posix()}",
+                path=ROADMAP_REL.as_posix(),
+                repair_strategy="add_or_restore_matching_roadmap_row_before_closeout",
+            ),
+        ]
+    )
+    return requirements
+
+
+def _closeout_requirement(
+    code: str,
+    satisfied: bool,
+    message: str,
+    *,
+    path: str = "",
+    detail: str = "",
+    repair_strategy: str = "",
+) -> dict[str, object]:
+    return {
+        "code": code,
+        "status": "satisfied" if satisfied else "missing",
+        "ok": satisfied,
+        "path": path,
+        "message": message,
+        "detail": detail,
+        "repair_strategy": repair_strategy,
+    }
+
+
+def _verification_row_passed(row: dict[str, str]) -> bool:
+    result = _normalize_cell(row.get("result", ""))
+    return result in PASSING_VERIFICATION_RESULTS
+
+
+def _verification_cell_has_local_evidence(root: Path, row: dict[str, str]) -> bool:
+    references = _task_board_local_references(root, row.get("verification", ""))
+    return any(reference.exists for reference in references)
+
+
+def _closeout_evidence_summary(
+    root: Path,
+    row: dict[str, str] | None,
+    task_id: str,
+    verification_rows: list[dict[str, str]],
+    roadmap_row: dict[str, str] | None,
+) -> dict[str, object]:
+    verification_refs = _task_board_local_references(root, row.get("verification", "")) if row is not None else []
+    return {
+        "task_id": task_id,
+        "task_status": row.get("status", "").strip() if row is not None else "",
+        "roadmap_status": roadmap_row.get("status", "").strip() if roadmap_row is not None else "",
+        "verification_logged": bool(verification_rows),
+        "passing_verification_logged": any(_verification_row_passed(item) for item in verification_rows),
+        "verification_results": [
+            {
+                "command": item.get("command", "").strip(),
+                "result": item.get("result", "").strip(),
+                "date": item.get("date", "").strip(),
+                "notes": item.get("notes", "").strip(),
+                "passing": _verification_row_passed(item),
+            }
+            for item in verification_rows
+        ],
+        "verification_references": _references_payload(verification_refs),
+        "verification_links_local_evidence": any(reference.exists for reference in verification_refs),
+    }
+
+
+def _closeout_task_payload(root: Path, row: dict[str, str]) -> dict[str, object]:
+    acceptance_id = _task_board_acceptance_id(row.get("acceptance", ""))
+    return {
+        "task_id": row.get("id", "").strip(),
+        "status": row.get("status", "").strip(),
+        "title": _plain_task_title(row.get("task", "")),
+        "acceptance_id": acceptance_id or "",
+        "source_references": _source_references(root, row),
+        "verification": row.get("verification", "").strip(),
+    }
+
+
+def _status_update_plan(
+    row: dict[str, str],
+    roadmap_row: dict[str, str] | None,
+    target_status: str,
+) -> dict[str, object]:
+    updates: list[dict[str, object]] = []
+    current_task_status = row.get("status", "").strip()
+    task_id = row.get("id", "").strip()
+    if _normalize_cell(current_task_status) != _normalize_cell(target_status):
+        updates.append(
+            {
+                "path": TASK_BOARD_REL.as_posix(),
+                "task_id": task_id,
+                "field": "Status",
+                "from": current_task_status,
+                "to": target_status,
+            }
+        )
+    current_roadmap_status = roadmap_row.get("status", "").strip() if roadmap_row is not None else ""
+    if roadmap_row is not None and _normalize_cell(current_roadmap_status) != _normalize_cell(target_status):
+        updates.append(
+            {
+                "path": ROADMAP_REL.as_posix(),
+                "task_id": task_id,
+                "field": "Status",
+                "from": current_roadmap_status,
+                "to": target_status,
+            }
+        )
+    return {
+        "target_status": target_status,
+        "can_auto_apply": False,
+        "updates_required": bool(updates),
+        "updates": updates,
+        "manual_policy": "update_task_board_and_roadmap_together_after_closeout_ready",
+    }
 
 
 def _implementation_tasks(
@@ -388,6 +705,12 @@ def _task_steps(root: Path, specialist_skills: list[str]) -> list[dict[str, obje
             },
             _embedded_command(
                 root,
+                "implementation-closeout",
+                "Check whether the selected implementation task has enough evidence to mark Done.",
+                ["bin/governance", "implementation", "closeout", ".", "--task", "TASK-NNN", "--json"],
+            ),
+            _embedded_command(
+                root,
                 "refresh-implementation-plan",
                 "Refresh the implementation plan after status or evidence changes.",
                 ["bin/governance", "implementation", "plan", ".", "--json"],
@@ -425,6 +748,7 @@ def _active_implementation_work(
             "gate_ok": gate.get("ok") is True,
             "gate_command": _embedded_command(root, "implementation-gate", "Confirm the implementation gate.", ["bin/governance", "gate", "implementation", ".", "--json"]),
             "verify_command": _embedded_command(root, "verify-implementation-execution", "Run read-only governance verification.", ["bin/governance", "verify", ".", "--check", "--json"]),
+            "closeout_command": _embedded_command(root, "implementation-closeout", "Check task closeout evidence before marking Done.", ["bin/governance", "implementation", "closeout", ".", "--task", "TASK-NNN", "--json"]),
             "refresh_command": _embedded_command(root, "refresh-implementation-plan", "Refresh the implementation task plan.", ["bin/governance", "implementation", "plan", ".", "--json"]),
         }
     blockers = selected.get("blockers") if isinstance(selected.get("blockers"), list) else []
@@ -452,6 +776,7 @@ def _active_implementation_work(
         "gate_ok": gate.get("ok") is True,
         "gate_command": _embedded_command(root, "implementation-gate", "Confirm the implementation gate.", ["bin/governance", "gate", "implementation", ".", "--json"]),
         "verify_command": _embedded_command(root, "verify-implementation-execution", "Run read-only governance verification.", ["bin/governance", "verify", ".", "--check", "--json"]),
+        "closeout_command": _embedded_command(root, "implementation-closeout", "Check task closeout evidence before marking Done.", ["bin/governance", "implementation", "closeout", ".", "--task", str(selected.get("task_id", "")), "--json"]),
         "refresh_command": _embedded_command(root, "refresh-implementation-plan", "Refresh the implementation task plan.", ["bin/governance", "implementation", "plan", ".", "--json"]),
     }
 

@@ -2852,6 +2852,10 @@ class GovernanceCliTest(unittest.TestCase):
                 ["bin/governance", "implementation", "plan", ".", "--json"],
                 payload["active_work"]["refresh_command"]["argv"],
             )
+            self.assertEqual(
+                ["bin/governance", "implementation", "closeout", ".", "--task", "TASK-001", "--json"],
+                payload["active_work"]["closeout_command"]["argv"],
+            )
             self.assertEqual(1, len(payload["tasks"]))
             task = payload["tasks"][0]
             self.assertTrue(task["actionable"])
@@ -2885,9 +2889,120 @@ class GovernanceCliTest(unittest.TestCase):
                     "implement-one-task",
                     "run-task-verification",
                     "update-task-evidence",
+                    "implementation-closeout",
                     "refresh-implementation-plan",
                 ],
                 [step["id"] for step in task["steps"]],
+            )
+
+    def test_implementation_closeout_blocks_done_without_verification_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp)
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "implementation",
+                    "closeout",
+                    str(target),
+                    "--task",
+                    "TASK-001",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertFalse(payload["closeout_ready"])
+            self.assertEqual("do_not_mark_done_without_passing_evidence", payload["decision_policy"])
+            requirements = {requirement["code"]: requirement for requirement in payload["requirements"]}
+            self.assertEqual("satisfied", requirements["implementation_gate_passed"]["status"])
+            self.assertEqual("satisfied", requirements["governance_verify_passed"]["status"])
+            self.assertEqual("missing", requirements["verification_log_row_present"]["status"])
+            self.assertEqual("missing", requirements["verification_result_passing"]["status"])
+            self.assertEqual("missing", requirements["task_verification_links_local_evidence"]["status"])
+            self.assertFalse(payload["evidence_summary"]["verification_logged"])
+            self.assertFalse(payload["evidence_summary"]["verification_links_local_evidence"])
+            self.assertEqual(
+                ["bin/governance", "implementation", "closeout", ".", "--task", "TASK-001", "--json"],
+                payload["refresh_command"]["argv"],
+            )
+
+    def test_implementation_closeout_reports_done_status_sync_plan_with_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp)
+            (target / "docs/development/02-task-board.md").write_text(
+                _task_board_doc(
+                    "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | "
+                    "docs/architecture/01-system-context.md | docs/api/00-conventions.md | "
+                    "docs/product/08-acceptance-criteria.md | docs/development/03-verification-log.md |\n"
+                ),
+                encoding="utf-8",
+            )
+            (target / "docs/development/03-verification-log.md").write_text(
+                _verification_log_doc(
+                    "| TASK-001 | make test | pass | 2026-07-08 | Local verification passed. |\n"
+                ),
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "implementation",
+                    "closeout",
+                    str(target),
+                    "--task",
+                    "TASK-001",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertTrue(payload["closeout_ready"])
+            self.assertTrue(payload["gate_ok"])
+            self.assertTrue(payload["verification_ok"])
+            self.assertEqual("TASK-001", payload["task_id"])
+            self.assertEqual("Done", payload["target_status"])
+            self.assertEqual([], payload["blocking_requirements"])
+            self.assertTrue(payload["evidence_summary"]["verification_logged"])
+            self.assertTrue(payload["evidence_summary"]["passing_verification_logged"])
+            self.assertTrue(payload["evidence_summary"]["verification_links_local_evidence"])
+            self.assertEqual("pass", payload["evidence_summary"]["verification_results"][0]["result"])
+            self.assertEqual("docs/development/03-verification-log.md", payload["evidence_summary"]["verification_references"][0]["path"])
+            self.assertEqual("docs/product/01-goals.md", payload["task"]["source_references"]["product"]["references"][0]["path"])
+            self.assertEqual("Done", payload["status_update_plan"]["target_status"])
+            self.assertFalse(payload["status_update_plan"]["can_auto_apply"])
+            self.assertTrue(payload["status_update_plan"]["updates_required"])
+            self.assertEqual(
+                [
+                    {
+                        "path": "docs/development/02-task-board.md",
+                        "task_id": "TASK-001",
+                        "field": "Status",
+                        "from": "Ready",
+                        "to": "Done",
+                    },
+                    {
+                        "path": "docs/development/01-roadmap.md",
+                        "task_id": "TASK-001",
+                        "field": "Status",
+                        "from": "Ready",
+                        "to": "Done",
+                    },
+                ],
+                payload["status_update_plan"]["updates"],
             )
 
     def test_workflow_plan_reports_implementation_task_queue(self) -> None:

@@ -2557,7 +2557,7 @@ GOVERNANCE_CLI_REQUIRED_SUBCOMMANDS = {
         "implementation-planning-authoring",
         "architecture-decisions-authoring",
     ),
-    "implementation": ("plan",),
+    "implementation": ("plan", "closeout"),
 }
 GOVERNANCE_CLI_PARSER_VARIABLES = {
     "top-level": "sub",
