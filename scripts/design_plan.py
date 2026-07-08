@@ -469,6 +469,10 @@ def build_api_authoring(root: Path) -> dict[str, object]:
         errors.append("No product acceptance criteria with A-NNN headings found.")
     skills = ["designing-api-contracts"]
     specialist_skills = _specialist_skills(API_TRACK_ID)
+    authoring_tasks = [
+        _api_authoring_task(root, candidate, index)
+        for index, candidate in enumerate(candidates, start=1)
+    ]
     payload: dict[str, object] = {
         "ok": not errors,
         "target": str(root),
@@ -485,10 +489,8 @@ def build_api_authoring(root: Path) -> dict[str, object]:
             "references/security-design-checklist.md",
         ],
         "source_documents": _source_documents(root),
-        "authoring_tasks": [
-            _api_authoring_task(root, candidate, index)
-            for index, candidate in enumerate(candidates, start=1)
-        ],
+        "authoring_tasks": authoring_tasks,
+        "authoring_summary": _authoring_summary(authoring_tasks),
         "errors": errors,
     }
     if not errors:
@@ -511,6 +513,10 @@ def build_backend_authoring(root: Path) -> dict[str, object]:
         errors.append("No product acceptance criteria with A-NNN headings found.")
     skills = ["designing-backend-modules", "designing-data-models"]
     specialist_skills = _combined_specialist_skills(BACKEND_TRACK_ID, DATA_MODEL_TRACK_ID)
+    authoring_tasks = [
+        _backend_authoring_task(root, candidate, index)
+        for index, candidate in enumerate(candidates, start=1)
+    ]
     payload: dict[str, object] = {
         "ok": not errors,
         "target": str(root),
@@ -528,10 +534,8 @@ def build_backend_authoring(root: Path) -> dict[str, object]:
             "references/security-design-checklist.md",
         ],
         "source_documents": _source_documents(root),
-        "authoring_tasks": [
-            _backend_authoring_task(root, candidate, index)
-            for index, candidate in enumerate(candidates, start=1)
-        ],
+        "authoring_tasks": authoring_tasks,
+        "authoring_summary": _authoring_summary(authoring_tasks),
         "errors": errors,
     }
     if not errors:
@@ -554,6 +558,10 @@ def build_frontend_authoring(root: Path) -> dict[str, object]:
         errors.append("No product acceptance criteria with A-NNN headings found.")
     skills = ["designing-ui-interactions", "designing-frontend-modules"]
     specialist_skills = _combined_specialist_skills(UI_INTERACTION_TRACK_ID, FRONTEND_TRACK_ID)
+    authoring_tasks = [
+        _frontend_authoring_task(root, candidate, index)
+        for index, candidate in enumerate(candidates, start=1)
+    ]
     payload: dict[str, object] = {
         "ok": not errors,
         "target": str(root),
@@ -569,10 +577,8 @@ def build_frontend_authoring(root: Path) -> dict[str, object]:
             "references/security-design-checklist.md",
         ],
         "source_documents": _source_documents(root),
-        "authoring_tasks": [
-            _frontend_authoring_task(root, candidate, index)
-            for index, candidate in enumerate(candidates, start=1)
-        ],
+        "authoring_tasks": authoring_tasks,
+        "authoring_summary": _authoring_summary(authoring_tasks),
         "errors": errors,
     }
     if not errors:
@@ -595,6 +601,10 @@ def build_test_strategy_authoring(root: Path) -> dict[str, object]:
         errors.append("No product acceptance criteria with A-NNN headings found.")
     skills = ["designing-test-strategy"]
     specialist_skills = _specialist_skills(TEST_STRATEGY_TRACK_ID)
+    authoring_tasks = [
+        _test_strategy_authoring_task(root, candidate, index)
+        for index, candidate in enumerate(candidates, start=1)
+    ]
     payload: dict[str, object] = {
         "ok": not errors,
         "target": str(root),
@@ -610,10 +620,8 @@ def build_test_strategy_authoring(root: Path) -> dict[str, object]:
             "references/security-design-checklist.md",
         ],
         "source_documents": _source_documents(root),
-        "authoring_tasks": [
-            _test_strategy_authoring_task(root, candidate, index)
-            for index, candidate in enumerate(candidates, start=1)
-        ],
+        "authoring_tasks": authoring_tasks,
+        "authoring_summary": _authoring_summary(authoring_tasks),
         "errors": errors,
     }
     if not errors:
@@ -637,6 +645,15 @@ def build_implementation_planning_authoring(root: Path) -> dict[str, object]:
     start_task_prefix = _next_task_prefix(root)
     skills = ["planning-implementation-work"]
     specialist_skills = _specialist_skills(IMPLEMENTATION_PLANNING_TRACK_ID)
+    authoring_tasks = [
+        _implementation_planning_authoring_task(
+            root,
+            candidate,
+            index,
+            f"TASK-{start_task_prefix + index - 1:03d}",
+        )
+        for index, candidate in enumerate(candidates, start=1)
+    ]
     payload: dict[str, object] = {
         "ok": not errors,
         "target": str(root),
@@ -652,15 +669,8 @@ def build_implementation_planning_authoring(root: Path) -> dict[str, object]:
             "references/implementation-execution-checklist.md",
         ],
         "source_documents": _source_documents(root),
-        "authoring_tasks": [
-            _implementation_planning_authoring_task(
-                root,
-                candidate,
-                index,
-                f"TASK-{start_task_prefix + index - 1:03d}",
-            )
-            for index, candidate in enumerate(candidates, start=1)
-        ],
+        "authoring_tasks": authoring_tasks,
+        "authoring_summary": _authoring_summary(authoring_tasks),
         "errors": errors,
     }
     if not errors:
@@ -684,6 +694,10 @@ def build_architecture_decisions_authoring(root: Path) -> dict[str, object]:
     next_adr_prefix = f"{_next_adr_prefix(root):03d}"
     skills = ["capturing-architecture-decisions"]
     specialist_skills = _specialist_skills(ARCHITECTURE_DECISIONS_TRACK_ID)
+    authoring_tasks = [
+        _architecture_decision_authoring_task(root, candidate, index, next_adr_prefix)
+        for index, candidate in enumerate(candidates, start=1)
+    ]
     payload: dict[str, object] = {
         "ok": not errors,
         "target": str(root),
@@ -699,16 +713,45 @@ def build_architecture_decisions_authoring(root: Path) -> dict[str, object]:
             "references/architecture-decision-record-checklist.md",
         ],
         "source_documents": _source_documents(root),
-        "authoring_tasks": [
-            _architecture_decision_authoring_task(root, candidate, index, next_adr_prefix)
-            for index, candidate in enumerate(candidates, start=1)
-        ],
+        "authoring_tasks": authoring_tasks,
+        "authoring_summary": _authoring_summary(authoring_tasks),
         "errors": errors,
     }
     if not errors:
         payload["local_commands"] = target_local_commands_payload(cwd=str(root))
         payload["next_actions"] = next_actions_payload(state, cwd=str(root))
     return payload
+
+
+def _authoring_summary(tasks: list[dict[str, object]]) -> dict[str, object]:
+    status_counts: dict[str, int] = {}
+    non_satisfied_count = 0
+    open_decision_count = 0
+    repair_action_count = 0
+    for task in tasks:
+        open_decisions = task.get("open_decisions")
+        if isinstance(open_decisions, list):
+            open_decision_count += len(open_decisions)
+        repair_actions = task.get("link_repair_actions")
+        if isinstance(repair_actions, list):
+            repair_action_count += len(repair_actions)
+        required_links = task.get("required_links")
+        if not isinstance(required_links, list):
+            continue
+        for link in required_links:
+            if not isinstance(link, dict):
+                continue
+            status = str(link.get("status", "unknown") or "unknown")
+            status_counts[status] = status_counts.get(status, 0) + 1
+            if status != "satisfied":
+                non_satisfied_count += 1
+    return {
+        "task_count": len(tasks),
+        "open_decision_count": open_decision_count,
+        "required_link_status_counts": dict(sorted(status_counts.items())),
+        "non_satisfied_required_link_count": non_satisfied_count,
+        "link_repair_action_count": repair_action_count,
+    }
 
 
 def _source_documents(root: Path) -> list[str]:

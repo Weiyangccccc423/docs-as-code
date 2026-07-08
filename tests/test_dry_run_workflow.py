@@ -36,6 +36,44 @@ class DryRunWorkflowTest(unittest.TestCase):
         task["evidence_repair_actions"][0]["verify_command"]["writes_state"] = True
         self.assertFalse(dry_run_workflow._task_evidence_repairs_cover_required_statuses(task))
 
+    def test_product_authoring_summary_must_match_tasks(self) -> None:
+        payload = {
+            "manual_authoring_tasks": [
+                {
+                    "open_decisions": ["chapter_in_scope", "source_evidence"],
+                    "required_evidence": [
+                        {"id": "chapter-file-authored", "target": "docs/product/01-background.md", "status": "missing"},
+                        {"id": "product-readme-indexed", "target": "docs/product/README.md", "status": "satisfied"},
+                    ],
+                    "evidence_repair_actions": [
+                        _repair_action(
+                            kind="required-evidence-repair",
+                            item_key="evidence_id",
+                            item_value="chapter-file-authored",
+                            target="docs/product/01-background.md",
+                            status="missing",
+                            refresh_argv=["bin/governance", "product", "plan", ".", "--json"],
+                        )
+                    ],
+                }
+            ],
+            "manual_authoring_summary": {
+                "task_count": 1,
+                "open_decision_count": 2,
+                "required_evidence_status_counts": {
+                    "missing": 1,
+                    "satisfied": 1,
+                },
+                "non_satisfied_required_evidence_count": 1,
+                "evidence_repair_action_count": 1,
+            },
+        }
+
+        self.assertTrue(dry_run_workflow._manual_authoring_summary_matches_tasks(payload))
+
+        payload["manual_authoring_summary"]["task_count"] = 2
+        self.assertFalse(dry_run_workflow._manual_authoring_summary_matches_tasks(payload))
+
     def test_design_link_repair_schema_requires_refresh_command(self) -> None:
         task = {
             "required_links": [
@@ -57,6 +95,44 @@ class DryRunWorkflowTest(unittest.TestCase):
 
         del task["link_repair_actions"][0]["refresh_command"]
         self.assertFalse(dry_run_workflow._task_link_repairs_cover_required_statuses(task))
+
+    def test_design_authoring_summary_must_match_tasks(self) -> None:
+        payload = {
+            "authoring_tasks": [
+                {
+                    "open_decisions": ["api_contract", "frontend_consumers"],
+                    "required_links": [
+                        {"kind": "api_contract", "target": "docs/api/endpoints/01-flow.md", "status": "missing"},
+                        {"kind": "product_acceptance", "target": "docs/product/08-acceptance.md", "status": "satisfied"},
+                    ],
+                    "link_repair_actions": [
+                        _repair_action(
+                            kind="required-link-repair",
+                            item_key="link_kind",
+                            item_value="api_contract",
+                            target="docs/api/endpoints/01-flow.md",
+                            status="missing",
+                            refresh_argv=["bin/governance", "design", "backend-authoring", ".", "--json"],
+                        )
+                    ],
+                }
+            ],
+            "authoring_summary": {
+                "task_count": 1,
+                "open_decision_count": 2,
+                "required_link_status_counts": {
+                    "missing": 1,
+                    "satisfied": 1,
+                },
+                "non_satisfied_required_link_count": 1,
+                "link_repair_action_count": 1,
+            },
+        }
+
+        self.assertTrue(dry_run_workflow._authoring_summary_matches_tasks(payload))
+
+        payload["authoring_summary"]["required_link_status_counts"]["missing"] = 2
+        self.assertFalse(dry_run_workflow._authoring_summary_matches_tasks(payload))
 
     def test_dry_run_reaches_design_authoring_queues(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -4648,6 +4648,21 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn("background-and-problems", required_decisions)
             self.assertNotIn("acceptance-criteria", required_decisions)
             manual_tasks = {task["chapter"]: task for task in payload["manual_authoring_tasks"]}
+            self.assertEqual(
+                {
+                    "task_count": 4,
+                    "open_decision_count": 21,
+                    "required_evidence_status_counts": {
+                        "missing": 5,
+                        "not_indexed": 4,
+                        "not_linked": 4,
+                        "pending_review": 12,
+                    },
+                    "non_satisfied_required_evidence_count": 25,
+                    "evidence_repair_action_count": 25,
+                },
+                payload["manual_authoring_summary"],
+            )
             self.assertIn("background-and-problems", manual_tasks)
             self.assertNotIn("acceptance-criteria", manual_tasks)
             background_task = manual_tasks["background-and-problems"]
@@ -4816,6 +4831,21 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn("acceptance-criteria", required_decisions)
             self.assertEqual("no conservative PRD heading match found", required_decisions["acceptance-criteria"]["reason"])
             self.assertIn("key=PRD Heading", required_decisions["acceptance-criteria"]["decision"])
+            self.assertEqual(
+                {
+                    "task_count": 5,
+                    "open_decision_count": 27,
+                    "required_evidence_status_counts": {
+                        "missing": 7,
+                        "not_indexed": 5,
+                        "not_linked": 5,
+                        "pending_review": 15,
+                    },
+                    "non_satisfied_required_evidence_count": 32,
+                    "evidence_repair_action_count": 32,
+                },
+                payload["manual_authoring_summary"],
+            )
             manual_tasks = {task["chapter"]: task for task in payload["manual_authoring_tasks"]}
             self.assertIn("acceptance-criteria", manual_tasks)
             acceptance_task = manual_tasks["acceptance-criteria"]
@@ -6216,6 +6246,19 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn("references/security-design-checklist.md", payload["references"])
             self.assertIn("local_commands", payload)
             self.assertEqual("advance-implementation-check", payload["next_actions"][0]["id"])
+            self.assertEqual(
+                {
+                    "task_count": 1,
+                    "open_decision_count": 8,
+                    "required_link_status_counts": {
+                        "placeholder_present": 4,
+                        "satisfied": 2,
+                    },
+                    "non_satisfied_required_link_count": 4,
+                    "link_repair_action_count": 4,
+                },
+                payload["authoring_summary"],
+            )
             self.assertEqual(1, len(payload["authoring_tasks"]))
             task = payload["authoring_tasks"][0]
             self.assertEqual("API-AUTHOR-001", task["task_id"])

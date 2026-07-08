@@ -264,6 +264,7 @@ def build_product_plan(root: Path) -> dict[str, object]:
     suggested_mappings = _suggest_chapter_mappings(prd_headings)
     required_decisions = _required_product_decisions(suggested_mappings)
     manual_authoring_tasks = _manual_authoring_tasks(root, required_decisions)
+    manual_authoring_summary = _manual_authoring_summary(manual_authoring_tasks)
     steps = _product_plan_steps(root, suggested_mappings, required_decisions)
     payload: dict[str, object] = {
         "ok": not errors,
@@ -281,6 +282,7 @@ def build_product_plan(root: Path) -> dict[str, object]:
         "suggested_mappings": suggested_mappings,
         "required_decisions": required_decisions,
         "manual_authoring_tasks": manual_authoring_tasks,
+        "manual_authoring_summary": manual_authoring_summary,
         "steps": steps,
         "errors": errors,
     }
@@ -461,6 +463,37 @@ def _manual_authoring_tasks(root: Path, required_decisions: list[dict[str, str]]
         _manual_authoring_task(root, decision, index)
         for index, decision in enumerate(required_decisions, start=1)
     ]
+
+
+def _manual_authoring_summary(tasks: list[dict[str, object]]) -> dict[str, object]:
+    status_counts: dict[str, int] = {}
+    non_satisfied_count = 0
+    open_decision_count = 0
+    repair_action_count = 0
+    for task in tasks:
+        open_decisions = task.get("open_decisions")
+        if isinstance(open_decisions, list):
+            open_decision_count += len(open_decisions)
+        repair_actions = task.get("evidence_repair_actions")
+        if isinstance(repair_actions, list):
+            repair_action_count += len(repair_actions)
+        required_evidence = task.get("required_evidence")
+        if not isinstance(required_evidence, list):
+            continue
+        for evidence in required_evidence:
+            if not isinstance(evidence, dict):
+                continue
+            status = str(evidence.get("status", "unknown") or "unknown")
+            status_counts[status] = status_counts.get(status, 0) + 1
+            if status != "satisfied":
+                non_satisfied_count += 1
+    return {
+        "task_count": len(tasks),
+        "open_decision_count": open_decision_count,
+        "required_evidence_status_counts": dict(sorted(status_counts.items())),
+        "non_satisfied_required_evidence_count": non_satisfied_count,
+        "evidence_repair_action_count": repair_action_count,
+    }
 
 
 def _manual_authoring_task(root: Path, decision: dict[str, str], index: int) -> dict[str, object]:

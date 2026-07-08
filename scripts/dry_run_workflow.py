@@ -375,6 +375,11 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         "product plan evidence repair actions did not cover non-satisfied required evidence",
         payload=product_plan,
     )
+    _require(
+        _manual_authoring_summary_matches_tasks(product_plan),
+        "product plan manual authoring summary did not match task details",
+        payload=product_plan,
+    )
 
     product_scaffold_check = _run_json(
         steps,
@@ -563,6 +568,11 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         authoring_task_counts[command] = len(tasks)
         _require(len(tasks) == expected_task_count, f"{command} task count mismatch", payload=payload)
         _require(
+            _authoring_summary_matches_tasks(payload),
+            f"{command} authoring summary did not match task details",
+            payload=payload,
+        )
+        _require(
             all(
                 isinstance(link, dict) and isinstance(link.get("status"), str) and link["status"]
                 for task in tasks
@@ -616,6 +626,77 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
             "expected_blocked": True,
         },
         "next": "replace design scaffold placeholders with source-backed content before implementation handoff",
+    }
+
+
+def _manual_authoring_summary_matches_tasks(payload: dict[str, object]) -> bool:
+    tasks = payload.get("manual_authoring_tasks")
+    summary = payload.get("manual_authoring_summary")
+    if not isinstance(tasks, list) or not isinstance(summary, dict):
+        return False
+    return summary == _task_collection_summary(
+        tasks,
+        item_key="required_evidence",
+        status_counts_key="required_evidence_status_counts",
+        non_satisfied_count_key="non_satisfied_required_evidence_count",
+        repair_actions_key="evidence_repair_actions",
+        repair_action_count_key="evidence_repair_action_count",
+    )
+
+
+def _authoring_summary_matches_tasks(payload: dict[str, object]) -> bool:
+    tasks = payload.get("authoring_tasks")
+    summary = payload.get("authoring_summary")
+    if not isinstance(tasks, list) or not isinstance(summary, dict):
+        return False
+    return summary == _task_collection_summary(
+        tasks,
+        item_key="required_links",
+        status_counts_key="required_link_status_counts",
+        non_satisfied_count_key="non_satisfied_required_link_count",
+        repair_actions_key="link_repair_actions",
+        repair_action_count_key="link_repair_action_count",
+    )
+
+
+def _task_collection_summary(
+    tasks: list[object],
+    *,
+    item_key: str,
+    status_counts_key: str,
+    non_satisfied_count_key: str,
+    repair_actions_key: str,
+    repair_action_count_key: str,
+) -> dict[str, object]:
+    status_counts: dict[str, int] = {}
+    non_satisfied_count = 0
+    open_decision_count = 0
+    repair_action_count = 0
+    for task in tasks:
+        if not isinstance(task, dict):
+            continue
+        open_decisions = task.get("open_decisions")
+        if isinstance(open_decisions, list):
+            open_decision_count += len(open_decisions)
+        repair_actions = task.get(repair_actions_key)
+        if isinstance(repair_actions, list):
+            repair_action_count += len(repair_actions)
+        items = task.get(item_key)
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            status = str(item.get("status", "unknown") or "unknown")
+            status_counts[status] = status_counts.get(status, 0) + 1
+            if status != "satisfied":
+                non_satisfied_count += 1
+    return {
+        "task_count": len(tasks),
+        "open_decision_count": open_decision_count,
+        status_counts_key: dict(sorted(status_counts.items())),
+        non_satisfied_count_key: non_satisfied_count,
+        repair_action_count_key: repair_action_count,
     }
 
 
