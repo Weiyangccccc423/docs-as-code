@@ -15,6 +15,7 @@ try:
         build_implementation_planning_authoring,
         build_test_strategy_authoring,
     )
+    from .implementation_plan import build_implementation_plan
     from .product_structure import build_product_plan
     from .state import load_state
     from .workflow_actions import next_actions_payload
@@ -30,6 +31,7 @@ except ImportError:  # pragma: no cover - direct script execution
         build_implementation_planning_authoring,
         build_test_strategy_authoring,
     )
+    from implementation_plan import build_implementation_plan
     from product_structure import build_product_plan
     from state import load_state
     from workflow_actions import next_actions_payload
@@ -37,6 +39,7 @@ except ImportError:  # pragma: no cover - direct script execution
 
 PRODUCT_PHASE = "product-structuring"
 DESIGN_PHASE = "design-derivation"
+IMPLEMENTATION_PHASE = "implementation"
 
 DESIGN_AUTHORING_BUILDERS: tuple[tuple[str, list[str], Callable[[Path], dict[str, object]]], ...] = (
     ("api-authoring", ["bin/governance", "design", "api-authoring", ".", "--json"], build_api_authoring),
@@ -89,6 +92,10 @@ def build_workflow_plan(root: Path) -> dict[str, object]:
         for queue in _design_queues(root):
             queues.append(queue)
             commands.append(queue["command"])
+    elif phase == IMPLEMENTATION_PHASE:
+        queue = _implementation_plan_queue(root)
+        queues.append(queue)
+        commands.append(queue["command"])
 
     return {
         "ok": True,
@@ -210,6 +217,34 @@ def _design_queues(root: Path) -> list[dict[str, object]]:
     return queues
 
 
+def _implementation_plan_queue(root: Path) -> dict[str, object]:
+    payload = build_implementation_plan(root)
+    summary = {
+        "implementation_summary": payload.get("implementation_summary", {}),
+        "source_document_count": _list_count(payload.get("source_documents")),
+        "task_count": _list_count(payload.get("tasks")),
+        "active_work": _payload_active_work(payload),
+        "step_count": _implementation_step_count(payload.get("tasks")),
+        "skill_summary": _payload_skill_summary(payload),
+        "skill_loading_plan": _payload_skill_loading_plan(payload),
+    }
+    return _queue(
+        "implementation-plan",
+        IMPLEMENTATION_PHASE,
+        "implementation-task-plan",
+        payload.get("ok") is True,
+        _implementation_summary_blocked(summary),
+        _command(
+            root,
+            "implementation-plan",
+            "Inspect Ready implementation tasks, source read order, gate status, and execution commands.",
+            ["bin/governance", "implementation", "plan", ".", "--json"],
+        ),
+        summary,
+        payload.get("errors"),
+    )
+
+
 def _queue(
     queue_id: str,
     phase: str,
@@ -298,6 +333,19 @@ def _authoring_summary_blocked(summary: dict[str, object]) -> bool:
     return int(authoring_summary.get("non_satisfied_required_link_count", 0)) > 0
 
 
+def _implementation_summary_blocked(summary: dict[str, object]) -> bool:
+    implementation_summary = summary.get("implementation_summary")
+    if not isinstance(implementation_summary, dict):
+        return True
+    active_work = summary.get("active_work")
+    return (
+        implementation_summary.get("gate_ok") is not True
+        or int(implementation_summary.get("actionable_ready_task_count", 0)) == 0
+        or not isinstance(active_work, dict)
+        or active_work.get("status") != "ready"
+    )
+
+
 def _design_step_count(tracks: object) -> int:
     if not isinstance(tracks, list):
         return 0
@@ -312,6 +360,19 @@ def _design_step_count(tracks: object) -> int:
 
 
 def _authoring_step_count(tasks: object) -> int:
+    if not isinstance(tasks, list):
+        return 0
+    count = 0
+    for task in tasks:
+        if not isinstance(task, dict):
+            continue
+        steps = task.get("steps")
+        if isinstance(steps, list):
+            count += len(steps)
+    return count
+
+
+def _implementation_step_count(tasks: object) -> int:
     if not isinstance(tasks, list):
         return 0
     count = 0

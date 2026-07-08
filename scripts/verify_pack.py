@@ -73,6 +73,8 @@ TEMPLATE_REQUIRED_GUARDRAILS = {
         '`["bin/governance", "status", ".", "--json"]`',
         "| workflow-plan |",
         '`["bin/governance", "workflow", "plan", ".", "--json"]`',
+        "| implementation-plan |",
+        '`["bin/governance", "implementation", "plan", ".", "--json"]`',
         "| check-env |",
         '`["bin/governance", "env", "--target", "."]`',
         "| repair-env-check |",
@@ -519,6 +521,7 @@ TARGET_LOCAL_COMMAND_REQUIRED_TARGETS = (
     "verify-check",
     "governance-status",
     "workflow-plan",
+    "implementation-plan",
     "check-env",
     "repair-env-check",
 )
@@ -2538,6 +2541,7 @@ GOVERNANCE_CLI_REQUIRED_COMMANDS = (
     "advance",
     "product",
     "design",
+    "implementation",
 )
 GOVERNANCE_CLI_REQUIRED_SUBCOMMANDS = {
     "runtime": ("refresh",),
@@ -2553,6 +2557,7 @@ GOVERNANCE_CLI_REQUIRED_SUBCOMMANDS = {
         "implementation-planning-authoring",
         "architecture-decisions-authoring",
     ),
+    "implementation": ("plan",),
 }
 GOVERNANCE_CLI_PARSER_VARIABLES = {
     "top-level": "sub",
@@ -2560,6 +2565,7 @@ GOVERNANCE_CLI_PARSER_VARIABLES = {
     "workflow": "workflow_sub",
     "product": "product_sub",
     "design": "design_sub",
+    "implementation": "implementation_sub",
 }
 RUNTIME_WRAPPER_REQUIRED_GUARDS = (
     "#!/usr/bin/env bash",
@@ -2572,6 +2578,7 @@ CONTINUATION_RUNTIME_SCRIPT_PATHS = (
     "scripts/design_plan.py",
     "scripts/gates.py",
     "scripts/governance_cli.py",
+    "scripts/implementation_plan.py",
     "scripts/phases.py",
     "scripts/product_import.py",
     "scripts/product_structure.py",

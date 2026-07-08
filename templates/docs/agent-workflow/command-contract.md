@@ -8,6 +8,7 @@
 | verify-check | Run read-only JSON verification without updating state. | `.` | `["bin/governance", "verify", ".", "--check", "--json"]` | false | false | `docs/development/03-verification-log.md` | Core governance runtime |
 | governance-status | Print workflow state as JSON. | `.` | `["bin/governance", "status", ".", "--json"]` | false | false | `docs/development/03-verification-log.md` | Core governance runtime |
 | workflow-plan | Print current workflow route plus active queue and skill summaries as JSON. | `.` | `["bin/governance", "workflow", "plan", ".", "--json"]` | false | false | `docs/development/03-verification-log.md` | Core governance runtime |
+| implementation-plan | Print Ready implementation task execution plan as JSON. | `.` | `["bin/governance", "implementation", "plan", ".", "--json"]` | false | false | `docs/development/03-verification-log.md` | Core governance runtime |
 | check-env | Inventory local governance tools. | `.` | `["bin/governance", "env", "--target", "."]` | false | false | `docs/development/03-verification-log.md` | Core governance runtime |
 | repair-env-check | Preview environment repair without writing files. | `.` | `["bin/governance", "env", "--repair", "--check", "--target", ".", "--json"]` | false | false | `.governance/env-repair.md` when repair is written | Core governance runtime |
 

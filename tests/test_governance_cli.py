@@ -349,6 +349,114 @@ def _acceptance_matrix_doc() -> str:
     )
 
 
+def _run_governance_json(
+    case: unittest.TestCase,
+    args: list[str],
+    *,
+    cwd: Path | None = None,
+    expected_returncode: int = 0,
+) -> dict[str, object]:
+    result = subprocess.run(
+        [sys.executable, str(CLI), *args, "--json"],
+        cwd=cwd,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    case.assertEqual(expected_returncode, result.returncode, f"{result.stderr}\n{result.stdout}")
+    return json.loads(result.stdout)
+
+
+def _implementation_ready_target(case: unittest.TestCase, tmp: str) -> Path:
+    root = Path(tmp)
+    target = root / "target"
+    product = root / "product.md"
+    product.write_text("# Product\n", encoding="utf-8")
+    _run_governance_json(case, ["init", "--target", str(target), "--product", str(product)])
+
+    (target / "docs/product/01-goals.md").write_text("# Goals\n\nSource: [PRD](core/PRD.md).\n", encoding="utf-8")
+    _append_index(target / "docs/product/README.md", "01-goals.md")
+    _append_product_meta_chapter(target, "01-goals.md")
+    (target / "docs/product/08-acceptance-criteria.md").write_text(_acceptance_doc(), encoding="utf-8")
+    _append_index(target / "docs/product/README.md", "08-acceptance-criteria.md")
+    _append_product_meta_chapter(target, "08-acceptance-criteria.md")
+    _run_governance_json(case, ["advance", "product-structuring", str(target)])
+    _run_governance_json(case, ["advance", "design-derivation", str(target)])
+
+    for filename, body in [
+        ("01-system-context.md", _architecture_system_context_doc()),
+        ("02-containers.md", _architecture_containers_doc()),
+        ("03-quality-attributes.md", _architecture_quality_attributes_doc()),
+    ]:
+        path = target / "docs/architecture" / filename
+        path.write_text(body, encoding="utf-8")
+        _append_index(target / "docs/architecture/README.md", filename)
+    (target / "docs/api/00-conventions.md").write_text(_api_conventions_doc(), encoding="utf-8")
+    _append_index(target / "docs/api/README.md", "00-conventions.md")
+    (target / "docs/api/error-codes.md").write_text(_api_error_codes_doc(), encoding="utf-8")
+    _append_index(target / "docs/api/README.md", "error-codes.md")
+    (target / "docs/api/changelog.md").write_text(_api_changelog_doc(), encoding="utf-8")
+    _append_index(target / "docs/api/README.md", "changelog.md")
+    endpoint_root = target / "docs/api/endpoints"
+    endpoint_root.mkdir(parents=True, exist_ok=True)
+    (endpoint_root / "README.md").write_text(
+        "# API Endpoints\n\n- `01-goal-flow.md` - goal flow endpoint\n",
+        encoding="utf-8",
+    )
+    (endpoint_root / "01-goal-flow.md").write_text(_api_endpoint_contract_doc(), encoding="utf-8")
+    (target / "docs/backend/01-modules.md").write_text(_backend_modules_doc(), encoding="utf-8")
+    _append_index(target / "docs/backend/README.md", "01-modules.md")
+    (target / "docs/backend/02-data-model.md").write_text(
+        "# Data Model\n\n"
+        "## Product Links\n\n"
+        "- [Acceptance](../product/08-acceptance-criteria.md)\n"
+        "- [API conventions](../api/00-conventions.md)\n"
+        "- [Backend modules](01-modules.md)\n\n"
+        "## Owners\n\n"
+        "- Goal state is owned by the workflow backend module.\n\n"
+        "## Entities\n\n"
+        "- Goal: user-owned workflow item with status and audit fields.\n\n"
+        "## State Machines\n\n"
+        "- Goal status moves from draft to active to archived.\n\n"
+        "## Constraints\n\n"
+        "- Goal identifiers are unique per owner and idempotency key.\n\n"
+        "## Indexes\n\n"
+        "- Owner and status indexes support primary goal list queries.\n\n"
+        "## Migrations\n\n"
+        "- Add owner-scoped goal tables before enabling API writes.\n",
+        encoding="utf-8",
+    )
+    _append_index(target / "docs/backend/README.md", "02-data-model.md")
+    (target / "docs/backend/03-external-services.md").write_text(_backend_external_services_doc(), encoding="utf-8")
+    _append_index(target / "docs/backend/README.md", "03-external-services.md")
+    (target / "docs/ui/01-interaction-model.md").write_text(_ui_interaction_model_doc(), encoding="utf-8")
+    _append_index(target / "docs/ui/README.md", "01-interaction-model.md")
+    (target / "docs/frontend/01-modules.md").write_text(_frontend_modules_doc(), encoding="utf-8")
+    _append_index(target / "docs/frontend/README.md", "01-modules.md")
+    (target / "docs/frontend/02-api-consumption.md").write_text(_frontend_api_consumption_doc(), encoding="utf-8")
+    _append_index(target / "docs/frontend/README.md", "02-api-consumption.md")
+    (target / "docs/tests/01-strategy.md").write_text(_test_strategy_doc(), encoding="utf-8")
+    _append_index(target / "docs/tests/README.md", "01-strategy.md")
+    (target / "docs/tests/02-acceptance-matrix.md").write_text(_acceptance_matrix_doc(), encoding="utf-8")
+    _append_index(target / "docs/tests/README.md", "02-acceptance-matrix.md")
+    (target / "docs/development/01-roadmap.md").write_text(_roadmap_doc(), encoding="utf-8")
+    _append_index(target / "docs/development/README.md", "01-roadmap.md")
+    (target / "docs/development/02-task-board.md").write_text(
+        _task_board_doc(
+            "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | "
+            "docs/architecture/01-system-context.md | docs/api/00-conventions.md | "
+            "docs/product/08-acceptance-criteria.md | make test |\n"
+        ),
+        encoding="utf-8",
+    )
+    _append_index(target / "docs/development/README.md", "02-task-board.md")
+    (target / "docs/development/03-verification-log.md").write_text(_verification_log_doc(), encoding="utf-8")
+    _append_index(target / "docs/development/README.md", "03-verification-log.md")
+
+    _run_governance_json(case, ["advance", "implementation", str(target)])
+    return target
+
+
 class GovernanceCliTest(unittest.TestCase):
     def test_env_json_uses_shared_payload_builder(self) -> None:
         scripts_dir = str(ROOT / "scripts")
@@ -2681,6 +2789,146 @@ class GovernanceCliTest(unittest.TestCase):
                 commands["backend-authoring"]["argv"],
             )
             self.assertFalse(commands["backend-authoring"]["writes_state"])
+
+    def test_implementation_plan_reports_ready_task_execution_plan(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp)
+
+            result = subprocess.run(
+                [sys.executable, str(CLI), "implementation", "plan", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertFalse(payload["blocked"])
+            self.assertTrue(payload["gate_ok"])
+            self.assertEqual(str(target.resolve()), payload["target"])
+            self.assertEqual("implementation", payload["phase"])
+            self.assertEqual("workflows/06-implementation-execution.md", payload["workflow"])
+            self.assertEqual("execute_exactly_one_ready_task", payload["decision_policy"])
+            self.assertIn("executing-implementation-task", payload["skills"])
+            self.assertIn("verifying-governance-docs", payload["skills"])
+            self.assertIn("senior-fullstack", payload["specialist_skills"])
+            self.assertIn("senior-backend", payload["specialist_skills"])
+            self.assertIn("api-design-reviewer", payload["specialist_skills"])
+            requirements = _requirements_by_name(payload["skill_requirements"])
+            self.assertEqual("local-workflow", requirements["executing-implementation-task"]["type"])
+            self.assertEqual("authority-routing", requirements["senior-backend"]["type"])
+            self.assertEqual(
+                "load_from_agent_environment_or_stop_before_guessing",
+                requirements["senior-backend"]["missing_policy"],
+            )
+            self.assertEqual(
+                {
+                    "task_count": 1,
+                    "ready_task_count": 1,
+                    "actionable_ready_task_count": 1,
+                    "blocked_task_count": 0,
+                    "done_task_count": 0,
+                    "invalid_task_count": 0,
+                    "task_status_counts": {"ready": 1},
+                    "verification_evidence_task_count": 0,
+                    "gate_ok": True,
+                },
+                payload["implementation_summary"],
+            )
+            self.assertEqual("implementation-task", payload["active_work"]["kind"])
+            self.assertEqual("TASK-001", payload["active_work"]["task_id"])
+            self.assertEqual("ready", payload["active_work"]["status"])
+            self.assertEqual("A-001", payload["active_work"]["acceptance_id"])
+            self.assertEqual(
+                ["bin/governance", "gate", "implementation", ".", "--json"],
+                payload["active_work"]["gate_command"]["argv"],
+            )
+            self.assertEqual(
+                ["bin/governance", "verify", ".", "--check", "--json"],
+                payload["active_work"]["verify_command"]["argv"],
+            )
+            self.assertEqual(
+                ["bin/governance", "implementation", "plan", ".", "--json"],
+                payload["active_work"]["refresh_command"]["argv"],
+            )
+            self.assertEqual(1, len(payload["tasks"]))
+            task = payload["tasks"][0]
+            self.assertTrue(task["actionable"])
+            self.assertEqual("TASK-001", task["task_id"])
+            self.assertEqual("Ready", task["status"])
+            self.assertEqual("A-001", task["acceptance_id"])
+            self.assertEqual([], task["blockers"])
+            self.assertEqual("implementation-execution", task["execution"]["stage"])
+            self.assertEqual("executing-implementation-task", task["execution"]["primary_skill"])
+            self.assertIn("docs/development/02-task-board.md", task["read_order"])
+            self.assertIn("docs/product/01-goals.md", task["read_order"])
+            self.assertIn("docs/api/00-conventions.md", task["read_order"])
+            self.assertIn("docs/tests/02-acceptance-matrix.md", task["read_order"])
+            self.assertIn("docs/agent-workflow/command-contract.md", task["read_order"])
+            self.assertEqual(
+                "docs/product/01-goals.md",
+                task["source_references"]["product"]["references"][0]["path"],
+            )
+            self.assertEqual(
+                "docs/product/08-acceptance-criteria.md",
+                task["source_references"]["acceptance"]["references"][0]["path"],
+            )
+            self.assertEqual(
+                [
+                    "load-implementation-skill",
+                    "read-implementation-checklist",
+                    "implementation-gate",
+                    "verify-implementation-execution",
+                    "read-task-sources",
+                    "inspect-code-surface",
+                    "implement-one-task",
+                    "run-task-verification",
+                    "update-task-evidence",
+                    "refresh-implementation-plan",
+                ],
+                [step["id"] for step in task["steps"]],
+            )
+
+    def test_workflow_plan_reports_implementation_task_queue(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp)
+
+            result = subprocess.run(
+                [sys.executable, str(CLI), "workflow", "plan", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertFalse(payload["blocked"])
+            self.assertEqual("implementation", payload["phase"])
+            queues = {queue["id"]: queue for queue in payload["queues"]}
+            self.assertEqual(["implementation-plan"], list(queues))
+            queue = queues["implementation-plan"]
+            self.assertEqual("ready", queue["status"])
+            self.assertEqual("implementation-task-plan", queue["kind"])
+            self.assertEqual(
+                ["bin/governance", "implementation", "plan", ".", "--json"],
+                queue["command"]["argv"],
+            )
+            self.assertEqual(1, queue["summary"]["implementation_summary"]["actionable_ready_task_count"])
+            self.assertEqual("TASK-001", queue["summary"]["active_work"]["task_id"])
+            self.assertIn("executing-implementation-task", payload["skill_summary"]["local_workflow_skills"])
+            self.assertIn("senior-backend", payload["skill_summary"]["authority_routing_skills"])
+            self.assertIn("api-design-reviewer", payload["skill_summary"]["authority_routing_skills"])
+            self.assertEqual("implementation-plan", payload["active_work"]["queue_id"])
+            self.assertEqual("ready", payload["active_work"]["queue_status"])
+            self.assertEqual("TASK-001", payload["active_work"]["task_id"])
+            self.assertEqual(
+                ["bin/governance", "implementation", "plan", ".", "--json"],
+                payload["active_work"]["inspect_command"]["argv"],
+            )
+            local_commands = {command["make_target"]: command for command in payload["local_commands"]}
+            self.assertEqual(["make", "implementation-plan"], local_commands["implementation-plan"]["argv"])
 
     def test_verify_json_reports_invalid_state_without_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -40,6 +40,7 @@ from design_plan import (
     build_test_strategy_authoring,
 )
 from gates import GATE_NAMES, evaluate_gate
+from implementation_plan import build_implementation_plan
 from phases import PHASE_NAMES, advance_phase, check_advance_phase
 from product_import import check_product_import_ready, mark_product_import_ready
 from product_structure import build_product_plan, check_structure_product, structure_product
@@ -790,6 +791,23 @@ def _cmd_design_architecture_decisions_authoring(args: argparse.Namespace) -> in
     return 0
 
 
+def _cmd_implementation_plan(args: argparse.Namespace) -> int:
+    target = Path(args.target)
+    payload = build_implementation_plan(target)
+    if args.json:
+        _print_json(payload)
+        return 0 if payload["ok"] else 1
+    if not payload["ok"]:
+        print("Implementation plan failed:")
+        for error in payload["errors"]:
+            print(f"- ERROR: {error}")
+        return 1
+    print(f"Implementation plan: {payload['phase']}")
+    for task in payload["tasks"]:
+        print(f"- {task['task_id']}: {task['status']} {task['title']}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="docs-as-code governance workflow CLI")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -965,6 +983,16 @@ def build_parser() -> argparse.ArgumentParser:
     architecture_decisions_authoring.add_argument("target", nargs="?", default=".")
     architecture_decisions_authoring.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     architecture_decisions_authoring.set_defaults(func=_cmd_design_architecture_decisions_authoring)
+
+    implementation = sub.add_parser("implementation", help="Plan implementation execution work.")
+    implementation_sub = implementation.add_subparsers(dest="implementation_command", required=True)
+    implementation_plan = implementation_sub.add_parser(
+        "plan",
+        help="Show Ready implementation tasks, source read order, gate status, and execution commands.",
+    )
+    implementation_plan.add_argument("target", nargs="?", default=".")
+    implementation_plan.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    implementation_plan.set_defaults(func=_cmd_implementation_plan)
 
     return parser
 

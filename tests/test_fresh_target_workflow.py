@@ -168,6 +168,10 @@ class FreshTargetWorkflowTest(unittest.TestCase):
             self.assertFalse(preflight["advanced"])
 
             local_commands = {command["make_target"]: command for command in status["local_commands"]}
+            self.assertEqual(
+                ["make", "implementation-plan"],
+                local_commands["implementation-plan"]["argv"],
+            )
             for make_target in ("verify-check", "governance-status", "repair-env-check"):
                 command = local_commands[make_target]
                 self.assertFalse(command["approval_required"])

@@ -46,6 +46,7 @@ bin/governance design frontend-authoring <target>
 bin/governance design test-strategy-authoring <target>
 bin/governance design implementation-planning-authoring <target>
 bin/governance design architecture-decisions-authoring <target>
+bin/governance implementation plan <target>
 bin/governance workflow plan <target>
 bin/governance runtime refresh <target> --check
 bin/governance runtime refresh <target>
@@ -71,12 +72,14 @@ bin/governance design frontend-authoring <target> --json
 bin/governance design test-strategy-authoring <target> --json
 bin/governance design implementation-planning-authoring <target> --json
 bin/governance design architecture-decisions-authoring <target> --json
+bin/governance implementation plan <target> --json
 bin/governance workflow plan <target> --json
 bin/governance runtime refresh <target> --check --json
 bin/governance runtime refresh <target> --json
 ```
 
 Use `verify --check --json` `findings[].code` and `findings[].path` for deterministic repair routing without updating state. Use `verify --json` when recording `last_verification` in `.governance/state.json`. When governance state is readable, use returned `local_commands[].argv` and `next_actions[].argv` to continue without rerunning `status`; use `workflow plan --json` when the agent needs the current phase plus active queue summaries, top-level/per-queue `active_work`, local/authority skill routing summaries, ordered skill loading plans, and read-only queue commands in one payload. Use `active_work.queue_id`, `active_work.inspect_command`, `active_work.next_repair_action`, and embedded verify/refresh commands to resume the first blocked queue before manually scanning every task. Sort `next_actions` by `sequence`, pair preflight/apply commands with `preflight_for` and `requires_action`, and run apply only after the referenced preflight reports `success_condition: ok:true`. Stop before any returned command with `approval_required: true`. Use `errors` and `warnings` only for human-facing summaries.
+When the recorded phase is `implementation`, use `implementation plan --json` or target-local `make implementation-plan` after repairing verification findings. Inspect `implementation_summary`, `gate_ok`, `active_work`, `tasks[]`, `source_references`, `read_order`, `skill_requirements`, `authority_skill_requirements`, `skill_loading_plan`, `next_repair_action`, and embedded `gate_command`, `verify_command`, and `refresh_command`; keep `active_work.status != ready`, `gate_ok: false`, missing local workflow skills, and unavailable authority-routing skills as blockers before implementation edits.
 Use successful `env --json` `local_commands[].argv` and `next_actions[].argv` when governance state is readable. For repair preflights, inspect `would_repair`, `install_commands`, `repair_commands`, `repair_actions`, `manual_repairs`, `needs_escalation`, `repair_execution`, and returned `approval_required` fields. Use `repair_execution.status`, `repair_execution.can_auto_apply`, `repair_execution.install_attempted`, `repair_execution.install_failed`, `repair_execution.post_repair_missing_required`, `repair_execution.post_repair_missing_recommended`, and `repair_execution.next_step` for branching. Sort `repair_actions` by `sequence`; run actions with `argv` only when `approval_required` is false or approval is explicit, and present `manual-repair` actions to the user. Keep `ok: false`, non-empty `manual_repairs`, `needs_escalation: true`, `applied_but_unresolved`, and unapproved `approval_required: true` as stop conditions before running installs or downstream state-writing commands.
 Use `gate --json` `requirements[].code` for phase-transition repair routing; `verification.findings[]` contains the embedded structural verification result. When governance state is readable, use returned `local_commands[].argv`; when the gate passes, use returned `next_actions[].argv` for the next advance preflight/apply sequence.
 Use `advance --check --json` to inspect `would_state`; use `advance --json` when the next phase should be recorded in `.governance/state.json`. `advance` records adjacent transitions one phase at a time and cannot skip phases.
@@ -189,6 +192,7 @@ make verify-governance
 make verify-check
 make governance-status
 make workflow-plan
+make implementation-plan
 make check-env
 make repair-env-check
 make ci

@@ -24,6 +24,7 @@ Load:
    ```bash
    bin/governance gate implementation <target> --json
    bin/governance verify <target> --check --json
+   bin/governance implementation plan <target> --json
    ```
 
    When working inside the generated target, prefer:
@@ -31,36 +32,41 @@ Load:
    ```bash
    bin/governance gate implementation . --json
    bin/governance verify . --check --json
+   bin/governance implementation plan . --json
+   make implementation-plan
    ```
 
    Stop on `ok: false`; route repair through `verifying-governance-docs` and the owning design or planning skill before editing code.
 
-3. Select exactly one `Ready` `TASK-NNN` from `docs/development/02-task-board.md`. Do not start multiple task rows in one implementation pass unless the task board explicitly groups them and their verification evidence is shared.
+3. Use `implementation plan --json` before editing code. Its `decision_policy` is `execute_exactly_one_ready_task`; inspect `implementation_summary`, `gate_ok`, `active_work`, `tasks[]`, `source_references`, `read_order`, `skill_requirements`, `authority_skill_requirements`, `skill_loading_plan`, and embedded `gate_command`, `verify_command`, and `refresh_command`. Stop when `active_work.status` is not `ready`, when `active_work.next_repair_action` is non-empty, or when a required authority-routing skill cannot be loaded from the agent environment.
 
-4. Read every local Markdown source linked from the task's `Product`, `Design`, `API`, `Acceptance`, and `Verification` cells, plus `docs/agent-workflow/command-contract.md` and `docs/agent-workflow/task-handoff.md` when it exists.
+4. Select exactly one `Ready` `TASK-NNN` from `active_work.task_id` or the first actionable `tasks[]` item. Do not start multiple task rows in one implementation pass unless the task board explicitly groups them and their verification evidence is shared.
 
-5. Inspect existing code, tests, build files, generated artifacts, and local conventions before editing. Use the task's allowed modules, linked source docs, and repository `AGENTS.md` files to constrain the change surface.
+5. Read every path in the selected task's `read_order`, including local Markdown sources linked from the task's `Product`, `Design`, `API`, `Acceptance`, and `Verification` cells, plus `docs/agent-workflow/command-contract.md` and `docs/agent-workflow/task-handoff.md` when it exists.
 
-6. Implement in small coherent steps:
+6. Inspect existing code, tests, build files, generated artifacts, and local conventions before editing. Use the task's allowed modules, linked source docs, and repository `AGENTS.md` files to constrain the change surface.
+
+7. Implement in small coherent steps:
    - keep behavior within product, design, API, data, and security sources
    - update tests next to the changed surface
    - update generated clients, schemas, migrations, fixtures, snapshots, or lockfiles only when task scope and repository tooling require them
    - register missing or conflicting requirements in `docs/unresolved.md` instead of guessing
 
-7. Run the exact task verification commands. Prefer target-local `local_commands[].argv`, `docs/agent-workflow/command-contract.md` `Argv` rows, and task-board or handoff commands over reconstructed shell strings. Treat command-contract rows with `Approval Required` set to `true` as stop-and-ask actions until the task explicitly authorizes them. Record unavailable, flaky, skipped, failed, and passing checks in `docs/development/03-verification-log.md`.
+8. Run the exact task verification commands. Prefer target-local `local_commands[].argv`, `docs/agent-workflow/command-contract.md` `Argv` rows, and task-board or handoff commands over reconstructed shell strings. Treat command-contract rows with `Approval Required` set to `true` as stop-and-ask actions until the task explicitly authorizes them. Record unavailable, flaky, skipped, failed, and passing checks in `docs/development/03-verification-log.md`.
 
-8. Re-run governance verification when docs, task status, or handoff evidence changes:
+9. Re-run governance verification and refresh the implementation plan when docs, task status, or handoff evidence changes:
 
    ```bash
    bin/governance verify <target> --check --json
+   bin/governance implementation plan <target> --json
    ```
 
-9. Update `docs/development/02-task-board.md` and `docs/development/01-roadmap.md` statuses together:
+10. Update `docs/development/02-task-board.md` and `docs/development/01-roadmap.md` statuses together:
    - `Done` only when code, tests, docs, and local Markdown evidence satisfy `references/implementation-readiness-checklist.md` and `references/implementation-execution-checklist.md`
    - `Blocked` when a required source, credential, environment, dependency approval, or unresolved decision prevents completion
    - `Deferred` when the task remains valid but is intentionally postponed
 
-10. Produce a final implementation handoff that names changed files, commands run, evidence paths, failures, follow-ups, and remaining risks.
+11. Produce a final implementation handoff that names changed files, commands run, evidence paths, failures, follow-ups, and remaining risks.
 
 ## Output
 

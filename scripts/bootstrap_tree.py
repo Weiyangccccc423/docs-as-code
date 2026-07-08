@@ -44,6 +44,7 @@ RUNTIME_SCRIPT_FILES = [
     "design_plan.py",
     "gates.py",
     "governance_cli.py",
+    "implementation_plan.py",
     "phases.py",
     "product_import.py",
     "product_structure.py",
@@ -110,6 +111,12 @@ TARGET_LOCAL_COMMANDS = (
         "workflow-plan",
         "bin/governance workflow plan . --json",
         "print current workflow route plus active queue and skill summaries as JSON",
+        False,
+    ),
+    (
+        "implementation-plan",
+        "bin/governance implementation plan . --json",
+        "print Ready implementation task execution plan as JSON",
         False,
     ),
     (

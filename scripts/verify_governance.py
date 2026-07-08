@@ -168,6 +168,7 @@ RUNTIME_REQUIRED_SCRIPT_FILES = (
     "design_plan.py",
     "gates.py",
     "governance_cli.py",
+    "implementation_plan.py",
     "phases.py",
     "product_import.py",
     "product_structure.py",
