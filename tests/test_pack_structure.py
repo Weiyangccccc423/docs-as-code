@@ -342,6 +342,36 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_dry_run_missing_closeout_evidence_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/dry_run_workflow.py"
+            script.write_text(
+                script.read_text(encoding="utf-8").replace(
+                    "implementation_closeout_without_evidence",
+                    "implementation_closeout_preview",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_dry_run_workflow_incomplete"
+                    and finding.path == "scripts/dry_run_workflow.py"
+                    and "implementation_closeout_without_evidence" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_missing_dry_run_golden_fixture(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
@@ -559,6 +589,36 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_artifact_smoke_missing_closeout_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/smoke_workflow_pack_artifact.py"
+            script.write_text(
+                script.read_text(encoding="utf-8").replace(
+                    "ready_with_evidence",
+                    "ready_after_preview",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_artifact_smoke_incomplete"
+                    and finding.path == "scripts/smoke_workflow_pack_artifact.py"
+                    and "ready_with_evidence" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_artifact_smoke_missing_manifest_verifier_call(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
@@ -636,6 +696,35 @@ class PackStructureTest(unittest.TestCase):
                     finding.code == "pack_release_readiness_incomplete"
                     and finding.path == "scripts/release_readiness.py"
                     and "release_ready" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_release_readiness_missing_closeout_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/release_readiness.py"
+            script.write_text(
+                script.read_text(encoding="utf-8").replace(
+                    "_dry_run_closeout_evidence_ok",
+                    "_dry_run_closeout_preview_ok",
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_release_readiness_incomplete"
+                    and finding.path == "scripts/release_readiness.py"
+                    and "_dry_run_closeout_evidence_ok" in finding.message
                     for finding in report.findings
                 )
             )
@@ -877,6 +966,36 @@ class PackStructureTest(unittest.TestCase):
                     finding.code == "pack_dry_run_doc_missing"
                     and finding.path == "README.md"
                     and "temporary target" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_missing_closeout_dry_run_doc_phrase(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            checklist = target / "references/release-readiness-checklist.md"
+            checklist.write_text(
+                checklist.read_text(encoding="utf-8").replace(
+                    "implementation closeout blocked without evidence",
+                    "implementation closeout summarized",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_dry_run_doc_missing"
+                    and finding.path == "references/release-readiness-checklist.md"
+                    and "implementation closeout blocked without evidence" in finding.message
                     for finding in report.findings
                 )
             )
