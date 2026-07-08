@@ -1120,6 +1120,39 @@ DESIGN_PLAN_REQUIRED_PHRASES = (
     "local_commands",
     "next_actions",
 )
+DESIGN_PLAN_SOURCE_PATH = "scripts/design_plan.py"
+DESIGN_PLAN_SOURCE_REQUIRED_PHRASES = (
+    "DESIGN_TRACKS",
+    "DesignTrack",
+    "AUTHORITY_ROUTING_SPECIALIST_SKILLS",
+    "AUTHORITY_ROUTING_SKILL_MISSING_POLICY",
+    "load_from_agent_environment_or_stop_before_guessing",
+    "_skill_requirement_fields",
+    "_skill_loading_plan",
+    "specialist_skills",
+    "primary_specialist_skill",
+    "skill_requirements",
+    "authority_skill_requirements",
+    "senior-architect",
+    "api-design-reviewer",
+    "senior-backend",
+    "database-designer",
+    "database-schema-designer",
+    "migration-architect",
+    "observability-designer",
+    "senior-security",
+    "senior-frontend",
+    "a11y-audit",
+    "performance-profiler",
+    "senior-qa",
+    "playwright-pro",
+    "security-pen-testing",
+    "senior-fullstack",
+    "ci-cd-pipeline-builder",
+    "tech-debt-tracker",
+    "tech-stack-evaluator",
+    "slo-architect",
+)
 API_CANDIDATES_DOC_PATHS = (
     "README.md",
     "workflows/00-overview.md",
@@ -2889,6 +2922,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_product_archive_docs(root, findings)
     _check_product_structure_docs(root, findings)
     _check_design_scaffold_docs(root, findings)
+    _check_design_plan_source(root, findings)
     _check_design_plan_docs(root, findings)
     _check_api_candidates_docs(root, findings)
     _check_api_authoring_docs(root, findings)
@@ -4553,6 +4587,35 @@ def _check_design_plan_docs(root: Path, findings: list[PackFinding]) -> None:
                 rel,
             )
         )
+
+
+def _check_design_plan_source(root: Path, findings: list[PackFinding]) -> None:
+    path = root / DESIGN_PLAN_SOURCE_PATH
+    if not path.is_file():
+        findings.append(
+            PackFinding(
+                "pack_design_plan_source_missing",
+                f"missing design plan source script: {DESIGN_PLAN_SOURCE_PATH}",
+                DESIGN_PLAN_SOURCE_PATH,
+            )
+        )
+        return
+    text = _read_utf8_text_or_none(path)
+    if text is None:
+        return
+    missing = [phrase for phrase in DESIGN_PLAN_SOURCE_REQUIRED_PHRASES if phrase not in text]
+    if not missing:
+        return
+    findings.append(
+        PackFinding(
+            "pack_design_plan_source_incomplete",
+            (
+                f"{DESIGN_PLAN_SOURCE_PATH} must preserve design track authority-skill routing "
+                f"and stop-before-guessing missing policies; missing phrase(s): {', '.join(missing)}"
+            ),
+            DESIGN_PLAN_SOURCE_PATH,
+        )
+    )
 
 
 def _check_api_candidates_docs(root: Path, findings: list[PackFinding]) -> None:

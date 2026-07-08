@@ -1957,6 +1957,64 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_design_plan_missing_authority_specialist_skill(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/design_plan.py"
+            script.write_text(
+                script.read_text(encoding="utf-8").replace(
+                    "api-design-reviewer",
+                    "api-reviewer",
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_design_plan_source_incomplete"
+                    and finding.path == "scripts/design_plan.py"
+                    and "api-design-reviewer" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_design_plan_missing_authority_skill_policy(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/design_plan.py"
+            script.write_text(
+                script.read_text(encoding="utf-8").replace(
+                    "load_from_agent_environment_or_stop_before_guessing",
+                    "load_from_agent_environment",
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_design_plan_source_incomplete"
+                    and finding.path == "scripts/design_plan.py"
+                    and "load_from_agent_environment_or_stop_before_guessing" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_missing_api_candidates_doc_phrase(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
