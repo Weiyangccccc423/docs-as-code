@@ -3666,6 +3666,8 @@ AUTHORITY_SKILL_INVENTORY_REQUIRED_PHRASES = (
     "required_by",
     "available_in_agent_environment",
     "missing_skills",
+    "_installed_skill_index",
+    "_skill_frontmatter_name",
     "_task_specialist_skills",
 )
 IGNORED_PACK_FILE_NAMES = {".DS_Store", "manifest.json"}

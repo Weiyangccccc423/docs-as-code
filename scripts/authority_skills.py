@@ -41,13 +41,14 @@ def build_authority_skill_inventory(
 ) -> dict[str, Any]:
     _validate_authority_missing_policy()
     roots = _resolve_skill_roots(skill_roots, include_default_skill_roots=include_default_skill_roots)
+    installed_skills = _installed_skill_index(roots)
     requirements = _authority_skill_requirements()
     skills: list[dict[str, Any]] = []
     available_skills: list[str] = []
     missing_skills: list[str] = []
 
     for name in sorted(requirements):
-        skill_path = _find_skill_path(name, roots)
+        skill_path = installed_skills.get(name)
         available = skill_path is not None
         if available:
             available_skills.append(name)
@@ -171,11 +172,41 @@ def _resolve_skill_roots(
 
 
 def _find_skill_path(name: str, roots: list[Path]) -> Path | None:
+    installed_skills = _installed_skill_index(roots)
+    return installed_skills.get(name)
+
+
+def _installed_skill_index(roots: list[Path]) -> dict[str, Path]:
+    installed: dict[str, Path] = {}
     for root in roots:
-        candidate = root / name / "SKILL.md"
-        if candidate.is_file():
-            return candidate.resolve()
-    return None
+        for candidate in sorted(root.glob("*/SKILL.md")):
+            if not candidate.is_file():
+                continue
+            names = [candidate.parent.name]
+            frontmatter_name = _skill_frontmatter_name(candidate)
+            if frontmatter_name:
+                names.insert(0, frontmatter_name)
+            for name in names:
+                installed.setdefault(name, candidate.resolve())
+    return installed
+
+
+def _skill_frontmatter_name(path: Path) -> str:
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError):
+        return ""
+    if not lines or lines[0].strip() != "---":
+        return ""
+    for line in lines[1:]:
+        stripped = line.strip()
+        if stripped == "---":
+            return ""
+        if not stripped.startswith("name:"):
+            continue
+        value = stripped.split(":", 1)[1].strip()
+        return value.strip("'\"")
+    return ""
 
 
 def _text_summary(payload: dict[str, Any]) -> str:
@@ -213,7 +244,7 @@ def _build_parser() -> argparse.ArgumentParser:
         action="append",
         type=Path,
         default=[],
-        help="Additional skill root to scan for <skill>/SKILL.md.",
+        help="Additional skill root to scan for installed SKILL.md files.",
     )
     parser.add_argument(
         "--no-default-skill-roots",

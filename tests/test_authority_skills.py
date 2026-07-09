@@ -79,6 +79,24 @@ class AuthoritySkillsTest(unittest.TestCase):
         self.assertEqual(str(skill_dir.resolve() / "SKILL.md"), skills["senior-architect"]["skill_path"])
         self.assertIn(str(root.resolve()), payload["available_skill_roots"])
 
+    def test_inventory_uses_skill_frontmatter_name_when_directory_differs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skill_dir = root / "pw"
+            skill_dir.mkdir()
+            (skill_dir / "SKILL.md").write_text(
+                '---\nname: "playwright-pro"\ndescription: Playwright toolkit\n---\n',
+                encoding="utf-8",
+            )
+
+            payload = build_authority_skill_inventory(skill_roots=[root], include_default_skill_roots=False)
+
+        skills = {skill["name"]: skill for skill in payload["skills"]}
+        self.assertTrue(payload["ok"])
+        self.assertIn("playwright-pro", payload["available_skills"])
+        self.assertTrue(skills["playwright-pro"]["available_in_agent_environment"])
+        self.assertEqual(str(skill_dir.resolve() / "SKILL.md"), skills["playwright-pro"]["skill_path"])
+
     def test_strict_mode_fails_when_explicit_skill_root_is_missing_required_skills(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             result = subprocess.run(
