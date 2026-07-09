@@ -28,6 +28,8 @@ make release-check
 python3 scripts/release_readiness.py --json
 ```
 
+Treat successful artifact smoke as evidence that the exported tar.gz can be unpacked, verified, used to initialize a fresh target folder containing only a product document, and then checked through target-local `bin/governance` and Make commands.
+
 ```bash
 bin/governance verify <target> --check
 bin/governance verify <target>

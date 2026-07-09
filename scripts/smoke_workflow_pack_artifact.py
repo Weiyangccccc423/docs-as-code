@@ -146,6 +146,92 @@ def run_artifact_smoke(*, keep: bool = False) -> dict[str, object]:
         _require(verify_payload.get("ok") is True, "unpacked artifact verify_pack failed", payload=verify_payload)
         _require(verify_payload.get("findings") == [], "unpacked artifact verify_pack returned findings", payload=verify_payload)
 
+        fresh_target = workspace / "fresh-target"
+        fresh_product = _write_fresh_target_product(fresh_target)
+        init_check_payload = _run_json(
+            steps,
+            "unpacked_init_fresh_target_check",
+            [
+                sys.executable,
+                "scripts/governance_cli.py",
+                "init",
+                "--check",
+                "--target",
+                fresh_target,
+                "--profile",
+                "service",
+                "--project-name",
+                "Artifact Fresh Target",
+                "--json",
+            ],
+            unpacked_root,
+        )
+        _require(
+            init_check_payload.get("ok") is True,
+            "unpacked artifact fresh-target init preflight failed",
+            payload=init_check_payload,
+        )
+        init_check_product = init_check_payload.get("product")
+        _require(
+            isinstance(init_check_product, dict)
+            and init_check_product.get("selection") == "auto-discovered"
+            and init_check_product.get("path") == str(fresh_product.resolve()),
+            "unpacked artifact fresh-target init preflight did not auto-discover product.md",
+            payload=init_check_payload,
+        )
+        init_payload = _run_json(
+            steps,
+            "unpacked_init_fresh_target",
+            [
+                sys.executable,
+                "scripts/governance_cli.py",
+                "init",
+                "--target",
+                fresh_target,
+                "--profile",
+                "service",
+                "--project-name",
+                "Artifact Fresh Target",
+                "--json",
+            ],
+            unpacked_root,
+        )
+        _require(
+            init_payload.get("ok") is True,
+            "unpacked artifact fresh-target init failed",
+            payload=init_payload,
+        )
+        target_local_verify_payload = _run_json(
+            steps,
+            "fresh_target_verify_check",
+            ["bin/governance", "verify", ".", "--check", "--json"],
+            fresh_target,
+        )
+        target_local_status_payload = _run_json(
+            steps,
+            "fresh_target_governance_status",
+            ["make", "governance-status"],
+            fresh_target,
+        )
+        target_local_workflow_plan_payload = _run_json(
+            steps,
+            "fresh_target_workflow_plan",
+            ["make", "workflow-plan"],
+            fresh_target,
+        )
+        fresh_target_init = _fresh_target_init_details(
+            fresh_target=fresh_target,
+            init_payload=init_payload,
+            verify_payload=target_local_verify_payload,
+            status_payload=target_local_status_payload,
+            workflow_plan_payload=target_local_workflow_plan_payload,
+        )
+        _require(
+            fresh_target_init.get("ok") is True,
+            "unpacked artifact did not initialize a verifiable fresh target",
+            payload=fresh_target_init,
+        )
+
         dry_run_payload = _run_json(
             steps,
             "unpacked_dry_run",
@@ -203,6 +289,7 @@ def run_artifact_smoke(*, keep: bool = False) -> dict[str, object]:
             "archive_sha256": export_payload.get("archive_sha256"),
             "manifest_sha256": export_payload.get("manifest_sha256"),
             "target_local_make_coverage": target_local_make_coverage,
+            "fresh_target_init": fresh_target_init,
             "steps": steps,
             "target_retained": True,
         }
@@ -263,6 +350,66 @@ def _dry_run_target_local_make_details(payload: dict[str, object]) -> dict[str, 
     return {
         "required_step_ids": TARGET_LOCAL_MAKE_STEP_IDS,
         "missing_step_ids": [step_id for step_id in TARGET_LOCAL_MAKE_STEP_IDS if step_id not in step_ids],
+    }
+
+
+def _write_fresh_target_product(target: Path) -> Path:
+    target.mkdir(parents=True, exist_ok=True)
+    product = target / "product.md"
+    product.write_text(
+        "# Artifact Fresh Target\n\n"
+        "## Goals and Requirements\n\n"
+        "- Initialize a governed repository from an exported workflow pack.\n"
+        "- Expose target-local governance commands after initialization.\n\n"
+        "## Acceptance Criteria\n\n"
+        "- The initialized repository verifies from its own local governance runtime.\n",
+        encoding="utf-8",
+    )
+    return product
+
+
+def _fresh_target_init_details(
+    *,
+    fresh_target: Path,
+    init_payload: dict[str, object],
+    verify_payload: dict[str, object],
+    status_payload: dict[str, object],
+    workflow_plan_payload: dict[str, object],
+) -> dict[str, object]:
+    init_state = init_payload.get("state")
+    status_state = status_payload.get("state")
+    init_product = init_payload.get("product")
+    phase = init_state.get("phase") if isinstance(init_state, dict) else ""
+    profile = init_state.get("profile") if isinstance(init_state, dict) else ""
+    project_name = init_state.get("project_name") if isinstance(init_state, dict) else ""
+    return {
+        "ok": (
+            phase == "initialized"
+            and verify_payload.get("ok") is True
+            and verify_payload.get("findings") == []
+            and status_payload.get("ok") is True
+            and isinstance(status_state, dict)
+            and status_state.get("phase") == "initialized"
+            and workflow_plan_payload.get("ok") is True
+            and workflow_plan_payload.get("phase") == "initialized"
+            and (fresh_target / "bin/governance").is_file()
+            and (fresh_target / "scripts/governance_cli.py").is_file()
+            and (fresh_target / "docs/agent-workflow/runtime-manifest.json").is_file()
+            and (fresh_target / "docs/agent-workflow/workflow-pack/manifest.json").is_file()
+            and (fresh_target / "docs/product/core/source/source-manifest.json").is_file()
+        ),
+        "target": str(fresh_target),
+        "phase": phase,
+        "profile": profile,
+        "project_name": project_name,
+        "product_selection": init_product.get("selection") if isinstance(init_product, dict) else "",
+        "target_local_verify_ok": verify_payload.get("ok") is True and verify_payload.get("findings") == [],
+        "target_local_status_ok": status_payload.get("ok") is True,
+        "target_local_workflow_plan_ok": workflow_plan_payload.get("ok") is True,
+        "local_governance_cli": (fresh_target / "bin/governance").is_file(),
+        "runtime_manifest": (fresh_target / "docs/agent-workflow/runtime-manifest.json").is_file(),
+        "workflow_pack_snapshot": (fresh_target / "docs/agent-workflow/workflow-pack/manifest.json").is_file(),
+        "product_source_manifest": (fresh_target / "docs/product/core/source/source-manifest.json").is_file(),
     }
 
 

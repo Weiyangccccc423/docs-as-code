@@ -50,6 +50,8 @@ make artifact-smoke
 python3 scripts/smoke_workflow_pack_artifact.py --json
 ```
 
+The artifact smoke also initializes a separate fresh target directory that contains only a product document, then verifies the target-local `bin/governance`, `make governance-status`, and `make workflow-plan` commands from that generated target.
+
 Before tagging or handing off a source workflow-pack release, run the release readiness gate and use `references/release-readiness-checklist.md` as the rubric:
 
 ```bash

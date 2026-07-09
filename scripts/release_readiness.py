@@ -149,6 +149,22 @@ def _dry_run_target_local_make_details(payload: dict[str, object] | None) -> dic
     }
 
 
+def _artifact_smoke_fresh_target_init_ok(payload: dict[str, object] | None) -> bool:
+    if payload is None:
+        return False
+    fresh_target_init = payload.get("fresh_target_init")
+    return (
+        isinstance(fresh_target_init, dict)
+        and fresh_target_init.get("ok") is True
+        and fresh_target_init.get("target_local_verify_ok") is True
+        and fresh_target_init.get("target_local_status_ok") is True
+        and fresh_target_init.get("target_local_workflow_plan_ok") is True
+        and fresh_target_init.get("runtime_manifest") is True
+        and fresh_target_init.get("workflow_pack_snapshot") is True
+        and fresh_target_init.get("product_source_manifest") is True
+    )
+
+
 def _env_repair_decision_allows_workflow(payload: dict[str, object] | None) -> bool:
     if payload is None:
         return False
@@ -409,12 +425,17 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
     _criterion(
         criteria,
         "release-artifact-smoke",
-        bool(steps[-1]["ok"]) and bool(artifact_smoke_payload and artifact_smoke_payload.get("ok") is True),
+        bool(steps[-1]["ok"])
+        and bool(artifact_smoke_payload and artifact_smoke_payload.get("ok") is True)
+        and _artifact_smoke_fresh_target_init_ok(artifact_smoke_payload),
         evidence="python3 scripts/smoke_workflow_pack_artifact.py --json",
         details={
             "archive_member_count": artifact_smoke_payload.get("archive_member_count") if artifact_smoke_payload else 0,
             "archive_sha256": artifact_smoke_payload.get("archive_sha256") if artifact_smoke_payload else "",
             "manifest_sha256": artifact_smoke_payload.get("manifest_sha256") if artifact_smoke_payload else "",
+            "fresh_target_init": artifact_smoke_payload.get("fresh_target_init", {})
+            if artifact_smoke_payload
+            else {},
         },
     )
 

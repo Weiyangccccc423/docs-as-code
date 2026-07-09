@@ -62,6 +62,10 @@ class ReleaseReadinessTest(unittest.TestCase):
             [],
             criteria["multi-acceptance-dry-run"]["details"]["target_local_make_coverage"]["missing_step_ids"],
         )
+        self.assertTrue(criteria["release-artifact-smoke"]["details"]["fresh_target_init"]["ok"])
+        self.assertTrue(
+            criteria["release-artifact-smoke"]["details"]["fresh_target_init"]["target_local_workflow_plan_ok"]
+        )
         step_ids = {step["id"] for step in payload["steps"]}
         self.assertIn("pack_verification", step_ids)
         self.assertIn("environment_inventory", step_ids)
