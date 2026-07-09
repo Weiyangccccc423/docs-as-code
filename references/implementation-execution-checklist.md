@@ -1,12 +1,14 @@
 # Implementation Execution Checklist
 
-Use this checklist when an implementation agent starts, updates, verifies, or completes one `TASK-NNN` item that is already `Ready`.
+Use this checklist when an implementation agent starts, updates, verifies, or completes one `TASK-NNN` item that is `Ready` or already claimed as `In Progress`.
 
 Calibrate execution against DORA small-batch integration and test automation, Google Engineering Practices code-review discipline, SLSA build-integrity expectations, and OpenSSF dependency-risk signals. Keep execution local and evidence-based: every behavior change should be traceable to repository Markdown, code, tests, or a recorded blocker.
 
 ## Task Intake
 
-- Is exactly one `Ready` `TASK-NNN` selected from `docs/development/02-task-board.md`?
+- Is exactly one `Ready` or `In Progress` `TASK-NNN` selected from `docs/development/02-task-board.md`?
+- Before first code edit, was exactly one `Ready` `TASK-NNN` claimed as `In Progress`?
+- If the task was `Ready`, did the agent run `implementation start --task TASK-NNN --json` and apply only the returned safe `In Progress` status update before editing code?
 - Does the task link existing local Product, Design, API, Acceptance, and Verification sources before any code is edited?
 - Is the matching `A-NNN` acceptance criterion defined in a product acceptance chapter and mapped in `docs/tests/02-acceptance-matrix.md`?
 - Has the agent read the target-local `docs/agent-workflow/task-handoff.md` when present?

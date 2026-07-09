@@ -11,12 +11,12 @@ from typing import Any
 try:
     from .bootstrap_tree import target_local_commands_payload
     from .state import STATE_REL, StateFileError, load_state
-    from .verify_governance import product_acceptance_ids, task_board_ready_tasks, verify
+    from .verify_governance import product_acceptance_ids, task_board_executable_tasks, verify
     from .workflow_actions import next_actions_payload
 except ImportError:  # pragma: no cover - direct script execution
     from bootstrap_tree import target_local_commands_payload
     from state import STATE_REL, StateFileError, load_state
-    from verify_governance import product_acceptance_ids, task_board_ready_tasks, verify
+    from verify_governance import product_acceptance_ids, task_board_executable_tasks, verify
     from workflow_actions import next_actions_payload
 
 
@@ -521,9 +521,9 @@ def _add_implementation_requirements(requirements: list[GateRequirement], root: 
     _add(
         requirements,
         "task_board_ready_task_present",
-        bool(task_board_ready_tasks(root)),
+        bool(task_board_executable_tasks(root)),
         "docs/development/02-task-board.md",
-        "task board has at least one Ready task with product/design/API/acceptance/verification links",
+        "task board has at least one Ready or In Progress task with product/design/API/acceptance/verification links",
     )
 
 

@@ -158,8 +158,17 @@ def run_artifact_smoke(*, keep: bool = False) -> dict[str, object]:
             "unpacked artifact dry-run did not reach implementation",
             payload=dry_run_payload,
         )
+        start = dry_run_payload.get("implementation_start")
         closeout = dry_run_payload.get("implementation_closeout")
         runtime_refresh = dry_run_payload.get("runtime_refresh")
+        _require(
+            isinstance(start, dict)
+            and start.get("ready") is True
+            and start.get("applied_status_updates") is True
+            and start.get("implementation_plan_in_progress") is True,
+            "unpacked artifact dry-run did not prove implementation start status gates",
+            payload=dry_run_payload,
+        )
         _require(
             isinstance(closeout, dict)
             and closeout.get("blocked_without_evidence") is True

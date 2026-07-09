@@ -2873,7 +2873,10 @@ class GovernanceCliTest(unittest.TestCase):
                 {
                     "task_count": 1,
                     "ready_task_count": 1,
+                    "in_progress_task_count": 0,
+                    "actionable_task_count": 1,
                     "actionable_ready_task_count": 1,
+                    "actionable_in_progress_task_count": 0,
                     "blocked_task_count": 0,
                     "done_task_count": 0,
                     "done_task_with_passing_evidence_count": 0,
@@ -2894,6 +2897,10 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual(
                 ["bin/governance", "gate", "implementation", ".", "--json"],
                 payload["active_work"]["gate_command"]["argv"],
+            )
+            self.assertEqual(
+                ["bin/governance", "implementation", "start", ".", "--task", "TASK-001", "--json"],
+                payload["active_work"]["start_command"]["argv"],
             )
             self.assertEqual(
                 ["bin/governance", "verify", ".", "--check", "--json"],
@@ -2934,6 +2941,7 @@ class GovernanceCliTest(unittest.TestCase):
                     "load-implementation-skill",
                     "read-implementation-checklist",
                     "implementation-gate",
+                    "implementation-start",
                     "verify-implementation-execution",
                     "read-task-sources",
                     "inspect-code-surface",
@@ -2945,6 +2953,108 @@ class GovernanceCliTest(unittest.TestCase):
                 ],
                 [step["id"] for step in task["steps"]],
             )
+
+    def test_implementation_start_reports_in_progress_status_sync_plan(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp)
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "implementation",
+                    "start",
+                    str(target),
+                    "--task",
+                    "TASK-001",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertTrue(payload["start_ready"])
+            self.assertEqual("claim_exactly_one_ready_task_before_editing_code", payload["decision_policy"])
+            self.assertEqual("In Progress", payload["target_status"])
+            requirements = {requirement["code"]: requirement for requirement in payload["requirements"]}
+            self.assertEqual("satisfied", requirements["implementation_gate_passed"]["status"])
+            self.assertEqual("satisfied", requirements["task_status_startable"]["status"])
+            self.assertEqual("satisfied", requirements["single_in_progress_task"]["status"])
+            self.assertEqual("In Progress", payload["status_update_plan"]["target_status"])
+            self.assertTrue(payload["status_update_plan"]["can_auto_apply"])
+            self.assertEqual(
+                ["bin/governance", "implementation", "start", ".", "--task", "TASK-001", "--apply", "--json"],
+                payload["status_update_plan"]["apply_command"]["argv"],
+            )
+            self.assertEqual(
+                [
+                    {
+                        "path": "docs/development/02-task-board.md",
+                        "task_id": "TASK-001",
+                        "field": "Status",
+                        "from": "Ready",
+                        "to": "In Progress",
+                    },
+                    {
+                        "path": "docs/development/01-roadmap.md",
+                        "task_id": "TASK-001",
+                        "field": "Status",
+                        "from": "Ready",
+                        "to": "In Progress",
+                    },
+                ],
+                payload["status_update_plan"]["updates"],
+            )
+            self.assertIn("| TASK-001 | Ready | Implement goal flow |", (target / "docs/development/02-task-board.md").read_text(encoding="utf-8"))
+            self.assertIn("| TASK-001 | Ready | Goal flow |", (target / "docs/development/01-roadmap.md").read_text(encoding="utf-8"))
+
+    def test_implementation_start_apply_marks_task_and_roadmap_in_progress(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp)
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "implementation",
+                    "start",
+                    str(target),
+                    "--task",
+                    "TASK-001",
+                    "--apply",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertTrue(payload["apply_requested"])
+            self.assertTrue(payload["applied"])
+            self.assertFalse(payload["already_current"])
+            self.assertEqual(
+                ["docs/development/02-task-board.md", "docs/development/01-roadmap.md"],
+                payload["updated_paths"],
+            )
+            self.assertEqual("In Progress", payload["task"]["status"])
+            self.assertFalse(payload["status_update_plan"]["updates_required"])
+            self.assertIn("| TASK-001 | In Progress | Implement goal flow |", (target / "docs/development/02-task-board.md").read_text(encoding="utf-8"))
+            self.assertIn("| TASK-001 | In Progress | Goal flow |", (target / "docs/development/01-roadmap.md").read_text(encoding="utf-8"))
+
+            plan = _run_governance_json(self, ["implementation", "plan", str(target)])
+            self.assertFalse(plan["blocked"])
+            self.assertTrue(plan["gate_ok"])
+            self.assertEqual(1, plan["implementation_summary"]["in_progress_task_count"])
+            self.assertEqual(1, plan["implementation_summary"]["actionable_in_progress_task_count"])
+            self.assertEqual("in_progress", plan["active_work"]["status"])
+            self.assertEqual("TASK-001", plan["active_work"]["task_id"])
 
     def test_implementation_closeout_blocks_done_without_verification_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -3146,6 +3256,74 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual("Done", payload["evidence_summary"]["roadmap_status"])
             self.assertIn("| TASK-001 | Done | Implement goal flow |", (target / "docs/development/02-task-board.md").read_text(encoding="utf-8"))
             self.assertIn("| TASK-001 | Done | Goal flow |", (target / "docs/development/01-roadmap.md").read_text(encoding="utf-8"))
+
+    def test_implementation_closeout_apply_marks_in_progress_task_done_with_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp)
+            (target / "docs/development/02-task-board.md").write_text(
+                _task_board_doc(
+                    "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | "
+                    "docs/architecture/01-system-context.md | docs/api/00-conventions.md | "
+                    "docs/product/08-acceptance-criteria.md | docs/development/03-verification-log.md |\n"
+                ),
+                encoding="utf-8",
+            )
+            (target / "docs/development/03-verification-log.md").write_text(
+                _verification_log_doc(
+                    "| TASK-001 | make test | pass | 2026-07-08 | Local verification passed. |\n"
+                ),
+                encoding="utf-8",
+            )
+            start = _run_governance_json(
+                self,
+                ["implementation", "start", str(target), "--task", "TASK-001", "--apply"],
+            )
+            self.assertTrue(start["applied"])
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "implementation",
+                    "closeout",
+                    str(target),
+                    "--task",
+                    "TASK-001",
+                    "--apply",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertTrue(payload["closeout_ready"])
+            self.assertTrue(payload["applied"])
+            self.assertEqual("Done", payload["task"]["status"])
+            self.assertEqual("Done", payload["evidence_summary"]["task_status"])
+            self.assertEqual("Done", payload["evidence_summary"]["roadmap_status"])
+            self.assertEqual(
+                [
+                    {
+                        "path": "docs/development/02-task-board.md",
+                        "task_id": "TASK-001",
+                        "field": "Status",
+                        "from": "In Progress",
+                        "to": "Done",
+                    },
+                    {
+                        "path": "docs/development/01-roadmap.md",
+                        "task_id": "TASK-001",
+                        "field": "Status",
+                        "from": "In Progress",
+                        "to": "Done",
+                    },
+                ],
+                payload["pre_apply_status_update_plan"]["updates"],
+            )
 
     def test_implementation_plan_reports_complete_after_all_tasks_done(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

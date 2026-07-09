@@ -363,6 +363,7 @@ TASK_BOARD_ALLOWED_STATUSES = {
     "deferred",
 }
 TASK_BOARD_READY_STATUSES = {"ready"}
+TASK_BOARD_EXECUTABLE_STATUSES = {"ready", "in progress"}
 TASK_BOARD_DONE_STATUSES = {"done"}
 TASK_BOARD_BLOCKED_STATUSES = {"blocked"}
 TASK_BOARD_EMPTY_VALUES = {"", "-", "tbd", "todo", "n/a", "na", "none"}
@@ -4184,6 +4185,14 @@ def _is_ignored_workflow_pack_file(path: Path) -> bool:
 
 
 def task_board_ready_tasks(root: Path) -> list[dict[str, str]]:
+    return _task_board_tasks_with_statuses(root, TASK_BOARD_READY_STATUSES)
+
+
+def task_board_executable_tasks(root: Path) -> list[dict[str, str]]:
+    return _task_board_tasks_with_statuses(root, TASK_BOARD_EXECUTABLE_STATUSES)
+
+
+def _task_board_tasks_with_statuses(root: Path, statuses: set[str]) -> list[dict[str, str]]:
     root = root.resolve()
     path = root / TASK_BOARD_REL
     if not path.exists():
@@ -4203,7 +4212,7 @@ def task_board_ready_tasks(root: Path) -> list[dict[str, str]]:
     return [
         row
         for row in rows
-        if _normalize_cell(row.get("status", "")) in TASK_BOARD_READY_STATUSES and _task_board_row_trace_complete(row)
+        if _normalize_cell(row.get("status", "")) in statuses and _task_board_row_trace_complete(row)
         and _task_board_row_trace_references_valid(root, row)
         and _task_board_row_acceptance_mapped(row, matrix_ids)
     ]

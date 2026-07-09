@@ -40,7 +40,13 @@ from design_plan import (
     build_test_strategy_authoring,
 )
 from gates import GATE_NAMES, evaluate_gate
-from implementation_plan import apply_implementation_closeout, build_implementation_closeout, build_implementation_plan
+from implementation_plan import (
+    apply_implementation_closeout,
+    apply_implementation_start,
+    build_implementation_closeout,
+    build_implementation_plan,
+    build_implementation_start,
+)
 from phases import PHASE_NAMES, advance_phase, check_advance_phase
 from product_import import check_product_import_ready, mark_product_import_ready
 from product_structure import build_product_plan, check_structure_product, structure_product
@@ -808,6 +814,26 @@ def _cmd_implementation_plan(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_implementation_start(args: argparse.Namespace) -> int:
+    target = Path(args.target)
+    payload = apply_implementation_start(target, args.task) if args.apply else build_implementation_start(target, args.task)
+    if args.json:
+        _print_json(payload)
+        return 0 if payload["ok"] else 1
+    if not payload["ok"]:
+        print("Implementation start failed:")
+        for error in payload["errors"]:
+            print(f"- ERROR: {error}")
+        return 1
+    print(f"Implementation start: {payload['task_id']}")
+    print(f"- start_ready: {payload['start_ready']}")
+    if args.apply:
+        print(f"- applied: {payload.get('applied')}")
+    for requirement in payload["requirements"]:
+        print(f"- {requirement['code']}: {requirement['status']}")
+    return 0
+
+
 def _cmd_implementation_closeout(args: argparse.Namespace) -> int:
     target = Path(args.target)
     payload = apply_implementation_closeout(target, args.task) if args.apply else build_implementation_closeout(target, args.task)
@@ -1013,6 +1039,19 @@ def build_parser() -> argparse.ArgumentParser:
     implementation_plan.add_argument("target", nargs="?", default=".")
     implementation_plan.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     implementation_plan.set_defaults(func=_cmd_implementation_plan)
+    implementation_start = implementation_sub.add_parser(
+        "start",
+        help="Claim one Ready implementation task by synchronizing status to In Progress.",
+    )
+    implementation_start.add_argument("target", nargs="?", default=".")
+    implementation_start.add_argument("--task", required=True, help="TASK-NNN task ID to claim.")
+    implementation_start.add_argument(
+        "--apply",
+        action="store_true",
+        help="Apply synchronized task-board and roadmap In Progress status updates when start requirements pass.",
+    )
+    implementation_start.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    implementation_start.set_defaults(func=_cmd_implementation_start)
     implementation_closeout = implementation_sub.add_parser(
         "closeout",
         help="Check whether one implementation task has enough evidence to mark Done.",

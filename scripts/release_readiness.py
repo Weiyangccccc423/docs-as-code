@@ -104,6 +104,7 @@ def _criterion(
 
 def _dry_run_closeout_evidence_ok(payload: dict[str, object]) -> bool:
     gate = payload.get("implementation_gate")
+    start = payload.get("implementation_start")
     closeout = payload.get("implementation_closeout")
     runtime_refresh = payload.get("runtime_refresh")
     return (
@@ -111,6 +112,10 @@ def _dry_run_closeout_evidence_ok(payload: dict[str, object]) -> bool:
         and gate.get("placeholder_blocked_ok") is False
         and gate.get("placeholder_expected_blocked") is True
         and gate.get("ready_ok") is True
+        and isinstance(start, dict)
+        and start.get("ready") is True
+        and start.get("applied_status_updates") is True
+        and start.get("implementation_plan_in_progress") is True
         and isinstance(closeout, dict)
         and closeout.get("blocked_without_evidence") is True
         and closeout.get("ready_with_evidence") is True

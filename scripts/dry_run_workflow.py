@@ -904,6 +904,40 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         payload=make_implementation_plan,
     )
 
+    implementation_start_preview = _run_json(
+        steps,
+        "implementation_start_preview",
+        ["bin/governance", "implementation", "start", ".", "--task", IMPLEMENTATION_TASK_ID, "--json"],
+        target,
+    )
+    _require(
+        _implementation_start_ready(implementation_start_preview),
+        "implementation start did not expose a safe In Progress status update plan",
+        payload=implementation_start_preview,
+    )
+    implementation_start_apply = _run_json(
+        steps,
+        "implementation_start_apply",
+        ["bin/governance", "implementation", "start", ".", "--task", IMPLEMENTATION_TASK_ID, "--apply", "--json"],
+        target,
+    )
+    _require(
+        _implementation_start_apply_completed(implementation_start_apply),
+        "implementation start apply did not synchronize In Progress statuses",
+        payload=implementation_start_apply,
+    )
+    implementation_plan_after_start = _run_json(
+        steps,
+        "implementation_plan_after_start",
+        ["bin/governance", "implementation", "plan", ".", "--json"],
+        target,
+    )
+    _require(
+        _implementation_plan_is_in_progress(implementation_plan_after_start),
+        "implementation plan did not resume the In Progress task after start apply",
+        payload=implementation_plan_after_start,
+    )
+
     closeout_without_evidence = _run_json(
         steps,
         "implementation_closeout_without_evidence",
@@ -1020,6 +1054,22 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
             "placeholder_expected_blocked": True,
             "ready_ok": implementation_gate.get("ok"),
         },
+        "implementation_start": {
+            "task_id": IMPLEMENTATION_TASK_ID,
+            "ready": implementation_start_preview.get("start_ready") is True,
+            "applied_status_updates": implementation_start_apply.get("applied") is True,
+            "implementation_plan_in_progress": implementation_plan_after_start.get("blocked") is False
+            and implementation_plan_after_start.get("active_work", {}).get("status") == "in_progress",
+            "status_update_paths": [
+                str(update.get("path"))
+                for update in implementation_start_preview.get("status_update_plan", {}).get("updates", [])
+                if isinstance(update, dict)
+            ],
+            "apply_updated_paths": [
+                str(path)
+                for path in implementation_start_apply.get("updated_paths", [])
+            ],
+        },
         "implementation_closeout": {
             "task_id": IMPLEMENTATION_TASK_ID,
             "blocked_without_evidence": closeout_without_evidence.get("closeout_ready") is False,
@@ -1091,7 +1141,7 @@ def _write_minimal_implementation_ready_docs(target: Path, acceptance_ids: list[
 
 def _write_minimal_closeout_evidence(target: Path, acceptance_id: str) -> None:
     (target / "docs/development/02-task-board.md").write_text(
-        _task_board_doc(acceptance_id, verification="docs/development/03-verification-log.md"),
+        _task_board_doc(acceptance_id, status="In Progress", verification="docs/development/03-verification-log.md"),
         encoding="utf-8",
     )
     (target / "docs/development/03-verification-log.md").write_text(
@@ -1402,13 +1452,13 @@ def _roadmap_doc() -> str:
     )
 
 
-def _task_board_doc(acceptance_id: str, *, verification: str) -> str:
+def _task_board_doc(acceptance_id: str, *, verification: str, status: str = "Ready") -> str:
     return (
         "# Task Board\n\n"
         "## Task Table\n\n"
         "| ID | Status | Task | Product | Design | API | Acceptance | Verification |\n"
         "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
-        f"| {IMPLEMENTATION_TASK_ID} | Ready | Implement local governance check flow | "
+        f"| {IMPLEMENTATION_TASK_ID} | {status} | Implement local governance check flow | "
         "docs/product/03-goals-and-requirements.md | "
         "docs/architecture/01-system-context.md | "
         "docs/api/endpoints/01-endpoint-contract.md | "
@@ -1585,6 +1635,19 @@ def _implementation_plan_is_actionable(payload: dict[str, object]) -> bool:
         return False
     if active_work.get("task_id") != IMPLEMENTATION_TASK_ID or active_work.get("status") != "ready":
         return False
+    start_command = active_work.get("start_command")
+    if not _valid_embedded_command(start_command):
+        return False
+    if start_command.get("argv") != [
+        "bin/governance",
+        "implementation",
+        "start",
+        ".",
+        "--task",
+        IMPLEMENTATION_TASK_ID,
+        "--json",
+    ]:
+        return False
     closeout_command = active_work.get("closeout_command")
     if not _valid_embedded_command(closeout_command):
         return False
@@ -1608,6 +1671,62 @@ def _implementation_plan_is_actionable(payload: dict[str, object]) -> bool:
     if not isinstance(steps, list):
         return False
     return any(isinstance(step, dict) and step.get("id") == "implementation-closeout" for step in steps)
+
+
+def _implementation_start_ready(payload: dict[str, object]) -> bool:
+    if payload.get("ok") is not True:
+        return False
+    if payload.get("decision_policy") != "claim_exactly_one_ready_task_before_editing_code":
+        return False
+    if payload.get("start_ready") is not True or payload.get("target_status") != "In Progress":
+        return False
+    requirements = payload.get("requirements")
+    if not isinstance(requirements, list) or any(
+        not isinstance(requirement, dict) or requirement.get("status") != "satisfied"
+        for requirement in requirements
+    ):
+        return False
+    status_update_plan = payload.get("status_update_plan")
+    if not isinstance(status_update_plan, dict):
+        return False
+    if status_update_plan.get("can_auto_apply") is not True:
+        return False
+    updates = status_update_plan.get("updates")
+    if not isinstance(updates, list):
+        return False
+    update_paths = {str(update.get("path")) for update in updates if isinstance(update, dict)}
+    update_targets = {str(update.get("to")) for update in updates if isinstance(update, dict)}
+    return update_paths == {"docs/development/01-roadmap.md", "docs/development/02-task-board.md"} and update_targets == {
+        "In Progress"
+    }
+
+
+def _implementation_start_apply_completed(payload: dict[str, object]) -> bool:
+    if payload.get("ok") is not True:
+        return False
+    if payload.get("start_ready") is not True:
+        return False
+    if payload.get("applied") is not True or payload.get("already_current") is not False:
+        return False
+    updated_paths = {str(path) for path in payload.get("updated_paths", [])}
+    if updated_paths != {"docs/development/01-roadmap.md", "docs/development/02-task-board.md"}:
+        return False
+    status_update_plan = payload.get("post_apply_status_update_plan")
+    return isinstance(status_update_plan, dict) and status_update_plan.get("updates_required") is False
+
+
+def _implementation_plan_is_in_progress(payload: dict[str, object]) -> bool:
+    if payload.get("ok") is not True or payload.get("blocked") is not False:
+        return False
+    summary = payload.get("implementation_summary")
+    if not isinstance(summary, dict):
+        return False
+    if summary.get("in_progress_task_count") != 1 or summary.get("actionable_in_progress_task_count") != 1:
+        return False
+    active_work = payload.get("active_work")
+    if not isinstance(active_work, dict):
+        return False
+    return active_work.get("task_id") == IMPLEMENTATION_TASK_ID and active_work.get("status") == "in_progress"
 
 
 def _closeout_blocks_without_evidence(payload: dict[str, object]) -> bool:
@@ -1841,7 +1960,10 @@ def _active_work_is_actionable(work: object) -> bool:
             work.get("refresh_command")
         )
     if work["kind"] == "implementation-task":
-        if work.get("task_id") != IMPLEMENTATION_TASK_ID or work.get("status") != "ready":
+        if work.get("task_id") != IMPLEMENTATION_TASK_ID or work.get("status") not in {"ready", "in_progress"}:
+            return False
+        start_command = work.get("start_command")
+        if start_command is not None and not _valid_embedded_command(start_command):
             return False
         closeout_command = work.get("closeout_command")
         refresh_command = work.get("refresh_command")

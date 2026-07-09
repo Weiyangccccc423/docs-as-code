@@ -68,4 +68,4 @@ Reference: `https://github.com/ossf/scorecard`
 - Does `bin/governance verify <target> --check --json` pass before recorded verification?
 - Does `bin/governance verify <target> --json` record the current successful baseline when state should be updated?
 - Does `bin/governance advance implementation <target> --check --json` pass before implementation work starts?
-- Is at least one task board item `Ready`, with product, design, API, acceptance, and verification links satisfied?
+- Is at least one task board item `Ready` or `In Progress`, with product, design, API, acceptance, and verification links satisfied?

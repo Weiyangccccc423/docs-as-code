@@ -11,7 +11,7 @@ Calibrate against explicit process modeling, machine-readable JSON contracts, sc
 - Is an unarchived or conversion-required product source routed to `archiving-product-document`?
 - Is a reviewed PRD without sourced product chapters routed to `structuring-product-requirements`?
 - Is structured product with acceptance criteria routed through design skills in the Phase Map order?
-- Is a repository with a passing implementation gate and one selected `Ready` `TASK-NNN` routed to `executing-implementation-task`?
+- Is a repository with a passing implementation gate and one selected `Ready` or `In Progress` `TASK-NNN` routed to `executing-implementation-task`?
 - Is any claimed phase completion routed to `verifying-governance-docs` before downstream work starts?
 
 Reference: `https://www.omg.org/spec/BPMN/2.0.2/`

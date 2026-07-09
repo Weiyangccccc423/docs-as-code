@@ -129,7 +129,7 @@ make repair-env-check
    - task board item IDs are unique, use `TASK-NNN`, and match roadmap milestones
    - task board `Product`, `Design`, `API`, and `Acceptance` fields point to existing local Markdown files in the matching source domains
    - task board `Acceptance` fields include an `A-NNN` ID defined in the referenced product acceptance chapter, mapped in `docs/tests/02-acceptance-matrix.md`, a matching link fragment when present, and a product acceptance chapter reference matching `docs/product/NN-*acceptance*.md`
-   - at least one task board item is `Ready` before implementation starts
+   - at least one task board item is `Ready` before implementation starts or `In Progress` while execution is being resumed
 
 ## Output
 

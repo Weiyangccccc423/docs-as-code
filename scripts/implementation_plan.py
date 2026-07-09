@@ -13,6 +13,7 @@ try:
         ROADMAP_MILESTONE_REQUIRED_COLUMNS,
         SCAFFOLD_PLACEHOLDER,
         TASK_BOARD_ALLOWED_STATUSES,
+        TASK_BOARD_EXECUTABLE_STATUSES,
         TASK_BOARD_REQUIRED_COLUMNS,
         TASK_BOARD_READY_STATUSES,
         TASK_BOARD_REL,
@@ -43,6 +44,7 @@ except ImportError:  # pragma: no cover - direct script execution
         ROADMAP_MILESTONE_REQUIRED_COLUMNS,
         SCAFFOLD_PLACEHOLDER,
         TASK_BOARD_ALLOWED_STATUSES,
+        TASK_BOARD_EXECUTABLE_STATUSES,
         TASK_BOARD_REQUIRED_COLUMNS,
         TASK_BOARD_READY_STATUSES,
         TASK_BOARD_REL,
@@ -139,6 +141,82 @@ def build_implementation_plan(root: Path) -> dict[str, object]:
     return payload
 
 
+def build_implementation_start(root: Path, task_id: str) -> dict[str, object]:
+    root = root.resolve()
+    state = load_state(root)
+    phase = state.get("phase") if isinstance(state.get("phase"), str) else ""
+    task_id = task_id.strip()
+    errors: list[str] = []
+    if not state:
+        errors.append("No governance state found.")
+    elif phase != IMPLEMENTATION_PHASE:
+        errors.append(f"implementation start requires recorded phase {IMPLEMENTATION_PHASE}")
+    if TASK_ID_RE.fullmatch(task_id) is None:
+        errors.append("implementation start requires --task TASK-NNN")
+
+    rows, row_errors = _read_task_rows(root)
+    errors.extend(row_errors)
+    row = _task_row_by_id(rows, task_id)
+    if row is None and not any(error.startswith("implementation start requires --task") for error in errors):
+        errors.append(f"implementation start task not found: {task_id}")
+
+    gate = evaluate_gate(root, IMPLEMENTATION_PHASE).to_dict() if state else {}
+    roadmap_row = _roadmap_row_for_task(root, task_id)
+    requirements = _start_requirements(root, row, task_id, gate, roadmap_row, rows)
+    ready = not errors and all(requirement["status"] == "satisfied" for requirement in requirements)
+    status_update_plan = (
+        _status_update_plan(
+            root,
+            row,
+            roadmap_row,
+            "In Progress",
+            can_auto_apply=ready,
+            command_id="apply-implementation-start",
+            command_description="Apply synchronized In Progress status updates to claim one implementation task.",
+            command_argv=["bin/governance", "implementation", "start", ".", "--task", task_id, "--apply", "--json"],
+            manual_policy="prefer_apply_command_to_claim_ready_task_do_not_hand_edit_when_available",
+        )
+        if row is not None
+        else {}
+    )
+    payload: dict[str, object] = {
+        "ok": not errors,
+        "target": str(root),
+        "phase": phase,
+        "workflow": IMPLEMENTATION_WORKFLOW_PATH,
+        "decision_policy": "claim_exactly_one_ready_task_before_editing_code",
+        "primary_skill": "executing-implementation-task",
+        "task_id": task_id,
+        "start_ready": ready,
+        "target_status": "In Progress",
+        "gate": gate,
+        "gate_ok": gate.get("ok") is True,
+        "task": _closeout_task_payload(root, row) if row is not None else {},
+        "requirements": requirements,
+        "blocking_requirements": [
+            requirement for requirement in requirements if requirement.get("status") != "satisfied"
+        ],
+        "status_update_plan": status_update_plan,
+        "verify_command": _embedded_command(
+            root,
+            "verify-implementation-start",
+            "Run read-only governance verification before claiming a task.",
+            ["bin/governance", "verify", ".", "--check", "--json"],
+        ),
+        "refresh_command": _embedded_command(
+            root,
+            "refresh-implementation-start",
+            "Refresh this implementation start plan after task status changes.",
+            ["bin/governance", "implementation", "start", ".", "--task", task_id, "--json"],
+        ),
+        "errors": errors,
+    }
+    if not errors:
+        payload["local_commands"] = target_local_commands_payload(cwd=str(root))
+        payload["next_actions"] = next_actions_payload(state, cwd=str(root))
+    return payload
+
+
 def build_implementation_closeout(root: Path, task_id: str) -> dict[str, object]:
     root = root.resolve()
     state = load_state(root)
@@ -203,6 +281,88 @@ def build_implementation_closeout(root: Path, task_id: str) -> dict[str, object]
     if not errors:
         payload["local_commands"] = target_local_commands_payload(cwd=str(root))
         payload["next_actions"] = next_actions_payload(state, cwd=str(root))
+    return payload
+
+
+def apply_implementation_start(root: Path, task_id: str) -> dict[str, object]:
+    root = root.resolve()
+    pre_apply = build_implementation_start(root, task_id)
+    pre_apply_plan = pre_apply.get("status_update_plan")
+    base_apply_payload = {
+        "apply_requested": True,
+        "applied": False,
+        "already_current": False,
+        "updated_paths": [],
+        "pre_apply_status_update_plan": pre_apply_plan if isinstance(pre_apply_plan, dict) else {},
+        "apply_errors": [],
+    }
+    pre_apply.update(base_apply_payload)
+    if pre_apply.get("ok") is not True:
+        pre_apply["apply_errors"] = list(pre_apply.get("errors", []))
+        return pre_apply
+    if pre_apply.get("start_ready") is not True:
+        errors = ["implementation start is not ready; refusing to apply status updates"]
+        pre_apply["ok"] = False
+        pre_apply["errors"] = [*list(pre_apply.get("errors", [])), *errors]
+        pre_apply["apply_errors"] = errors
+        return pre_apply
+    if not isinstance(pre_apply_plan, dict):
+        return _status_apply_failed(pre_apply, "implementation start status_update_plan is unavailable")
+    updates = pre_apply_plan.get("updates")
+    if not isinstance(updates, list):
+        return _status_apply_failed(pre_apply, "implementation start status_update_plan updates are unavailable")
+    if not updates:
+        pre_apply["already_current"] = True
+        return pre_apply
+    if pre_apply_plan.get("can_auto_apply") is not True:
+        return _status_apply_failed(pre_apply, "implementation start status updates are not safe to auto-apply")
+    validation_error = _validate_start_apply_updates(updates, task_id)
+    if validation_error:
+        return _status_apply_failed(pre_apply, validation_error)
+
+    next_texts: dict[Path, str] = {}
+    updated_paths: list[str] = []
+    try:
+        for update in updates:
+            if not isinstance(update, dict):
+                return _status_apply_failed(pre_apply, "implementation start update is malformed")
+            rel = Path(str(update.get("path", "")))
+            path = root / rel
+            text = path.read_text(encoding="utf-8")
+            columns = _status_table_columns_for_path(rel)
+            next_text, changed = _replace_status_table_cell(
+                text,
+                task_id=task_id,
+                target_status=str(update.get("to", "In Progress")),
+                required_columns=columns,
+            )
+            next_texts[path] = next_text
+            if changed:
+                updated_paths.append(rel.as_posix())
+    except (OSError, UnicodeDecodeError, ValueError) as error:
+        reason = error.strerror if isinstance(error, OSError) and error.strerror else str(error)
+        return _status_apply_failed(pre_apply, f"implementation start apply failed: {reason}")
+
+    for path, text in next_texts.items():
+        path.write_text(text, encoding="utf-8")
+
+    payload = build_implementation_start(root, task_id)
+    payload.update(
+        {
+            "apply_requested": True,
+            "applied": bool(updated_paths),
+            "already_current": not updated_paths,
+            "updated_paths": updated_paths,
+            "pre_apply_status_update_plan": pre_apply_plan,
+            "post_apply_status_update_plan": payload.get("status_update_plan", {}),
+            "apply_errors": [],
+        }
+    )
+    if payload.get("ok") is not True or payload.get("start_ready") is not True:
+        message = "implementation start verification failed after applying status updates"
+        payload["ok"] = False
+        payload["errors"] = [*list(payload.get("errors", [])), message]
+        payload["apply_errors"] = [message]
     return payload
 
 
@@ -462,6 +622,117 @@ def _closeout_requirements(
     return requirements
 
 
+def _start_requirements(
+    root: Path,
+    row: dict[str, str] | None,
+    task_id: str,
+    gate: dict[str, object],
+    roadmap_row: dict[str, str] | None,
+    rows: list[dict[str, str]],
+) -> list[dict[str, object]]:
+    requirements: list[dict[str, object]] = [
+        _closeout_requirement(
+            "implementation_gate_passed",
+            gate.get("ok") is True,
+            "implementation gate must pass before a task can be claimed for execution",
+            repair_strategy="repair_failed_implementation_gate_requirement_before_claiming_task",
+        ),
+    ]
+    if row is None:
+        requirements.append(
+            _closeout_requirement(
+                "task_board_row_present",
+                False,
+                f"{task_id} must exist in {TASK_BOARD_REL.as_posix()}",
+                path=TASK_BOARD_REL.as_posix(),
+                repair_strategy="add_or_restore_task_board_row_before_start",
+            )
+        )
+        return requirements
+
+    normalized_status = _normalize_cell(row.get("status", ""))
+    roadmap_status = _normalize_cell(roadmap_row.get("status", "")) if roadmap_row is not None else ""
+    acceptance_id = _task_board_acceptance_id(row.get("acceptance", ""))
+    matrix_ids = _acceptance_matrix_mapped_acceptance_ids(root)
+    trace_errors = _task_board_row_trace_reference_errors(root, row, task_id)
+    other_in_progress = _other_in_progress_task_ids(rows, task_id)
+    requirements.extend(
+        [
+            _closeout_requirement(
+                "task_board_row_present",
+                True,
+                f"{task_id} exists in {TASK_BOARD_REL.as_posix()}",
+                path=TASK_BOARD_REL.as_posix(),
+            ),
+            _closeout_requirement(
+                "task_status_startable",
+                normalized_status in {"ready", "in progress"},
+                "task status must be Ready before first claim or In Progress for idempotent resume",
+                path=TASK_BOARD_REL.as_posix(),
+                detail=row.get("status", "").strip(),
+                repair_strategy="select_one_ready_task_or_resume_same_in_progress_task",
+            ),
+            _closeout_requirement(
+                "task_trace_links_valid",
+                not trace_errors and _task_board_row_trace_complete(row),
+                "task Product, Design, API, Acceptance, and Verification sources must be traceable",
+                path=TASK_BOARD_REL.as_posix(),
+                detail="; ".join(message for _code, message in trace_errors),
+                repair_strategy="repair_task_board_traceability_before_claiming_task",
+            ),
+            _closeout_requirement(
+                "acceptance_matrix_mapped",
+                matrix_ids is not None and acceptance_id is not None and acceptance_id in matrix_ids,
+                "task acceptance ID must be mapped in the acceptance matrix",
+                path=ACCEPTANCE_MATRIX_REL.as_posix(),
+                detail=acceptance_id or "missing acceptance ID",
+                repair_strategy="map_task_acceptance_in_acceptance_matrix_before_claiming_task",
+            ),
+            _closeout_requirement(
+                "roadmap_row_present",
+                roadmap_row is not None,
+                f"{task_id} must exist in {ROADMAP_REL.as_posix()}",
+                path=ROADMAP_REL.as_posix(),
+                repair_strategy="add_or_restore_matching_roadmap_row_before_start",
+            ),
+            _closeout_requirement(
+                "roadmap_status_startable",
+                roadmap_row is not None and roadmap_status in {"ready", "in progress"},
+                "roadmap status must be Ready before first claim or In Progress for idempotent resume",
+                path=ROADMAP_REL.as_posix(),
+                detail=roadmap_row.get("status", "").strip() if roadmap_row is not None else "",
+                repair_strategy="synchronize_roadmap_status_before_claiming_task",
+            ),
+            _closeout_requirement(
+                "task_and_roadmap_status_synchronized",
+                roadmap_row is not None and normalized_status == roadmap_status,
+                "task board and roadmap statuses must match before claiming a task",
+                path=ROADMAP_REL.as_posix(),
+                detail=f"task={row.get('status', '').strip()}; roadmap={roadmap_row.get('status', '').strip() if roadmap_row is not None else ''}",
+                repair_strategy="synchronize_task_board_and_roadmap_status_before_claiming_task",
+            ),
+            _closeout_requirement(
+                "single_in_progress_task",
+                not other_in_progress,
+                "no other task may already be In Progress when claiming a task",
+                path=TASK_BOARD_REL.as_posix(),
+                detail=", ".join(other_in_progress),
+                repair_strategy="finish_block_or_defer_existing_in_progress_task_before_claiming_another",
+            ),
+        ]
+    )
+    return requirements
+
+
+def _other_in_progress_task_ids(rows: list[dict[str, str]], task_id: str) -> list[str]:
+    return [
+        row.get("id", "").strip()
+        for row in rows
+        if row.get("id", "").strip() != task_id
+        and _normalize_cell(row.get("status", "")) == "in progress"
+    ]
+
+
 def _closeout_requirement(
     code: str,
     satisfied: bool,
@@ -540,6 +811,10 @@ def _status_update_plan(
     target_status: str,
     *,
     can_auto_apply: bool,
+    command_id: str = "apply-implementation-closeout",
+    command_description: str = "Apply synchronized Done status updates to task board and roadmap after closeout evidence passes.",
+    command_argv: list[str] | None = None,
+    manual_policy: str = "prefer_apply_command_after_closeout_ready_do_not_hand_edit_when_available",
 ) -> dict[str, object]:
     updates: list[dict[str, object]] = []
     current_task_status = row.get("status", "").strip()
@@ -565,12 +840,13 @@ def _status_update_plan(
                 "to": target_status,
             }
         )
-    safe_to_apply = bool(updates) and can_auto_apply and _updates_are_closeout_status_updates(updates, task_id, target_status)
+    safe_to_apply = bool(updates) and can_auto_apply and _updates_are_task_and_roadmap_status_updates(updates, task_id, target_status)
+    argv = command_argv or ["bin/governance", "implementation", "closeout", ".", "--task", task_id, "--apply", "--json"]
     apply_command = _embedded_command(
         root,
-        "apply-implementation-closeout",
-        "Apply synchronized Done status updates to task board and roadmap after closeout evidence passes.",
-        ["bin/governance", "implementation", "closeout", ".", "--task", task_id, "--apply", "--json"],
+        command_id,
+        command_description,
+        argv,
     )
     apply_command["writes_state"] = True
     return {
@@ -579,11 +855,19 @@ def _status_update_plan(
         "updates_required": bool(updates),
         "updates": updates,
         "apply_command": apply_command,
-        "manual_policy": "prefer_apply_command_after_closeout_ready_do_not_hand_edit_when_available",
+        "manual_policy": manual_policy,
     }
 
 
 def _updates_are_closeout_status_updates(
+    updates: list[dict[str, object]],
+    task_id: str,
+    target_status: str,
+) -> bool:
+    return _updates_are_task_and_roadmap_status_updates(updates, task_id, target_status)
+
+
+def _updates_are_task_and_roadmap_status_updates(
     updates: list[dict[str, object]],
     task_id: str,
     target_status: str,
@@ -602,6 +886,18 @@ def _updates_are_closeout_status_updates(
             return False
         seen_paths.add(path)
     return seen_paths == expected_paths
+
+
+def _validate_start_apply_updates(updates: list[object], task_id: str) -> str:
+    if not all(isinstance(update, dict) for update in updates):
+        return "implementation start update list contains a malformed item"
+    typed_updates = [update for update in updates if isinstance(update, dict)]
+    if not _updates_are_task_and_roadmap_status_updates(typed_updates, task_id, "In Progress"):
+        return "implementation start apply only supports synchronized task-board and roadmap In Progress status updates"
+    for update in typed_updates:
+        if _normalize_cell(str(update.get("from", ""))) != "ready":
+            return "implementation start apply only supports Ready to In Progress status updates"
+    return ""
 
 
 def _validate_closeout_apply_updates(updates: list[object], task_id: str) -> str:
@@ -683,6 +979,10 @@ def _render_markdown_table_line(cells: list[str], original_line: str) -> str:
 
 
 def _closeout_apply_failed(payload: dict[str, object], message: str) -> dict[str, object]:
+    return _status_apply_failed(payload, message)
+
+
+def _status_apply_failed(payload: dict[str, object], message: str) -> dict[str, object]:
     payload["ok"] = False
     payload["applied"] = False
     payload["already_current"] = False
@@ -733,7 +1033,7 @@ def _implementation_task(
     blockers = _task_blockers(root, row, task_id, normalized_status, acceptance_id, matrix_ids, seen_ids)
     source_references = _source_references(root, row)
     specialist_skills = _task_specialist_skills(source_references)
-    actionable = normalized_status in TASK_BOARD_READY_STATUSES and not blockers
+    actionable = normalized_status in TASK_BOARD_EXECUTABLE_STATUSES and not blockers
     execution = {
         "stage": "implementation-execution",
         "primary_skill": "executing-implementation-task",
@@ -789,7 +1089,7 @@ def _task_blockers(
         blockers.append(_blocker(root, "task_board_duplicate_id", TASK_BOARD_REL.as_posix(), task_id))
     if normalized_status and normalized_status not in TASK_BOARD_ALLOWED_STATUSES:
         blockers.append(_blocker(root, "task_board_invalid_status", TASK_BOARD_REL.as_posix(), row.get("status", "").strip()))
-    if normalized_status not in TASK_BOARD_READY_STATUSES and normalized_status != "done":
+    if normalized_status not in TASK_BOARD_EXECUTABLE_STATUSES and normalized_status != "done":
         blockers.append(_blocker(root, "task_board_task_not_ready", TASK_BOARD_REL.as_posix(), row.get("status", "").strip()))
     if not _task_board_row_trace_complete(row):
         blockers.append(_blocker(root, "task_board_trace_incomplete", TASK_BOARD_REL.as_posix(), "traceability fields"))
@@ -918,6 +1218,12 @@ def _task_steps(root: Path, specialist_skills: list[str]) -> list[dict[str, obje
             ),
             _embedded_command(
                 root,
+                "implementation-start",
+                "Claim the selected Ready implementation task by synchronizing task-board and roadmap status to In Progress.",
+                ["bin/governance", "implementation", "start", ".", "--task", "TASK-NNN", "--json"],
+            ),
+            _embedded_command(
+                root,
                 "verify-implementation-execution",
                 "Run read-only governance verification before and after implementation evidence changes.",
                 ["bin/governance", "verify", ".", "--check", "--json"],
@@ -1014,6 +1320,9 @@ def _active_implementation_work(
     blockers = selected.get("blockers") if isinstance(selected.get("blockers"), list) else []
     specialist_skills = selected.get("specialist_skills") if isinstance(selected.get("specialist_skills"), list) else []
     status = "ready" if selected.get("actionable") is True and gate.get("ok") is True else "blocked"
+    normalized_selected_status = _normalize_cell(str(selected.get("status", "")))
+    if selected.get("actionable") is True and gate.get("ok") is True and normalized_selected_status == "in progress":
+        status = "in_progress"
     return {
         "kind": "implementation-task",
         "task_id": str(selected.get("task_id", "")),
@@ -1035,6 +1344,7 @@ def _active_implementation_work(
         "stop_condition": "implementation_gate_failed_or_task_not_ready_or_required_sources_missing",
         "gate_ok": gate.get("ok") is True,
         "gate_command": _embedded_command(root, "implementation-gate", "Confirm the implementation gate.", ["bin/governance", "gate", "implementation", ".", "--json"]),
+        "start_command": _embedded_command(root, "implementation-start", "Claim this implementation task before editing code.", ["bin/governance", "implementation", "start", ".", "--task", str(selected.get("task_id", "")), "--json"]),
         "verify_command": _embedded_command(root, "verify-implementation-execution", "Run read-only governance verification.", ["bin/governance", "verify", ".", "--check", "--json"]),
         "closeout_command": _embedded_command(root, "implementation-closeout", "Check task closeout evidence before marking Done.", ["bin/governance", "implementation", "closeout", ".", "--task", str(selected.get("task_id", "")), "--json"]),
         "refresh_command": _embedded_command(root, "refresh-implementation-plan", "Refresh the implementation task plan.", ["bin/governance", "implementation", "plan", ".", "--json"]),
@@ -1042,6 +1352,9 @@ def _active_implementation_work(
 
 
 def _selected_task(tasks: list[dict[str, object]]) -> dict[str, object]:
+    for task in tasks:
+        if task.get("actionable") is True and _normalize_cell(str(task.get("status", ""))) == "in progress":
+            return task
     for task in tasks:
         if task.get("actionable") is True:
             return task
@@ -1082,6 +1395,16 @@ def _implementation_summary(
         status = str(task.get("normalized_status", "unknown") or "unknown")
         status_counts[status] = status_counts.get(status, 0) + 1
     actionable_count = sum(1 for task in tasks if task.get("actionable") is True)
+    actionable_ready_count = sum(
+        1
+        for task in tasks
+        if task.get("actionable") is True and task.get("normalized_status") == "ready"
+    )
+    actionable_in_progress_count = sum(
+        1
+        for task in tasks
+        if task.get("actionable") is True and task.get("normalized_status") == "in progress"
+    )
     done_count = status_counts.get("done", 0)
     done_with_passing_evidence_count = sum(
         1
@@ -1095,7 +1418,10 @@ def _implementation_summary(
     return {
         "task_count": len(tasks),
         "ready_task_count": status_counts.get("ready", 0),
-        "actionable_ready_task_count": actionable_count,
+        "in_progress_task_count": status_counts.get("in progress", 0),
+        "actionable_task_count": actionable_count,
+        "actionable_ready_task_count": actionable_ready_count,
+        "actionable_in_progress_task_count": actionable_in_progress_count,
         "blocked_task_count": status_counts.get("blocked", 0),
         "done_task_count": done_count,
         "done_task_with_passing_evidence_count": done_with_passing_evidence_count,
@@ -1114,8 +1440,8 @@ def _implementation_blocked(summary: dict[str, object], active_work: dict[str, o
         return False
     return (
         summary.get("gate_ok") is not True
-        or int(summary.get("actionable_ready_task_count", 0)) == 0
-        or active_work.get("status") != "ready"
+        or int(summary.get("actionable_task_count", 0)) == 0
+        or active_work.get("status") not in {"ready", "in_progress"}
     )
 
 

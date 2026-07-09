@@ -347,9 +347,9 @@ def _implementation_summary_blocked(summary: dict[str, object]) -> bool:
     active_work = summary.get("active_work")
     return (
         implementation_summary.get("gate_ok") is not True
-        or int(implementation_summary.get("actionable_ready_task_count", 0)) == 0
+        or int(implementation_summary.get("actionable_task_count", 0)) == 0
         or not isinstance(active_work, dict)
-        or active_work.get("status") != "ready"
+        or active_work.get("status") not in {"ready", "in_progress"}
     )
 
 

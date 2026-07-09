@@ -38,23 +38,32 @@ Load:
 
    Stop on `ok: false`; route repair through `verifying-governance-docs` and the owning design or planning skill before editing code.
 
-3. Use `implementation plan --json` before editing code. Its `decision_policy` is `execute_exactly_one_ready_task`; inspect `implementation_summary`, `gate_ok`, `active_work`, `tasks[]`, `source_references`, `read_order`, `skill_requirements`, `authority_skill_requirements`, `skill_loading_plan`, and embedded `gate_command`, `verify_command`, `closeout_command`, and `refresh_command`. Stop successfully when `active_work.status` is `complete`. Stop for repair when `active_work.status` is neither `ready` nor `complete`, when `active_work.next_repair_action` is non-empty, or when a required authority-routing skill cannot be loaded from the agent environment.
+3. Use `implementation plan --json` before editing code. Its `decision_policy` is `execute_exactly_one_ready_task`; inspect `implementation_summary`, `gate_ok`, `active_work`, `tasks[]`, `source_references`, `read_order`, `skill_requirements`, `authority_skill_requirements`, `skill_loading_plan`, and embedded `gate_command`, `start_command`, `verify_command`, `closeout_command`, and `refresh_command`. Stop successfully when `active_work.status` is `complete`. Stop for repair when `active_work.status` is not `ready`, `in_progress`, or `complete`, when `active_work.next_repair_action` is non-empty, or when a required authority-routing skill cannot be loaded from the agent environment.
 
-4. Select exactly one `Ready` `TASK-NNN` from `active_work.task_id` or the first actionable `tasks[]` item. Do not start multiple task rows in one implementation pass unless the task board explicitly groups them and their verification evidence is shared.
+4. Select exactly one `Ready` or `In Progress` `TASK-NNN` from `active_work.task_id` or the first actionable `tasks[]` item. Do not start multiple task rows in one implementation pass unless the task board explicitly groups them and their verification evidence is shared.
 
-5. Read every path in the selected task's `read_order`, including local Markdown sources linked from the task's `Product`, `Design`, `API`, `Acceptance`, and `Verification` cells, plus `docs/agent-workflow/command-contract.md` and `docs/agent-workflow/task-handoff.md` when it exists.
+5. Claim a `Ready` task before editing code:
 
-6. Inspect existing code, tests, build files, generated artifacts, and local conventions before editing. Use the task's allowed modules, linked source docs, and repository `AGENTS.md` files to constrain the change surface.
+   ```bash
+   bin/governance implementation start <target> --task TASK-NNN --json
+   bin/governance implementation start <target> --task TASK-NNN --apply --json
+   ```
 
-7. Implement in small coherent steps:
+   The preview payload uses `decision_policy: claim_exactly_one_ready_task_before_editing_code`; inspect `start_ready`, `requirements[]`, `blocking_requirements[]`, and `status_update_plan`. Only run apply when `status_update_plan.can_auto_apply` is true. If the selected task is already `In Progress`, treat the start command as an idempotent resume check before continuing.
+
+6. Read every path in the selected task's `read_order`, including local Markdown sources linked from the task's `Product`, `Design`, `API`, `Acceptance`, and `Verification` cells, plus `docs/agent-workflow/command-contract.md` and `docs/agent-workflow/task-handoff.md` when it exists.
+
+7. Inspect existing code, tests, build files, generated artifacts, and local conventions before editing. Use the task's allowed modules, linked source docs, and repository `AGENTS.md` files to constrain the change surface.
+
+8. Implement in small coherent steps:
    - keep behavior within product, design, API, data, and security sources
    - update tests next to the changed surface
    - update generated clients, schemas, migrations, fixtures, snapshots, or lockfiles only when task scope and repository tooling require them
    - register missing or conflicting requirements in `docs/unresolved.md` instead of guessing
 
-8. Run the exact task verification commands. Prefer target-local `local_commands[].argv`, `docs/agent-workflow/command-contract.md` `Argv` rows, and task-board or handoff commands over reconstructed shell strings. Treat command-contract rows with `Approval Required` set to `true` as stop-and-ask actions until the task explicitly authorizes them. Record unavailable, flaky, skipped, failed, and passing checks in `docs/development/03-verification-log.md`.
+9. Run the exact task verification commands. Prefer target-local `local_commands[].argv`, `docs/agent-workflow/command-contract.md` `Argv` rows, and task-board or handoff commands over reconstructed shell strings. Treat command-contract rows with `Approval Required` set to `true` as stop-and-ask actions until the task explicitly authorizes them. Record unavailable, flaky, skipped, failed, and passing checks in `docs/development/03-verification-log.md`.
 
-9. Re-run governance verification and refresh the implementation plan when docs, task status, or handoff evidence changes:
+10. Re-run governance verification and refresh the implementation plan when docs, task status, or handoff evidence changes:
 
    ```bash
    bin/governance verify <target> --check --json
@@ -63,14 +72,15 @@ Load:
    bin/governance implementation closeout <target> --task TASK-NNN --apply --json
    ```
 
-10. Before marking `Done`, run `implementation closeout --task TASK-NNN --json`. Its `decision_policy` is `do_not_mark_done_without_passing_evidence`; inspect `closeout_ready`, `requirements[]`, `blocking_requirements[]`, `evidence_summary`, and `status_update_plan`. Do not mark `Done` unless `closeout_ready` is `true`. When `status_update_plan.can_auto_apply` is true, run the returned `status_update_plan.apply_command.argv` or `implementation closeout --task TASK-NNN --apply --json` so the CLI updates `docs/development/02-task-board.md` and `docs/development/01-roadmap.md` together.
+11. Before marking `Done`, run `implementation closeout --task TASK-NNN --json`. Its `decision_policy` is `do_not_mark_done_without_passing_evidence`; inspect `closeout_ready`, `requirements[]`, `blocking_requirements[]`, `evidence_summary`, and `status_update_plan`. Do not mark `Done` unless `closeout_ready` is `true`. When `status_update_plan.can_auto_apply` is true, run the returned `status_update_plan.apply_command.argv` or `implementation closeout --task TASK-NNN --apply --json` so the CLI updates `docs/development/02-task-board.md` and `docs/development/01-roadmap.md` together.
 
-11. Keep `docs/development/02-task-board.md` and `docs/development/01-roadmap.md` statuses synchronized:
+12. Keep `docs/development/02-task-board.md` and `docs/development/01-roadmap.md` statuses synchronized:
+   - `In Progress` only through `implementation start --apply` when one Ready task is claimed or resumed
    - `Done` only when code, tests, docs, and local Markdown evidence satisfy `references/implementation-readiness-checklist.md` and `references/implementation-execution-checklist.md`
    - `Blocked` when a required source, credential, environment, dependency approval, or unresolved decision prevents completion
    - `Deferred` when the task remains valid but is intentionally postponed
 
-12. Produce a final implementation handoff that names changed files, commands run, evidence paths, failures, follow-ups, and remaining risks.
+13. Produce a final implementation handoff that names changed files, commands run, evidence paths, failures, follow-ups, and remaining risks.
 
 ## Output
 
@@ -93,7 +103,7 @@ Implementation execution is complete when:
 
 ## Stop Conditions
 
-- No single `Ready` `TASK-NNN` is selected.
+- No single `Ready` or `In Progress` `TASK-NNN` is selected.
 - The implementation gate or governance verification fails.
 - Required product, design, API, acceptance, or verification links are missing.
 - The task requires behavior that is not present in local Markdown sources.
