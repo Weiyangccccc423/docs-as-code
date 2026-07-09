@@ -102,6 +102,7 @@ def run_consumer_bootstrap(
     implementation_advance_preview: bool = False,
     implementation_advance_apply: bool = False,
     implementation_start_preview: bool = False,
+    implementation_start_apply: bool = False,
     pack_root: Path = ROOT,
 ) -> dict[str, object]:
     pack_root = pack_root.resolve()
@@ -219,6 +220,11 @@ def run_consumer_bootstrap(
             "--implementation-start-preview requires --implementation-readiness-preview",
             payload=init_check,
         )
+        _require(
+            not implementation_start_apply or implementation_start_preview,
+            "--implementation-start-apply requires --implementation-start-preview",
+            payload=init_check,
+        )
 
         base_payload: dict[str, object] = {
             "ok": True,
@@ -264,6 +270,9 @@ def run_consumer_bootstrap(
             "implementation_start_preview_requested": implementation_start_preview,
             "implementation_start_previewed": False,
             "implementation_start_preview_ok": False,
+            "implementation_start_apply_requested": implementation_start_apply,
+            "implementation_start_applied": False,
+            "implementation_start_apply_ok": False,
             "pack_manifest_verification": pack_manifest_verification,
             "pack_verification": pack_verification,
             "env_check": env_check,
@@ -458,11 +467,41 @@ def run_consumer_bootstrap(
                                                 payload["implementation_start_preview_ok"] = (
                                                     start_preview.get("ok") is True
                                                 )
+                                                if implementation_start_apply:
+                                                    start_apply = _apply_implementation_start(
+                                                        steps,
+                                                        target,
+                                                        start_preview,
+                                                    )
+                                                    payload["implementation_start_apply"] = start_apply
+                                                    payload["implementation_start_applied"] = (
+                                                        start_apply.get("apply_skipped") is not True
+                                                    )
+                                                    payload["implementation_start_apply_ok"] = (
+                                                        start_apply.get("ok") is True
+                                                    )
+                                                    if start_apply.get("apply_skipped") is not True:
+                                                        payload["implementation_plan"] = start_apply[
+                                                            "post_implementation_plan"
+                                                        ]
+                                                        payload["target_local"] = _target_local_details(
+                                                            target=target,
+                                                            init_payload=init_payload,
+                                                            verify_payload=start_apply["post_verify_check"],
+                                                            status_payload=start_apply["post_status"],
+                                                            workflow_plan_payload=start_apply["post_workflow_plan"],
+                                                            expected_phase="implementation",
+                                                        )
         if isinstance(status_payload.get("local_commands"), list):
             payload["local_commands"] = status_payload["local_commands"]
         elif isinstance(init_payload.get("local_commands"), list):
             payload["local_commands"] = init_payload["local_commands"]
         if (
+            isinstance(payload.get("implementation_start_apply"), dict)
+            and payload["implementation_start_apply"].get("apply_skipped") is not True
+        ):
+            latest_status = payload["implementation_start_apply"].get("post_status")
+        elif (
             isinstance(payload.get("implementation_advance_apply"), dict)
             and payload["implementation_advance_apply"].get("apply_skipped") is not True
         ):
@@ -528,6 +567,9 @@ def run_consumer_bootstrap(
             "implementation_start_preview_requested": implementation_start_preview,
             "implementation_start_previewed": False,
             "implementation_start_preview_ok": False,
+            "implementation_start_apply_requested": implementation_start_apply,
+            "implementation_start_applied": False,
+            "implementation_start_apply_ok": False,
             "steps": steps,
             "failed_step": error.step,
             "failed_payload": error.payload,
@@ -578,6 +620,9 @@ def run_consumer_bootstrap(
             "implementation_start_preview_requested": implementation_start_preview,
             "implementation_start_previewed": False,
             "implementation_start_preview_ok": False,
+            "implementation_start_apply_requested": implementation_start_apply,
+            "implementation_start_applied": False,
+            "implementation_start_apply_ok": False,
             "steps": steps,
         }
 
@@ -1318,6 +1363,105 @@ def _preview_implementation_start(
     return payload
 
 
+def _apply_implementation_start(
+    steps: list[dict[str, object]],
+    target: Path,
+    start_preview: dict[str, object],
+) -> dict[str, object]:
+    task_id = str(start_preview.get("task_id", ""))
+    payload: dict[str, object] = {
+        "ok": True,
+        "target": str(target),
+        "check": False,
+        "writes_state": True,
+        "phase": str(start_preview.get("phase", "")),
+        "task_id": task_id,
+        "start_ready": start_preview.get("start_ready") is True,
+        "apply_skipped": False,
+        "skip_reason": "",
+        "implementation_start_apply": {},
+        "post_verify_check": {},
+        "post_status": {},
+        "post_workflow_plan": {},
+        "post_implementation_plan": {},
+    }
+    if start_preview.get("start_ready") is not True:
+        payload["apply_skipped"] = True
+        payload["skip_reason"] = "implementation start preview did not pass"
+        return payload
+    if TASK_ID_PATTERN.match(task_id) is None:
+        payload["apply_skipped"] = True
+        payload["skip_reason"] = "implementation start preview did not expose a concrete task_id"
+        return payload
+
+    implementation_start_apply = _run_json(
+        steps,
+        "target_local_implementation_start_apply",
+        ["bin/governance", "implementation", "start", ".", "--task", task_id, "--apply", "--json"],
+        target,
+    )
+    _require(
+        implementation_start_apply.get("ok") is True,
+        "implementation start apply failed",
+        payload=implementation_start_apply,
+    )
+    post_verify_check = _run_json(
+        steps,
+        "target_local_verify_check_after_implementation_start_apply",
+        ["bin/governance", "verify", ".", "--check", "--json"],
+        target,
+    )
+    post_status = _run_json(
+        steps,
+        "target_local_governance_status_after_implementation_start_apply",
+        ["make", "governance-status"],
+        target,
+    )
+    post_workflow_plan = _run_json(
+        steps,
+        "target_local_workflow_plan_after_implementation_start_apply",
+        ["make", "workflow-plan"],
+        target,
+    )
+    post_implementation_plan = _run_json(
+        steps,
+        "target_local_implementation_plan_after_implementation_start_apply",
+        ["make", "implementation-plan"],
+        target,
+    )
+    status_state = post_status.get("state")
+    phase = status_state.get("phase") if isinstance(status_state, dict) else ""
+    active_work = post_implementation_plan.get("active_work")
+    active_status = active_work.get("status") if isinstance(active_work, dict) else ""
+    payload.update(
+        {
+            "phase": phase,
+            "implementation_start_apply": implementation_start_apply,
+            "post_verify_check": post_verify_check,
+            "post_status": post_status,
+            "post_workflow_plan": post_workflow_plan,
+            "post_implementation_plan": post_implementation_plan,
+            "ok": (
+                implementation_start_apply.get("ok") is True
+                and implementation_start_apply.get("apply_requested") is True
+                and (
+                    implementation_start_apply.get("applied") is True
+                    or implementation_start_apply.get("already_current") is True
+                )
+                and post_verify_check.get("ok") is True
+                and post_verify_check.get("findings") == []
+                and post_status.get("ok") is True
+                and post_workflow_plan.get("ok") is True
+                and post_workflow_plan.get("phase") == "implementation"
+                and post_implementation_plan.get("ok") is True
+                and active_status == "in_progress"
+                and phase == "implementation"
+            ),
+        }
+    )
+    return payload
+
+
 def _product_plan_mapping(product_plan: dict[str, object]) -> dict[str, list[str]]:
     suggested_mappings = product_plan.get("suggested_mappings")
     chapters: list[str] = []
@@ -1446,6 +1590,14 @@ def build_parser() -> argparse.ArgumentParser:
             "selected TASK-NNN without applying task status updates."
         ),
     )
+    parser.add_argument(
+        "--implementation-start-apply",
+        action="store_true",
+        help=(
+            "With --implementation-start-preview, apply the safe implementation start status update only when "
+            "the start preview passed, then refresh implementation routing payloads."
+        ),
+    )
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     return parser
 
@@ -1479,6 +1631,7 @@ def main() -> int:
         implementation_advance_preview=args.implementation_advance_preview,
         implementation_advance_apply=args.implementation_advance_apply,
         implementation_start_preview=args.implementation_start_preview,
+        implementation_start_apply=args.implementation_start_apply,
     )
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))

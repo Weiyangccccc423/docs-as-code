@@ -1021,6 +1021,77 @@ class ConsumerBootstrapTest(unittest.TestCase):
             step_ids = {step["id"] for step in payload["steps"]}
             self.assertNotIn("target_local_implementation_start_preview", step_ids)
 
+    def test_exported_pack_skips_implementation_start_apply_until_preview_passes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            pack = base / "docs-as-code-workflow-pack"
+            product = base / "product.md"
+            target = base / "consumer-target"
+            product.write_text(
+                "# Consumer Implementation Start Apply\n\n"
+                "## Goals and Requirements\n\n"
+                "- Initialize governance and expose implementation start apply routing.\n"
+                "- Skip task status writes while implementation readiness is blocked.\n\n"
+                "## Acceptance Criteria\n\n"
+                "- The bootstrap output reports skipped implementation start apply without changing task status.\n",
+                encoding="utf-8",
+            )
+
+            export = subprocess.run(
+                [
+                    sys.executable,
+                    str(EXPORT),
+                    "--output",
+                    str(pack),
+                    "--no-archive",
+                    "--force",
+                    "--json",
+                ],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, export.returncode, export.stdout + export.stderr)
+            self.assertEqual("", export.stderr)
+            self.assertTrue(json.loads(export.stdout)["ok"])
+
+            payload = _run_bootstrap(
+                self,
+                pack,
+                target=target,
+                product=product,
+                check=False,
+                advance_product_structuring=True,
+                product_scaffold_preview=True,
+                product_structure_preview=True,
+                product_structure_apply=True,
+                advance_design_derivation=True,
+                design_scaffold_preview=True,
+                design_scaffold_apply=True,
+                design_authoring_preview=True,
+                implementation_readiness_preview=True,
+                implementation_start_preview=True,
+                implementation_start_apply=True,
+            )
+
+            self.assertTrue(payload["ok"])
+            self.assertTrue(payload["implementation_start_preview_ok"])
+            self.assertTrue(payload["implementation_start_apply_requested"])
+            self.assertFalse(payload["implementation_start_applied"])
+            self.assertTrue(payload["implementation_start_apply_ok"])
+            apply_payload = payload["implementation_start_apply"]
+            self.assertTrue(apply_payload["ok"])
+            self.assertFalse(apply_payload["check"])
+            self.assertTrue(apply_payload["writes_state"])
+            self.assertFalse(apply_payload["start_ready"])
+            self.assertTrue(apply_payload["apply_skipped"])
+            self.assertEqual("implementation start preview did not pass", apply_payload["skip_reason"])
+            self.assertEqual({}, apply_payload["implementation_start_apply"])
+            self.assertEqual("design-derivation", payload["target_local"]["phase"])
+            step_ids = {step["id"] for step in payload["steps"]}
+            self.assertNotIn("target_local_implementation_start_apply", step_ids)
+
 
 def _run_bootstrap(
     testcase: unittest.TestCase,
@@ -1041,6 +1112,7 @@ def _run_bootstrap(
     implementation_advance_preview: bool = False,
     implementation_advance_apply: bool = False,
     implementation_start_preview: bool = False,
+    implementation_start_apply: bool = False,
 ) -> dict[str, object]:
     argv = [
         sys.executable,
@@ -1081,6 +1153,8 @@ def _run_bootstrap(
         argv.insert(-1, "--implementation-advance-apply")
     if implementation_start_preview:
         argv.insert(-1, "--implementation-start-preview")
+    if implementation_start_apply:
+        argv.insert(-1, "--implementation-start-apply")
     result = subprocess.run(
         argv,
         cwd=pack,
