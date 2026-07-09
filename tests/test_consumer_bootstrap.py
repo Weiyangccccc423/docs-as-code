@@ -476,6 +476,78 @@ class ConsumerBootstrapTest(unittest.TestCase):
             self.assertIn("advance_design_derivation", step_ids)
             self.assertIn("target_local_design_plan", step_ids)
 
+    def test_exported_pack_previews_design_scaffold_after_design_derivation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            pack = base / "docs-as-code-workflow-pack"
+            product = base / "product.md"
+            target = base / "consumer-target"
+            product.write_text(
+                "# Consumer Design Scaffold Preview\n\n"
+                "## Goals and Requirements\n\n"
+                "- Initialize governance and prepare a design scaffold preflight.\n"
+                "- Keep design preview read-only until authoring is explicitly approved.\n\n"
+                "## Acceptance Criteria\n\n"
+                "- The bootstrap output previews standard design scaffold files.\n",
+                encoding="utf-8",
+            )
+
+            export = subprocess.run(
+                [
+                    sys.executable,
+                    str(EXPORT),
+                    "--output",
+                    str(pack),
+                    "--no-archive",
+                    "--force",
+                    "--json",
+                ],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, export.returncode, export.stdout + export.stderr)
+            self.assertEqual("", export.stderr)
+            self.assertTrue(json.loads(export.stdout)["ok"])
+
+            payload = _run_bootstrap(
+                self,
+                pack,
+                target=target,
+                product=product,
+                check=False,
+                advance_product_structuring=True,
+                product_scaffold_preview=True,
+                product_structure_preview=True,
+                product_structure_apply=True,
+                advance_design_derivation=True,
+                design_scaffold_preview=True,
+            )
+
+            self.assertTrue(payload["ok"])
+            self.assertTrue(payload["advanced_design_derivation"])
+            self.assertTrue(payload["design_scaffold_preview_requested"])
+            self.assertTrue(payload["design_scaffold_previewed"])
+            self.assertTrue(payload["design_scaffold_preview_ok"])
+            preview = payload["design_scaffold_preview"]
+            self.assertTrue(preview["ok"])
+            self.assertTrue(preview["check"])
+            self.assertFalse(preview["writes_state"])
+            self.assertEqual("design-derivation", preview["phase"])
+            scaffold_check = preview["scaffold_check"]
+            self.assertTrue(scaffold_check["ok"])
+            self.assertTrue(scaffold_check["check"])
+            self.assertIn("docs/architecture/01-system-context.md", scaffold_check["would_create"])
+            self.assertIn("docs/api/endpoints/01-endpoint-contract.md", scaffold_check["would_create"])
+            self.assertIn("docs/development/03-verification-log.md", scaffold_check["would_create"])
+            self.assertIn("docs/architecture/01-system-context.md", scaffold_check["would_index"])
+            self.assertFalse((target / "docs/architecture/01-system-context.md").exists())
+            self.assertFalse((target / "docs/api/endpoints/01-endpoint-contract.md").exists())
+            self.assertFalse((target / "docs/development/03-verification-log.md").exists())
+            step_ids = {step["id"] for step in payload["steps"]}
+            self.assertIn("target_local_design_scaffold_preview", step_ids)
+
 
 def _run_bootstrap(
     testcase: unittest.TestCase,
@@ -489,6 +561,7 @@ def _run_bootstrap(
     product_structure_preview: bool = False,
     product_structure_apply: bool = False,
     advance_design_derivation: bool = False,
+    design_scaffold_preview: bool = False,
 ) -> dict[str, object]:
     argv = [
         sys.executable,
@@ -515,6 +588,8 @@ def _run_bootstrap(
         argv.insert(-1, "--product-structure-apply")
     if advance_design_derivation:
         argv.insert(-1, "--advance-design-derivation")
+    if design_scaffold_preview:
+        argv.insert(-1, "--design-scaffold-preview")
     result = subprocess.run(
         argv,
         cwd=pack,

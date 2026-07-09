@@ -90,6 +90,7 @@ def run_consumer_bootstrap(
     product_structure_preview: bool = False,
     product_structure_apply: bool = False,
     advance_design_derivation: bool = False,
+    design_scaffold_preview: bool = False,
     pack_root: Path = ROOT,
 ) -> dict[str, object]:
     pack_root = pack_root.resolve()
@@ -167,6 +168,16 @@ def run_consumer_bootstrap(
             "--advance-design-derivation requires --product-structure-apply",
             payload=init_check,
         )
+        _require(
+            not design_scaffold_preview or advance_design_derivation,
+            "--design-scaffold-preview requires --advance-design-derivation",
+            payload=init_check,
+        )
+        _require(
+            not (check and design_scaffold_preview),
+            "--design-scaffold-preview requires a write-mode bootstrap so the target can be initialized and advanced",
+            payload=init_check,
+        )
 
         base_payload: dict[str, object] = {
             "ok": True,
@@ -191,6 +202,9 @@ def run_consumer_bootstrap(
             "product_structure_apply_ok": False,
             "advance_design_derivation_requested": advance_design_derivation,
             "advanced_design_derivation": False,
+            "design_scaffold_preview_requested": design_scaffold_preview,
+            "design_scaffold_previewed": False,
+            "design_scaffold_preview_ok": False,
             "pack_manifest_verification": pack_manifest_verification,
             "pack_verification": pack_verification,
             "env_check": env_check,
@@ -319,6 +333,11 @@ def run_consumer_bootstrap(
                                 workflow_plan_payload=design_derivation["workflow_plan"],
                                 expected_phase="design-derivation",
                             )
+                            if design_scaffold_preview:
+                                scaffold_preview = _preview_design_scaffold(steps, target)
+                                payload["design_scaffold_previewed"] = True
+                                payload["design_scaffold_preview"] = scaffold_preview
+                                payload["design_scaffold_preview_ok"] = scaffold_preview.get("ok") is True
         if isinstance(status_payload.get("local_commands"), list):
             payload["local_commands"] = status_payload["local_commands"]
         elif isinstance(init_payload.get("local_commands"), list):
@@ -363,6 +382,9 @@ def run_consumer_bootstrap(
             "product_structure_apply_ok": False,
             "advance_design_derivation_requested": advance_design_derivation,
             "advanced_design_derivation": False,
+            "design_scaffold_preview_requested": design_scaffold_preview,
+            "design_scaffold_previewed": False,
+            "design_scaffold_preview_ok": False,
             "steps": steps,
             "failed_step": error.step,
             "failed_payload": error.payload,
@@ -392,6 +414,9 @@ def run_consumer_bootstrap(
             "product_structure_apply_ok": False,
             "advance_design_derivation_requested": advance_design_derivation,
             "advanced_design_derivation": False,
+            "design_scaffold_preview_requested": design_scaffold_preview,
+            "design_scaffold_previewed": False,
+            "design_scaffold_preview_ok": False,
             "steps": steps,
         }
 
@@ -815,6 +840,25 @@ def _advance_design_derivation(steps: list[dict[str, object]], target: Path) -> 
     }
 
 
+def _preview_design_scaffold(steps: list[dict[str, object]], target: Path) -> dict[str, object]:
+    scaffold_check = _run_json(
+        steps,
+        "target_local_design_scaffold_preview",
+        ["bin/governance", "scaffold", "design", ".", "--check", "--json"],
+        target,
+    )
+    status_state = scaffold_check.get("state")
+    phase = status_state.get("phase") if isinstance(status_state, dict) else "design-derivation"
+    return {
+        "ok": scaffold_check.get("ok") is True and scaffold_check.get("check") is True,
+        "target": str(target),
+        "check": True,
+        "writes_state": False,
+        "phase": phase,
+        "scaffold_check": scaffold_check,
+    }
+
+
 def _product_plan_mapping(product_plan: dict[str, object]) -> dict[str, list[str]]:
     suggested_mappings = product_plan.get("suggested_mappings")
     chapters: list[str] = []
@@ -887,6 +931,14 @@ def build_parser() -> argparse.ArgumentParser:
             "and return the target-local design plan."
         ),
     )
+    parser.add_argument(
+        "--design-scaffold-preview",
+        action="store_true",
+        help=(
+            "With --advance-design-derivation, run scaffold design --check and return would_create, "
+            "would_skip, and would_index without writing design placeholders."
+        ),
+    )
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     return parser
 
@@ -913,6 +965,7 @@ def main() -> int:
         product_structure_preview=args.product_structure_preview,
         product_structure_apply=args.product_structure_apply,
         advance_design_derivation=args.advance_design_derivation,
+        design_scaffold_preview=args.design_scaffold_preview,
     )
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
