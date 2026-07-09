@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -98,6 +99,7 @@ def run_consumer_bootstrap(
     design_scaffold_apply: bool = False,
     design_authoring_preview: bool = False,
     implementation_readiness_preview: bool = False,
+    implementation_start_preview: bool = False,
     pack_root: Path = ROOT,
 ) -> dict[str, object]:
     pack_root = pack_root.resolve()
@@ -200,6 +202,11 @@ def run_consumer_bootstrap(
             "--implementation-readiness-preview requires --design-authoring-preview",
             payload=init_check,
         )
+        _require(
+            not implementation_start_preview or implementation_readiness_preview,
+            "--implementation-start-preview requires --implementation-readiness-preview",
+            payload=init_check,
+        )
 
         base_payload: dict[str, object] = {
             "ok": True,
@@ -236,6 +243,9 @@ def run_consumer_bootstrap(
             "implementation_readiness_preview_requested": implementation_readiness_preview,
             "implementation_readiness_previewed": False,
             "implementation_readiness_preview_ok": False,
+            "implementation_start_preview_requested": implementation_start_preview,
+            "implementation_start_previewed": False,
+            "implementation_start_preview_ok": False,
             "pack_manifest_verification": pack_manifest_verification,
             "pack_verification": pack_verification,
             "env_check": env_check,
@@ -386,6 +396,17 @@ def run_consumer_bootstrap(
                                             payload["implementation_readiness_preview_ok"] = (
                                                 readiness_preview.get("ok") is True
                                             )
+                                            if implementation_start_preview:
+                                                start_preview = _preview_implementation_start(
+                                                    steps,
+                                                    target,
+                                                    readiness_preview,
+                                                )
+                                                payload["implementation_start_previewed"] = True
+                                                payload["implementation_start_preview"] = start_preview
+                                                payload["implementation_start_preview_ok"] = (
+                                                    start_preview.get("ok") is True
+                                                )
         if isinstance(status_payload.get("local_commands"), list):
             payload["local_commands"] = status_payload["local_commands"]
         elif isinstance(init_payload.get("local_commands"), list):
@@ -442,6 +463,9 @@ def run_consumer_bootstrap(
             "implementation_readiness_preview_requested": implementation_readiness_preview,
             "implementation_readiness_previewed": False,
             "implementation_readiness_preview_ok": False,
+            "implementation_start_preview_requested": implementation_start_preview,
+            "implementation_start_previewed": False,
+            "implementation_start_preview_ok": False,
             "steps": steps,
             "failed_step": error.step,
             "failed_payload": error.payload,
@@ -483,6 +507,9 @@ def run_consumer_bootstrap(
             "implementation_readiness_preview_requested": implementation_readiness_preview,
             "implementation_readiness_previewed": False,
             "implementation_readiness_preview_ok": False,
+            "implementation_start_preview_requested": implementation_start_preview,
+            "implementation_start_previewed": False,
+            "implementation_start_preview_ok": False,
             "steps": steps,
         }
 
@@ -1070,6 +1097,52 @@ def _preview_implementation_readiness(steps: list[dict[str, object]], target: Pa
     }
 
 
+TASK_ID_PATTERN = re.compile(r"^TASK-\d{3}$")
+
+
+def _preview_implementation_start(
+    steps: list[dict[str, object]],
+    target: Path,
+    readiness_preview: dict[str, object],
+) -> dict[str, object]:
+    implementation_plan = readiness_preview.get("implementation_plan")
+    active_work = implementation_plan.get("active_work") if isinstance(implementation_plan, dict) else {}
+    task_id = active_work.get("task_id") if isinstance(active_work, dict) else ""
+    normalized_task_id = task_id if isinstance(task_id, str) else ""
+    payload: dict[str, object] = {
+        "ok": True,
+        "target": str(target),
+        "check": True,
+        "writes_state": False,
+        "phase": str(readiness_preview.get("phase", "")),
+        "source": "implementation_readiness_preview.implementation_plan.active_work.task_id",
+        "task_id": normalized_task_id,
+        "start_ready": False,
+        "preview_skipped": False,
+        "skip_reason": "",
+        "implementation_start": {},
+    }
+    if readiness_preview.get("readiness_ok") is not True:
+        payload["preview_skipped"] = True
+        payload["skip_reason"] = "implementation readiness preview did not pass"
+        return payload
+    if not TASK_ID_PATTERN.match(normalized_task_id):
+        payload["preview_skipped"] = True
+        payload["skip_reason"] = "implementation plan did not expose a concrete active_work.task_id"
+        return payload
+
+    implementation_start = _run_json(
+        steps,
+        "target_local_implementation_start_preview",
+        ["bin/governance", "implementation", "start", ".", "--task", normalized_task_id, "--json"],
+        target,
+        allowed_returncodes=(0, 1),
+    )
+    payload["implementation_start"] = implementation_start
+    payload["start_ready"] = implementation_start.get("start_ready") is True
+    return payload
+
+
 def _product_plan_mapping(product_plan: dict[str, object]) -> dict[str, list[str]]:
     suggested_mappings = product_plan.get("suggested_mappings")
     chapters: list[str] = []
@@ -1174,6 +1247,14 @@ def build_parser() -> argparse.ArgumentParser:
             "readiness blockers without advancing implementation or claiming a task."
         ),
     )
+    parser.add_argument(
+        "--implementation-start-preview",
+        action="store_true",
+        help=(
+            "With --implementation-readiness-preview, run a read-only implementation start check for the "
+            "selected TASK-NNN without applying task status updates."
+        ),
+    )
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     return parser
 
@@ -1204,6 +1285,7 @@ def main() -> int:
         design_scaffold_apply=args.design_scaffold_apply,
         design_authoring_preview=args.design_authoring_preview,
         implementation_readiness_preview=args.implementation_readiness_preview,
+        implementation_start_preview=args.implementation_start_preview,
     )
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
