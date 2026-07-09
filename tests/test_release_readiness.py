@@ -66,6 +66,22 @@ class ReleaseReadinessTest(unittest.TestCase):
         self.assertTrue(
             criteria["release-artifact-smoke"]["details"]["fresh_target_init"]["target_local_workflow_plan_ok"]
         )
+        self.assertTrue(
+            criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_product_structure"]["ok"]
+        )
+        self.assertEqual(
+            "product-structuring",
+            criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_product_structure"]["phase"],
+        )
+        self.assertEqual(
+            "product-structure",
+            criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_product_structure"]["workflow_preset"],
+        )
+        self.assertTrue(
+            criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_product_structure"][
+                "product_structure_apply_ok"
+            ]
+        )
         self.assertEqual("provided-archive", criteria["release-artifact-smoke"]["details"]["archive_source"])
         self.assertEqual(
             criteria["source-pack-export"]["details"]["archive_sha256"],

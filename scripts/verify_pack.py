@@ -1451,13 +1451,17 @@ RELEASE_READINESS_REQUIRED_PHRASES = (
     "_dry_run_closeout_evidence_ok",
     "_dry_run_target_local_make_coverage_ok",
     "_artifact_smoke_fresh_target_init_ok",
+    "_artifact_smoke_consumer_bootstrap_ok",
     "fresh_target_init",
+    "consumer_bootstrap_product_structure",
     "target_local_verify_ok",
     "target_local_status_ok",
     "target_local_workflow_plan_ok",
     "runtime_manifest",
     "workflow_pack_snapshot",
     "product_source_manifest",
+    "product-structure",
+    "product_structure_apply_ok",
     "target_local_make_coverage",
     "make_verify_governance",
     "make_verify_check",
@@ -1522,6 +1526,10 @@ RELEASE_READINESS_DOC_REQUIREMENTS = {
         "make release-check",
         "python3 scripts/release_readiness.py --json",
         "references/release-readiness-checklist.md",
+    ),
+    "references/release-readiness-checklist.md": (
+        "--auto-repair-env --workflow-preset product-structure",
+        "consumer_bootstrap_product_structure.ok: true",
     ),
 }
 ENV_REPAIR_DOC_PATHS = (

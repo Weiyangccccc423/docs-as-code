@@ -165,6 +165,25 @@ def _artifact_smoke_fresh_target_init_ok(payload: dict[str, object] | None) -> b
     )
 
 
+def _artifact_smoke_consumer_bootstrap_ok(payload: dict[str, object] | None) -> bool:
+    if payload is None:
+        return False
+    consumer_bootstrap = payload.get("consumer_bootstrap_product_structure")
+    expanded_flags = consumer_bootstrap.get("workflow_preset_expanded_flags") if isinstance(consumer_bootstrap, dict) else []
+    return (
+        isinstance(consumer_bootstrap, dict)
+        and consumer_bootstrap.get("ok") is True
+        and consumer_bootstrap.get("phase") == "product-structuring"
+        and consumer_bootstrap.get("workflow_preset") == "product-structure"
+        and consumer_bootstrap.get("auto_repair_env") is True
+        and consumer_bootstrap.get("product_structure_apply_ok") is True
+        and consumer_bootstrap.get("goals_chapter") is True
+        and consumer_bootstrap.get("acceptance_chapter") is True
+        and isinstance(expanded_flags, list)
+        and "product_structure_apply" in expanded_flags
+    )
+
+
 def _env_repair_decision_allows_workflow(payload: dict[str, object] | None) -> bool:
     if payload is None:
         return False
@@ -437,7 +456,8 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
         and artifact_smoke_payload.get("archive_source") == "provided-archive"
         and artifact_smoke_payload.get("archive_sha256") == export_payload.get("archive_sha256")
         and artifact_smoke_payload.get("manifest_sha256") == export_payload.get("manifest_sha256")
-        and _artifact_smoke_fresh_target_init_ok(artifact_smoke_payload),
+        and _artifact_smoke_fresh_target_init_ok(artifact_smoke_payload)
+        and _artifact_smoke_consumer_bootstrap_ok(artifact_smoke_payload),
         evidence="python3 scripts/smoke_workflow_pack_artifact.py --archive <tmp>/docs-as-code-workflow-pack.tar.gz --json",
         details={
             "archive_source": artifact_smoke_payload.get("archive_source") if artifact_smoke_payload else "",
@@ -447,6 +467,12 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
             "manifest_sha256": artifact_smoke_payload.get("manifest_sha256") if artifact_smoke_payload else "",
             "export_manifest_sha256": export_payload.get("manifest_sha256") if export_payload else "",
             "fresh_target_init": artifact_smoke_payload.get("fresh_target_init", {})
+            if artifact_smoke_payload
+            else {},
+            "consumer_bootstrap_product_structure": artifact_smoke_payload.get(
+                "consumer_bootstrap_product_structure",
+                {},
+            )
             if artifact_smoke_payload
             else {},
         },
