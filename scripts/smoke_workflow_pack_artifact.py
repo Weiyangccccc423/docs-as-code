@@ -360,6 +360,39 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
             payload=consumer_bootstrap_design_routing,
         )
 
+        implementation_target = workspace / "consumer-implementation-routing-target"
+        implementation_product = _write_fresh_target_product(implementation_target)
+        implementation_bootstrap_payload = _run_json(
+            steps,
+            "unpacked_consumer_bootstrap_implementation_routing",
+            [
+                sys.executable,
+                "scripts/bootstrap_consumer_project.py",
+                "--target",
+                implementation_target,
+                "--product",
+                implementation_product,
+                "--profile",
+                "service",
+                "--project-name",
+                "Artifact Consumer Implementation Routing",
+                "--auto-repair-env",
+                "--workflow-preset",
+                "implementation-routing",
+                "--json",
+            ],
+            unpacked_root,
+        )
+        consumer_bootstrap_implementation_routing = _consumer_bootstrap_implementation_routing_details(
+            target=implementation_target,
+            bootstrap_payload=implementation_bootstrap_payload,
+        )
+        _require(
+            consumer_bootstrap_implementation_routing.get("ok") is True,
+            "unpacked artifact consumer bootstrap implementation-routing fast path failed",
+            payload=consumer_bootstrap_implementation_routing,
+        )
+
         dry_run_payload = _run_json(
             steps,
             "unpacked_dry_run",
@@ -422,6 +455,7 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
             "consumer_bootstrap_product_structure": consumer_bootstrap_product_structure,
             "consumer_bootstrap_design_scaffold": consumer_bootstrap_design_scaffold,
             "consumer_bootstrap_design_routing": consumer_bootstrap_design_routing,
+            "consumer_bootstrap_implementation_routing": consumer_bootstrap_implementation_routing,
             "steps": steps,
             "target_retained": True,
         }
@@ -662,11 +696,12 @@ def _consumer_bootstrap_design_routing_details(
     *,
     target: Path,
     bootstrap_payload: dict[str, object],
+    expected_workflow_preset: str = "design-routing",
 ) -> dict[str, object]:
     base = _consumer_bootstrap_design_scaffold_details(
         target=target,
         bootstrap_payload=bootstrap_payload,
-        expected_workflow_preset="design-routing",
+        expected_workflow_preset=expected_workflow_preset,
     )
     workflow_preset = bootstrap_payload.get("workflow_preset")
     expanded_flags = base["workflow_preset_expanded_flags"]
@@ -689,7 +724,7 @@ def _consumer_bootstrap_design_routing_details(
         **base,
         "ok": (
             base.get("ok") is True
-            and workflow_preset == "design-routing"
+            and workflow_preset == expected_workflow_preset
             and bootstrap_payload.get("design_authoring_preview_ok") is True
             and isinstance(expanded_flags, list)
             and "design_authoring_preview" in expanded_flags
@@ -703,6 +738,106 @@ def _consumer_bootstrap_design_routing_details(
         "missing_queue_ids": missing_queue_ids,
         "failed_queue_ids": failed_queue_ids,
     }
+
+
+def _consumer_bootstrap_implementation_routing_details(
+    *,
+    target: Path,
+    bootstrap_payload: dict[str, object],
+) -> dict[str, object]:
+    base = _consumer_bootstrap_design_routing_details(
+        target=target,
+        bootstrap_payload=bootstrap_payload,
+        expected_workflow_preset="implementation-routing",
+    )
+    workflow_preset = bootstrap_payload.get("workflow_preset")
+    expanded_flags = base["workflow_preset_expanded_flags"]
+    readiness_preview = bootstrap_payload.get("implementation_readiness_preview")
+    advance_preview = bootstrap_payload.get("implementation_advance_preview")
+    advance_apply = bootstrap_payload.get("implementation_advance_apply")
+    start_preview = bootstrap_payload.get("implementation_start_preview")
+    start_apply = bootstrap_payload.get("implementation_start_apply")
+    closeout_preview = bootstrap_payload.get("implementation_closeout_preview")
+    closeout_apply = bootstrap_payload.get("implementation_closeout_apply")
+    readiness_preview_map = readiness_preview if isinstance(readiness_preview, dict) else {}
+    advance_preview_map = advance_preview if isinstance(advance_preview, dict) else {}
+    advance_apply_map = advance_apply if isinstance(advance_apply, dict) else {}
+    start_preview_map = start_preview if isinstance(start_preview, dict) else {}
+    start_apply_map = start_apply if isinstance(start_apply, dict) else {}
+    closeout_preview_map = closeout_preview if isinstance(closeout_preview, dict) else {}
+    closeout_apply_map = closeout_apply if isinstance(closeout_apply, dict) else {}
+    verify_check = readiness_preview_map.get("verify_check")
+    findings = verify_check.get("findings") if isinstance(verify_check, dict) else []
+    blocked_by_placeholders = _has_finding_code(findings, "governance_scaffold_placeholder")
+    readiness_ok = readiness_preview_map.get("readiness_ok") is True
+    implementation_ready = readiness_preview_map.get("implementation_ready") is True
+    advance_ready = advance_preview_map.get("advance_ready") is True
+    advance_apply_skipped = advance_apply_map.get("apply_skipped") is True
+    start_preview_skipped = start_preview_map.get("preview_skipped") is True
+    start_apply_skipped = start_apply_map.get("apply_skipped") is True
+    closeout_preview_skipped = closeout_preview_map.get("preview_skipped") is True
+    closeout_apply_skipped = closeout_apply_map.get("apply_skipped") is True
+    return {
+        **base,
+        "ok": (
+            base.get("ok") is True
+            and workflow_preset == "implementation-routing"
+            and bootstrap_payload.get("implementation_readiness_preview_ok") is True
+            and bootstrap_payload.get("implementation_advance_preview_ok") is True
+            and bootstrap_payload.get("implementation_advance_apply_ok") is True
+            and bootstrap_payload.get("implementation_start_preview_ok") is True
+            and bootstrap_payload.get("implementation_start_apply_ok") is True
+            and bootstrap_payload.get("implementation_closeout_preview_ok") is True
+            and bootstrap_payload.get("implementation_closeout_apply_ok") is True
+            and isinstance(expanded_flags, list)
+            and "implementation_readiness_preview" in expanded_flags
+            and "implementation_advance_preview" in expanded_flags
+            and "implementation_advance_apply" in expanded_flags
+            and "implementation_start_preview" in expanded_flags
+            and "implementation_start_apply" in expanded_flags
+            and "implementation_closeout_preview" in expanded_flags
+            and "implementation_closeout_apply" in expanded_flags
+            and readiness_ok is False
+            and implementation_ready is False
+            and advance_ready is False
+            and advance_apply_skipped
+            and start_preview_skipped
+            and start_apply_skipped
+            and closeout_preview_skipped
+            and closeout_apply_skipped
+            and blocked_by_placeholders
+        ),
+        "workflow_preset": workflow_preset if isinstance(workflow_preset, str) else "",
+        "implementation_readiness_preview_ok": bootstrap_payload.get("implementation_readiness_preview_ok") is True,
+        "implementation_advance_preview_ok": bootstrap_payload.get("implementation_advance_preview_ok") is True,
+        "implementation_advance_apply_ok": bootstrap_payload.get("implementation_advance_apply_ok") is True,
+        "implementation_start_preview_ok": bootstrap_payload.get("implementation_start_preview_ok") is True,
+        "implementation_start_apply_ok": bootstrap_payload.get("implementation_start_apply_ok") is True,
+        "implementation_closeout_preview_ok": bootstrap_payload.get("implementation_closeout_preview_ok") is True,
+        "implementation_closeout_apply_ok": bootstrap_payload.get("implementation_closeout_apply_ok") is True,
+        "readiness_previewed": bootstrap_payload.get("implementation_readiness_previewed") is True,
+        "readiness_ok": readiness_ok,
+        "implementation_ready": implementation_ready,
+        "verify_ok": readiness_preview_map.get("verify_ok") is True,
+        "gate_ok": readiness_preview_map.get("gate_ok") is True,
+        "implementation_plan_ok": readiness_preview_map.get("implementation_plan_ok") is True,
+        "advance_previewed": bootstrap_payload.get("implementation_advance_previewed") is True,
+        "advance_ready": advance_ready,
+        "advance_check_ok": advance_preview_map.get("advance_check_ok") is True,
+        "would_advance": advance_preview_map.get("would_advance") is True,
+        "advance_apply_skipped": advance_apply_skipped,
+        "start_preview_skipped": start_preview_skipped,
+        "start_apply_skipped": start_apply_skipped,
+        "closeout_preview_skipped": closeout_preview_skipped,
+        "closeout_apply_skipped": closeout_apply_skipped,
+        "blocked_by_placeholders": blocked_by_placeholders,
+    }
+
+
+def _has_finding_code(findings: object, code: str) -> bool:
+    if not isinstance(findings, list):
+        return False
+    return any(isinstance(finding, dict) and finding.get("code") == code for finding in findings)
 
 
 def _require(condition: bool, message: str, *, payload: dict[str, object] | None = None) -> None:

@@ -117,6 +117,24 @@ class ReleaseReadinessTest(unittest.TestCase):
         )
         self.assertEqual(9, criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_design_routing"]["queue_count"])
         self.assertEqual([], criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_design_routing"]["missing_queue_ids"])
+        implementation_routing = criteria["release-artifact-smoke"]["details"][
+            "consumer_bootstrap_implementation_routing"
+        ]
+        self.assertTrue(implementation_routing["ok"])
+        self.assertEqual("design-derivation", implementation_routing["phase"])
+        self.assertEqual("implementation-routing", implementation_routing["workflow_preset"])
+        self.assertTrue(implementation_routing["implementation_readiness_preview_ok"])
+        self.assertTrue(implementation_routing["readiness_previewed"])
+        self.assertFalse(implementation_routing["readiness_ok"])
+        self.assertFalse(implementation_routing["implementation_ready"])
+        self.assertTrue(implementation_routing["advance_previewed"])
+        self.assertFalse(implementation_routing["advance_ready"])
+        self.assertTrue(implementation_routing["advance_apply_skipped"])
+        self.assertTrue(implementation_routing["start_preview_skipped"])
+        self.assertTrue(implementation_routing["start_apply_skipped"])
+        self.assertTrue(implementation_routing["closeout_preview_skipped"])
+        self.assertTrue(implementation_routing["closeout_apply_skipped"])
+        self.assertTrue(implementation_routing["blocked_by_placeholders"])
         self.assertEqual("provided-archive", criteria["release-artifact-smoke"]["details"]["archive_source"])
         self.assertEqual(
             criteria["source-pack-export"]["details"]["archive_sha256"],

@@ -84,6 +84,36 @@ class ArtifactSmokeTest(unittest.TestCase):
             "design_authoring_preview",
             payload["consumer_bootstrap_design_routing"]["workflow_preset_expanded_flags"],
         )
+        self.assertTrue(payload["consumer_bootstrap_implementation_routing"]["ok"])
+        self.assertEqual("design-derivation", payload["consumer_bootstrap_implementation_routing"]["phase"])
+        self.assertEqual(
+            "implementation-routing",
+            payload["consumer_bootstrap_implementation_routing"]["workflow_preset"],
+        )
+        self.assertTrue(payload["consumer_bootstrap_implementation_routing"]["implementation_readiness_preview_ok"])
+        self.assertTrue(payload["consumer_bootstrap_implementation_routing"]["readiness_previewed"])
+        self.assertFalse(payload["consumer_bootstrap_implementation_routing"]["readiness_ok"])
+        self.assertFalse(payload["consumer_bootstrap_implementation_routing"]["implementation_ready"])
+        self.assertTrue(payload["consumer_bootstrap_implementation_routing"]["advance_previewed"])
+        self.assertFalse(payload["consumer_bootstrap_implementation_routing"]["advance_ready"])
+        self.assertTrue(payload["consumer_bootstrap_implementation_routing"]["advance_apply_skipped"])
+        self.assertTrue(payload["consumer_bootstrap_implementation_routing"]["start_preview_skipped"])
+        self.assertTrue(payload["consumer_bootstrap_implementation_routing"]["start_apply_skipped"])
+        self.assertTrue(payload["consumer_bootstrap_implementation_routing"]["closeout_preview_skipped"])
+        self.assertTrue(payload["consumer_bootstrap_implementation_routing"]["closeout_apply_skipped"])
+        self.assertTrue(payload["consumer_bootstrap_implementation_routing"]["blocked_by_placeholders"])
+        self.assertIn(
+            "implementation_readiness_preview",
+            payload["consumer_bootstrap_implementation_routing"]["workflow_preset_expanded_flags"],
+        )
+        self.assertIn(
+            "implementation_advance_preview",
+            payload["consumer_bootstrap_implementation_routing"]["workflow_preset_expanded_flags"],
+        )
+        self.assertIn(
+            "implementation_closeout_apply",
+            payload["consumer_bootstrap_implementation_routing"]["workflow_preset_expanded_flags"],
+        )
         step_ids = {step["id"] for step in payload["steps"]}
         self.assertIn("export_artifact", step_ids)
         self.assertIn("unpacked_verify_pack_manifest", step_ids)
@@ -96,6 +126,7 @@ class ArtifactSmokeTest(unittest.TestCase):
         self.assertIn("unpacked_consumer_bootstrap_product_structure", step_ids)
         self.assertIn("unpacked_consumer_bootstrap_design_scaffold", step_ids)
         self.assertIn("unpacked_consumer_bootstrap_design_routing", step_ids)
+        self.assertIn("unpacked_consumer_bootstrap_implementation_routing", step_ids)
         self.assertIn("unpacked_dry_run", step_ids)
 
     def test_artifact_smoke_can_validate_existing_archive_without_reexporting(self) -> None:
@@ -152,6 +183,7 @@ class ArtifactSmokeTest(unittest.TestCase):
             self.assertIn("unpacked_consumer_bootstrap_product_structure", step_ids)
             self.assertIn("unpacked_consumer_bootstrap_design_scaffold", step_ids)
             self.assertIn("unpacked_consumer_bootstrap_design_routing", step_ids)
+            self.assertIn("unpacked_consumer_bootstrap_implementation_routing", step_ids)
             self.assertIn("unpacked_dry_run", step_ids)
 
     def test_artifact_smoke_reports_missing_provided_archive(self) -> None:
