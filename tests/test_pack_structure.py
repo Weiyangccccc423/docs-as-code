@@ -933,6 +933,35 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_consumer_bootstrap_missing_implementation_advance_apply(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/bootstrap_consumer_project.py"
+            script.write_text(
+                script.read_text(encoding="utf-8").replace(
+                    "--implementation-advance-apply",
+                    "--implementation-advance-write",
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_consumer_bootstrap_incomplete"
+                    and finding.path == "scripts/bootstrap_consumer_project.py"
+                    and "--implementation-advance-apply" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_missing_artifact_smoke_script(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"

@@ -100,6 +100,7 @@ def run_consumer_bootstrap(
     design_authoring_preview: bool = False,
     implementation_readiness_preview: bool = False,
     implementation_advance_preview: bool = False,
+    implementation_advance_apply: bool = False,
     implementation_start_preview: bool = False,
     pack_root: Path = ROOT,
 ) -> dict[str, object]:
@@ -209,6 +210,11 @@ def run_consumer_bootstrap(
             payload=init_check,
         )
         _require(
+            not implementation_advance_apply or implementation_advance_preview,
+            "--implementation-advance-apply requires --implementation-advance-preview",
+            payload=init_check,
+        )
+        _require(
             not implementation_start_preview or implementation_readiness_preview,
             "--implementation-start-preview requires --implementation-readiness-preview",
             payload=init_check,
@@ -252,6 +258,9 @@ def run_consumer_bootstrap(
             "implementation_advance_preview_requested": implementation_advance_preview,
             "implementation_advance_previewed": False,
             "implementation_advance_preview_ok": False,
+            "implementation_advance_apply_requested": implementation_advance_apply,
+            "implementation_advance_applied": False,
+            "implementation_advance_apply_ok": False,
             "implementation_start_preview_requested": implementation_start_preview,
             "implementation_start_previewed": False,
             "implementation_start_preview_ok": False,
@@ -412,6 +421,32 @@ def run_consumer_bootstrap(
                                                 payload["implementation_advance_preview_ok"] = (
                                                     advance_preview.get("ok") is True
                                                 )
+                                                if implementation_advance_apply:
+                                                    advance_apply = _apply_implementation_advance(
+                                                        steps,
+                                                        target,
+                                                        advance_preview,
+                                                    )
+                                                    payload["implementation_advance_apply"] = advance_apply
+                                                    payload["implementation_advance_applied"] = (
+                                                        advance_apply.get("apply_skipped") is not True
+                                                    )
+                                                    payload["implementation_advance_apply_ok"] = (
+                                                        advance_apply.get("ok") is True
+                                                    )
+                                                    if advance_apply.get("apply_skipped") is not True:
+                                                        payload["implementation_plan"] = advance_apply[
+                                                            "post_implementation_plan"
+                                                        ]
+                                                        payload["target_local"] = _target_local_details(
+                                                            target=target,
+                                                            init_payload=init_payload,
+                                                            verify_payload=advance_apply["post_verify_check"],
+                                                            status_payload=advance_apply["post_status"],
+                                                            workflow_plan_payload=advance_apply["post_workflow_plan"],
+                                                            expected_phase="implementation",
+                                                        )
+                                                        readiness_preview = advance_apply["implementation_readiness"]
                                             if implementation_start_preview:
                                                 start_preview = _preview_implementation_start(
                                                     steps,
@@ -427,7 +462,12 @@ def run_consumer_bootstrap(
             payload["local_commands"] = status_payload["local_commands"]
         elif isinstance(init_payload.get("local_commands"), list):
             payload["local_commands"] = init_payload["local_commands"]
-        if isinstance(payload.get("design_derivation"), dict):
+        if (
+            isinstance(payload.get("implementation_advance_apply"), dict)
+            and payload["implementation_advance_apply"].get("apply_skipped") is not True
+        ):
+            latest_status = payload["implementation_advance_apply"].get("post_status")
+        elif isinstance(payload.get("design_derivation"), dict):
             latest_status = payload["design_derivation"].get("status")
         elif isinstance(payload.get("product_structuring"), dict):
             latest_status = payload["product_structuring"].get("status")
@@ -482,6 +522,9 @@ def run_consumer_bootstrap(
             "implementation_advance_preview_requested": implementation_advance_preview,
             "implementation_advance_previewed": False,
             "implementation_advance_preview_ok": False,
+            "implementation_advance_apply_requested": implementation_advance_apply,
+            "implementation_advance_applied": False,
+            "implementation_advance_apply_ok": False,
             "implementation_start_preview_requested": implementation_start_preview,
             "implementation_start_previewed": False,
             "implementation_start_preview_ok": False,
@@ -529,6 +572,9 @@ def run_consumer_bootstrap(
             "implementation_advance_preview_requested": implementation_advance_preview,
             "implementation_advance_previewed": False,
             "implementation_advance_preview_ok": False,
+            "implementation_advance_apply_requested": implementation_advance_apply,
+            "implementation_advance_applied": False,
+            "implementation_advance_apply_ok": False,
             "implementation_start_preview_requested": implementation_start_preview,
             "implementation_start_previewed": False,
             "implementation_start_preview_ok": False,
@@ -1141,6 +1187,91 @@ def _preview_implementation_advance(steps: list[dict[str, object]], target: Path
     }
 
 
+def _apply_implementation_advance(
+    steps: list[dict[str, object]],
+    target: Path,
+    advance_preview: dict[str, object],
+) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "ok": True,
+        "target": str(target),
+        "check": False,
+        "writes_state": True,
+        "phase": "implementation",
+        "advance_ready": advance_preview.get("advance_ready") is True,
+        "apply_skipped": False,
+        "skip_reason": "",
+        "advance": {},
+        "post_verify_check": {},
+        "post_status": {},
+        "post_workflow_plan": {},
+        "post_implementation_plan": {},
+        "implementation_readiness": {},
+    }
+    if advance_preview.get("advance_ready") is not True:
+        payload["apply_skipped"] = True
+        payload["skip_reason"] = "implementation advance preview did not pass"
+        return payload
+
+    advance = _run_json(
+        steps,
+        "target_local_implementation_advance_apply",
+        ["bin/governance", "advance", "implementation", ".", "--json"],
+        target,
+    )
+    _require(advance.get("ok") is True, "implementation advance apply failed", payload=advance)
+    post_verify_check = _run_json(
+        steps,
+        "target_local_verify_check_after_implementation_advance_apply",
+        ["bin/governance", "verify", ".", "--check", "--json"],
+        target,
+    )
+    post_status = _run_json(
+        steps,
+        "target_local_governance_status_after_implementation_advance_apply",
+        ["make", "governance-status"],
+        target,
+    )
+    post_workflow_plan = _run_json(
+        steps,
+        "target_local_workflow_plan_after_implementation_advance_apply",
+        ["make", "workflow-plan"],
+        target,
+    )
+    post_implementation_plan = _run_json(
+        steps,
+        "target_local_implementation_plan_after_implementation_advance_apply",
+        ["make", "implementation-plan"],
+        target,
+    )
+    implementation_readiness = _preview_implementation_readiness(steps, target)
+    status_state = post_status.get("state")
+    phase = status_state.get("phase") if isinstance(status_state, dict) else ""
+    payload.update(
+        {
+            "phase": phase,
+            "advance": advance,
+            "post_verify_check": post_verify_check,
+            "post_status": post_status,
+            "post_workflow_plan": post_workflow_plan,
+            "post_implementation_plan": post_implementation_plan,
+            "implementation_readiness": implementation_readiness,
+            "ok": (
+                advance.get("ok") is True
+                and post_verify_check.get("ok") is True
+                and post_verify_check.get("findings") == []
+                and post_status.get("ok") is True
+                and post_workflow_plan.get("ok") is True
+                and post_workflow_plan.get("phase") == "implementation"
+                and post_implementation_plan.get("ok") is True
+                and implementation_readiness.get("readiness_ok") is True
+                and phase == "implementation"
+            ),
+        }
+    )
+    return payload
+
+
 TASK_ID_PATTERN = re.compile(r"^TASK-\d{3}$")
 
 
@@ -1300,6 +1431,14 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--implementation-advance-apply",
+        action="store_true",
+        help=(
+            "With --implementation-advance-preview, record the implementation phase only when the advance "
+            "preflight passed, then refresh implementation routing payloads."
+        ),
+    )
+    parser.add_argument(
         "--implementation-start-preview",
         action="store_true",
         help=(
@@ -1338,6 +1477,7 @@ def main() -> int:
         design_authoring_preview=args.design_authoring_preview,
         implementation_readiness_preview=args.implementation_readiness_preview,
         implementation_advance_preview=args.implementation_advance_preview,
+        implementation_advance_apply=args.implementation_advance_apply,
         implementation_start_preview=args.implementation_start_preview,
     )
     if args.json:
