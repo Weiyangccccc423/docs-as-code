@@ -1138,6 +1138,8 @@ class PackStructureTest(unittest.TestCase):
             ("fresh_target_init", "target_init_preview"),
             ("unpacked_init_fresh_target", "unpacked_init_preview"),
             ("fresh_target_workflow_plan", "target_workflow_preview"),
+            ("unpacked_consumer_bootstrap_product_structure", "unpacked_consumer_bootstrap_preview"),
+            ("--workflow-preset", "--workflow-profile"),
             ("--archive", "--artifact"),
         )
         for required_phrase, replacement in cases:

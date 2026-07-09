@@ -250,6 +250,39 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
             payload=fresh_target_init,
         )
 
+        consumer_target = workspace / "consumer-bootstrap-target"
+        consumer_product = _write_fresh_target_product(consumer_target)
+        consumer_bootstrap_payload = _run_json(
+            steps,
+            "unpacked_consumer_bootstrap_product_structure",
+            [
+                sys.executable,
+                "scripts/bootstrap_consumer_project.py",
+                "--target",
+                consumer_target,
+                "--product",
+                consumer_product,
+                "--profile",
+                "service",
+                "--project-name",
+                "Artifact Consumer Bootstrap",
+                "--auto-repair-env",
+                "--workflow-preset",
+                "product-structure",
+                "--json",
+            ],
+            unpacked_root,
+        )
+        consumer_bootstrap_product_structure = _consumer_bootstrap_details(
+            target=consumer_target,
+            bootstrap_payload=consumer_bootstrap_payload,
+        )
+        _require(
+            consumer_bootstrap_product_structure.get("ok") is True,
+            "unpacked artifact consumer bootstrap product-structure fast path failed",
+            payload=consumer_bootstrap_product_structure,
+        )
+
         dry_run_payload = _run_json(
             steps,
             "unpacked_dry_run",
@@ -309,6 +342,7 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
             "manifest_sha256": manifest_sha256,
             "target_local_make_coverage": target_local_make_coverage,
             "fresh_target_init": fresh_target_init,
+            "consumer_bootstrap_product_structure": consumer_bootstrap_product_structure,
             "steps": steps,
             "target_retained": True,
         }
@@ -444,6 +478,48 @@ def _fresh_target_init_details(
         "runtime_manifest": (fresh_target / "docs/agent-workflow/runtime-manifest.json").is_file(),
         "workflow_pack_snapshot": (fresh_target / "docs/agent-workflow/workflow-pack/manifest.json").is_file(),
         "product_source_manifest": (fresh_target / "docs/product/core/source/source-manifest.json").is_file(),
+    }
+
+
+def _consumer_bootstrap_details(
+    *,
+    target: Path,
+    bootstrap_payload: dict[str, object],
+) -> dict[str, object]:
+    target_local = bootstrap_payload.get("target_local")
+    phase = target_local.get("phase") if isinstance(target_local, dict) else ""
+    workflow_preset = bootstrap_payload.get("workflow_preset")
+    expanded_flags = bootstrap_payload.get("workflow_preset_expanded_flags")
+    expanded_flag_list = [
+        str(flag)
+        for flag in expanded_flags
+        if isinstance(flag, str)
+    ] if isinstance(expanded_flags, list) else []
+    goals_chapter = target / "docs/product/03-goals-and-requirements.md"
+    acceptance_chapter = target / "docs/product/08-acceptance-criteria.md"
+    return {
+        "ok": (
+            bootstrap_payload.get("ok") is True
+            and phase == "product-structuring"
+            and workflow_preset == "product-structure"
+            and bootstrap_payload.get("auto_repair_env") is True
+            and bootstrap_payload.get("product_structure_apply_ok") is True
+            and "advance_product_structuring" in expanded_flag_list
+            and "product_scaffold_preview" in expanded_flag_list
+            and "product_structure_preview" in expanded_flag_list
+            and "product_structure_apply" in expanded_flag_list
+            and goals_chapter.is_file()
+            and acceptance_chapter.is_file()
+        ),
+        "target": str(target),
+        "phase": phase,
+        "workflow_preset": workflow_preset if isinstance(workflow_preset, str) else "",
+        "workflow_preset_expanded_flags": expanded_flag_list,
+        "auto_repair_env": bootstrap_payload.get("auto_repair_env") is True,
+        "product_structure_apply_ok": bootstrap_payload.get("product_structure_apply_ok") is True,
+        "target_local_ok": target_local.get("ok") is True if isinstance(target_local, dict) else False,
+        "goals_chapter": goals_chapter.is_file(),
+        "acceptance_chapter": acceptance_chapter.is_file(),
     }
 
 
