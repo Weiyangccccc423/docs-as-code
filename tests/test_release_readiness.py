@@ -101,6 +101,22 @@ class ReleaseReadinessTest(unittest.TestCase):
                 "post_verify_blocked_by_placeholders"
             ]
         )
+        self.assertTrue(criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_design_routing"]["ok"])
+        self.assertEqual(
+            "design-derivation",
+            criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_design_routing"]["phase"],
+        )
+        self.assertEqual(
+            "design-routing",
+            criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_design_routing"]["workflow_preset"],
+        )
+        self.assertTrue(
+            criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_design_routing"][
+                "design_authoring_preview_ok"
+            ]
+        )
+        self.assertEqual(9, criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_design_routing"]["queue_count"])
+        self.assertEqual([], criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_design_routing"]["missing_queue_ids"])
         self.assertEqual("provided-archive", criteria["release-artifact-smoke"]["details"]["archive_source"])
         self.assertEqual(
             criteria["source-pack-export"]["details"]["archive_sha256"],

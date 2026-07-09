@@ -29,6 +29,17 @@ TARGET_LOCAL_MAKE_STEP_IDS = [
     "make_check_env",
     "make_repair_env_check",
 ]
+DESIGN_AUTHORING_QUEUE_IDS = [
+    "architecture-authoring",
+    "api-authoring",
+    "backend-authoring",
+    "data-model-authoring",
+    "ui-interaction-authoring",
+    "frontend-authoring",
+    "test-strategy-authoring",
+    "implementation-planning-authoring",
+    "architecture-decisions-authoring",
+]
 
 
 class ArtifactSmokeError(Exception):
@@ -316,6 +327,39 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
             payload=consumer_bootstrap_design_scaffold,
         )
 
+        routing_target = workspace / "consumer-design-routing-target"
+        routing_product = _write_fresh_target_product(routing_target)
+        routing_bootstrap_payload = _run_json(
+            steps,
+            "unpacked_consumer_bootstrap_design_routing",
+            [
+                sys.executable,
+                "scripts/bootstrap_consumer_project.py",
+                "--target",
+                routing_target,
+                "--product",
+                routing_product,
+                "--profile",
+                "service",
+                "--project-name",
+                "Artifact Consumer Design Routing",
+                "--auto-repair-env",
+                "--workflow-preset",
+                "design-routing",
+                "--json",
+            ],
+            unpacked_root,
+        )
+        consumer_bootstrap_design_routing = _consumer_bootstrap_design_routing_details(
+            target=routing_target,
+            bootstrap_payload=routing_bootstrap_payload,
+        )
+        _require(
+            consumer_bootstrap_design_routing.get("ok") is True,
+            "unpacked artifact consumer bootstrap design-routing fast path failed",
+            payload=consumer_bootstrap_design_routing,
+        )
+
         dry_run_payload = _run_json(
             steps,
             "unpacked_dry_run",
@@ -377,6 +421,7 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
             "fresh_target_init": fresh_target_init,
             "consumer_bootstrap_product_structure": consumer_bootstrap_product_structure,
             "consumer_bootstrap_design_scaffold": consumer_bootstrap_design_scaffold,
+            "consumer_bootstrap_design_routing": consumer_bootstrap_design_routing,
             "steps": steps,
             "target_retained": True,
         }
@@ -561,6 +606,7 @@ def _consumer_bootstrap_design_scaffold_details(
     *,
     target: Path,
     bootstrap_payload: dict[str, object],
+    expected_workflow_preset: str = "design-scaffold",
 ) -> dict[str, object]:
     target_local = bootstrap_payload.get("target_local")
     phase = target_local.get("phase") if isinstance(target_local, dict) else ""
@@ -583,7 +629,7 @@ def _consumer_bootstrap_design_scaffold_details(
         "ok": (
             bootstrap_payload.get("ok") is True
             and phase == "design-derivation"
-            and workflow_preset == "design-scaffold"
+            and workflow_preset == expected_workflow_preset
             and bootstrap_payload.get("auto_repair_env") is True
             and bootstrap_payload.get("product_structure_apply_ok") is True
             and bootstrap_payload.get("advanced_design_derivation") is True
@@ -609,6 +655,53 @@ def _consumer_bootstrap_design_scaffold_details(
         "target_local_ok": target_local.get("ok") is True if isinstance(target_local, dict) else False,
         "system_context_doc": system_context_doc.is_file(),
         "endpoint_contract_doc": endpoint_contract_doc.is_file(),
+    }
+
+
+def _consumer_bootstrap_design_routing_details(
+    *,
+    target: Path,
+    bootstrap_payload: dict[str, object],
+) -> dict[str, object]:
+    base = _consumer_bootstrap_design_scaffold_details(
+        target=target,
+        bootstrap_payload=bootstrap_payload,
+        expected_workflow_preset="design-routing",
+    )
+    workflow_preset = bootstrap_payload.get("workflow_preset")
+    expanded_flags = base["workflow_preset_expanded_flags"]
+    design_authoring_preview = bootstrap_payload.get("design_authoring_preview")
+    queue_order = design_authoring_preview.get("queue_order") if isinstance(design_authoring_preview, dict) else []
+    queues = design_authoring_preview.get("queues") if isinstance(design_authoring_preview, dict) else {}
+    queue_ids = [str(queue_id) for queue_id in queue_order] if isinstance(queue_order, list) else []
+    queue_map = queues if isinstance(queues, dict) else {}
+    missing_queue_ids = [
+        queue_id
+        for queue_id in DESIGN_AUTHORING_QUEUE_IDS
+        if queue_id not in queue_ids or not isinstance(queue_map.get(queue_id), dict)
+    ]
+    failed_queue_ids = [
+        queue_id
+        for queue_id in DESIGN_AUTHORING_QUEUE_IDS
+        if isinstance(queue_map.get(queue_id), dict) and queue_map[queue_id].get("ok") is not True
+    ]
+    return {
+        **base,
+        "ok": (
+            base.get("ok") is True
+            and workflow_preset == "design-routing"
+            and bootstrap_payload.get("design_authoring_preview_ok") is True
+            and isinstance(expanded_flags, list)
+            and "design_authoring_preview" in expanded_flags
+            and missing_queue_ids == []
+            and failed_queue_ids == []
+        ),
+        "workflow_preset": workflow_preset if isinstance(workflow_preset, str) else "",
+        "design_authoring_preview_ok": bootstrap_payload.get("design_authoring_preview_ok") is True,
+        "queue_count": len(queue_ids),
+        "required_queue_ids": DESIGN_AUTHORING_QUEUE_IDS,
+        "missing_queue_ids": missing_queue_ids,
+        "failed_queue_ids": failed_queue_ids,
     }
 
 

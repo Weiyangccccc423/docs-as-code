@@ -206,6 +206,26 @@ def _artifact_smoke_consumer_design_scaffold_ok(payload: dict[str, object] | Non
     )
 
 
+def _artifact_smoke_consumer_design_routing_ok(payload: dict[str, object] | None) -> bool:
+    if payload is None:
+        return False
+    design_routing = payload.get("consumer_bootstrap_design_routing")
+    expanded_flags = design_routing.get("workflow_preset_expanded_flags") if isinstance(design_routing, dict) else []
+    return (
+        isinstance(design_routing, dict)
+        and design_routing.get("ok") is True
+        and design_routing.get("phase") == "design-derivation"
+        and design_routing.get("workflow_preset") == "design-routing"
+        and design_routing.get("design_scaffold_apply_ok") is True
+        and design_routing.get("design_authoring_preview_ok") is True
+        and design_routing.get("queue_count") == 9
+        and design_routing.get("missing_queue_ids") == []
+        and design_routing.get("failed_queue_ids") == []
+        and isinstance(expanded_flags, list)
+        and "design_authoring_preview" in expanded_flags
+    )
+
+
 def _env_repair_decision_allows_workflow(payload: dict[str, object] | None) -> bool:
     if payload is None:
         return False
@@ -480,7 +500,8 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
         and artifact_smoke_payload.get("manifest_sha256") == export_payload.get("manifest_sha256")
         and _artifact_smoke_fresh_target_init_ok(artifact_smoke_payload)
         and _artifact_smoke_consumer_bootstrap_ok(artifact_smoke_payload)
-        and _artifact_smoke_consumer_design_scaffold_ok(artifact_smoke_payload),
+        and _artifact_smoke_consumer_design_scaffold_ok(artifact_smoke_payload)
+        and _artifact_smoke_consumer_design_routing_ok(artifact_smoke_payload),
         evidence="python3 scripts/smoke_workflow_pack_artifact.py --archive <tmp>/docs-as-code-workflow-pack.tar.gz --json",
         details={
             "archive_source": artifact_smoke_payload.get("archive_source") if artifact_smoke_payload else "",
@@ -500,6 +521,12 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
             else {},
             "consumer_bootstrap_design_scaffold": artifact_smoke_payload.get(
                 "consumer_bootstrap_design_scaffold",
+                {},
+            )
+            if artifact_smoke_payload
+            else {},
+            "consumer_bootstrap_design_routing": artifact_smoke_payload.get(
+                "consumer_bootstrap_design_routing",
                 {},
             )
             if artifact_smoke_payload

@@ -96,7 +96,7 @@ python3 scripts/smoke_workflow_pack_artifact.py --json
 python3 scripts/smoke_workflow_pack_artifact.py --archive dist/docs-as-code-workflow-pack.tar.gz --json
 ```
 
-The default artifact smoke exports a temporary archive before checking it. Use `--archive` after `make package` to validate the exact tar.gz artifact intended for handoff. The artifact smoke also initializes a separate fresh target directory that contains only a product document, verifies the target-local `bin/governance`, `make governance-status`, and `make workflow-plan` commands from that generated target, and runs consumer bootstrap from the unpacked artifact with `--auto-repair-env --workflow-preset product-structure` and `--auto-repair-env --workflow-preset design-scaffold`.
+The default artifact smoke exports a temporary archive before checking it. Use `--archive` after `make package` to validate the exact tar.gz artifact intended for handoff. The artifact smoke also initializes a separate fresh target directory that contains only a product document, verifies the target-local `bin/governance`, `make governance-status`, and `make workflow-plan` commands from that generated target, and runs consumer bootstrap from the unpacked artifact with `--auto-repair-env --workflow-preset product-structure`, `--auto-repair-env --workflow-preset design-scaffold`, and `--auto-repair-env --workflow-preset design-routing`.
 
 Before tagging or handing off a source workflow-pack release, run the release readiness gate and use `references/release-readiness-checklist.md` as the rubric:
 

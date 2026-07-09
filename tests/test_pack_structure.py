@@ -1140,6 +1140,7 @@ class PackStructureTest(unittest.TestCase):
             ("fresh_target_workflow_plan", "target_workflow_preview"),
             ("unpacked_consumer_bootstrap_product_structure", "unpacked_consumer_bootstrap_preview"),
             ("unpacked_consumer_bootstrap_design_scaffold", "unpacked_consumer_design_preview"),
+            ("unpacked_consumer_bootstrap_design_routing", "unpacked_consumer_routing_preview"),
             ("--workflow-preset", "--workflow-profile"),
             ("--archive", "--artifact"),
         )
@@ -1454,6 +1455,35 @@ class PackStructureTest(unittest.TestCase):
                     finding.code == "pack_release_readiness_incomplete"
                     and finding.path == "scripts/release_readiness.py"
                     and "_artifact_smoke_consumer_design_scaffold_ok" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_release_readiness_missing_artifact_design_routing_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/release_readiness.py"
+            script.write_text(
+                script.read_text(encoding="utf-8").replace(
+                    "_artifact_smoke_consumer_design_routing_ok",
+                    "_artifact_smoke_routing_preview_ok",
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_release_readiness_incomplete"
+                    and finding.path == "scripts/release_readiness.py"
+                    and "_artifact_smoke_consumer_design_routing_ok" in finding.message
                     for finding in report.findings
                 )
             )
