@@ -32,6 +32,7 @@ python3 scripts/release_readiness.py --json
 Treat successful `--archive` artifact smoke as evidence that the exact exported tar.gz can be unpacked, verified, used to initialize a fresh target folder containing only a product document, and then checked through target-local `bin/governance` and Make commands.
 Use `python3 scripts/bootstrap_consumer_project.py --target <target> --product <product-doc> --profile <profile> --project-name "<name>" --check --json` from an unpacked workflow pack to preflight consumer setup; run the same command without `--check` to initialize and verify the target, then continue from returned `local_commands` and `next_actions`.
 Use `--advance-product-structuring` only when the task authorizes a state-writing shortcut into product structuring; it runs the advance preflight/apply sequence and returns `make product-plan` output for the next authoring queue.
+Use `--advance-product-structuring --product-scaffold-preview` when the task authorizes product-structuring advancement and needs a no-write scaffold preflight. It runs target-local `scaffold product --check --json` from conservative `product_plan.suggested_mappings`, returns `product_scaffold_preview`, and must not be treated as source review or write-mode product authoring.
 
 ```bash
 bin/governance verify <target> --check

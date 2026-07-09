@@ -138,6 +138,17 @@ make release-check
 python3 scripts/release_readiness.py --json
 ```
 
+For a recipient environment that has unpacked the source workflow-pack artifact, compose the source-pack checks, environment preflight, target initialization, and target-local verification with the consumer bootstrap script:
+
+```bash
+python3 scripts/bootstrap_consumer_project.py --target /path/to/new-project --product /path/to/product.md --profile web-app --project-name "Project Name" --check --json
+python3 scripts/bootstrap_consumer_project.py --target /path/to/new-project --product /path/to/product.md --profile web-app --project-name "Project Name" --json
+python3 scripts/bootstrap_consumer_project.py --target /path/to/new-project --product /path/to/product.md --profile web-app --project-name "Project Name" --advance-product-structuring --json
+python3 scripts/bootstrap_consumer_project.py --target /path/to/new-project --product /path/to/product.md --profile web-app --project-name "Project Name" --advance-product-structuring --product-scaffold-preview --json
+```
+
+The script runs source-pack manifest verification, source-pack verification, `env --repair --check`, `init --check`, write-mode initialization, and target-local verify/status/workflow-plan checks. With `--advance-product-structuring`, it also runs the state-writing product-structuring advance sequence and `make product-plan`. With `--product-scaffold-preview`, it derives conservative chapter keys from `product_plan.suggested_mappings` and runs target-local `scaffold product --check --json`; this preview reports `would_create`, `would_skip`, and `would_index` without writing product chapter files. Treat both product options as automation aids: source review still decides which chapters are supported before any write-mode scaffold or structure command.
+
 ```bash
 bin/governance env --repair --check --target /path/to/new-project --json
 bin/governance init --check --target /path/to/new-project --json

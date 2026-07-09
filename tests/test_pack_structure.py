@@ -627,7 +627,6 @@ class PackStructureTest(unittest.TestCase):
                 script.read_text(encoding="utf-8").replace(
                     "--advance-product-structuring",
                     "--advance-product",
-                    1,
                 ),
                 encoding="utf-8",
             )
@@ -640,6 +639,35 @@ class PackStructureTest(unittest.TestCase):
                     finding.code == "pack_consumer_bootstrap_incomplete"
                     and finding.path == "scripts/bootstrap_consumer_project.py"
                     and "--advance-product-structuring" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_consumer_bootstrap_missing_product_scaffold_preview(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/bootstrap_consumer_project.py"
+            script.write_text(
+                script.read_text(encoding="utf-8").replace(
+                    "--product-scaffold-preview",
+                    "--product-preview",
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_consumer_bootstrap_incomplete"
+                    and finding.path == "scripts/bootstrap_consumer_project.py"
+                    and "--product-scaffold-preview" in finding.message
                     for finding in report.findings
                 )
             )
@@ -1364,7 +1392,6 @@ class PackStructureTest(unittest.TestCase):
                 readme.read_text(encoding="utf-8").replace(
                     "python3 scripts/bootstrap_consumer_project.py --target /path/to/new-project --product /path/to/product.md --profile web-app --project-name \"Project Name\" --check --json",
                     "python3 scripts/bootstrap_consumer_project.py --target /path/to/new-project --check --json",
-                    1,
                 ),
                 encoding="utf-8",
             )

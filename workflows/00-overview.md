@@ -49,10 +49,12 @@ For a recipient environment that has already unpacked the source workflow-pack a
 python3 scripts/bootstrap_consumer_project.py --target /path/to/new-project --product /path/to/product.md --profile web-app --project-name "Project Name" --check --json
 python3 scripts/bootstrap_consumer_project.py --target /path/to/new-project --product /path/to/product.md --profile web-app --project-name "Project Name" --json
 python3 scripts/bootstrap_consumer_project.py --target /path/to/new-project --product /path/to/product.md --profile web-app --project-name "Project Name" --advance-product-structuring --json
+python3 scripts/bootstrap_consumer_project.py --target /path/to/new-project --product /path/to/product.md --profile web-app --project-name "Project Name" --advance-product-structuring --product-scaffold-preview --json
 ```
 
 The bootstrap script runs `verify_pack_manifest`, `verify_pack`, `env --repair --check`, `init --check`, write-mode `init`, then target-local `bin/governance verify . --check --json`, `make governance-status`, and `make workflow-plan`. Its success payload includes `local_commands` and `next_actions` so agents can continue from the generated target without rerunning `status`.
 When `--advance-product-structuring` is supplied, it additionally runs target-local product-structuring advance preflight/apply commands and `make product-plan`, so the returned payload includes the product authoring queue. Treat that option as a state-writing shortcut, not a read-only inspection.
+When `--product-scaffold-preview` is supplied with `--advance-product-structuring`, the bootstrap script uses `product_plan.suggested_mappings` to run target-local `bin/governance scaffold product . --chapter <chapter> ... --check --json`. The returned `product_scaffold_preview` payload reports selected chapters, `command_args`, unresolved `required_decisions`, and the scaffold preflight's `would_create`, `would_skip`, and `would_index` without writing product chapter files. If no conservative mappings exist, the preview is skipped instead of guessing chapter support.
 
 To prove the transfer artifact is self-contained, smoke-test it with a command that unpacks the tar.gz artifact and runs checks from the unpacked workflow pack:
 
