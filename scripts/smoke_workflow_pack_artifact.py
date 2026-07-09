@@ -95,12 +95,12 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
     workspace = Path(tempfile.mkdtemp(prefix="docs-as-code-artifact-")).resolve()
     steps: list[dict[str, object]] = []
     retained = True
+    archive_path = archive.resolve() if archive is not None else workspace / f"{PACK_DIR_NAME}.tar.gz"
+    archive_source = "provided-archive" if archive is not None else "temporary-export"
     try:
         staged = workspace / "staged" / PACK_DIR_NAME
-        archive_path = archive.resolve() if archive is not None else workspace / f"{PACK_DIR_NAME}.tar.gz"
         unpack_dir = workspace / "unpacked"
         export_payload: dict[str, object] = {}
-        archive_source = "provided-archive" if archive is not None else "temporary-export"
         if archive is None:
             export_payload = _run_json(
                 steps,
@@ -322,6 +322,8 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
             "ok": False,
             "error": error.message,
             "workspace": str(workspace),
+            "archive": str(archive_path),
+            "archive_source": archive_source,
             "target_retained": True,
             "steps": steps,
             "failed_step": error.step,
@@ -332,6 +334,8 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
             "ok": False,
             "error": error.strerror or str(error),
             "workspace": str(workspace),
+            "archive": str(archive_path),
+            "archive_source": archive_source,
             "target_retained": True,
             "steps": steps,
         }
@@ -347,11 +351,14 @@ def _sha256_file(path: Path) -> str:
 
 def _safe_extract_archive(archive: Path, destination: Path) -> list[str]:
     destination.mkdir(parents=True, exist_ok=True)
-    with tarfile.open(archive, "r:gz") as tar:
-        members = tar.getmembers()
-        for member in members:
-            _validate_member(destination, member)
-        tar.extractall(destination, members)
+    try:
+        with tarfile.open(archive, "r:gz") as tar:
+            members = tar.getmembers()
+            for member in members:
+                _validate_member(destination, member)
+            tar.extractall(destination, members)
+    except tarfile.TarError as error:
+        raise ArtifactSmokeError(f"artifact archive could not be read: {error}") from error
     return [member.name for member in members]
 
 

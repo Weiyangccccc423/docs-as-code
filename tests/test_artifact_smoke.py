@@ -106,6 +106,62 @@ class ArtifactSmokeTest(unittest.TestCase):
             self.assertIn("unpacked_init_fresh_target", step_ids)
             self.assertIn("unpacked_dry_run", step_ids)
 
+    def test_artifact_smoke_reports_missing_provided_archive(self) -> None:
+        missing_archive = Path(tempfile.gettempdir()) / "docs-as-code-missing-pack.tar.gz"
+        if missing_archive.exists():
+            missing_archive.unlink()
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(SMOKE),
+                "--archive",
+                str(missing_archive),
+                "--json",
+            ],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        self.assertEqual(1, result.returncode)
+        self.assertEqual("", result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertFalse(payload["ok"])
+        self.assertEqual("artifact archive is not a file", payload["error"])
+        self.assertEqual(str(missing_archive.resolve()), payload["archive"])
+        self.assertEqual("provided-archive", payload["archive_source"])
+        self.assertEqual([], payload["steps"])
+
+    def test_artifact_smoke_reports_unreadable_provided_archive(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            archive = Path(tmp) / "broken.tar.gz"
+            archive.write_text("not a gzip archive\n", encoding="utf-8")
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SMOKE),
+                    "--archive",
+                    str(archive),
+                    "--json",
+                ],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, result.returncode)
+            self.assertEqual("", result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertIn("artifact archive could not be read", payload["error"])
+            self.assertEqual(str(archive.resolve()), payload["archive"])
+            self.assertEqual("provided-archive", payload["archive_source"])
+            self.assertEqual([], payload["steps"])
+
 
 if __name__ == "__main__":
     unittest.main()
