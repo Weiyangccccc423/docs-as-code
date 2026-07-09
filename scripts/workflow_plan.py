@@ -16,6 +16,7 @@ try:
         build_frontend_authoring,
         build_implementation_planning_authoring,
         build_test_strategy_authoring,
+        build_ui_interaction_authoring,
     )
     from .implementation_plan import build_implementation_plan
     from .product_structure import build_product_plan
@@ -34,6 +35,7 @@ except ImportError:  # pragma: no cover - direct script execution
         build_frontend_authoring,
         build_implementation_planning_authoring,
         build_test_strategy_authoring,
+        build_ui_interaction_authoring,
     )
     from implementation_plan import build_implementation_plan
     from product_structure import build_product_plan
@@ -57,6 +59,11 @@ DESIGN_AUTHORING_BUILDERS: tuple[tuple[str, list[str], Callable[[Path], dict[str
         "data-model-authoring",
         ["bin/governance", "design", "data-model-authoring", ".", "--json"],
         build_data_model_authoring,
+    ),
+    (
+        "ui-interaction-authoring",
+        ["bin/governance", "design", "ui-interaction-authoring", ".", "--json"],
+        build_ui_interaction_authoring,
     ),
     ("frontend-authoring", ["bin/governance", "design", "frontend-authoring", ".", "--json"], build_frontend_authoring),
     (

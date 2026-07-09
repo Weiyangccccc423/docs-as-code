@@ -161,17 +161,21 @@ BACKEND_EXTERNAL_SERVICE_SECTIONS = (
     "Observability",
 )
 OPEN_FRONTEND_DECISIONS = (
-    "primary_flows",
-    "screens",
     "route_ownership",
     "state_ownership",
     "api_consumption",
     "loading_states",
     "error_actions",
-    "accessibility",
     "performance",
-    "copy_and_content",
     "cache_invalidation",
+)
+OPEN_UI_INTERACTION_DECISIONS = (
+    "primary_flows",
+    "screens",
+    "states",
+    "error_actions",
+    "accessibility",
+    "copy_and_content",
 )
 UI_INTERACTION_SECTIONS = (
     "Product Links",
@@ -698,6 +702,54 @@ def build_data_model_authoring(root: Path) -> dict[str, object]:
     return payload
 
 
+def build_ui_interaction_authoring(root: Path) -> dict[str, object]:
+    root = root.resolve()
+    state = load_state(root)
+    phase = state.get("phase") if isinstance(state.get("phase"), str) else ""
+    errors: list[str] = []
+    if not state:
+        errors.append("No governance state found.")
+    elif phase != DESIGN_PHASE:
+        errors.append(f"UI interaction authoring requires recorded phase {DESIGN_PHASE}")
+    candidates = _api_candidates(root)
+    if not candidates:
+        errors.append("No product acceptance criteria with A-NNN headings found.")
+    skills = ["designing-ui-interactions"]
+    specialist_skills = _specialist_skills(UI_INTERACTION_TRACK_ID)
+    authoring_tasks = [
+        _ui_interaction_authoring_task(root, candidate, index)
+        for index, candidate in enumerate(candidates, start=1)
+    ]
+    payload: dict[str, object] = {
+        "ok": not errors,
+        "target": str(root),
+        "phase": phase,
+        "workflow": DESIGN_WORKFLOW_PATH,
+        "track": UI_INTERACTION_TRACK_ID,
+        "decision_policy": "do_not_guess_ui_behavior",
+        "skills": skills,
+        "specialist_skills": specialist_skills,
+        **_skill_requirement_fields(root, skills, specialist_skills),
+        "references": [
+            "references/frontend-interaction-checklist.md",
+            "references/security-design-checklist.md",
+        ],
+        "source_documents": _source_documents(root),
+        "authoring_tasks": authoring_tasks,
+        "authoring_summary": _authoring_summary(authoring_tasks),
+        "active_work": _active_design_authoring_work(
+            root,
+            authoring_tasks,
+            ["bin/governance", "design", "ui-interaction-authoring", ".", "--json"],
+        ),
+        "errors": errors,
+    }
+    if not errors:
+        payload["local_commands"] = target_local_commands_payload(cwd=str(root))
+        payload["next_actions"] = next_actions_payload(state, cwd=str(root))
+    return payload
+
+
 def build_frontend_authoring(root: Path) -> dict[str, object]:
     root = root.resolve()
     state = load_state(root)
@@ -710,8 +762,8 @@ def build_frontend_authoring(root: Path) -> dict[str, object]:
     candidates = _api_candidates(root)
     if not candidates:
         errors.append("No product acceptance criteria with A-NNN headings found.")
-    skills = ["designing-ui-interactions", "designing-frontend-modules"]
-    specialist_skills = _combined_specialist_skills(UI_INTERACTION_TRACK_ID, FRONTEND_TRACK_ID)
+    skills = ["designing-frontend-modules"]
+    specialist_skills = _specialist_skills(FRONTEND_TRACK_ID)
     authoring_tasks = [
         _frontend_authoring_task(root, candidate, index)
         for index, candidate in enumerate(candidates, start=1)
@@ -1157,13 +1209,6 @@ def _specialist_skills(track_id: str) -> list[str]:
         if track.id == track_id:
             return list(track.specialist_skills)
     return []
-
-
-def _combined_specialist_skills(*track_ids: str) -> list[str]:
-    skills: list[str] = []
-    for track_id in track_ids:
-        skills.extend(_specialist_skills(track_id))
-    return list(dict.fromkeys(skills))
 
 
 def _skill_requirement_fields(
@@ -2035,11 +2080,6 @@ def _frontend_authoring_task(root: Path, candidate: dict[str, object], index: in
     api_contract = str(candidate["suggested_endpoint_file"])
     documents = [
         _authoring_document(
-            "docs/ui/01-interaction-model.md",
-            UI_INTERACTION_SECTIONS,
-            "Define product-derived flows, screens, states, errors, and accessibility expectations.",
-        ),
-        _authoring_document(
             "docs/frontend/01-modules.md",
             FRONTEND_MODULE_SECTIONS,
             "Define frontend module boundaries, route ownership, state ownership, and open decisions.",
@@ -2066,15 +2106,15 @@ def _frontend_authoring_task(root: Path, candidate: dict[str, object], index: in
         "acceptance_id": candidate["acceptance_id"],
         "title": candidate["title"],
         "source": source,
-        "specialist_skills": _combined_specialist_skills(UI_INTERACTION_TRACK_ID, FRONTEND_TRACK_ID),
+        "specialist_skills": _specialist_skills(FRONTEND_TRACK_ID),
         **_skill_requirement_fields(
             root,
-            ["designing-ui-interactions", "designing-frontend-modules"],
-            _combined_specialist_skills(UI_INTERACTION_TRACK_ID, FRONTEND_TRACK_ID),
+            ["designing-frontend-modules"],
+            _specialist_skills(FRONTEND_TRACK_ID),
         ),
         "execution": _authoring_execution(
             "frontend-design-authoring",
-            "designing-ui-interactions",
+            "designing-frontend-modules",
             "senior-frontend",
             "verify-frontend-authoring",
             "refresh-frontend-authoring",
@@ -2102,14 +2142,14 @@ def _frontend_authoring_steps(
         {
             "id": "load-frontend-design-skills",
             "kind": "skill-load",
-            "skills": ["designing-ui-interactions", "designing-frontend-modules"],
-            "specialist_skills": _combined_specialist_skills(UI_INTERACTION_TRACK_ID, FRONTEND_TRACK_ID),
+            "skills": ["designing-frontend-modules"],
+            "specialist_skills": _specialist_skills(FRONTEND_TRACK_ID),
             **_skill_requirement_fields(
                 root,
-                ["designing-ui-interactions", "designing-frontend-modules"],
-                _combined_specialist_skills(UI_INTERACTION_TRACK_ID, FRONTEND_TRACK_ID),
+                ["designing-frontend-modules"],
+                _specialist_skills(FRONTEND_TRACK_ID),
             ),
-            "description": "Load UI and frontend module skills before assigning flows, routes, state, or API consumption.",
+            "description": "Load frontend module skills before assigning routes, state ownership, or API consumption.",
         },
         {
             "id": "read-frontend-references",
@@ -2135,13 +2175,6 @@ def _frontend_authoring_steps(
                 "docs/api/error-codes.md",
             ],
             "description": "Read UI and API sources before assigning frontend state, routes, loading, and errors.",
-        },
-        {
-            "id": "author-ui-interaction-model",
-            "kind": "author",
-            "document": "docs/ui/01-interaction-model.md",
-            "sections": list(UI_INTERACTION_SECTIONS),
-            "description": "Define product-derived flows, screens, states, user-visible errors, and accessibility expectations.",
         },
         {
             "id": "author-frontend-modules",
@@ -2178,6 +2211,127 @@ def _frontend_authoring_steps(
             "refresh-frontend-authoring",
             "Refresh the frontend authoring queue after verification.",
             ["bin/governance", "design", "frontend-authoring", ".", "--json"],
+        ),
+    ])
+
+
+def _ui_interaction_authoring_task(root: Path, candidate: dict[str, object], index: int) -> dict[str, object]:
+    source = candidate["source"]
+    if not isinstance(source, dict):  # pragma: no cover - internal invariant
+        source = {}
+    source_reference = str(source.get("reference", ""))
+    documents = [
+        _authoring_document(
+            "docs/ui/01-interaction-model.md",
+            UI_INTERACTION_SECTIONS,
+            "Define product-derived flows, screens, states, user-visible errors, accessibility expectations, and copy gaps.",
+        ),
+    ]
+    required_links = [
+        _required_link(root, "product_prd", "docs/product/core/PRD.md"),
+        _required_link(root, "product_acceptance", source_reference),
+        _required_link(root, "glossary", "docs/glossary.md"),
+        _required_link(root, "unresolved_decisions", "docs/unresolved.md"),
+    ]
+    return {
+        "task_id": f"UI-INTERACTION-AUTHOR-{index:03d}",
+        "sequence": index,
+        "api_candidate_id": candidate["candidate_id"],
+        "acceptance_id": candidate["acceptance_id"],
+        "title": candidate["title"],
+        "source": source,
+        "specialist_skills": _specialist_skills(UI_INTERACTION_TRACK_ID),
+        **_skill_requirement_fields(
+            root,
+            ["designing-ui-interactions"],
+            _specialist_skills(UI_INTERACTION_TRACK_ID),
+        ),
+        "execution": _authoring_execution(
+            "ui-interaction-authoring",
+            "designing-ui-interactions",
+            "senior-frontend",
+            "verify-ui-interaction-authoring",
+            "refresh-ui-interaction-authoring",
+        ),
+        "documents": documents,
+        "required_links": required_links,
+        "link_repair_actions": _link_repair_actions(
+            root,
+            required_links,
+            "refresh-ui-interaction-authoring",
+            ["bin/governance", "design", "ui-interaction-authoring", ".", "--json"],
+        ),
+        "open_decisions": list(OPEN_UI_INTERACTION_DECISIONS),
+        "steps": _ui_interaction_authoring_steps(root, source_reference, required_links),
+    }
+
+
+def _ui_interaction_authoring_steps(
+    root: Path,
+    source_reference: str,
+    required_links: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    return _sequence_steps([
+        {
+            "id": "load-ui-interaction-design-skills",
+            "kind": "skill-load",
+            "skills": ["designing-ui-interactions"],
+            "specialist_skills": _specialist_skills(UI_INTERACTION_TRACK_ID),
+            **_skill_requirement_fields(
+                root,
+                ["designing-ui-interactions"],
+                _specialist_skills(UI_INTERACTION_TRACK_ID),
+            ),
+            "description": "Load UI interaction and accessibility authority-routing skills before defining visible behavior.",
+        },
+        {
+            "id": "read-ui-interaction-references",
+            "kind": "read",
+            "references": [
+                "references/frontend-interaction-checklist.md",
+                "references/security-design-checklist.md",
+            ],
+            "description": "Read interaction, accessibility, and security guidance before resolving user-visible behavior.",
+        },
+        {
+            "id": "read-product-sources",
+            "kind": "read",
+            "documents": [
+                "docs/product/core/PRD.md",
+                source_reference,
+                "docs/glossary.md",
+                "docs/unresolved.md",
+            ],
+            "description": "Read product truth, acceptance criteria, glossary, and unresolved decisions before authoring UI interaction behavior.",
+        },
+        {
+            "id": "author-ui-interaction-model",
+            "kind": "author",
+            "document": "docs/ui/01-interaction-model.md",
+            "sections": list(UI_INTERACTION_SECTIONS),
+            "description": "Define product-derived flows, screens, states, user-visible errors, accessibility expectations, and unresolved copy gaps.",
+        },
+        {
+            "id": "link-acceptance-and-decisions",
+            "kind": "link",
+            "required_links": [
+                link
+                for link in required_links
+                if link["kind"] in {"product_acceptance", "unresolved_decisions"}
+            ],
+            "description": "Connect UI behavior to acceptance criteria and unresolved interaction or accessibility decisions.",
+        },
+        _command_step(
+            root,
+            "verify-ui-interaction-authoring",
+            "Run read-only governance verification after UI interaction authoring.",
+            ["bin/governance", "verify", ".", "--check", "--json"],
+        ),
+        _command_step(
+            root,
+            "refresh-ui-interaction-authoring",
+            "Refresh the UI interaction authoring queue after verification.",
+            ["bin/governance", "design", "ui-interaction-authoring", ".", "--json"],
         ),
     ])
 

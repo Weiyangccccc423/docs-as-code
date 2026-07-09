@@ -677,6 +677,38 @@ class FreshTargetWorkflowTest(unittest.TestCase):
                 data_model_task["steps"][-1]["argv"],
             )
 
+            ui_interaction_authoring = _run_json(
+                self,
+                ["bin/governance", "design", "ui-interaction-authoring", ".", "--json"],
+                cwd=target,
+            )
+            self.assertTrue(ui_interaction_authoring["ok"])
+            self.assertEqual("ui-interaction", ui_interaction_authoring["track"])
+            self.assertEqual("do_not_guess_ui_behavior", ui_interaction_authoring["decision_policy"])
+            self.assertEqual(1, len(ui_interaction_authoring["authoring_tasks"]))
+            ui_task = ui_interaction_authoring["authoring_tasks"][0]
+            self.assertEqual("UI-INTERACTION-AUTHOR-001", ui_task["task_id"])
+            self.assertEqual("ui-interaction-authoring", ui_task["execution"]["stage"])
+            self.assertEqual("designing-ui-interactions", ui_task["execution"]["primary_skill"])
+            self.assertEqual("senior-frontend", ui_task["execution"]["primary_specialist_skill"])
+            self.assertEqual("A-001", ui_task["acceptance_id"])
+            self.assertIn("designing-ui-interactions", ui_interaction_authoring["skills"])
+            self.assertIn("a11y-audit", ui_interaction_authoring["specialist_skills"])
+            self.assertIn("docs/ui/01-interaction-model.md", [document["path"] for document in ui_task["documents"]])
+            self.assertIn("Primary Flows", ui_task["documents"][0]["sections"])
+            self.assertIn("Accessibility", ui_task["documents"][0]["sections"])
+            self.assertIn("primary_flows", ui_task["open_decisions"])
+            self.assertIn("screens", ui_task["open_decisions"])
+            self.assertIn("states", ui_task["open_decisions"])
+            self.assertIn("error_actions", ui_task["open_decisions"])
+            self.assertIn("accessibility", ui_task["open_decisions"])
+            self.assertIn("copy_and_content", ui_task["open_decisions"])
+            self.assertIn("docs/product/core/PRD.md", [link["target"] for link in ui_task["required_links"]])
+            self.assertEqual(
+                ["bin/governance", "design", "ui-interaction-authoring", ".", "--json"],
+                ui_task["steps"][-1]["argv"],
+            )
+
             frontend_authoring = _run_json(
                 self,
                 ["bin/governance", "design", "frontend-authoring", ".", "--json"],
@@ -691,13 +723,15 @@ class FreshTargetWorkflowTest(unittest.TestCase):
             self.assertEqual("frontend-design-authoring", frontend_task["execution"]["stage"])
             self.assertEqual("senior-frontend", frontend_task["execution"]["primary_specialist_skill"])
             self.assertEqual("A-001", frontend_task["acceptance_id"])
-            self.assertIn("designing-ui-interactions", frontend_authoring["skills"])
+            self.assertNotIn("designing-ui-interactions", frontend_authoring["skills"])
             self.assertIn("designing-frontend-modules", frontend_authoring["skills"])
-            self.assertIn("docs/ui/01-interaction-model.md", [document["path"] for document in frontend_task["documents"]])
             self.assertIn("docs/frontend/01-modules.md", [document["path"] for document in frontend_task["documents"]])
             self.assertIn("docs/frontend/02-api-consumption.md", [document["path"] for document in frontend_task["documents"]])
+            self.assertNotIn("docs/ui/01-interaction-model.md", [document["path"] for document in frontend_task["documents"]])
             self.assertIn("state_ownership", frontend_task["open_decisions"])
             self.assertIn("error_actions", frontend_task["open_decisions"])
+            self.assertNotIn("primary_flows", frontend_task["open_decisions"])
+            self.assertNotIn("screens", frontend_task["open_decisions"])
             self.assertIn("docs/api/endpoints/01-initialized-repository-exposes-local-governance-checks.md", [link["target"] for link in frontend_task["required_links"]])
             self.assertEqual(
                 ["bin/governance", "design", "frontend-authoring", ".", "--json"],

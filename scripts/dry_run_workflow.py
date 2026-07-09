@@ -44,6 +44,7 @@ AUTHORING_COMMANDS = [
     ("api_authoring", "api-authoring", "api-contracts"),
     ("backend_authoring", "backend-authoring", "backend-modules"),
     ("data_model_authoring", "data-model-authoring", "data-model"),
+    ("ui_interaction_authoring", "ui-interaction-authoring", "ui-interaction"),
     ("frontend_authoring", "frontend-authoring", "frontend-modules"),
     ("test_strategy_authoring", "test-strategy-authoring", "test-strategy"),
     ("implementation_planning_authoring", "implementation-planning-authoring", "implementation-planning"),
@@ -1579,13 +1580,22 @@ def _require_design_workflow_plan(payload: dict[str, object], label: str) -> Non
         "api-authoring",
         "backend-authoring",
         "data-model-authoring",
+        "ui-interaction-authoring",
+        "frontend-authoring",
     ):
         _require(
             _workflow_plan_has_queue(payload, queue_id),
             f"{label} did not expose {queue_id} queue",
             payload=payload,
         )
-    for skill in ("senior-architect", "api-design-reviewer", "senior-backend", "database-schema-designer"):
+    for skill in (
+        "senior-architect",
+        "api-design-reviewer",
+        "senior-backend",
+        "database-schema-designer",
+        "senior-frontend",
+        "a11y-audit",
+    ):
         _require(
             _workflow_plan_has_skill(payload, "authority_routing_skills", skill),
             f"{label} did not expose authority skill {skill}",

@@ -618,6 +618,12 @@ FRESH_TARGET_SMOKE_TEST_REQUIRED_PHRASES = (
     "entity_ownership",
     "migration_order",
     "rollback_strategy",
+    "ui_interaction_authoring",
+    "ui-interaction-authoring",
+    "do_not_guess_ui_behavior",
+    "primary_flows",
+    "screens",
+    "states",
     "frontend_authoring",
     "frontend-authoring",
     "state_ownership",
@@ -639,6 +645,7 @@ FRESH_TARGET_SMOKE_TEST_REQUIRED_PHRASES = (
     "api-contracts",
     "backend-modules",
     "data-model",
+    "ui-interaction",
     "frontend-modules",
     "test-strategy",
     "implementation-planning",
@@ -710,6 +717,7 @@ DRY_RUN_WORKFLOW_REQUIRED_PHRASES = (
     '"api-authoring"',
     '"backend-authoring"',
     '"data-model-authoring"',
+    '"ui-interaction-authoring"',
     '"frontend-authoring"',
     '"test-strategy-authoring"',
     '"implementation-planning-authoring"',
@@ -1478,11 +1486,58 @@ DATA_MODEL_AUTHORING_REQUIRED_PHRASES = (
     "verify-data-model-authoring",
     "refresh-data-model-authoring",
 )
-FRONTEND_AUTHORING_DOC_PATHS = (
+UI_INTERACTION_AUTHORING_DOC_PATHS = (
     "README.md",
     "workflows/00-overview.md",
     "workflows/04-design-derivation.md",
     "skills/designing-ui-interactions/SKILL.md",
+    "skills/verifying-governance-docs/SKILL.md",
+)
+UI_INTERACTION_AUTHORING_REQUIRED_PHRASES = (
+    "design ui-interaction-authoring",
+    "authoring_tasks",
+    "authoring_summary",
+    "sequence",
+    "execution",
+    "decision_policy",
+    "do_not_guess_ui_behavior",
+    "primary_skill",
+    "primary_specialist_skill",
+    "verify_step",
+    "refresh_step",
+    "stop_condition",
+    "documents",
+    "sections",
+    "required_links",
+    "required_links[].status",
+    "required_link_status_counts",
+    "non_satisfied_required_link_count",
+    "link_repair_actions",
+    "link_repair_action_count",
+    "repair_strategy",
+    "verify_command",
+    "refresh_command",
+    "open_decisions",
+    "primary_flows",
+    "screens",
+    "states",
+    "error_actions",
+    "accessibility",
+    "copy_and_content",
+    "specialist_skills",
+    "skill_requirements",
+    "authority_skill_requirements",
+    "authority-routing",
+    "missing_policy",
+    "senior-frontend",
+    "a11y-audit",
+    "verify-ui-interaction-authoring",
+    "refresh-ui-interaction-authoring",
+)
+FRONTEND_AUTHORING_DOC_PATHS = (
+    "README.md",
+    "workflows/00-overview.md",
+    "workflows/04-design-derivation.md",
     "skills/designing-frontend-modules/SKILL.md",
     "skills/verifying-governance-docs/SKILL.md",
 )
@@ -2826,6 +2881,7 @@ GOVERNANCE_CLI_REQUIRED_SUBCOMMANDS = {
         "api-authoring",
         "backend-authoring",
         "data-model-authoring",
+        "ui-interaction-authoring",
         "frontend-authoring",
         "test-strategy-authoring",
         "implementation-planning-authoring",
@@ -3144,6 +3200,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_api_authoring_docs(root, findings)
     _check_backend_authoring_docs(root, findings)
     _check_data_model_authoring_docs(root, findings)
+    _check_ui_interaction_authoring_docs(root, findings)
     _check_frontend_authoring_docs(root, findings)
     _check_test_strategy_authoring_docs(root, findings)
     _check_implementation_planning_authoring_docs(root, findings)
@@ -4932,6 +4989,23 @@ def _check_data_model_authoring_docs(root: Path, findings: list[PackFinding]) ->
             PackFinding(
                 "pack_data_model_authoring_doc_missing",
                 f"{rel} must document data model authoring phrase(s): {', '.join(missing)}",
+                rel,
+            )
+        )
+
+
+def _check_ui_interaction_authoring_docs(root: Path, findings: list[PackFinding]) -> None:
+    for rel in UI_INTERACTION_AUTHORING_DOC_PATHS:
+        text = _read_utf8_text_or_none(root / rel)
+        if text is None:
+            continue
+        missing = [phrase for phrase in UI_INTERACTION_AUTHORING_REQUIRED_PHRASES if phrase not in text]
+        if not missing:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_ui_interaction_authoring_doc_missing",
+                f"{rel} must document UI interaction authoring phrase(s): {', '.join(missing)}",
                 rel,
             )
         )

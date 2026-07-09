@@ -2762,6 +2762,7 @@ class GovernanceCliTest(unittest.TestCase):
                     "api-authoring",
                     "backend-authoring",
                     "data-model-authoring",
+                    "ui-interaction-authoring",
                     "frontend-authoring",
                     "test-strategy-authoring",
                     "implementation-planning-authoring",
@@ -2819,6 +2820,10 @@ class GovernanceCliTest(unittest.TestCase):
                 queues["data-model-authoring"]["summary"]["skill_summary"]["local_workflow_skills"],
             )
             self.assertIn(
+                "designing-ui-interactions",
+                queues["ui-interaction-authoring"]["summary"]["skill_summary"]["local_workflow_skills"],
+            )
+            self.assertIn(
                 "senior-backend",
                 queues["backend-authoring"]["summary"]["skill_summary"]["authority_routing_skills"],
             )
@@ -2829,6 +2834,10 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn(
                 "migration-architect",
                 queues["data-model-authoring"]["summary"]["skill_summary"]["authority_routing_skills"],
+            )
+            self.assertIn(
+                "a11y-audit",
+                queues["ui-interaction-authoring"]["summary"]["skill_summary"]["authority_routing_skills"],
             )
             self.assertIn("senior-architect", payload["skill_summary"]["authority_routing_skills"])
             self.assertIn("api-design-reviewer", payload["skill_summary"]["authority_routing_skills"])
@@ -2883,6 +2892,11 @@ class GovernanceCliTest(unittest.TestCase):
                 commands["data-model-authoring"]["argv"],
             )
             self.assertFalse(commands["data-model-authoring"]["writes_state"])
+            self.assertEqual(
+                ["bin/governance", "design", "ui-interaction-authoring", ".", "--json"],
+                commands["ui-interaction-authoring"]["argv"],
+            )
+            self.assertFalse(commands["ui-interaction-authoring"]["writes_state"])
 
     def test_implementation_plan_reports_ready_task_execution_plan(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -7940,7 +7954,7 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertNotIn("fields", task)
             self.assertNotIn("migration_sql", task)
 
-    def test_design_frontend_authoring_builds_ui_task_queue_without_guessing_behavior(self) -> None:
+    def test_design_ui_and_frontend_authoring_queues_split_interaction_from_modules(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "target"
             product = Path(tmp) / "product.md"
@@ -7983,106 +7997,145 @@ class GovernanceCliTest(unittest.TestCase):
             )
             self.assertEqual(0, scaffold_design.returncode, scaffold_design.stderr)
 
-            result = subprocess.run(
-                [sys.executable, str(CLI), "design", "frontend-authoring", str(target), "--json"],
+            ui_result = subprocess.run(
+                [sys.executable, str(CLI), "design", "ui-interaction-authoring", str(target), "--json"],
                 text=True,
                 capture_output=True,
                 check=False,
             )
 
-            self.assertEqual(0, result.returncode, result.stderr)
-            payload = json.loads(result.stdout)
+            self.assertEqual(0, ui_result.returncode, ui_result.stderr)
+            payload = json.loads(ui_result.stdout)
             self.assertTrue(payload["ok"])
             self.assertEqual(str(target.resolve()), payload["target"])
             self.assertEqual("design-derivation", payload["phase"])
-            self.assertEqual("frontend-modules", payload["track"])
-            self.assertEqual("do_not_guess_frontend_behavior", payload["decision_policy"])
+            self.assertEqual("ui-interaction", payload["track"])
+            self.assertEqual("do_not_guess_ui_behavior", payload["decision_policy"])
             self.assertIn("designing-ui-interactions", payload["skills"])
-            self.assertIn("designing-frontend-modules", payload["skills"])
+            self.assertNotIn("designing-frontend-modules", payload["skills"])
             self.assertIn("senior-frontend", payload["specialist_skills"])
             self.assertIn("a11y-audit", payload["specialist_skills"])
-            self.assertIn("performance-profiler", payload["specialist_skills"])
+            self.assertNotIn("performance-profiler", payload["specialist_skills"])
             self.assertIn("references/frontend-interaction-checklist.md", payload["references"])
             self.assertIn("references/security-design-checklist.md", payload["references"])
             self.assertIn("local_commands", payload)
             self.assertEqual("advance-implementation-check", payload["next_actions"][0]["id"])
             self.assertEqual(1, len(payload["authoring_tasks"]))
             task = payload["authoring_tasks"][0]
-            self.assertEqual("FRONTEND-AUTHOR-001", task["task_id"])
+            self.assertEqual("UI-INTERACTION-AUTHOR-001", task["task_id"])
             self.assertEqual(1, task["sequence"])
-            self.assertEqual("frontend-design-authoring", task["execution"]["stage"])
+            self.assertEqual("ui-interaction-authoring", task["execution"]["stage"])
             self.assertEqual("designing-ui-interactions", task["execution"]["primary_skill"])
             self.assertEqual("senior-frontend", task["execution"]["primary_specialist_skill"])
-            self.assertEqual("verify-frontend-authoring", task["execution"]["verify_step"])
-            self.assertEqual("refresh-frontend-authoring", task["execution"]["refresh_step"])
+            self.assertEqual("verify-ui-interaction-authoring", task["execution"]["verify_step"])
+            self.assertEqual("refresh-ui-interaction-authoring", task["execution"]["refresh_step"])
             self.assertEqual("A-001", task["acceptance_id"])
             self.assertEqual("Goal Flow", task["title"])
             self.assertEqual("docs/product/08-acceptance-criteria.md#a-001-goal-flow", task["source"]["reference"])
             self.assertIn("senior-frontend", task["specialist_skills"])
             self.assertIn("a11y-audit", task["specialist_skills"])
-            self.assertIn("performance-profiler", task["specialist_skills"])
+            self.assertNotIn("performance-profiler", task["specialist_skills"])
             document_paths = [document["path"] for document in task["documents"]]
             self.assertEqual(
-                [
-                    "docs/ui/01-interaction-model.md",
-                    "docs/frontend/01-modules.md",
-                    "docs/frontend/02-api-consumption.md",
-                ],
+                ["docs/ui/01-interaction-model.md"],
                 document_paths,
             )
             ui_doc = task["documents"][0]
             self.assertIn("Primary Flows", ui_doc["sections"])
+            self.assertIn("Screens", ui_doc["sections"])
+            self.assertIn("States", ui_doc["sections"])
+            self.assertIn("Errors", ui_doc["sections"])
             self.assertIn("Accessibility", ui_doc["sections"])
-            modules_doc = task["documents"][1]
-            self.assertIn("State Ownership", modules_doc["sections"])
-            self.assertIn("Routes", modules_doc["sections"])
-            api_consumption_doc = task["documents"][2]
-            self.assertIn("Loading States", api_consumption_doc["sections"])
-            self.assertIn("Error Actions", api_consumption_doc["sections"])
             required_links = {link["kind"]: link["target"] for link in task["required_links"]}
+            self.assertEqual("docs/product/core/PRD.md", required_links["product_prd"])
             self.assertEqual(
                 "docs/product/08-acceptance-criteria.md#a-001-goal-flow",
                 required_links["product_acceptance"],
             )
-            self.assertEqual("docs/ui/01-interaction-model.md", required_links["ui_interaction"])
-            self.assertEqual("docs/api/endpoints/01-goal-flow.md", required_links["api_contract"])
-            self.assertEqual("docs/api/error-codes.md", required_links["api_error_registry"])
-            self.assertEqual("docs/tests/01-strategy.md", required_links["test_strategy"])
+            self.assertEqual("docs/glossary.md", required_links["glossary"])
+            self.assertEqual("docs/unresolved.md", required_links["unresolved_decisions"])
             required_link_statuses = _link_statuses(task["required_links"])
+            self.assertEqual("satisfied", required_link_statuses["product_prd"])
             self.assertEqual("satisfied", required_link_statuses["product_acceptance"])
-            self.assertEqual("placeholder_present", required_link_statuses["ui_interaction"])
-            self.assertEqual("missing", required_link_statuses["api_contract"])
-            self.assertEqual("placeholder_present", required_link_statuses["api_error_registry"])
-            self.assertEqual("placeholder_present", required_link_statuses["test_strategy"])
+            self.assertEqual("satisfied", required_link_statuses["glossary"])
             self.assertEqual("satisfied", required_link_statuses["unresolved_decisions"])
             self.assertIn("primary_flows", task["open_decisions"])
-            self.assertIn("route_ownership", task["open_decisions"])
-            self.assertIn("state_ownership", task["open_decisions"])
-            self.assertIn("api_consumption", task["open_decisions"])
+            self.assertIn("screens", task["open_decisions"])
+            self.assertIn("states", task["open_decisions"])
             self.assertIn("error_actions", task["open_decisions"])
             self.assertIn("accessibility", task["open_decisions"])
+            self.assertIn("copy_and_content", task["open_decisions"])
+            self.assertEqual(
+                [
+                    "load-ui-interaction-design-skills",
+                    "read-ui-interaction-references",
+                    "read-product-sources",
+                    "author-ui-interaction-model",
+                    "link-acceptance-and-decisions",
+                    "verify-ui-interaction-authoring",
+                    "refresh-ui-interaction-authoring",
+                ],
+                [step["id"] for step in task["steps"]],
+            )
+            self.assertEqual(list(range(1, 8)), [step["sequence"] for step in task["steps"]])
+            self.assertEqual(["designing-ui-interactions"], task["steps"][0]["skills"])
+            self.assertIn("senior-frontend", task["steps"][0]["specialist_skills"])
+            self.assertIn("a11y-audit", task["steps"][0]["specialist_skills"])
+            self.assertEqual(["bin/governance", "verify", ".", "--check", "--json"], task["steps"][5]["argv"])
+            self.assertFalse(task["steps"][5]["writes_state"])
+            self.assertEqual(["bin/governance", "design", "ui-interaction-authoring", ".", "--json"], task["steps"][6]["argv"])
+
+            frontend_result = subprocess.run(
+                [sys.executable, str(CLI), "design", "frontend-authoring", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, frontend_result.returncode, frontend_result.stderr)
+            frontend_payload = json.loads(frontend_result.stdout)
+            self.assertTrue(frontend_payload["ok"])
+            self.assertEqual("frontend-modules", frontend_payload["track"])
+            self.assertEqual("do_not_guess_frontend_behavior", frontend_payload["decision_policy"])
+            self.assertNotIn("designing-ui-interactions", frontend_payload["skills"])
+            self.assertIn("designing-frontend-modules", frontend_payload["skills"])
+            self.assertIn("performance-profiler", frontend_payload["specialist_skills"])
+            frontend_task = frontend_payload["authoring_tasks"][0]
+            self.assertEqual("FRONTEND-AUTHOR-001", frontend_task["task_id"])
+            self.assertEqual("designing-frontend-modules", frontend_task["execution"]["primary_skill"])
+            self.assertEqual("verify-frontend-authoring", frontend_task["execution"]["verify_step"])
+            frontend_document_paths = [document["path"] for document in frontend_task["documents"]]
+            self.assertEqual(
+                ["docs/frontend/01-modules.md", "docs/frontend/02-api-consumption.md"],
+                frontend_document_paths,
+            )
+            self.assertIn("docs/ui/01-interaction-model.md", [link["target"] for link in frontend_task["required_links"]])
+            self.assertIn("route_ownership", frontend_task["open_decisions"])
+            self.assertIn("state_ownership", frontend_task["open_decisions"])
+            self.assertIn("api_consumption", frontend_task["open_decisions"])
+            self.assertIn("loading_states", frontend_task["open_decisions"])
+            self.assertIn("error_actions", frontend_task["open_decisions"])
+            self.assertNotIn("primary_flows", frontend_task["open_decisions"])
+            self.assertNotIn("screens", frontend_task["open_decisions"])
+            self.assertNotIn("accessibility", frontend_task["open_decisions"])
             self.assertEqual(
                 [
                     "load-frontend-design-skills",
                     "read-frontend-references",
                     "read-source-acceptance",
                     "read-ui-and-api-sources",
-                    "author-ui-interaction-model",
                     "author-frontend-modules",
                     "author-api-consumption",
                     "link-tests-and-acceptance",
                     "verify-frontend-authoring",
                     "refresh-frontend-authoring",
                 ],
-                [step["id"] for step in task["steps"]],
+                [step["id"] for step in frontend_task["steps"]],
             )
-            self.assertEqual(list(range(1, 11)), [step["sequence"] for step in task["steps"]])
-            self.assertEqual(["designing-ui-interactions", "designing-frontend-modules"], task["steps"][0]["skills"])
-            self.assertIn("senior-frontend", task["steps"][0]["specialist_skills"])
-            self.assertIn("a11y-audit", task["steps"][0]["specialist_skills"])
-            self.assertEqual(["bin/governance", "verify", ".", "--check", "--json"], task["steps"][8]["argv"])
-            self.assertFalse(task["steps"][8]["writes_state"])
-            self.assertEqual(["bin/governance", "design", "frontend-authoring", ".", "--json"], task["steps"][9]["argv"])
+            self.assertEqual(list(range(1, 10)), [step["sequence"] for step in frontend_task["steps"]])
+            self.assertEqual(["designing-frontend-modules"], frontend_task["steps"][0]["skills"])
+            self.assertEqual(["bin/governance", "verify", ".", "--check", "--json"], frontend_task["steps"][7]["argv"])
+            self.assertFalse(frontend_task["steps"][7]["writes_state"])
+            self.assertEqual(["bin/governance", "design", "frontend-authoring", ".", "--json"], frontend_task["steps"][8]["argv"])
             self.assertNotIn("route_names", task)
             self.assertNotIn("component_names", task)
             self.assertNotIn("state_shape", task)

@@ -40,6 +40,7 @@ from design_plan import (
     build_frontend_authoring,
     build_implementation_planning_authoring,
     build_test_strategy_authoring,
+    build_ui_interaction_authoring,
 )
 from gates import GATE_NAMES, evaluate_gate
 from implementation_plan import (
@@ -765,6 +766,23 @@ def _cmd_design_data_model_authoring(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_design_ui_interaction_authoring(args: argparse.Namespace) -> int:
+    target = Path(args.target)
+    payload = build_ui_interaction_authoring(target)
+    if args.json:
+        _print_json(payload)
+        return 0 if payload["ok"] else 1
+    if not payload["ok"]:
+        print("UI interaction authoring plan failed:")
+        for error in payload["errors"]:
+            print(f"- ERROR: {error}")
+        return 1
+    print("UI interaction authoring tasks:")
+    for task in payload["authoring_tasks"]:
+        print(f"- {task['task_id']}: {task['acceptance_id']}")
+    return 0
+
+
 def _cmd_design_frontend_authoring(args: argparse.Namespace) -> int:
     target = Path(args.target)
     payload = build_frontend_authoring(target)
@@ -1051,9 +1069,16 @@ def build_parser() -> argparse.ArgumentParser:
     data_model_authoring.add_argument("target", nargs="?", default=".")
     data_model_authoring.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     data_model_authoring.set_defaults(func=_cmd_design_data_model_authoring)
+    ui_interaction_authoring = design_sub.add_parser(
+        "ui-interaction-authoring",
+        help="Build source-backed UI flow, screen, state, error, and accessibility authoring tasks.",
+    )
+    ui_interaction_authoring.add_argument("target", nargs="?", default=".")
+    ui_interaction_authoring.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    ui_interaction_authoring.set_defaults(func=_cmd_design_ui_interaction_authoring)
     frontend_authoring = design_sub.add_parser(
         "frontend-authoring",
-        help="Build source-backed UI and frontend module authoring tasks.",
+        help="Build source-backed frontend module and API-consumption authoring tasks.",
     )
     frontend_authoring.add_argument("target", nargs="?", default=".")
     frontend_authoring.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
