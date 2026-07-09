@@ -42,6 +42,7 @@ def _run_json(
     cwd: Path,
     *,
     expected_returncode: int = 0,
+    allowed_returncodes: tuple[int, ...] | None = None,
 ) -> dict[str, object]:
     command = [str(item) for item in argv]
     result = subprocess.run(
@@ -59,6 +60,8 @@ def _run_json(
         "returncode": result.returncode,
         "expected_returncode": expected_returncode,
     }
+    if allowed_returncodes is not None:
+        step["allowed_returncodes"] = list(allowed_returncodes)
     steps.append(step)
     payload: dict[str, object] | None = None
     try:
@@ -68,7 +71,8 @@ def _run_json(
             step["payload_ok"] = parsed.get("ok")
     except json.JSONDecodeError:
         payload = None
-    if result.returncode != expected_returncode:
+    accepted_returncodes = allowed_returncodes if allowed_returncodes is not None else (expected_returncode,)
+    if result.returncode not in accepted_returncodes:
         failed = {**step, "stdout": result.stdout, "stderr": result.stderr}
         raise ConsumerBootstrapError(f"step failed: {step_id}", step=failed, payload=payload)
     if payload is None:
@@ -93,6 +97,7 @@ def run_consumer_bootstrap(
     design_scaffold_preview: bool = False,
     design_scaffold_apply: bool = False,
     design_authoring_preview: bool = False,
+    implementation_readiness_preview: bool = False,
     pack_root: Path = ROOT,
 ) -> dict[str, object]:
     pack_root = pack_root.resolve()
@@ -190,6 +195,11 @@ def run_consumer_bootstrap(
             "--design-authoring-preview requires --design-scaffold-apply",
             payload=init_check,
         )
+        _require(
+            not implementation_readiness_preview or design_authoring_preview,
+            "--implementation-readiness-preview requires --design-authoring-preview",
+            payload=init_check,
+        )
 
         base_payload: dict[str, object] = {
             "ok": True,
@@ -223,6 +233,9 @@ def run_consumer_bootstrap(
             "design_authoring_preview_requested": design_authoring_preview,
             "design_authoring_previewed": False,
             "design_authoring_preview_ok": False,
+            "implementation_readiness_preview_requested": implementation_readiness_preview,
+            "implementation_readiness_previewed": False,
+            "implementation_readiness_preview_ok": False,
             "pack_manifest_verification": pack_manifest_verification,
             "pack_verification": pack_verification,
             "env_check": env_check,
@@ -366,6 +379,13 @@ def run_consumer_bootstrap(
                                         payload["design_authoring_previewed"] = True
                                         payload["design_authoring_preview"] = authoring_preview
                                         payload["design_authoring_preview_ok"] = authoring_preview.get("ok") is True
+                                        if implementation_readiness_preview:
+                                            readiness_preview = _preview_implementation_readiness(steps, target)
+                                            payload["implementation_readiness_previewed"] = True
+                                            payload["implementation_readiness_preview"] = readiness_preview
+                                            payload["implementation_readiness_preview_ok"] = (
+                                                readiness_preview.get("ok") is True
+                                            )
         if isinstance(status_payload.get("local_commands"), list):
             payload["local_commands"] = status_payload["local_commands"]
         elif isinstance(init_payload.get("local_commands"), list):
@@ -419,6 +439,9 @@ def run_consumer_bootstrap(
             "design_authoring_preview_requested": design_authoring_preview,
             "design_authoring_previewed": False,
             "design_authoring_preview_ok": False,
+            "implementation_readiness_preview_requested": implementation_readiness_preview,
+            "implementation_readiness_previewed": False,
+            "implementation_readiness_preview_ok": False,
             "steps": steps,
             "failed_step": error.step,
             "failed_payload": error.payload,
@@ -457,6 +480,9 @@ def run_consumer_bootstrap(
             "design_authoring_preview_requested": design_authoring_preview,
             "design_authoring_previewed": False,
             "design_authoring_preview_ok": False,
+            "implementation_readiness_preview_requested": implementation_readiness_preview,
+            "implementation_readiness_previewed": False,
+            "implementation_readiness_preview_ok": False,
             "steps": steps,
         }
 
@@ -997,6 +1023,53 @@ def _preview_design_authoring(steps: list[dict[str, object]], target: Path) -> d
     }
 
 
+def _preview_implementation_readiness(steps: list[dict[str, object]], target: Path) -> dict[str, object]:
+    verify_check = _run_json(
+        steps,
+        "target_local_verify_check_implementation_readiness_preview",
+        ["bin/governance", "verify", ".", "--check", "--json"],
+        target,
+        allowed_returncodes=(0, 1),
+    )
+    gate = _run_json(
+        steps,
+        "target_local_implementation_gate_preview",
+        ["bin/governance", "gate", "implementation", ".", "--json"],
+        target,
+        allowed_returncodes=(0, 1),
+    )
+    implementation_plan = _run_json(
+        steps,
+        "target_local_implementation_plan_preview",
+        ["bin/governance", "implementation", "plan", ".", "--json"],
+        target,
+        allowed_returncodes=(0, 1),
+    )
+    readiness_ok = (
+        verify_check.get("ok") is True
+        and gate.get("ok") is True
+        and implementation_plan.get("ok") is True
+        and implementation_plan.get("gate_ok") is True
+    )
+    status_state = gate.get("state")
+    phase = status_state.get("phase") if isinstance(status_state, dict) else str(implementation_plan.get("phase", ""))
+    return {
+        "ok": True,
+        "target": str(target),
+        "check": True,
+        "writes_state": False,
+        "phase": phase,
+        "readiness_ok": readiness_ok,
+        "implementation_ready": readiness_ok,
+        "verify_ok": verify_check.get("ok") is True,
+        "gate_ok": gate.get("ok") is True,
+        "implementation_plan_ok": implementation_plan.get("ok") is True,
+        "verify_check": verify_check,
+        "gate": gate,
+        "implementation_plan": implementation_plan,
+    }
+
+
 def _product_plan_mapping(product_plan: dict[str, object]) -> dict[str, list[str]]:
     suggested_mappings = product_plan.get("suggested_mappings")
     chapters: list[str] = []
@@ -1093,6 +1166,14 @@ def build_parser() -> argparse.ArgumentParser:
             "skill, blocker, and active-work payloads."
         ),
     )
+    parser.add_argument(
+        "--implementation-readiness-preview",
+        action="store_true",
+        help=(
+            "With --design-authoring-preview, run read-only implementation verify/gate/plan commands and return "
+            "readiness blockers without advancing implementation or claiming a task."
+        ),
+    )
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     return parser
 
@@ -1122,6 +1203,7 @@ def main() -> int:
         design_scaffold_preview=args.design_scaffold_preview,
         design_scaffold_apply=args.design_scaffold_apply,
         design_authoring_preview=args.design_authoring_preview,
+        implementation_readiness_preview=args.implementation_readiness_preview,
     )
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))

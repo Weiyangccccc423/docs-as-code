@@ -721,6 +721,84 @@ class ConsumerBootstrapTest(unittest.TestCase):
             for queue_id in expected_queues:
                 self.assertIn(f"target_local_design_{queue_id.replace('-', '_')}_preview", step_ids)
 
+    def test_exported_pack_previews_implementation_readiness_after_design_authoring(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            pack = base / "docs-as-code-workflow-pack"
+            product = base / "product.md"
+            target = base / "consumer-target"
+            product.write_text(
+                "# Consumer Implementation Readiness Preview\n\n"
+                "## Goals and Requirements\n\n"
+                "- Initialize governance and expose implementation readiness routing.\n"
+                "- Keep implementation readiness preview read-only until design docs are source-backed.\n\n"
+                "## Acceptance Criteria\n\n"
+                "- The bootstrap output includes implementation gate and plan blockers for agent routing.\n",
+                encoding="utf-8",
+            )
+
+            export = subprocess.run(
+                [
+                    sys.executable,
+                    str(EXPORT),
+                    "--output",
+                    str(pack),
+                    "--no-archive",
+                    "--force",
+                    "--json",
+                ],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, export.returncode, export.stdout + export.stderr)
+            self.assertEqual("", export.stderr)
+            self.assertTrue(json.loads(export.stdout)["ok"])
+
+            payload = _run_bootstrap(
+                self,
+                pack,
+                target=target,
+                product=product,
+                check=False,
+                advance_product_structuring=True,
+                product_scaffold_preview=True,
+                product_structure_preview=True,
+                product_structure_apply=True,
+                advance_design_derivation=True,
+                design_scaffold_preview=True,
+                design_scaffold_apply=True,
+                design_authoring_preview=True,
+                implementation_readiness_preview=True,
+            )
+
+            self.assertTrue(payload["ok"])
+            self.assertTrue(payload["implementation_readiness_preview_requested"])
+            self.assertTrue(payload["implementation_readiness_previewed"])
+            self.assertTrue(payload["implementation_readiness_preview_ok"])
+            preview = payload["implementation_readiness_preview"]
+            self.assertTrue(preview["ok"])
+            self.assertTrue(preview["check"])
+            self.assertFalse(preview["writes_state"])
+            self.assertEqual("design-derivation", preview["phase"])
+            self.assertFalse(preview["implementation_ready"])
+            self.assertFalse(preview["readiness_ok"])
+            self.assertFalse(preview["verify_ok"])
+            self.assertFalse(preview["gate_ok"])
+            self.assertFalse(preview["implementation_plan_ok"])
+            self.assertFalse(preview["verify_check"]["ok"])
+            self.assertFalse(preview["gate"]["ok"])
+            self.assertFalse(preview["implementation_plan"]["ok"])
+            self.assertIn(
+                "implementation plan requires recorded phase implementation",
+                preview["implementation_plan"]["errors"],
+            )
+            step_ids = {step["id"] for step in payload["steps"]}
+            self.assertIn("target_local_verify_check_implementation_readiness_preview", step_ids)
+            self.assertIn("target_local_implementation_gate_preview", step_ids)
+            self.assertIn("target_local_implementation_plan_preview", step_ids)
+
 
 def _run_bootstrap(
     testcase: unittest.TestCase,
@@ -737,6 +815,7 @@ def _run_bootstrap(
     design_scaffold_preview: bool = False,
     design_scaffold_apply: bool = False,
     design_authoring_preview: bool = False,
+    implementation_readiness_preview: bool = False,
 ) -> dict[str, object]:
     argv = [
         sys.executable,
@@ -769,6 +848,8 @@ def _run_bootstrap(
         argv.insert(-1, "--design-scaffold-apply")
     if design_authoring_preview:
         argv.insert(-1, "--design-authoring-preview")
+    if implementation_readiness_preview:
+        argv.insert(-1, "--implementation-readiness-preview")
     result = subprocess.run(
         argv,
         cwd=pack,
