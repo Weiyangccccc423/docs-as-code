@@ -6,6 +6,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from scripts.export_workflow_pack import run_export
+
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPORT = ROOT / "scripts" / "export_workflow_pack.py"
@@ -66,6 +68,28 @@ class ExportWorkflowPackTest(unittest.TestCase):
                 names = set(tar.getnames())
             self.assertIn("docs-as-code-workflow-pack/README.md", names)
             self.assertIn("docs-as-code-workflow-pack/pack-manifest.json", names)
+
+    def test_export_is_reproducible_for_same_source(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            output_one = base / "one" / "first-pack"
+            archive_one = base / "one" / "docs-as-code-workflow-pack.tar.gz"
+            output_two = base / "two" / "second-pack"
+            archive_two = base / "two" / "docs-as-code-workflow-pack.tar.gz"
+
+            first = run_export(output=output_one, archive=archive_one)
+            second = run_export(output=output_two, archive=archive_two)
+
+            self.assertTrue(first["ok"], first)
+            self.assertTrue(second["ok"], second)
+            self.assertEqual(first["manifest_sha256"], second["manifest_sha256"])
+            self.assertEqual(first["archive_sha256"], second["archive_sha256"])
+            self.assertEqual(first["archive_size_bytes"], second["archive_size_bytes"])
+            self.assertEqual(
+                (output_one / "pack-manifest.json").read_bytes(),
+                (output_two / "pack-manifest.json").read_bytes(),
+            )
+            self.assertEqual(archive_one.read_bytes(), archive_two.read_bytes())
 
     def test_export_check_does_not_write_output(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

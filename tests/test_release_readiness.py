@@ -41,6 +41,7 @@ class ReleaseReadinessTest(unittest.TestCase):
             "multi-acceptance-dry-run",
             "source-pack-export-check",
             "source-pack-export",
+            "source-pack-reproducible-export",
             "release-artifact-smoke",
         ):
             self.assertEqual("pass", criteria[criterion_id]["status"])
@@ -68,6 +69,7 @@ class ReleaseReadinessTest(unittest.TestCase):
         self.assertIn("multi_acceptance_dry_run", step_ids)
         self.assertIn("source_pack_export_check", step_ids)
         self.assertIn("source_pack_export", step_ids)
+        self.assertIn("source_pack_export_repeat", step_ids)
         self.assertIn("release_artifact_smoke", step_ids)
 
 

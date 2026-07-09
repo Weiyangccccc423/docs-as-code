@@ -7,7 +7,6 @@ import json
 import os
 import shutil
 import tarfile
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +22,8 @@ ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_NAME = "pack-manifest.json"
 DEFAULT_OUTPUT = ROOT / "dist" / "docs-as-code-workflow-pack"
 DEFAULT_ARCHIVE = ROOT / "dist" / "docs-as-code-workflow-pack.tar.gz"
+REPRODUCIBLE_CREATED_AT = "1970-01-01T00:00:00Z"
+ARCHIVE_ROOT_NAME = "docs-as-code-workflow-pack"
 EXPORT_RESOURCE_PATHS = (
     ".gitignore",
     "AGENTS.md",
@@ -54,10 +55,6 @@ class ExportError(Exception):
         super().__init__(message)
         self.message = message
         self.path = path
-
-
-def utc_now() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def sha256_file(path: Path) -> str:
@@ -196,9 +193,9 @@ def _write_manifest(root: Path, output: Path, files: list[Path]) -> dict[str, ob
         )
     manifest: dict[str, object] = {
         "schema_version": 1,
-        "created_at": utc_now(),
+        "created_at": REPRODUCIBLE_CREATED_AT,
         "source": "docs-as-code source workflow pack",
-        "source_root": str(root),
+        "source_root": ".",
         "files": entries,
     }
     _write_json(output / MANIFEST_NAME, manifest)
@@ -206,7 +203,6 @@ def _write_manifest(root: Path, output: Path, files: list[Path]) -> dict[str, ob
 
 
 def _write_archive(output: Path, archive: Path) -> None:
-    root_name = output.name
     with archive.open("wb") as raw:
         with gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0) as gz:
             with tarfile.open(fileobj=gz, mode="w") as tar:
@@ -214,7 +210,7 @@ def _write_archive(output: Path, archive: Path) -> None:
                     if not path.is_file():
                         continue
                     rel = path.relative_to(output)
-                    info = tar.gettarinfo(str(path), arcname=f"{root_name}/{rel.as_posix()}")
+                    info = tar.gettarinfo(str(path), arcname=f"{ARCHIVE_ROOT_NAME}/{rel.as_posix()}")
                     info.uid = 0
                     info.gid = 0
                     info.uname = ""

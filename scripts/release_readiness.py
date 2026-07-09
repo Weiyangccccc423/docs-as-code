@@ -348,11 +348,28 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
             ],
             parse_json=True,
         )
+        export_step_ok = bool(steps[-1]["ok"])
+        repeat_export_payload = _run_step(
+            steps,
+            "source_pack_export_repeat",
+            [
+                sys.executable,
+                "scripts/export_workflow_pack.py",
+                "--output",
+                base / "repeat" / "docs-as-code-workflow-pack",
+                "--archive",
+                base / "repeat" / "docs-as-code-workflow-pack.tar.gz",
+                "--force",
+                "--json",
+            ],
+            parse_json=True,
+        )
+        repeat_export_step_ok = bool(steps[-1]["ok"])
     verification = export_payload.get("verification", {}) if export_payload else {}
     _criterion(
         criteria,
         "source-pack-export",
-        bool(steps[-1]["ok"])
+        export_step_ok
         and bool(export_payload and export_payload.get("ok") is True)
         and isinstance(verification, dict)
         and verification.get("ok") is True,
@@ -361,6 +378,25 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
             "file_count": export_payload.get("file_count") if export_payload else 0,
             "manifest_sha256": export_payload.get("manifest_sha256") if export_payload else "",
             "archive_sha256": export_payload.get("archive_sha256") if export_payload else "",
+        },
+    )
+    _criterion(
+        criteria,
+        "source-pack-reproducible-export",
+        repeat_export_step_ok
+        and bool(export_payload and export_payload.get("ok") is True)
+        and bool(repeat_export_payload and repeat_export_payload.get("ok") is True)
+        and export_payload.get("manifest_sha256") == repeat_export_payload.get("manifest_sha256")
+        and export_payload.get("archive_sha256") == repeat_export_payload.get("archive_sha256")
+        and export_payload.get("archive_size_bytes") == repeat_export_payload.get("archive_size_bytes"),
+        evidence="python3 scripts/export_workflow_pack.py --output <tmp>/... --archive <tmp>/... --force --json twice",
+        details={
+            "first_manifest_sha256": export_payload.get("manifest_sha256") if export_payload else "",
+            "second_manifest_sha256": repeat_export_payload.get("manifest_sha256") if repeat_export_payload else "",
+            "first_archive_sha256": export_payload.get("archive_sha256") if export_payload else "",
+            "second_archive_sha256": repeat_export_payload.get("archive_sha256") if repeat_export_payload else "",
+            "first_archive_size_bytes": export_payload.get("archive_size_bytes") if export_payload else 0,
+            "second_archive_size_bytes": repeat_export_payload.get("archive_size_bytes") if repeat_export_payload else 0,
         },
     )
 
