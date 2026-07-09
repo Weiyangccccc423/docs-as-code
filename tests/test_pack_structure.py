@@ -2366,6 +2366,40 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_missing_late_authoring_authority_requirement_phrase(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            replacements = {
+                "skills/designing-test-strategy/SKILL.md": "pack_test_strategy_authoring_doc_missing",
+                "skills/planning-implementation-work/SKILL.md": "pack_implementation_planning_authoring_doc_missing",
+                "skills/capturing-architecture-decisions/SKILL.md": "pack_architecture_decisions_authoring_doc_missing",
+            }
+            for rel in replacements:
+                path = target / rel
+                path.write_text(
+                    path.read_text(encoding="utf-8").replace("authority_skill_requirements", "authority requirements", 1),
+                    encoding="utf-8",
+                )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            for rel, code in replacements.items():
+                self.assertTrue(
+                    any(
+                        finding.code == code
+                        and finding.path == rel
+                        and "authority_skill_requirements" in finding.message
+                        for finding in report.findings
+                    ),
+                    rel,
+                )
+
     def test_verify_pack_reports_missing_product_scaffold_continuation_doc_phrase(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
