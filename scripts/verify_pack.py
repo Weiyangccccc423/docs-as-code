@@ -1493,6 +1493,8 @@ RELEASE_READINESS_REQUIRED_PHRASES = (
     "unit_tests",
     "pack_verification",
     "environment_inventory",
+    "authority_skill_inventory",
+    "_authority_skill_inventory_ok",
     "_env_repair_decision_allows_workflow",
     "repair_decision",
     "continue_workflow",
@@ -3432,6 +3434,7 @@ MAKEFILE_REQUIRED_TARGETS = (
     "package",
     "artifact-smoke",
     "release-check",
+    "authority-skills",
     "verify-pack",
 )
 MAKEFILE_REQUIRED_TARGET_RECIPES = {
@@ -3452,6 +3455,9 @@ MAKEFILE_REQUIRED_TARGET_RECIPES = {
     ),
     "release-check": (
         "python3 scripts/release_readiness.py --json",
+    ),
+    "authority-skills": (
+        "python3 scripts/authority_skills.py --json",
     ),
     "verify-pack": (
         "python3 scripts/verify_pack.py",
@@ -3622,6 +3628,7 @@ SOURCE_PACK_REQUIRED_PATHS = tuple(
             "README.md",
             "AGENTS.md",
             "Makefile",
+            "scripts/authority_skills.py",
             "scripts/verify_pack_manifest.py",
             "scripts/verify_pack.py",
             CONSUMER_BOOTSTRAP_PATH,
@@ -3644,6 +3651,22 @@ CI_WORKFLOW_REQUIRED_PHRASES = (
     "make test",
     "python3 scripts/verify_pack.py --json",
     "python3 scripts/check_env.py --json",
+)
+AUTHORITY_SKILL_INVENTORY_PATH = "scripts/authority_skills.py"
+AUTHORITY_SKILL_INVENTORY_REQUIRED_PHRASES = (
+    "DESIGN_TRACKS",
+    "BASE_SPECIALIST_SKILLS",
+    "AUTHORITY_ROUTING_SPECIALIST_SKILLS",
+    "AUTHORITY_ROUTING_SKILL_MISSING_POLICY",
+    "load_from_agent_environment_or_stop_before_guessing",
+    "agent-environment",
+    "authority-routing",
+    "--strict",
+    "--skill-root",
+    "required_by",
+    "available_in_agent_environment",
+    "missing_skills",
+    "_task_specialist_skills",
 )
 IGNORED_PACK_FILE_NAMES = {".DS_Store", "manifest.json"}
 MARKDOWN_LINK_RE = re.compile(r"(?<!!)\[[^\]]*]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
@@ -3802,6 +3825,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_artifact_smoke_workflow(root, findings)
     _check_release_readiness_workflow(root, findings)
     _check_ci_workflow(root, findings)
+    _check_authority_skill_inventory(root, findings)
     _check_runtime_continuation_calls(root, findings)
     _check_target_local_command_source(root, findings)
     _check_target_local_command_schema(root, findings)
@@ -4169,6 +4193,35 @@ def _check_ci_workflow(root: Path, findings: list[PackFinding]) -> None:
                 f"missing phrase(s): {', '.join(missing)}"
             ),
             CI_WORKFLOW_PATH,
+        )
+    )
+
+
+def _check_authority_skill_inventory(root: Path, findings: list[PackFinding]) -> None:
+    path = root / AUTHORITY_SKILL_INVENTORY_PATH
+    if not path.is_file():
+        findings.append(
+            PackFinding(
+                "pack_authority_skill_inventory_missing",
+                f"missing authority-routing skill inventory script: {AUTHORITY_SKILL_INVENTORY_PATH}",
+                AUTHORITY_SKILL_INVENTORY_PATH,
+            )
+        )
+        return
+    text = _read_utf8_text_or_none(path)
+    if text is None:
+        return
+    missing = [phrase for phrase in AUTHORITY_SKILL_INVENTORY_REQUIRED_PHRASES if phrase not in text]
+    if not missing:
+        return
+    findings.append(
+        PackFinding(
+            "pack_authority_skill_inventory_incomplete",
+            (
+                f"{AUTHORITY_SKILL_INVENTORY_PATH} must inventory authority-routing specialist skills "
+                f"from design and implementation routing sources; missing phrase(s): {', '.join(missing)}"
+            ),
+            AUTHORITY_SKILL_INVENTORY_PATH,
         )
     )
 

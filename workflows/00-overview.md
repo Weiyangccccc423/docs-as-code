@@ -42,6 +42,15 @@ python3 scripts/verify_pack_manifest.py dist/docs-as-code-workflow-pack --json
 
 The export writes `pack-manifest.json` with SHA-256 evidence for the included source-pack files, runs `verify_pack` on the exported directory, and can create a tar.gz artifact for transfer.
 The manifest verifier validates `pack-manifest.json` by recomputing file hashes, sizes, executable flags, path safety, duplicate entries, missing files, and unmanifested files.
+Use the source-pack authority-skill inventory before high-risk design or implementation routing when you need to audit which agent-environment specialist skills are required:
+
+```bash
+make authority-skills
+python3 scripts/authority_skills.py --json
+python3 scripts/authority_skills.py --strict --json
+```
+
+The non-strict inventory is a portable source-pack check. The strict form is an agent-environment readiness gate and should be used only when missing authority-routing skills such as `senior-architect`, `api-design-reviewer`, `senior-backend`, database design skills, `senior-security`, or `ci-cd-pipeline-builder` must stop the session before design guesses.
 
 For a recipient environment that has already unpacked the source workflow-pack artifact, use the consumer bootstrap script to compose source-pack checks and target initialization without manually stitching commands:
 

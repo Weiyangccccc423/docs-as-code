@@ -37,6 +37,7 @@ class ReleaseReadinessTest(unittest.TestCase):
             "cached-diff-whitespace",
             "pack-verification",
             "environment-inventory",
+            "authority-skill-inventory",
             "fresh-target-dry-run",
             "multi-acceptance-dry-run",
             "source-pack-export-check",
@@ -51,6 +52,11 @@ class ReleaseReadinessTest(unittest.TestCase):
         )
         self.assertFalse(
             criteria["environment-inventory"]["details"]["repair_decision"]["stop_before_workflow"],
+        )
+        self.assertGreaterEqual(criteria["authority-skill-inventory"]["details"]["required_skill_count"], 19)
+        self.assertEqual(
+            "load_from_agent_environment_or_stop_before_guessing",
+            criteria["authority-skill-inventory"]["details"]["missing_policy"],
         )
         self.assertGreater(criteria["source-pack-export-check"]["details"]["would_write_count"], 0)
         self.assertTrue(criteria["source-pack-export-check"]["details"]["would_archive"])
@@ -147,6 +153,7 @@ class ReleaseReadinessTest(unittest.TestCase):
         step_ids = {step["id"] for step in payload["steps"]}
         self.assertIn("pack_verification", step_ids)
         self.assertIn("environment_inventory", step_ids)
+        self.assertIn("authority_skill_inventory", step_ids)
         self.assertIn("fresh_target_dry_run", step_ids)
         self.assertIn("multi_acceptance_dry_run", step_ids)
         self.assertIn("source_pack_export_check", step_ids)

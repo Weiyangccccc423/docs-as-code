@@ -275,6 +275,32 @@ def _env_repair_decision_allows_workflow(payload: dict[str, object] | None) -> b
     )
 
 
+def _authority_skill_inventory_ok(payload: dict[str, object] | None) -> bool:
+    if payload is None:
+        return False
+    skills = payload.get("skills")
+    if not isinstance(skills, list):
+        return False
+    skill_names = {str(skill.get("name")) for skill in skills if isinstance(skill, dict)}
+    required = {
+        "senior-architect",
+        "api-design-reviewer",
+        "senior-backend",
+        "database-designer",
+        "database-schema-designer",
+        "migration-architect",
+        "senior-security",
+        "ci-cd-pipeline-builder",
+    }
+    return (
+        payload.get("ok") is True
+        and payload.get("strict") is False
+        and payload.get("missing_policy") == "load_from_agent_environment_or_stop_before_guessing"
+        and payload.get("availability_scope") == "agent-environment"
+        and required <= skill_names
+    )
+
+
 def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
     steps: list[dict[str, object]] = []
     criteria: list[dict[str, object]] = []
@@ -343,6 +369,25 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
             "missing_required": env_payload.get("missing_required", []) if env_payload else [],
             "missing_recommended": env_payload.get("missing_recommended", []) if env_payload else [],
             "repair_decision": env_payload.get("repair_decision", {}) if env_payload else {},
+        },
+    )
+
+    authority_payload = _run_step(
+        steps,
+        "authority_skill_inventory",
+        [sys.executable, "scripts/authority_skills.py", "--json"],
+        parse_json=True,
+    )
+    _criterion(
+        criteria,
+        "authority-skill-inventory",
+        bool(steps[-1]["ok"]) and _authority_skill_inventory_ok(authority_payload),
+        evidence="python3 scripts/authority_skills.py --json",
+        details={
+            "required_skill_count": authority_payload.get("required_skill_count") if authority_payload else 0,
+            "available_skill_count": authority_payload.get("available_skill_count") if authority_payload else 0,
+            "missing_skill_count": authority_payload.get("missing_skill_count") if authority_payload else 0,
+            "missing_policy": authority_payload.get("missing_policy") if authority_payload else "",
         },
     )
 

@@ -51,6 +51,7 @@ class ExportWorkflowPackTest(unittest.TestCase):
             self.assertEqual([], payload["manifest_verification"]["findings"])
             self.assertEqual([], payload["verification"]["findings"])
             self.assertTrue((output / "pack-manifest.json").is_file())
+            self.assertTrue((output / "scripts/authority_skills.py").is_file())
             self.assertTrue((output / "scripts/export_workflow_pack.py").is_file())
             self.assertTrue((output / "scripts/dry_run_workflow.py").is_file())
             self.assertTrue((output / "tests/test_export_workflow_pack.py").is_file())
@@ -62,6 +63,7 @@ class ExportWorkflowPackTest(unittest.TestCase):
             manifest_paths = {entry["path"] for entry in manifest["files"]}
             self.assertIn("README.md", manifest_paths)
             self.assertIn(".github/workflows/ci.yml", manifest_paths)
+            self.assertIn("scripts/authority_skills.py", manifest_paths)
             self.assertIn("scripts/export_workflow_pack.py", manifest_paths)
             self.assertIn("tests/test_export_workflow_pack.py", manifest_paths)
             self.assertNotIn("pack-manifest.json", manifest_paths)

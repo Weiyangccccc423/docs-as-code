@@ -154,6 +154,63 @@ class PackStructureTest(unittest.TestCase):
             )
         )
 
+    def test_verify_pack_reports_missing_authority_skill_inventory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            (target / "scripts/authority_skills.py").unlink()
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_authority_skill_inventory_missing"
+                    and finding.path == "scripts/authority_skills.py"
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_incomplete_authority_skill_inventory(self) -> None:
+        cases = (
+            ("DESIGN_TRACKS", "DESIGN_ROUTE_TABLE"),
+            ("BASE_SPECIALIST_SKILLS", "BASE_ROUTE_SKILLS"),
+            ("--strict", "--enforce"),
+            ("--skill-root", "--skills-dir"),
+            ("required_by", "required_sources"),
+            ("available_in_agent_environment", "available"),
+        )
+        for required_phrase, replacement in cases:
+            with self.subTest(required_phrase=required_phrase):
+                with tempfile.TemporaryDirectory() as tmp:
+                    target = Path(tmp) / "pack"
+                    shutil.copytree(
+                        ROOT,
+                        target,
+                        ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+                    )
+                    script = target / "scripts/authority_skills.py"
+                    script.write_text(
+                        script.read_text(encoding="utf-8").replace(required_phrase, replacement),
+                        encoding="utf-8",
+                    )
+
+                    report = verify_pack(target)
+
+                    self.assertFalse(report.ok)
+                    self.assertTrue(
+                        any(
+                            finding.code == "pack_authority_skill_inventory_incomplete"
+                            and finding.path == "scripts/authority_skills.py"
+                            and required_phrase in finding.message
+                            for finding in report.findings
+                        )
+                    )
+
     def test_verify_pack_script_json_reports_missing_required_files(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"

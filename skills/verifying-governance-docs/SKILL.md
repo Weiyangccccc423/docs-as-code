@@ -28,9 +28,13 @@ python3 scripts/smoke_workflow_pack_artifact.py --json
 python3 scripts/smoke_workflow_pack_artifact.py --archive dist/docs-as-code-workflow-pack.tar.gz --json
 make release-check
 python3 scripts/release_readiness.py --json
+make authority-skills
+python3 scripts/authority_skills.py --json
+python3 scripts/authority_skills.py --strict --json
 ```
 
 Treat successful `--archive` artifact smoke as evidence that the exact exported tar.gz can be unpacked, verified, used to initialize a fresh target folder containing only a product document, checked through target-local `bin/governance` and Make commands, and exercised through consumer bootstrap with `--auto-repair-env --workflow-preset product-structure`, `--auto-repair-env --workflow-preset design-scaffold`, `--auto-repair-env --workflow-preset design-routing`, and `--auto-repair-env --workflow-preset implementation-routing`. Treat the implementation-routing evidence as safe routing and blocker evidence, not as proof that implementation readiness passed.
+Use `python3 scripts/authority_skills.py --json` as a source-pack inventory of required authority-routing specialist skills. Use `--strict` only as an agent-environment readiness gate when missing specialist skills must stop architecture, API, backend, data-model, security, CI, or implementation routing before guesses.
 Use `python3 scripts/bootstrap_consumer_project.py --target <target> --product <product-doc> --profile <profile> --project-name "<name>" --check --json` from an unpacked workflow pack to preflight consumer setup; run the same command without `--check` to initialize and verify the target, then continue from returned `local_commands` and `next_actions`.
 Use `--auto-repair-env` with consumer bootstrap only when package-manager repair without approval/manual intervention is authorized. Inspect `env_auto_repair`; automatic repair is allowed only after `repair_decision.decision: run_repair_actions` and `repair_execution.can_auto_apply: true`.
 Use `python3 scripts/bootstrap_consumer_project.py --target <target> --product <product-doc> --profile <profile> --project-name "<name>" --workflow-preset product-structure --json` for the standard product structuring fast path. Use `--workflow-preset implementation-routing` only when guarded implementation readiness, advance, start, and closeout routing is authorized; inspect `workflow_preset_expanded_flags` and remember that presets only expand existing flags.
