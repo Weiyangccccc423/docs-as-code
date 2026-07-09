@@ -88,6 +88,7 @@ def run_consumer_bootstrap(
     advance_product_structuring: bool = False,
     product_scaffold_preview: bool = False,
     product_structure_preview: bool = False,
+    product_structure_apply: bool = False,
     pack_root: Path = ROOT,
 ) -> dict[str, object]:
     pack_root = pack_root.resolve()
@@ -155,6 +156,11 @@ def run_consumer_bootstrap(
             "--product-structure-preview requires --product-scaffold-preview",
             payload=init_check,
         )
+        _require(
+            not product_structure_apply or product_structure_preview,
+            "--product-structure-apply requires --product-structure-preview",
+            payload=init_check,
+        )
 
         base_payload: dict[str, object] = {
             "ok": True,
@@ -174,6 +180,9 @@ def run_consumer_bootstrap(
             "product_structure_preview_requested": product_structure_preview,
             "product_structure_previewed": False,
             "product_structure_preview_ok": False,
+            "product_structure_apply_requested": product_structure_apply,
+            "product_structure_applied": False,
+            "product_structure_apply_ok": False,
             "pack_manifest_verification": pack_manifest_verification,
             "pack_verification": pack_verification,
             "env_check": env_check,
@@ -262,6 +271,23 @@ def run_consumer_bootstrap(
                     payload["product_structure_previewed"] = True
                     payload["product_structure_preview"] = structure_preview
                     payload["product_structure_preview_ok"] = structure_preview.get("ok") is True
+                    if product_structure_apply:
+                        structure_apply = _apply_product_structure(
+                            steps,
+                            target,
+                            product_structuring["product_plan"],
+                        )
+                        payload["product_structure_applied"] = True
+                        payload["product_structure_apply"] = structure_apply
+                        payload["product_structure_apply_ok"] = structure_apply.get("ok") is True
+                        payload["target_local"] = _target_local_details(
+                            target=target,
+                            init_payload=init_payload,
+                            verify_payload=verify_payload,
+                            status_payload=structure_apply["post_status"],
+                            workflow_plan_payload=structure_apply["post_workflow_plan"],
+                            expected_phase="product-structuring",
+                        )
         if isinstance(status_payload.get("local_commands"), list):
             payload["local_commands"] = status_payload["local_commands"]
         elif isinstance(init_payload.get("local_commands"), list):
@@ -296,6 +322,9 @@ def run_consumer_bootstrap(
             "product_structure_preview_requested": product_structure_preview,
             "product_structure_previewed": False,
             "product_structure_preview_ok": False,
+            "product_structure_apply_requested": product_structure_apply,
+            "product_structure_applied": False,
+            "product_structure_apply_ok": False,
             "steps": steps,
             "failed_step": error.step,
             "failed_payload": error.payload,
@@ -320,6 +349,9 @@ def run_consumer_bootstrap(
             "product_structure_preview_requested": product_structure_preview,
             "product_structure_previewed": False,
             "product_structure_preview_ok": False,
+            "product_structure_apply_requested": product_structure_apply,
+            "product_structure_applied": False,
+            "product_structure_apply_ok": False,
             "steps": steps,
         }
 
@@ -582,6 +614,111 @@ def _preview_product_structure(
     return payload
 
 
+def _apply_product_structure(
+    steps: list[dict[str, object]],
+    target: Path,
+    product_plan: dict[str, object],
+) -> dict[str, object]:
+    mapping = _product_plan_mapping(product_plan)
+    chapters = mapping["chapters"]
+    command_args = mapping["command_args"]
+    required_decisions = product_plan.get("required_decisions")
+    payload: dict[str, object] = {
+        "ok": True,
+        "target": str(target),
+        "check": False,
+        "writes_state": True,
+        "decision_policy": str(product_plan.get("decision_policy", "do_not_guess_product_meaning")),
+        "source": "product_plan.suggested_mappings[].command_arg",
+        "selected_chapters": chapters,
+        "command_args": command_args,
+        "required_decisions": required_decisions if isinstance(required_decisions, list) else [],
+        "scaffold": {},
+        "structure_check": {},
+        "structure": {},
+        "post_status": {},
+        "post_workflow_plan": {},
+        "apply_skipped": False,
+        "skip_reason": "",
+    }
+    if not command_args:
+        payload["apply_skipped"] = True
+        payload["skip_reason"] = "product plan did not report conservative command_arg mappings"
+        return payload
+
+    scaffold_argv: list[str] = ["bin/governance", "scaffold", "product", "."]
+    for chapter in chapters:
+        scaffold_argv.extend(["--chapter", chapter])
+    scaffold_argv.append("--json")
+    scaffold = _run_json(steps, "target_local_product_scaffold_apply", scaffold_argv, target)
+    _require(scaffold.get("ok") is True, "product scaffold apply failed", payload=scaffold)
+
+    structure_check_argv: list[str] = ["bin/governance", "product", "structure", "."]
+    for command_arg in command_args:
+        structure_check_argv.extend(["--chapter", command_arg])
+    structure_check_argv.extend(["--check", "--json"])
+    structure_check = _run_json(
+        steps,
+        "target_local_product_structure_apply_check",
+        structure_check_argv,
+        target,
+    )
+    _require(structure_check.get("ok") is True, "product structure apply preflight failed", payload=structure_check)
+
+    structure_argv: list[str] = ["bin/governance", "product", "structure", "."]
+    for command_arg in command_args:
+        structure_argv.extend(["--chapter", command_arg])
+    structure_argv.append("--json")
+    structure = _run_json(steps, "target_local_product_structure_apply", structure_argv, target)
+    _require(structure.get("ok") is True, "product structure apply failed", payload=structure)
+
+    post_status = _run_json(
+        steps,
+        "target_local_governance_status_after_product_structure_apply",
+        ["make", "governance-status"],
+        target,
+    )
+    post_workflow_plan = _run_json(
+        steps,
+        "target_local_workflow_plan_after_product_structure_apply",
+        ["make", "workflow-plan"],
+        target,
+    )
+    payload["scaffold"] = scaffold
+    payload["structure_check"] = structure_check
+    payload["structure"] = structure
+    payload["post_status"] = post_status
+    payload["post_workflow_plan"] = post_workflow_plan
+    payload["ok"] = (
+        scaffold.get("ok") is True
+        and structure_check.get("ok") is True
+        and structure.get("ok") is True
+        and post_status.get("ok") is True
+        and post_workflow_plan.get("ok") is True
+    )
+    return payload
+
+
+def _product_plan_mapping(product_plan: dict[str, object]) -> dict[str, list[str]]:
+    suggested_mappings = product_plan.get("suggested_mappings")
+    chapters: list[str] = []
+    command_args: list[str] = []
+    if isinstance(suggested_mappings, list):
+        for mapping in suggested_mappings:
+            if not isinstance(mapping, dict):
+                continue
+            chapter = mapping.get("chapter")
+            command_arg = mapping.get("command_arg")
+            if not isinstance(chapter, str) or not chapter:
+                continue
+            if chapter in chapters:
+                continue
+            chapters.append(chapter)
+            if isinstance(command_arg, str) and command_arg:
+                command_args.append(command_arg)
+    return {"chapters": chapters, "command_args": command_args}
+
+
 def _require(condition: bool, message: str, *, payload: dict[str, object] | None = None) -> None:
     if not condition:
         raise ConsumerBootstrapError(message, payload=payload)
@@ -618,6 +755,14 @@ def build_parser() -> argparse.ArgumentParser:
             "product-plan command_arg mappings without writing product chapters."
         ),
     )
+    parser.add_argument(
+        "--product-structure-apply",
+        action="store_true",
+        help=(
+            "With --product-structure-preview, apply product scaffold and product structure using conservative "
+            "product-plan command_arg mappings."
+        ),
+    )
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     return parser
 
@@ -642,6 +787,7 @@ def main() -> int:
         advance_product_structuring=args.advance_product_structuring,
         product_scaffold_preview=args.product_scaffold_preview,
         product_structure_preview=args.product_structure_preview,
+        product_structure_apply=args.product_structure_apply,
     )
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
