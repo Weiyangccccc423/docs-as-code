@@ -582,6 +582,9 @@ class PackStructureTest(unittest.TestCase):
             ("unpacked_dry_run", "unpacked_preview"),
             ("_dry_run_target_local_make_details", "_dry_run_local_command_details"),
             ("make_verify_check", "local_verify_check"),
+            ("fresh_target_init", "target_init_preview"),
+            ("unpacked_init_fresh_target", "unpacked_init_preview"),
+            ("fresh_target_workflow_plan", "target_workflow_preview"),
         )
         for required_phrase, replacement in cases:
             with self.subTest(required_phrase=required_phrase):
@@ -668,6 +671,35 @@ class PackStructureTest(unittest.TestCase):
                     finding.code == "pack_artifact_smoke_incomplete"
                     and finding.path == "scripts/smoke_workflow_pack_artifact.py"
                     and "unpacked_verify_pack_manifest" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_artifact_smoke_missing_fresh_target_doc(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            readme = target / "README.md"
+            readme.write_text(
+                readme.read_text(encoding="utf-8").replace(
+                    "initializes a fresh target folder from the unpacked artifact, runs target-local verify/status/workflow-plan commands,",
+                    "runs transfer checks",
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_artifact_smoke_doc_missing"
+                    and finding.path == "README.md"
+                    and "initializes a fresh target folder" in finding.message
                     for finding in report.findings
                 )
             )
@@ -778,6 +810,35 @@ class PackStructureTest(unittest.TestCase):
                     finding.code == "pack_release_readiness_incomplete"
                     and finding.path == "scripts/release_readiness.py"
                     and "_dry_run_target_local_make_coverage_ok" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_release_readiness_missing_artifact_fresh_target_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/release_readiness.py"
+            script.write_text(
+                script.read_text(encoding="utf-8").replace(
+                    "_artifact_smoke_fresh_target_init_ok",
+                    "_artifact_smoke_transfer_preview_ok",
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_release_readiness_incomplete"
+                    and finding.path == "scripts/release_readiness.py"
+                    and "_artifact_smoke_fresh_target_init_ok" in finding.message
                     for finding in report.findings
                 )
             )
