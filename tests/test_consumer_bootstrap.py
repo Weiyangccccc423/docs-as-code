@@ -5,7 +5,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from scripts.bootstrap_consumer_project import _apply_implementation_closeout, _preview_implementation_closeout
+from scripts.bootstrap_consumer_project import (
+    _apply_implementation_closeout,
+    _maybe_auto_repair_env,
+    _preview_implementation_closeout,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -110,6 +114,114 @@ class ConsumerBootstrapTest(unittest.TestCase):
             self.assertIn("target_local_verify_check", step_ids)
             self.assertIn("target_local_governance_status", step_ids)
             self.assertIn("target_local_workflow_plan", step_ids)
+
+    def test_auto_repair_env_runs_write_mode_repair_then_rechecks_when_safe(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            pack = base / "pack"
+            target = base / "target"
+            scripts = pack / "scripts"
+            scripts.mkdir(parents=True)
+            target.mkdir()
+            (scripts / "governance_cli.py").write_text(
+                "#!/usr/bin/env python3\n"
+                "import json\n"
+                "import sys\n"
+                "from pathlib import Path\n"
+                "target = Path(sys.argv[sys.argv.index('--target') + 1])\n"
+                "log = target / 'env-calls.jsonl'\n"
+                "log.write_text(log.read_text(encoding='utf-8') + json.dumps(sys.argv[1:]) + '\\n' if log.exists() else json.dumps(sys.argv[1:]) + '\\n', encoding='utf-8')\n"
+                "if '--check' in sys.argv:\n"
+                "    print(json.dumps({'ok': True, 'check': True, 'missing_required': [], 'repair_decision': {'decision': 'continue_workflow'}}))\n"
+                "else:\n"
+                "    print(json.dumps({'ok': True, 'check': False, 'repair_execution': {'status': 'applied'}, 'repairs': [{'kind': 'repair_plan'}]}))\n",
+                encoding="utf-8",
+            )
+            initial_check = {
+                "ok": False,
+                "check": True,
+                "missing_required": ["git"],
+                "repair_execution": {"can_auto_apply": True, "status": "ready_to_apply"},
+                "repair_decision": {
+                    "decision": "run_repair_actions",
+                    "requires_approval": False,
+                    "manual_repair_required": False,
+                    "runnable_action_ids": ["env-repair-apt-update", "env-repair-apt-install"],
+                    "approval_action_ids": [],
+                    "manual_action_ids": [],
+                },
+            }
+            steps: list[dict[str, object]] = []
+
+            payload = _maybe_auto_repair_env(
+                steps,
+                pack,
+                target,
+                initial_check,
+                auto_repair_env=True,
+                check=False,
+            )
+
+            self.assertTrue(payload["requested"])
+            self.assertTrue(payload["applied"])
+            self.assertFalse(payload["skipped"])
+            self.assertEqual("", payload["skip_reason"])
+            self.assertEqual(initial_check, payload["initial_check"])
+            self.assertTrue(payload["repair"]["ok"])
+            self.assertFalse(payload["repair"]["check"])
+            self.assertTrue(payload["post_check"]["ok"])
+            self.assertTrue(payload["final_env_check"]["ok"])
+            self.assertEqual(
+                ["env_repair_auto_apply", "env_repair_check_after_auto_repair"],
+                [step["id"] for step in steps],
+            )
+            calls = [
+                json.loads(line)
+                for line in (target / "env-calls.jsonl").read_text(encoding="utf-8").splitlines()
+            ]
+            self.assertEqual(
+                [
+                    ["env", "--repair", "--target", str(target), "--json"],
+                    ["env", "--repair", "--check", "--target", str(target), "--json"],
+                ],
+                calls,
+            )
+
+    def test_auto_repair_env_skips_when_repair_requires_approval(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            pack = base / "pack"
+            target = base / "target"
+            pack.mkdir()
+            target.mkdir()
+            initial_check = {
+                "ok": False,
+                "check": True,
+                "missing_required": ["git"],
+                "repair_execution": {"can_auto_apply": False, "status": "approval_required"},
+                "repair_decision": {
+                    "decision": "request_approval",
+                    "requires_approval": True,
+                    "approval_action_ids": ["env-repair-apt-install"],
+                },
+            }
+            steps: list[dict[str, object]] = []
+
+            payload = _maybe_auto_repair_env(
+                steps,
+                pack,
+                target,
+                initial_check,
+                auto_repair_env=True,
+                check=False,
+            )
+
+            self.assertTrue(payload["requested"])
+            self.assertFalse(payload["applied"])
+            self.assertTrue(payload["skipped"])
+            self.assertEqual("environment repair requires approval or manual action", payload["skip_reason"])
+            self.assertEqual(initial_check, payload["final_env_check"])
+            self.assertEqual([], steps)
 
     def test_exported_pack_can_advance_to_product_structuring(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1338,6 +1450,7 @@ def _run_bootstrap(
     implementation_closeout_preview: bool = False,
     implementation_closeout_apply: bool = False,
     workflow_preset: str = "",
+    auto_repair_env: bool = False,
 ) -> dict[str, object]:
     argv = [
         sys.executable,
@@ -1387,6 +1500,8 @@ def _run_bootstrap(
     if workflow_preset:
         argv.insert(-1, "--workflow-preset")
         argv.insert(-1, workflow_preset)
+    if auto_repair_env:
+        argv.insert(-1, "--auto-repair-env")
     result = subprocess.run(
         argv,
         cwd=pack,

@@ -153,6 +153,7 @@ def run_consumer_bootstrap(
     implementation_closeout_preview: bool = False,
     implementation_closeout_apply: bool = False,
     workflow_preset: str = "",
+    auto_repair_env: bool = False,
     pack_root: Path = ROOT,
 ) -> dict[str, object]:
     pack_root = pack_root.resolve()
@@ -160,6 +161,7 @@ def run_consumer_bootstrap(
     product = product.resolve() if product is not None else None
     expanded_flags: tuple[str, ...] = ()
     steps: list[dict[str, object]] = []
+    env_auto_repair: dict[str, object] = _empty_env_auto_repair(auto_repair_env)
     try:
         expanded_flags = _workflow_preset_flags(workflow_preset)
         advance_product_structuring = advance_product_structuring or "advance_product_structuring" in expanded_flags
@@ -217,7 +219,17 @@ def run_consumer_bootstrap(
                 "--json",
             ],
             pack_root,
+            allowed_returncodes=(0, 1),
         )
+        env_auto_repair = _maybe_auto_repair_env(
+            steps,
+            pack_root,
+            target,
+            env_check,
+            auto_repair_env=auto_repair_env,
+            check=check,
+        )
+        env_check = env_auto_repair["final_env_check"]
         _require(env_check.get("ok") is True, "environment repair check failed", payload=env_check)
         _require(env_check.get("check") is True, "environment repair check did not run in check mode", payload=env_check)
         _require(env_check.get("missing_required") == [], "required environment tools are missing", payload=env_check)
@@ -322,6 +334,8 @@ def run_consumer_bootstrap(
             "force": force,
             "workflow_preset": workflow_preset,
             "workflow_preset_expanded_flags": list(expanded_flags),
+            "auto_repair_env": auto_repair_env,
+            "env_auto_repair": env_auto_repair,
             "advance_product_structuring_requested": advance_product_structuring,
             "advanced_product_structuring": False,
             "product_scaffold_preview_requested": product_scaffold_preview,
@@ -670,6 +684,8 @@ def run_consumer_bootstrap(
             "force": force,
             "workflow_preset": workflow_preset,
             "workflow_preset_expanded_flags": list(expanded_flags),
+            "auto_repair_env": auto_repair_env,
+            "env_auto_repair": env_auto_repair,
             "advance_product_structuring_requested": advance_product_structuring,
             "advanced_product_structuring": False,
             "product_scaffold_preview_requested": product_scaffold_preview,
@@ -731,6 +747,8 @@ def run_consumer_bootstrap(
             "force": force,
             "workflow_preset": workflow_preset,
             "workflow_preset_expanded_flags": list(expanded_flags),
+            "auto_repair_env": auto_repair_env,
+            "env_auto_repair": env_auto_repair,
             "advance_product_structuring_requested": advance_product_structuring,
             "advanced_product_structuring": False,
             "product_scaffold_preview_requested": product_scaffold_preview,
@@ -806,6 +824,105 @@ def _init_argv(
     if force:
         argv.append("--force")
     return argv
+
+
+def _empty_env_auto_repair(auto_repair_env: bool) -> dict[str, object]:
+    return {
+        "requested": auto_repair_env,
+        "applied": False,
+        "skipped": False,
+        "skip_reason": "",
+        "initial_check": {},
+        "repair": {},
+        "post_check": {},
+        "final_env_check": {},
+    }
+
+
+def _maybe_auto_repair_env(
+    steps: list[dict[str, object]],
+    pack_root: Path,
+    target: Path,
+    env_check: dict[str, object],
+    *,
+    auto_repair_env: bool,
+    check: bool,
+) -> dict[str, object]:
+    payload = _empty_env_auto_repair(auto_repair_env)
+    payload["initial_check"] = env_check
+    payload["final_env_check"] = env_check
+    if not auto_repair_env:
+        payload["skipped"] = True
+        payload["skip_reason"] = "automatic environment repair was not requested"
+        return payload
+    if check:
+        payload["skipped"] = True
+        payload["skip_reason"] = "check mode must not write environment repairs"
+        return payload
+    if _env_check_allows_workflow(env_check):
+        payload["skipped"] = True
+        payload["skip_reason"] = "environment already satisfies workflow requirements"
+        return payload
+    if not _env_check_allows_auto_repair(env_check):
+        payload["skipped"] = True
+        payload["skip_reason"] = "environment repair requires approval or manual action"
+        return payload
+
+    repair = _run_json(
+        steps,
+        "env_repair_auto_apply",
+        [
+            sys.executable,
+            "scripts/governance_cli.py",
+            "env",
+            "--repair",
+            "--target",
+            target,
+            "--json",
+        ],
+        pack_root,
+        allowed_returncodes=(0, 1),
+    )
+    post_check = _run_json(
+        steps,
+        "env_repair_check_after_auto_repair",
+        [
+            sys.executable,
+            "scripts/governance_cli.py",
+            "env",
+            "--repair",
+            "--check",
+            "--target",
+            target,
+            "--json",
+        ],
+        pack_root,
+        allowed_returncodes=(0, 1),
+    )
+    payload["applied"] = True
+    payload["repair"] = repair
+    payload["post_check"] = post_check
+    payload["final_env_check"] = post_check
+    return payload
+
+
+def _env_check_allows_workflow(env_check: dict[str, object]) -> bool:
+    return env_check.get("ok") is True and env_check.get("missing_required") == []
+
+
+def _env_check_allows_auto_repair(env_check: dict[str, object]) -> bool:
+    repair_decision = env_check.get("repair_decision")
+    repair_execution = env_check.get("repair_execution")
+    if not isinstance(repair_decision, dict) or not isinstance(repair_execution, dict):
+        return False
+    return (
+        repair_decision.get("decision") == "run_repair_actions"
+        and repair_decision.get("requires_approval") is not True
+        and repair_decision.get("manual_repair_required") is not True
+        and repair_decision.get("approval_action_ids") == []
+        and repair_decision.get("manual_action_ids") == []
+        and repair_execution.get("can_auto_apply") is True
+    )
 
 
 def _target_local_details(
@@ -1811,6 +1928,14 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--auto-repair-env",
+        action="store_true",
+        help=(
+            "After env --repair --check, run write-mode env repair and recheck only when repair_decision "
+            "allows non-approval automatic repair. Ignored in --check mode."
+        ),
+    )
+    parser.add_argument(
         "--advance-product-structuring",
         action="store_true",
         help="After initialization, run target-local product-structuring advance and product-plan commands.",
@@ -1964,6 +2089,7 @@ def main() -> int:
         implementation_closeout_preview=args.implementation_closeout_preview,
         implementation_closeout_apply=args.implementation_closeout_apply,
         workflow_preset=args.workflow_preset,
+        auto_repair_env=args.auto_repair_env,
     )
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
