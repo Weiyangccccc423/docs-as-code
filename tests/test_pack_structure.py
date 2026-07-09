@@ -933,6 +933,64 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_consumer_bootstrap_missing_implementation_closeout_preview(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/bootstrap_consumer_project.py"
+            script.write_text(
+                script.read_text(encoding="utf-8").replace(
+                    "--implementation-closeout-preview",
+                    "--implementation-closeout-check",
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_consumer_bootstrap_incomplete"
+                    and finding.path == "scripts/bootstrap_consumer_project.py"
+                    and "--implementation-closeout-preview" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_consumer_bootstrap_missing_implementation_closeout_apply(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/bootstrap_consumer_project.py"
+            script.write_text(
+                script.read_text(encoding="utf-8").replace(
+                    "--implementation-closeout-apply",
+                    "--implementation-closeout-write",
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_consumer_bootstrap_incomplete"
+                    and finding.path == "scripts/bootstrap_consumer_project.py"
+                    and "--implementation-closeout-apply" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_consumer_bootstrap_missing_implementation_advance_preview(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"

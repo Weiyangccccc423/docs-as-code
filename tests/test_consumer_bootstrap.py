@@ -5,6 +5,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from scripts.bootstrap_consumer_project import _apply_implementation_closeout, _preview_implementation_closeout
+
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPORT = ROOT / "scripts" / "export_workflow_pack.py"
@@ -1092,6 +1094,159 @@ class ConsumerBootstrapTest(unittest.TestCase):
             step_ids = {step["id"] for step in payload["steps"]}
             self.assertNotIn("target_local_implementation_start_apply", step_ids)
 
+    def test_exported_pack_skips_implementation_closeout_until_start_apply_passes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            pack = base / "docs-as-code-workflow-pack"
+            product = base / "product.md"
+            target = base / "consumer-target"
+            product.write_text(
+                "# Consumer Implementation Closeout Apply\n\n"
+                "## Goals and Requirements\n\n"
+                "- Initialize governance and expose implementation closeout apply routing.\n"
+                "- Skip Done status writes until local verification evidence passes.\n\n"
+                "## Acceptance Criteria\n\n"
+                "- The bootstrap output reports skipped closeout apply while verification evidence is missing.\n",
+                encoding="utf-8",
+            )
+
+            export = subprocess.run(
+                [
+                    sys.executable,
+                    str(EXPORT),
+                    "--output",
+                    str(pack),
+                    "--no-archive",
+                    "--force",
+                    "--json",
+                ],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, export.returncode, export.stdout + export.stderr)
+            self.assertEqual("", export.stderr)
+            self.assertTrue(json.loads(export.stdout)["ok"])
+
+            payload = _run_bootstrap(
+                self,
+                pack,
+                target=target,
+                product=product,
+                check=False,
+                advance_product_structuring=True,
+                product_scaffold_preview=True,
+                product_structure_preview=True,
+                product_structure_apply=True,
+                advance_design_derivation=True,
+                design_scaffold_preview=True,
+                design_scaffold_apply=True,
+                design_authoring_preview=True,
+                implementation_readiness_preview=True,
+                implementation_advance_preview=True,
+                implementation_advance_apply=True,
+                implementation_start_preview=True,
+                implementation_start_apply=True,
+                implementation_closeout_preview=True,
+                implementation_closeout_apply=True,
+            )
+
+            self.assertTrue(payload["ok"])
+            self.assertFalse(payload["implementation_start_applied"])
+            self.assertTrue(payload["implementation_start_apply_ok"])
+            self.assertTrue(payload["implementation_closeout_preview_requested"])
+            self.assertTrue(payload["implementation_closeout_previewed"])
+            self.assertTrue(payload["implementation_closeout_preview_ok"])
+            preview = payload["implementation_closeout_preview"]
+            self.assertTrue(preview["ok"])
+            self.assertTrue(preview["check"])
+            self.assertFalse(preview["writes_state"])
+            self.assertEqual("design-derivation", preview["phase"])
+            self.assertEqual("", preview["task_id"])
+            self.assertFalse(preview["closeout_ready"])
+            self.assertTrue(preview["preview_skipped"])
+            self.assertEqual("implementation start apply did not pass", preview["skip_reason"])
+            self.assertEqual({}, preview["implementation_closeout"])
+            self.assertTrue(payload["implementation_closeout_apply_requested"])
+            self.assertFalse(payload["implementation_closeout_applied"])
+            self.assertTrue(payload["implementation_closeout_apply_ok"])
+            apply_payload = payload["implementation_closeout_apply"]
+            self.assertTrue(apply_payload["ok"])
+            self.assertFalse(apply_payload["check"])
+            self.assertTrue(apply_payload["writes_state"])
+            self.assertFalse(apply_payload["closeout_ready"])
+            self.assertTrue(apply_payload["apply_skipped"])
+            self.assertEqual("implementation closeout preview did not pass", apply_payload["skip_reason"])
+            self.assertEqual({}, apply_payload["implementation_closeout_apply"])
+            step_ids = {step["id"] for step in payload["steps"]}
+            self.assertNotIn("target_local_implementation_closeout_preview", step_ids)
+            self.assertNotIn("target_local_implementation_closeout_apply", step_ids)
+
+    def test_implementation_closeout_apply_skips_when_preview_reports_evidence_blockers(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            bin_dir = target / "bin"
+            bin_dir.mkdir(parents=True)
+            governance = bin_dir / "governance"
+            governance.write_text(
+                "#!/usr/bin/env python3\n"
+                "import json\n"
+                "import sys\n"
+                "if sys.argv[1:] == ['implementation', 'closeout', '.', '--task', 'TASK-001', '--json']:\n"
+                "    print(json.dumps({\n"
+                "        'ok': True,\n"
+                "        'closeout_ready': False,\n"
+                "        'blocking_requirements': [\n"
+                "            {'code': 'verification_log_row_present'},\n"
+                "            {'code': 'verification_result_passing'},\n"
+                "            {'code': 'task_verification_links_local_evidence'},\n"
+                "        ],\n"
+                "    }))\n"
+                "    raise SystemExit(0)\n"
+                "print(json.dumps({'ok': False, 'argv': sys.argv[1:]}))\n"
+                "raise SystemExit(97)\n",
+                encoding="utf-8",
+            )
+            governance.chmod(0o755)
+            steps: list[dict[str, object]] = []
+            start_apply = {
+                "ok": True,
+                "apply_skipped": False,
+                "post_status": {"state": {"phase": "implementation"}},
+                "post_implementation_plan": {"active_work": {"task_id": "TASK-001"}},
+            }
+
+            preview = _preview_implementation_closeout(steps, target, start_apply)
+            apply_payload = _apply_implementation_closeout(steps, target, preview)
+
+            self.assertTrue(preview["ok"])
+            self.assertEqual("implementation", preview["phase"])
+            self.assertEqual("TASK-001", preview["task_id"])
+            self.assertFalse(preview["closeout_ready"])
+            closeout = preview["implementation_closeout"]
+            self.assertTrue(closeout["ok"])
+            self.assertFalse(closeout["closeout_ready"])
+            blocking_codes = {
+                requirement["code"]
+                for requirement in closeout["blocking_requirements"]
+                if isinstance(requirement, dict)
+            }
+            self.assertEqual(
+                {
+                    "verification_log_row_present",
+                    "verification_result_passing",
+                    "task_verification_links_local_evidence",
+                },
+                blocking_codes,
+            )
+            self.assertTrue(apply_payload["ok"])
+            self.assertTrue(apply_payload["apply_skipped"])
+            self.assertEqual("implementation closeout preview did not pass", apply_payload["skip_reason"])
+            self.assertEqual({}, apply_payload["implementation_closeout_apply"])
+            step_ids = {step["id"] for step in steps}
+            self.assertEqual({"target_local_implementation_closeout_preview"}, step_ids)
+
 
 def _run_bootstrap(
     testcase: unittest.TestCase,
@@ -1113,6 +1268,8 @@ def _run_bootstrap(
     implementation_advance_apply: bool = False,
     implementation_start_preview: bool = False,
     implementation_start_apply: bool = False,
+    implementation_closeout_preview: bool = False,
+    implementation_closeout_apply: bool = False,
 ) -> dict[str, object]:
     argv = [
         sys.executable,
@@ -1155,6 +1312,10 @@ def _run_bootstrap(
         argv.insert(-1, "--implementation-start-preview")
     if implementation_start_apply:
         argv.insert(-1, "--implementation-start-apply")
+    if implementation_closeout_preview:
+        argv.insert(-1, "--implementation-closeout-preview")
+    if implementation_closeout_apply:
+        argv.insert(-1, "--implementation-closeout-apply")
     result = subprocess.run(
         argv,
         cwd=pack,

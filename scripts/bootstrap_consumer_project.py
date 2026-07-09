@@ -103,6 +103,8 @@ def run_consumer_bootstrap(
     implementation_advance_apply: bool = False,
     implementation_start_preview: bool = False,
     implementation_start_apply: bool = False,
+    implementation_closeout_preview: bool = False,
+    implementation_closeout_apply: bool = False,
     pack_root: Path = ROOT,
 ) -> dict[str, object]:
     pack_root = pack_root.resolve()
@@ -225,6 +227,16 @@ def run_consumer_bootstrap(
             "--implementation-start-apply requires --implementation-start-preview",
             payload=init_check,
         )
+        _require(
+            not implementation_closeout_preview or implementation_start_apply,
+            "--implementation-closeout-preview requires --implementation-start-apply",
+            payload=init_check,
+        )
+        _require(
+            not implementation_closeout_apply or implementation_closeout_preview,
+            "--implementation-closeout-apply requires --implementation-closeout-preview",
+            payload=init_check,
+        )
 
         base_payload: dict[str, object] = {
             "ok": True,
@@ -273,6 +285,12 @@ def run_consumer_bootstrap(
             "implementation_start_apply_requested": implementation_start_apply,
             "implementation_start_applied": False,
             "implementation_start_apply_ok": False,
+            "implementation_closeout_preview_requested": implementation_closeout_preview,
+            "implementation_closeout_previewed": False,
+            "implementation_closeout_preview_ok": False,
+            "implementation_closeout_apply_requested": implementation_closeout_apply,
+            "implementation_closeout_applied": False,
+            "implementation_closeout_apply_ok": False,
             "pack_manifest_verification": pack_manifest_verification,
             "pack_verification": pack_verification,
             "env_check": env_check,
@@ -492,11 +510,54 @@ def run_consumer_bootstrap(
                                                             workflow_plan_payload=start_apply["post_workflow_plan"],
                                                             expected_phase="implementation",
                                                         )
+                                                    if implementation_closeout_preview:
+                                                        closeout_preview = _preview_implementation_closeout(
+                                                            steps,
+                                                            target,
+                                                            start_apply,
+                                                        )
+                                                        payload["implementation_closeout_previewed"] = True
+                                                        payload["implementation_closeout_preview"] = closeout_preview
+                                                        payload["implementation_closeout_preview_ok"] = (
+                                                            closeout_preview.get("ok") is True
+                                                        )
+                                                        if implementation_closeout_apply:
+                                                            closeout_apply = _apply_implementation_closeout(
+                                                                steps,
+                                                                target,
+                                                                closeout_preview,
+                                                            )
+                                                            payload["implementation_closeout_apply"] = closeout_apply
+                                                            payload["implementation_closeout_applied"] = (
+                                                                closeout_apply.get("apply_skipped") is not True
+                                                            )
+                                                            payload["implementation_closeout_apply_ok"] = (
+                                                                closeout_apply.get("ok") is True
+                                                            )
+                                                            if closeout_apply.get("apply_skipped") is not True:
+                                                                payload["implementation_plan"] = closeout_apply[
+                                                                    "post_implementation_plan"
+                                                                ]
+                                                                payload["target_local"] = _target_local_details(
+                                                                    target=target,
+                                                                    init_payload=init_payload,
+                                                                    verify_payload=closeout_apply["post_verify_check"],
+                                                                    status_payload=closeout_apply["post_status"],
+                                                                    workflow_plan_payload=closeout_apply[
+                                                                        "post_workflow_plan"
+                                                                    ],
+                                                                    expected_phase="implementation",
+                                                                )
         if isinstance(status_payload.get("local_commands"), list):
             payload["local_commands"] = status_payload["local_commands"]
         elif isinstance(init_payload.get("local_commands"), list):
             payload["local_commands"] = init_payload["local_commands"]
         if (
+            isinstance(payload.get("implementation_closeout_apply"), dict)
+            and payload["implementation_closeout_apply"].get("apply_skipped") is not True
+        ):
+            latest_status = payload["implementation_closeout_apply"].get("post_status")
+        elif (
             isinstance(payload.get("implementation_start_apply"), dict)
             and payload["implementation_start_apply"].get("apply_skipped") is not True
         ):
@@ -570,6 +631,12 @@ def run_consumer_bootstrap(
             "implementation_start_apply_requested": implementation_start_apply,
             "implementation_start_applied": False,
             "implementation_start_apply_ok": False,
+            "implementation_closeout_preview_requested": implementation_closeout_preview,
+            "implementation_closeout_previewed": False,
+            "implementation_closeout_preview_ok": False,
+            "implementation_closeout_apply_requested": implementation_closeout_apply,
+            "implementation_closeout_applied": False,
+            "implementation_closeout_apply_ok": False,
             "steps": steps,
             "failed_step": error.step,
             "failed_payload": error.payload,
@@ -623,6 +690,12 @@ def run_consumer_bootstrap(
             "implementation_start_apply_requested": implementation_start_apply,
             "implementation_start_applied": False,
             "implementation_start_apply_ok": False,
+            "implementation_closeout_preview_requested": implementation_closeout_preview,
+            "implementation_closeout_previewed": False,
+            "implementation_closeout_preview_ok": False,
+            "implementation_closeout_apply_requested": implementation_closeout_apply,
+            "implementation_closeout_applied": False,
+            "implementation_closeout_apply_ok": False,
             "steps": steps,
         }
 
@@ -1462,6 +1535,151 @@ def _apply_implementation_start(
     return payload
 
 
+def _preview_implementation_closeout(
+    steps: list[dict[str, object]],
+    target: Path,
+    start_apply: dict[str, object],
+) -> dict[str, object]:
+    post_implementation_plan = start_apply.get("post_implementation_plan")
+    active_work = post_implementation_plan.get("active_work") if isinstance(post_implementation_plan, dict) else {}
+    task_id = active_work.get("task_id") if isinstance(active_work, dict) else ""
+    normalized_task_id = task_id if isinstance(task_id, str) else ""
+    post_status = start_apply.get("post_status")
+    status_state = post_status.get("state") if isinstance(post_status, dict) else {}
+    phase = status_state.get("phase") if isinstance(status_state, dict) else start_apply.get("phase", "")
+    payload: dict[str, object] = {
+        "ok": True,
+        "target": str(target),
+        "check": True,
+        "writes_state": False,
+        "phase": str(phase),
+        "source": "implementation_start_apply.post_implementation_plan.active_work.task_id",
+        "task_id": normalized_task_id,
+        "closeout_ready": False,
+        "preview_skipped": False,
+        "skip_reason": "",
+        "implementation_closeout": {},
+    }
+    if start_apply.get("ok") is not True or start_apply.get("apply_skipped") is True:
+        payload["preview_skipped"] = True
+        payload["skip_reason"] = "implementation start apply did not pass"
+        return payload
+    if TASK_ID_PATTERN.match(normalized_task_id) is None:
+        payload["preview_skipped"] = True
+        payload["skip_reason"] = "implementation plan did not expose a concrete active_work.task_id"
+        return payload
+
+    implementation_closeout = _run_json(
+        steps,
+        "target_local_implementation_closeout_preview",
+        ["bin/governance", "implementation", "closeout", ".", "--task", normalized_task_id, "--json"],
+        target,
+        allowed_returncodes=(0, 1),
+    )
+    payload["implementation_closeout"] = implementation_closeout
+    payload["closeout_ready"] = implementation_closeout.get("closeout_ready") is True
+    return payload
+
+
+def _apply_implementation_closeout(
+    steps: list[dict[str, object]],
+    target: Path,
+    closeout_preview: dict[str, object],
+) -> dict[str, object]:
+    task_id = str(closeout_preview.get("task_id", ""))
+    payload: dict[str, object] = {
+        "ok": True,
+        "target": str(target),
+        "check": False,
+        "writes_state": True,
+        "phase": str(closeout_preview.get("phase", "")),
+        "task_id": task_id,
+        "closeout_ready": closeout_preview.get("closeout_ready") is True,
+        "apply_skipped": False,
+        "skip_reason": "",
+        "implementation_closeout_apply": {},
+        "post_verify_check": {},
+        "post_status": {},
+        "post_workflow_plan": {},
+        "post_implementation_plan": {},
+    }
+    if closeout_preview.get("closeout_ready") is not True:
+        payload["apply_skipped"] = True
+        payload["skip_reason"] = "implementation closeout preview did not pass"
+        return payload
+    if TASK_ID_PATTERN.match(task_id) is None:
+        payload["apply_skipped"] = True
+        payload["skip_reason"] = "implementation closeout preview did not expose a concrete task_id"
+        return payload
+
+    implementation_closeout_apply = _run_json(
+        steps,
+        "target_local_implementation_closeout_apply",
+        ["bin/governance", "implementation", "closeout", ".", "--task", task_id, "--apply", "--json"],
+        target,
+    )
+    _require(
+        implementation_closeout_apply.get("ok") is True,
+        "implementation closeout apply failed",
+        payload=implementation_closeout_apply,
+    )
+    post_verify_check = _run_json(
+        steps,
+        "target_local_verify_check_after_implementation_closeout_apply",
+        ["bin/governance", "verify", ".", "--check", "--json"],
+        target,
+    )
+    post_status = _run_json(
+        steps,
+        "target_local_governance_status_after_implementation_closeout_apply",
+        ["make", "governance-status"],
+        target,
+    )
+    post_workflow_plan = _run_json(
+        steps,
+        "target_local_workflow_plan_after_implementation_closeout_apply",
+        ["make", "workflow-plan"],
+        target,
+    )
+    post_implementation_plan = _run_json(
+        steps,
+        "target_local_implementation_plan_after_implementation_closeout_apply",
+        ["make", "implementation-plan"],
+        target,
+    )
+    status_state = post_status.get("state")
+    phase = status_state.get("phase") if isinstance(status_state, dict) else ""
+    active_work = post_implementation_plan.get("active_work")
+    active_status = active_work.get("status") if isinstance(active_work, dict) else ""
+    payload.update(
+        {
+            "phase": phase,
+            "implementation_closeout_apply": implementation_closeout_apply,
+            "post_verify_check": post_verify_check,
+            "post_status": post_status,
+            "post_workflow_plan": post_workflow_plan,
+            "post_implementation_plan": post_implementation_plan,
+            "ok": (
+                implementation_closeout_apply.get("ok") is True
+                and implementation_closeout_apply.get("apply_requested") is True
+                and (
+                    implementation_closeout_apply.get("applied") is True
+                    or implementation_closeout_apply.get("already_current") is True
+                )
+                and post_verify_check.get("ok") is True
+                and post_verify_check.get("findings") == []
+                and post_status.get("ok") is True
+                and post_workflow_plan.get("ok") is True
+                and post_workflow_plan.get("phase") == "implementation"
+                and post_implementation_plan.get("ok") is True
+                and active_status == "complete"
+                and phase == "implementation"
+            ),
+        }
+    )
+    return payload
+
+
 def _product_plan_mapping(product_plan: dict[str, object]) -> dict[str, list[str]]:
     suggested_mappings = product_plan.get("suggested_mappings")
     chapters: list[str] = []
@@ -1598,6 +1816,22 @@ def build_parser() -> argparse.ArgumentParser:
             "the start preview passed, then refresh implementation routing payloads."
         ),
     )
+    parser.add_argument(
+        "--implementation-closeout-preview",
+        action="store_true",
+        help=(
+            "With --implementation-start-apply, run a read-only implementation closeout check for the selected "
+            "TASK-NNN without applying Done status updates."
+        ),
+    )
+    parser.add_argument(
+        "--implementation-closeout-apply",
+        action="store_true",
+        help=(
+            "With --implementation-closeout-preview, apply the safe implementation closeout status update only "
+            "when closeout evidence passed, then refresh implementation routing payloads."
+        ),
+    )
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     return parser
 
@@ -1632,6 +1866,8 @@ def main() -> int:
         implementation_advance_apply=args.implementation_advance_apply,
         implementation_start_preview=args.implementation_start_preview,
         implementation_start_apply=args.implementation_start_apply,
+        implementation_closeout_preview=args.implementation_closeout_preview,
+        implementation_closeout_apply=args.implementation_closeout_apply,
     )
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
