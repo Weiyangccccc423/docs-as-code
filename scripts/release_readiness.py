@@ -281,7 +281,7 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
         and multi_acceptance_payload.get("acceptance_id_count") == 4
         and multi_acceptance_payload.get("api_candidate_count") == 4
         and isinstance(authoring_counts, dict)
-        and len(authoring_counts) == 7
+        and len(authoring_counts) == 8
         and all(value == 4 for value in authoring_counts.values())
         and _dry_run_target_local_make_coverage_ok(multi_acceptance_payload),
         evidence="python3 scripts/dry_run_workflow.py --product tests/fixtures/product-docs/field-service-ops.md --json",

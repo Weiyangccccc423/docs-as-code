@@ -180,6 +180,7 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertEqual(1, payload["api_candidate_count"])
             self.assertEqual(
                 {
+                    "architecture-authoring": 1,
                     "api-authoring": 1,
                     "backend-authoring": 1,
                     "data-model-authoring": 1,
@@ -291,6 +292,7 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertEqual(4, payload["api_candidate_count"])
             self.assertEqual(
                 {
+                    "architecture-authoring": 4,
                     "api-authoring": 4,
                     "backend-authoring": 4,
                     "data-model-authoring": 4,

@@ -567,6 +567,33 @@ class FreshTargetWorkflowTest(unittest.TestCase):
             self.assertIn("method_path", candidate["open_decisions"])
             self.assertIn("frontend_consumers", candidate["open_decisions"])
 
+            architecture_authoring = _run_json(
+                self,
+                ["bin/governance", "design", "architecture-authoring", ".", "--json"],
+                cwd=target,
+            )
+            self.assertTrue(architecture_authoring["ok"])
+            self.assertEqual("architecture", architecture_authoring["track"])
+            self.assertEqual("do_not_guess_architecture_boundaries", architecture_authoring["decision_policy"])
+            self.assertEqual(1, len(architecture_authoring["authoring_tasks"]))
+            architecture_task = architecture_authoring["authoring_tasks"][0]
+            self.assertEqual("ARCHITECTURE-AUTHOR-001", architecture_task["task_id"])
+            self.assertEqual("architecture-design-authoring", architecture_task["execution"]["stage"])
+            self.assertEqual("senior-architect", architecture_task["execution"]["primary_specialist_skill"])
+            self.assertEqual("A-001", architecture_task["acceptance_id"])
+            self.assertIn("designing-system-architecture", architecture_authoring["skills"])
+            self.assertIn("docs/architecture/01-system-context.md", [document["path"] for document in architecture_task["documents"]])
+            self.assertIn("docs/architecture/02-containers.md", [document["path"] for document in architecture_task["documents"]])
+            self.assertIn("docs/architecture/03-quality-attributes.md", [document["path"] for document in architecture_task["documents"]])
+            self.assertIn("system_boundary", architecture_task["open_decisions"])
+            self.assertIn("quality_scenarios", architecture_task["open_decisions"])
+            self.assertIn("adr_candidates", architecture_task["open_decisions"])
+            self.assertIn("docs/product/core/PRD.md", [link["target"] for link in architecture_task["required_links"]])
+            self.assertEqual(
+                ["bin/governance", "design", "architecture-authoring", ".", "--json"],
+                architecture_task["steps"][-1]["argv"],
+            )
+
             api_authoring = _run_json(
                 self,
                 ["bin/governance", "design", "api-authoring", ".", "--json"],

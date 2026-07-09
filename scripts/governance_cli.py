@@ -32,6 +32,7 @@ from check_env import (
 from design_plan import (
     build_api_authoring,
     build_api_candidates,
+    build_architecture_authoring,
     build_architecture_decisions_authoring,
     build_backend_authoring,
     build_data_model_authoring,
@@ -696,6 +697,23 @@ def _cmd_design_api_candidates(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_design_architecture_authoring(args: argparse.Namespace) -> int:
+    target = Path(args.target)
+    payload = build_architecture_authoring(target)
+    if args.json:
+        _print_json(payload)
+        return 0 if payload["ok"] else 1
+    if not payload["ok"]:
+        print("Architecture authoring plan failed:")
+        for error in payload["errors"]:
+            print(f"- ERROR: {error}")
+        return 1
+    print("Architecture authoring tasks:")
+    for task in payload["authoring_tasks"]:
+        print(f"- {task['task_id']}: {task['acceptance_id']}")
+    return 0
+
+
 def _cmd_design_api_authoring(args: argparse.Namespace) -> int:
     target = Path(args.target)
     payload = build_api_authoring(target)
@@ -1005,6 +1023,13 @@ def build_parser() -> argparse.ArgumentParser:
     api_candidates.add_argument("target", nargs="?", default=".")
     api_candidates.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     api_candidates.set_defaults(func=_cmd_design_api_candidates)
+    architecture_authoring = design_sub.add_parser(
+        "architecture-authoring",
+        help="Build source-backed system architecture, container, and quality-attribute authoring tasks.",
+    )
+    architecture_authoring.add_argument("target", nargs="?", default=".")
+    architecture_authoring.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    architecture_authoring.set_defaults(func=_cmd_design_architecture_authoring)
     api_authoring = design_sub.add_parser(
         "api-authoring",
         help="Build source-backed API contract authoring tasks from endpoint candidates.",
@@ -1014,7 +1039,7 @@ def build_parser() -> argparse.ArgumentParser:
     api_authoring.set_defaults(func=_cmd_design_api_authoring)
     backend_authoring = design_sub.add_parser(
         "backend-authoring",
-        help="Build source-backed backend module and data-model authoring tasks.",
+        help="Build source-backed backend module and external-service authoring tasks.",
     )
     backend_authoring.add_argument("target", nargs="?", default=".")
     backend_authoring.add_argument("--json", action="store_true", help="Print machine-readable JSON.")

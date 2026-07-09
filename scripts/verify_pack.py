@@ -608,6 +608,11 @@ FRESH_TARGET_SMOKE_TEST_REQUIRED_PHRASES = (
     "backend-authoring",
     "module_boundaries",
     "observability",
+    "architecture_authoring",
+    "architecture-authoring",
+    "system_boundary",
+    "quality_scenarios",
+    "adr_candidates",
     "data_model_authoring",
     "data-model-authoring",
     "entity_ownership",
@@ -701,8 +706,10 @@ DRY_RUN_WORKFLOW_REQUIRED_PHRASES = (
     "make_design_plan",
     '["make", "design-plan"]',
     '"api-candidates"',
+    '"architecture-authoring"',
     '"api-authoring"',
     '"backend-authoring"',
+    '"data-model-authoring"',
     '"frontend-authoring"',
     '"test-strategy-authoring"',
     '"implementation-planning-authoring"',
@@ -1284,6 +1291,55 @@ API_CANDIDATES_REQUIRED_PHRASES = (
     "api-design-reviewer",
     "senior-backend",
     "senior-security",
+)
+ARCHITECTURE_AUTHORING_DOC_PATHS = (
+    "README.md",
+    "workflows/00-overview.md",
+    "workflows/04-design-derivation.md",
+    "skills/designing-system-architecture/SKILL.md",
+    "skills/verifying-governance-docs/SKILL.md",
+)
+ARCHITECTURE_AUTHORING_REQUIRED_PHRASES = (
+    "design architecture-authoring",
+    "authoring_tasks",
+    "authoring_summary",
+    "sequence",
+    "execution",
+    "decision_policy",
+    "do_not_guess_architecture_boundaries",
+    "primary_skill",
+    "primary_specialist_skill",
+    "verify_step",
+    "refresh_step",
+    "stop_condition",
+    "documents",
+    "sections",
+    "required_links",
+    "required_links[].status",
+    "required_link_status_counts",
+    "non_satisfied_required_link_count",
+    "link_repair_actions",
+    "link_repair_action_count",
+    "repair_strategy",
+    "verify_command",
+    "refresh_command",
+    "open_decisions",
+    "system_boundary",
+    "container_responsibilities",
+    "quality_scenarios",
+    "deployment_assumptions",
+    "adr_candidates",
+    "specialist_skills",
+    "skill_requirements",
+    "authority_skill_requirements",
+    "authority-routing",
+    "missing_policy",
+    "senior-architect",
+    "senior-security",
+    "observability-designer",
+    "slo-architect",
+    "verify-architecture-authoring",
+    "refresh-architecture-authoring",
 )
 API_AUTHORING_DOC_PATHS = (
     "README.md",
@@ -2766,6 +2822,7 @@ GOVERNANCE_CLI_REQUIRED_SUBCOMMANDS = {
     "design": (
         "plan",
         "api-candidates",
+        "architecture-authoring",
         "api-authoring",
         "backend-authoring",
         "data-model-authoring",
@@ -3083,6 +3140,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_design_plan_source(root, findings)
     _check_design_plan_docs(root, findings)
     _check_api_candidates_docs(root, findings)
+    _check_architecture_authoring_docs(root, findings)
     _check_api_authoring_docs(root, findings)
     _check_backend_authoring_docs(root, findings)
     _check_data_model_authoring_docs(root, findings)
@@ -4823,6 +4881,23 @@ def _check_api_authoring_docs(root: Path, findings: list[PackFinding]) -> None:
             PackFinding(
                 "pack_api_authoring_doc_missing",
                 f"{rel} must document API authoring phrase(s): {', '.join(missing)}",
+                rel,
+            )
+        )
+
+
+def _check_architecture_authoring_docs(root: Path, findings: list[PackFinding]) -> None:
+    for rel in ARCHITECTURE_AUTHORING_DOC_PATHS:
+        text = _read_utf8_text_or_none(root / rel)
+        if text is None:
+            continue
+        missing = [phrase for phrase in ARCHITECTURE_AUTHORING_REQUIRED_PHRASES if phrase not in text]
+        if not missing:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_architecture_authoring_doc_missing",
+                f"{rel} must document architecture authoring phrase(s): {', '.join(missing)}",
                 rel,
             )
         )

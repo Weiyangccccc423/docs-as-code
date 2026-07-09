@@ -2757,6 +2757,7 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual(
                 [
                     "design-plan",
+                    "architecture-authoring",
                     "api-candidates",
                     "api-authoring",
                     "backend-authoring",
@@ -2770,6 +2771,15 @@ class GovernanceCliTest(unittest.TestCase):
             )
             self.assertEqual(9, queues["design-plan"]["summary"]["track_count"])
             self.assertGreater(queues["design-plan"]["summary"]["blocker_count"], 0)
+            self.assertEqual(1, queues["architecture-authoring"]["summary"]["authoring_summary"]["task_count"])
+            self.assertIn(
+                "designing-system-architecture",
+                queues["architecture-authoring"]["summary"]["skill_summary"]["local_workflow_skills"],
+            )
+            self.assertIn(
+                "senior-architect",
+                queues["architecture-authoring"]["summary"]["skill_summary"]["authority_routing_skills"],
+            )
             self.assertIn(
                 "designing-system-architecture",
                 queues["design-plan"]["summary"]["skill_summary"]["local_workflow_skills"],
@@ -2840,6 +2850,10 @@ class GovernanceCliTest(unittest.TestCase):
                 payload["active_work"]["inspect_command"]["argv"],
             )
             self.assertEqual("architecture", queues["design-plan"]["summary"]["active_work"]["track_id"])
+            self.assertEqual(
+                "ARCHITECTURE-AUTHOR-001",
+                queues["architecture-authoring"]["summary"]["active_work"]["task_id"],
+            )
             self.assertEqual("API-AUTHOR-001", queues["api-authoring"]["summary"]["active_work"]["task_id"])
             self.assertEqual(
                 "error_registry",
@@ -2854,6 +2868,11 @@ class GovernanceCliTest(unittest.TestCase):
                 queues["api-candidates"]["summary"]["active_work"]["primary_specialist_skill"],
             )
             commands = {command["id"]: command for command in payload["commands"]}
+            self.assertEqual(
+                ["bin/governance", "design", "architecture-authoring", ".", "--json"],
+                commands["architecture-authoring"]["argv"],
+            )
+            self.assertFalse(commands["architecture-authoring"]["writes_state"])
             self.assertEqual(
                 ["bin/governance", "design", "backend-authoring", ".", "--json"],
                 commands["backend-authoring"]["argv"],
@@ -7300,6 +7319,144 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn("request_fields", candidate["open_decisions"])
             self.assertIn("response_fields", candidate["open_decisions"])
             self.assertIn("frontend_consumers", candidate["open_decisions"])
+
+    def test_design_architecture_authoring_builds_system_design_task_queue_without_guessing_boundaries(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _design_scaffold_target(self, tmp)
+
+            result = subprocess.run(
+                [sys.executable, str(CLI), "design", "architecture-authoring", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertEqual(str(target.resolve()), payload["target"])
+            self.assertEqual("design-derivation", payload["phase"])
+            self.assertEqual("architecture", payload["track"])
+            self.assertEqual("do_not_guess_architecture_boundaries", payload["decision_policy"])
+            self.assertEqual(["designing-system-architecture"], payload["skills"])
+            self.assertIn("senior-architect", payload["specialist_skills"])
+            self.assertIn("senior-security", payload["specialist_skills"])
+            self.assertIn("observability-designer", payload["specialist_skills"])
+            self.assertIn("slo-architect", payload["specialist_skills"])
+            payload_requirements = _requirements_by_name(payload["skill_requirements"])
+            self.assertEqual("local-workflow", payload_requirements["designing-system-architecture"]["type"])
+            self.assertEqual("authority-routing", payload_requirements["senior-architect"]["type"])
+            self.assertEqual(
+                "load_from_agent_environment_or_stop_before_guessing",
+                payload_requirements["senior-architect"]["missing_policy"],
+            )
+            self.assertEqual(
+                [
+                    "designing-system-architecture",
+                    "senior-architect",
+                    "senior-security",
+                    "observability-designer",
+                    "slo-architect",
+                ],
+                [step["name"] for step in payload["skill_loading_plan"]["steps"]],
+            )
+            self.assertIn("references/architecture-methods.md", payload["references"])
+            self.assertIn("references/architecture-quality-checklist.md", payload["references"])
+            self.assertIn("references/security-design-checklist.md", payload["references"])
+            self.assertIn("local_commands", payload)
+            self.assertEqual("advance-implementation-check", payload["next_actions"][0]["id"])
+            self.assertEqual(
+                {
+                    "task_count": 1,
+                    "open_decision_count": 11,
+                    "required_link_status_counts": {
+                        "satisfied": 4,
+                    },
+                    "non_satisfied_required_link_count": 0,
+                    "link_repair_action_count": 0,
+                },
+                payload["authoring_summary"],
+            )
+            self.assertEqual("ARCHITECTURE-AUTHOR-001", payload["active_work"]["task_id"])
+            self.assertEqual("decision_required", payload["active_work"]["status"])
+            self.assertEqual("senior-architect", payload["active_work"]["primary_specialist_skill"])
+            self.assertEqual("system_boundary", payload["active_work"]["next_open_decision"])
+            self.assertEqual(
+                ["bin/governance", "design", "architecture-authoring", ".", "--json"],
+                payload["active_work"]["refresh_command"]["argv"],
+            )
+            task = payload["authoring_tasks"][0]
+            self.assertEqual("ARCHITECTURE-AUTHOR-001", task["task_id"])
+            self.assertEqual(1, task["sequence"])
+            self.assertEqual("architecture-design-authoring", task["execution"]["stage"])
+            self.assertEqual("designing-system-architecture", task["execution"]["primary_skill"])
+            self.assertEqual("senior-architect", task["execution"]["primary_specialist_skill"])
+            self.assertEqual("verify-architecture-authoring", task["execution"]["verify_step"])
+            self.assertEqual("refresh-architecture-authoring", task["execution"]["refresh_step"])
+            self.assertEqual("A-001", task["acceptance_id"])
+            self.assertEqual("Goal Flow", task["title"])
+            self.assertEqual("docs/product/08-acceptance-criteria.md#a-001-goal-flow", task["source"]["reference"])
+            document_paths = [document["path"] for document in task["documents"]]
+            self.assertEqual(
+                [
+                    "docs/architecture/01-system-context.md",
+                    "docs/architecture/02-containers.md",
+                    "docs/architecture/03-quality-attributes.md",
+                ],
+                document_paths,
+            )
+            self.assertIn("Actors", task["documents"][0]["sections"])
+            self.assertIn("Runtime Responsibilities", task["documents"][1]["sections"])
+            self.assertIn("Tradeoffs", task["documents"][2]["sections"])
+            required_links = {link["kind"]: link["target"] for link in task["required_links"]}
+            self.assertEqual("docs/product/core/PRD.md", required_links["product_prd"])
+            self.assertEqual(
+                "docs/product/08-acceptance-criteria.md#a-001-goal-flow",
+                required_links["product_acceptance"],
+            )
+            self.assertEqual("docs/glossary.md", required_links["glossary"])
+            self.assertEqual("docs/unresolved.md", required_links["unresolved_decisions"])
+            self.assertEqual(
+                {
+                    "product_prd": "satisfied",
+                    "product_acceptance": "satisfied",
+                    "glossary": "satisfied",
+                    "unresolved_decisions": "satisfied",
+                },
+                _link_statuses(task["required_links"]),
+            )
+            self.assertEqual([], task["link_repair_actions"])
+            self.assertIn("system_boundary", task["open_decisions"])
+            self.assertIn("container_responsibilities", task["open_decisions"])
+            self.assertIn("quality_scenarios", task["open_decisions"])
+            self.assertIn("deployment_assumptions", task["open_decisions"])
+            self.assertIn("adr_candidates", task["open_decisions"])
+            self.assertEqual(
+                [
+                    "load-architecture-design-skills",
+                    "read-architecture-references",
+                    "read-product-sources",
+                    "author-system-context",
+                    "author-containers",
+                    "author-quality-attributes",
+                    "link-acceptance-and-decisions",
+                    "verify-architecture-authoring",
+                    "refresh-architecture-authoring",
+                ],
+                [step["id"] for step in task["steps"]],
+            )
+            self.assertEqual(list(range(1, 10)), [step["sequence"] for step in task["steps"]])
+            self.assertEqual(["designing-system-architecture"], task["steps"][0]["skills"])
+            self.assertIn("senior-architect", task["steps"][0]["specialist_skills"])
+            self.assertEqual(["bin/governance", "verify", ".", "--check", "--json"], task["steps"][7]["argv"])
+            self.assertFalse(task["steps"][7]["writes_state"])
+            self.assertEqual(
+                ["bin/governance", "design", "architecture-authoring", ".", "--json"],
+                task["steps"][8]["argv"],
+            )
+            self.assertNotIn("containers", task)
+            self.assertNotIn("database", task)
+            self.assertNotIn("deployment_topology", task)
 
     def test_design_api_authoring_builds_contract_task_queue_without_guessing_contracts(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

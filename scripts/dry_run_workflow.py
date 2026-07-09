@@ -40,6 +40,7 @@ DESIGN_TRACK_IDS = [
 ]
 
 AUTHORING_COMMANDS = [
+    ("architecture_authoring", "architecture-authoring", "architecture"),
     ("api_authoring", "api-authoring", "api-contracts"),
     ("backend_authoring", "backend-authoring", "backend-modules"),
     ("data_model_authoring", "data-model-authoring", "data-model"),
@@ -1571,7 +1572,14 @@ def _require_design_workflow_plan(payload: dict[str, object], label: str) -> Non
         f"{label} phase mismatch",
         payload=payload,
     )
-    for queue_id in ("design-plan", "api-candidates", "api-authoring", "backend-authoring", "data-model-authoring"):
+    for queue_id in (
+        "design-plan",
+        "architecture-authoring",
+        "api-candidates",
+        "api-authoring",
+        "backend-authoring",
+        "data-model-authoring",
+    ):
         _require(
             _workflow_plan_has_queue(payload, queue_id),
             f"{label} did not expose {queue_id} queue",

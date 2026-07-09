@@ -20,6 +20,7 @@ except ImportError:  # pragma: no cover - direct script execution
 DESIGN_WORKFLOW_PATH = "workflows/04-design-derivation.md"
 DESIGN_PHASE = "design-derivation"
 TARGET_WORKFLOW_PACK_ROOT = "docs/agent-workflow/workflow-pack"
+ARCHITECTURE_TRACK_ID = "architecture"
 UI_INTERACTION_TRACK_ID = "ui-interaction"
 API_TRACK_ID = "api-contracts"
 BACKEND_TRACK_ID = "backend-modules"
@@ -44,6 +45,41 @@ OPEN_API_DECISIONS = (
     "error_codes",
     "upstream_links",
     "frontend_consumers",
+)
+OPEN_ARCHITECTURE_DECISIONS = (
+    "system_boundary",
+    "actors",
+    "external_systems",
+    "trust_boundaries",
+    "container_responsibilities",
+    "runtime_flows",
+    "quality_scenarios",
+    "deployment_assumptions",
+    "risk_tradeoffs",
+    "verification_hooks",
+    "adr_candidates",
+)
+ARCHITECTURE_SYSTEM_CONTEXT_SECTIONS = (
+    "Product Links",
+    "Actors",
+    "External Systems",
+    "Trust Boundaries",
+    "Open Decisions",
+)
+ARCHITECTURE_CONTAINERS_SECTIONS = (
+    "Product Links",
+    "Containers",
+    "Runtime Responsibilities",
+    "Data Ownership",
+    "Open Decisions",
+)
+ARCHITECTURE_QUALITY_SECTIONS = (
+    "Product Links",
+    "Availability",
+    "Performance",
+    "Security",
+    "Observability",
+    "Tradeoffs",
 )
 API_CONVENTION_SECTIONS = (
     "Product Links",
@@ -280,7 +316,7 @@ class DesignTrack:
 
 DESIGN_TRACKS: tuple[DesignTrack, ...] = (
     DesignTrack(
-        id="architecture",
+        id=ARCHITECTURE_TRACK_ID,
         title="System Architecture",
         purpose="Replace architecture placeholders with product-derived boundaries, C4-style views, and quality scenarios.",
         skills=("designing-system-architecture",),
@@ -458,6 +494,55 @@ def build_api_candidates(root: Path) -> dict[str, object]:
         "source_documents": _source_documents(root),
         "candidates": candidates,
         "active_work": _active_api_candidate_work(root, candidates),
+        "errors": errors,
+    }
+    if not errors:
+        payload["local_commands"] = target_local_commands_payload(cwd=str(root))
+        payload["next_actions"] = next_actions_payload(state, cwd=str(root))
+    return payload
+
+
+def build_architecture_authoring(root: Path) -> dict[str, object]:
+    root = root.resolve()
+    state = load_state(root)
+    phase = state.get("phase") if isinstance(state.get("phase"), str) else ""
+    errors: list[str] = []
+    if not state:
+        errors.append("No governance state found.")
+    elif phase != DESIGN_PHASE:
+        errors.append(f"architecture authoring requires recorded phase {DESIGN_PHASE}")
+    candidates = _api_candidates(root)
+    if not candidates:
+        errors.append("No product acceptance criteria with A-NNN headings found.")
+    skills = ["designing-system-architecture"]
+    specialist_skills = _specialist_skills(ARCHITECTURE_TRACK_ID)
+    authoring_tasks = [
+        _architecture_authoring_task(root, candidate, index)
+        for index, candidate in enumerate(candidates, start=1)
+    ]
+    payload: dict[str, object] = {
+        "ok": not errors,
+        "target": str(root),
+        "phase": phase,
+        "workflow": DESIGN_WORKFLOW_PATH,
+        "track": ARCHITECTURE_TRACK_ID,
+        "decision_policy": "do_not_guess_architecture_boundaries",
+        "skills": skills,
+        "specialist_skills": specialist_skills,
+        **_skill_requirement_fields(root, skills, specialist_skills),
+        "references": [
+            "references/architecture-methods.md",
+            "references/architecture-quality-checklist.md",
+            "references/security-design-checklist.md",
+        ],
+        "source_documents": _source_documents(root),
+        "authoring_tasks": authoring_tasks,
+        "authoring_summary": _authoring_summary(authoring_tasks),
+        "active_work": _active_design_authoring_work(
+            root,
+            authoring_tasks,
+            ["bin/governance", "design", "architecture-authoring", ".", "--json"],
+        ),
         "errors": errors,
     }
     if not errors:
@@ -1319,6 +1404,67 @@ def _api_authoring_task(root: Path, candidate: dict[str, object], index: int) ->
     }
 
 
+def _architecture_authoring_task(root: Path, candidate: dict[str, object], index: int) -> dict[str, object]:
+    source = candidate["source"]
+    if not isinstance(source, dict):  # pragma: no cover - internal invariant
+        source = {}
+    source_reference = str(source.get("reference", ""))
+    documents = [
+        _authoring_document(
+            "docs/architecture/01-system-context.md",
+            ARCHITECTURE_SYSTEM_CONTEXT_SECTIONS,
+            "Define system boundary, actors, external systems, trust boundaries, and unresolved architecture gaps.",
+        ),
+        _authoring_document(
+            "docs/architecture/02-containers.md",
+            ARCHITECTURE_CONTAINERS_SECTIONS,
+            "Define containers, runtime responsibilities, data ownership, and unresolved container gaps.",
+        ),
+        _authoring_document(
+            "docs/architecture/03-quality-attributes.md",
+            ARCHITECTURE_QUALITY_SECTIONS,
+            "Define measurable quality scenarios, tradeoffs, and implementation-readiness implications.",
+        ),
+    ]
+    required_links = [
+        _required_link(root, "product_prd", "docs/product/core/PRD.md"),
+        _required_link(root, "product_acceptance", source_reference),
+        _required_link(root, "glossary", "docs/glossary.md"),
+        _required_link(root, "unresolved_decisions", "docs/unresolved.md"),
+    ]
+    return {
+        "task_id": f"ARCHITECTURE-AUTHOR-{index:03d}",
+        "sequence": index,
+        "api_candidate_id": candidate["candidate_id"],
+        "acceptance_id": candidate["acceptance_id"],
+        "title": candidate["title"],
+        "source": source,
+        "specialist_skills": _specialist_skills(ARCHITECTURE_TRACK_ID),
+        **_skill_requirement_fields(
+            root,
+            ["designing-system-architecture"],
+            _specialist_skills(ARCHITECTURE_TRACK_ID),
+        ),
+        "execution": _authoring_execution(
+            "architecture-design-authoring",
+            "designing-system-architecture",
+            "senior-architect",
+            "verify-architecture-authoring",
+            "refresh-architecture-authoring",
+        ),
+        "documents": documents,
+        "required_links": required_links,
+        "link_repair_actions": _link_repair_actions(
+            root,
+            required_links,
+            "refresh-architecture-authoring",
+            ["bin/governance", "design", "architecture-authoring", ".", "--json"],
+        ),
+        "open_decisions": list(OPEN_ARCHITECTURE_DECISIONS),
+        "steps": _architecture_authoring_steps(root, source_reference, required_links),
+    }
+
+
 def _authoring_document(path: str, sections: tuple[str, ...], purpose: str) -> dict[str, object]:
     return {
         "path": path,
@@ -1516,6 +1662,91 @@ def _api_authoring_steps(
             "refresh-api-authoring",
             "Refresh the API authoring queue after verification.",
             ["bin/governance", "design", "api-authoring", ".", "--json"],
+        ),
+    ])
+
+
+def _architecture_authoring_steps(
+    root: Path,
+    source_reference: str,
+    required_links: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    return _sequence_steps([
+        {
+            "id": "load-architecture-design-skills",
+            "kind": "skill-load",
+            "skills": ["designing-system-architecture"],
+            "specialist_skills": _specialist_skills(ARCHITECTURE_TRACK_ID),
+            **_skill_requirement_fields(
+                root,
+                ["designing-system-architecture"],
+                _specialist_skills(ARCHITECTURE_TRACK_ID),
+            ),
+            "description": "Load architecture and authority-routing skills before defining boundaries, containers, quality scenarios, or ADR candidates.",
+        },
+        {
+            "id": "read-architecture-references",
+            "kind": "read",
+            "references": [
+                "references/architecture-methods.md",
+                "references/architecture-quality-checklist.md",
+                "references/security-design-checklist.md",
+            ],
+            "description": "Read architecture methods, quality coverage, and security guidance before resolving architecture decisions.",
+        },
+        {
+            "id": "read-product-sources",
+            "kind": "read",
+            "documents": [
+                "docs/product/core/PRD.md",
+                source_reference,
+                "docs/glossary.md",
+                "docs/unresolved.md",
+            ],
+            "description": "Read product truth, acceptance criteria, glossary, and unresolved decisions before authoring architecture.",
+        },
+        {
+            "id": "author-system-context",
+            "kind": "author",
+            "document": "docs/architecture/01-system-context.md",
+            "sections": list(ARCHITECTURE_SYSTEM_CONTEXT_SECTIONS),
+            "description": "Define actors, external systems, system boundary, trust boundaries, and open architecture gaps.",
+        },
+        {
+            "id": "author-containers",
+            "kind": "author",
+            "document": "docs/architecture/02-containers.md",
+            "sections": list(ARCHITECTURE_CONTAINERS_SECTIONS),
+            "description": "Define containers, runtime responsibilities, data ownership, and unresolved container-level decisions.",
+        },
+        {
+            "id": "author-quality-attributes",
+            "kind": "author",
+            "document": "docs/architecture/03-quality-attributes.md",
+            "sections": list(ARCHITECTURE_QUALITY_SECTIONS),
+            "description": "Define measurable availability, performance, security, observability, tradeoff, and verification expectations.",
+        },
+        {
+            "id": "link-acceptance-and-decisions",
+            "kind": "link",
+            "required_links": [
+                link
+                for link in required_links
+                if link["kind"] in {"product_acceptance", "unresolved_decisions"}
+            ],
+            "description": "Connect architecture claims to acceptance criteria and unresolved architecture decisions before downstream design.",
+        },
+        _command_step(
+            root,
+            "verify-architecture-authoring",
+            "Run read-only governance verification after architecture authoring.",
+            ["bin/governance", "verify", ".", "--check", "--json"],
+        ),
+        _command_step(
+            root,
+            "refresh-architecture-authoring",
+            "Refresh the architecture authoring queue after verification.",
+            ["bin/governance", "design", "architecture-authoring", ".", "--json"],
         ),
     ])
 

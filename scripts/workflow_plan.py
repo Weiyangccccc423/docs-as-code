@@ -8,6 +8,7 @@ try:
     from .design_plan import (
         build_api_authoring,
         build_api_candidates,
+        build_architecture_authoring,
         build_architecture_decisions_authoring,
         build_backend_authoring,
         build_data_model_authoring,
@@ -25,6 +26,7 @@ except ImportError:  # pragma: no cover - direct script execution
     from design_plan import (
         build_api_authoring,
         build_api_candidates,
+        build_architecture_authoring,
         build_architecture_decisions_authoring,
         build_backend_authoring,
         build_data_model_authoring,
@@ -44,6 +46,11 @@ DESIGN_PHASE = "design-derivation"
 IMPLEMENTATION_PHASE = "implementation"
 
 DESIGN_AUTHORING_BUILDERS: tuple[tuple[str, list[str], Callable[[Path], dict[str, object]]], ...] = (
+    (
+        "architecture-authoring",
+        ["bin/governance", "design", "architecture-authoring", ".", "--json"],
+        build_architecture_authoring,
+    ),
     ("api-authoring", ["bin/governance", "design", "api-authoring", ".", "--json"], build_api_authoring),
     ("backend-authoring", ["bin/governance", "design", "backend-authoring", ".", "--json"], build_backend_authoring),
     (
@@ -174,6 +181,29 @@ def _design_queues(root: Path) -> list[dict[str, object]]:
         )
     )
 
+    for queue_id, argv, builder in DESIGN_AUTHORING_BUILDERS[:1]:
+        payload = builder(root)
+        summary = {
+            "authoring_summary": payload.get("authoring_summary", {}),
+            "source_document_count": _list_count(payload.get("source_documents")),
+            "active_work": _payload_active_work(payload),
+            "step_count": _authoring_step_count(payload.get("authoring_tasks")),
+            "skill_summary": _payload_skill_summary(payload),
+            "skill_loading_plan": _payload_skill_loading_plan(payload),
+        }
+        queues.append(
+            _queue(
+                queue_id,
+                DESIGN_PHASE,
+                "design-authoring-plan",
+                payload.get("ok") is True,
+                _authoring_summary_blocked(summary),
+                _command(root, queue_id, f"Inspect {queue_id} task queue and repair signals.", argv),
+                summary,
+                payload.get("errors"),
+            )
+        )
+
     api_candidates = build_api_candidates(root)
     queues.append(
         _queue(
@@ -199,7 +229,7 @@ def _design_queues(root: Path) -> list[dict[str, object]]:
         )
     )
 
-    for queue_id, argv, builder in DESIGN_AUTHORING_BUILDERS:
+    for queue_id, argv, builder in DESIGN_AUTHORING_BUILDERS[1:]:
         payload = builder(root)
         summary = {
             "authoring_summary": payload.get("authoring_summary", {}),

@@ -40,6 +40,7 @@ Load according to the design track:
    bin/governance scaffold design <target> --json
    bin/governance design plan <target> --json
    bin/governance design api-candidates <target> --json
+   bin/governance design architecture-authoring <target> --json
    bin/governance design api-authoring <target> --json
    bin/governance design backend-authoring <target> --json
    bin/governance design data-model-authoring <target> --json
@@ -56,6 +57,8 @@ Load according to the design track:
    After the recorded phase is `design-derivation`, `workflow plan --json` exposes top-level and per-queue `active_work`, `skill_summary`, and `skill_loading_plan` objects. Use `design plan --json` to inspect `source_documents`, ordered tracks, `available_in_workflow_pack` skill requirements, and track `blockers` before replacing placeholders. Use `active_work` to resume the first blocked queue, then load local workflow skills first and authority-routing skills such as `senior-architect`, `api-design-reviewer`, `senior-backend`, database design skills, `observability-designer`, and `senior-security` before resolving architecture, API, backend, or data decisions.
 
    Use `design api-candidates --json` and `design api-authoring --json` for API work. API candidates include `acceptance_id`, `suggested_endpoint_file`, `replaceable_starter_endpoint`, and open decisions before a contract is authored. API authoring uses `decision_policy: do_not_guess_contract_details` and exposes `authoring_tasks`, `authoring_summary`, `required_links[].status`, `link_repair_actions`, `verify-api-authoring`, and `refresh-api-authoring`.
+
+   Use `design architecture-authoring --json` for system context, container, and quality-attribute work before downstream design. It uses `decision_policy: do_not_guess_architecture_boundaries`, `authoring_tasks`, `authoring_summary`, `sequence`, `execution`, `primary_skill`, `primary_specialist_skill`, `verify_step`, `refresh_step`, `stop_condition`, architecture `documents`, `sections`, `required_links`, `required_links[].status`, `required_link_status_counts`, `non_satisfied_required_link_count`, `link_repair_actions`, `link_repair_action_count`, `repair_strategy`, `verify_command`, `refresh_command`, `authority-routing`, `skill_requirements`, `authority_skill_requirements`, `missing_policy`, `open_decisions` such as `system_boundary`, `container_responsibilities`, `quality_scenarios`, `deployment_assumptions`, and `adr_candidates`, `specialist_skills` such as `senior-architect`, `senior-security`, `observability-designer`, and `slo-architect`, and command steps `verify-architecture-authoring` and `refresh-architecture-authoring`.
 
    Use `design backend-authoring --json` for backend module and external-service work. It uses `decision_policy: do_not_guess_backend_boundaries`, `open_decisions` such as `module_boundaries` and `observability`, `specialist_skills` such as `senior-backend`, `observability-designer`, and `senior-security`, and command steps `verify-backend-authoring` and `refresh-backend-authoring`.
 
