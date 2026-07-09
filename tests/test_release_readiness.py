@@ -82,6 +82,25 @@ class ReleaseReadinessTest(unittest.TestCase):
                 "product_structure_apply_ok"
             ]
         )
+        self.assertTrue(criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_design_scaffold"]["ok"])
+        self.assertEqual(
+            "design-derivation",
+            criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_design_scaffold"]["phase"],
+        )
+        self.assertEqual(
+            "design-scaffold",
+            criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_design_scaffold"]["workflow_preset"],
+        )
+        self.assertTrue(
+            criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_design_scaffold"][
+                "design_scaffold_apply_ok"
+            ]
+        )
+        self.assertTrue(
+            criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_design_scaffold"][
+                "post_verify_blocked_by_placeholders"
+            ]
+        )
         self.assertEqual("provided-archive", criteria["release-artifact-smoke"]["details"]["archive_source"])
         self.assertEqual(
             criteria["source-pack-export"]["details"]["archive_sha256"],

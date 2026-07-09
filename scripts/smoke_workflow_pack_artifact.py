@@ -283,6 +283,39 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
             payload=consumer_bootstrap_product_structure,
         )
 
+        design_target = workspace / "consumer-design-scaffold-target"
+        design_product = _write_fresh_target_product(design_target)
+        design_bootstrap_payload = _run_json(
+            steps,
+            "unpacked_consumer_bootstrap_design_scaffold",
+            [
+                sys.executable,
+                "scripts/bootstrap_consumer_project.py",
+                "--target",
+                design_target,
+                "--product",
+                design_product,
+                "--profile",
+                "service",
+                "--project-name",
+                "Artifact Consumer Design Scaffold",
+                "--auto-repair-env",
+                "--workflow-preset",
+                "design-scaffold",
+                "--json",
+            ],
+            unpacked_root,
+        )
+        consumer_bootstrap_design_scaffold = _consumer_bootstrap_design_scaffold_details(
+            target=design_target,
+            bootstrap_payload=design_bootstrap_payload,
+        )
+        _require(
+            consumer_bootstrap_design_scaffold.get("ok") is True,
+            "unpacked artifact consumer bootstrap design-scaffold fast path failed",
+            payload=consumer_bootstrap_design_scaffold,
+        )
+
         dry_run_payload = _run_json(
             steps,
             "unpacked_dry_run",
@@ -343,6 +376,7 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
             "target_local_make_coverage": target_local_make_coverage,
             "fresh_target_init": fresh_target_init,
             "consumer_bootstrap_product_structure": consumer_bootstrap_product_structure,
+            "consumer_bootstrap_design_scaffold": consumer_bootstrap_design_scaffold,
             "steps": steps,
             "target_retained": True,
         }
@@ -520,6 +554,61 @@ def _consumer_bootstrap_details(
         "target_local_ok": target_local.get("ok") is True if isinstance(target_local, dict) else False,
         "goals_chapter": goals_chapter.is_file(),
         "acceptance_chapter": acceptance_chapter.is_file(),
+    }
+
+
+def _consumer_bootstrap_design_scaffold_details(
+    *,
+    target: Path,
+    bootstrap_payload: dict[str, object],
+) -> dict[str, object]:
+    target_local = bootstrap_payload.get("target_local")
+    phase = target_local.get("phase") if isinstance(target_local, dict) else ""
+    workflow_preset = bootstrap_payload.get("workflow_preset")
+    expanded_flags = bootstrap_payload.get("workflow_preset_expanded_flags")
+    expanded_flag_list = [
+        str(flag)
+        for flag in expanded_flags
+        if isinstance(flag, str)
+    ] if isinstance(expanded_flags, list) else []
+    design_scaffold_apply = bootstrap_payload.get("design_scaffold_apply")
+    post_verify_blocked = (
+        design_scaffold_apply.get("post_verify_blocked_by_placeholders")
+        if isinstance(design_scaffold_apply, dict)
+        else False
+    )
+    system_context_doc = target / "docs/architecture/01-system-context.md"
+    endpoint_contract_doc = target / "docs/api/endpoints/01-endpoint-contract.md"
+    return {
+        "ok": (
+            bootstrap_payload.get("ok") is True
+            and phase == "design-derivation"
+            and workflow_preset == "design-scaffold"
+            and bootstrap_payload.get("auto_repair_env") is True
+            and bootstrap_payload.get("product_structure_apply_ok") is True
+            and bootstrap_payload.get("advanced_design_derivation") is True
+            and bootstrap_payload.get("design_scaffold_preview_ok") is True
+            and bootstrap_payload.get("design_scaffold_apply_ok") is True
+            and post_verify_blocked is True
+            and "advance_design_derivation" in expanded_flag_list
+            and "design_scaffold_preview" in expanded_flag_list
+            and "design_scaffold_apply" in expanded_flag_list
+            and system_context_doc.is_file()
+            and endpoint_contract_doc.is_file()
+        ),
+        "target": str(target),
+        "phase": phase,
+        "workflow_preset": workflow_preset if isinstance(workflow_preset, str) else "",
+        "workflow_preset_expanded_flags": expanded_flag_list,
+        "auto_repair_env": bootstrap_payload.get("auto_repair_env") is True,
+        "product_structure_apply_ok": bootstrap_payload.get("product_structure_apply_ok") is True,
+        "advanced_design_derivation": bootstrap_payload.get("advanced_design_derivation") is True,
+        "design_scaffold_preview_ok": bootstrap_payload.get("design_scaffold_preview_ok") is True,
+        "design_scaffold_apply_ok": bootstrap_payload.get("design_scaffold_apply_ok") is True,
+        "post_verify_blocked_by_placeholders": post_verify_blocked is True,
+        "target_local_ok": target_local.get("ok") is True if isinstance(target_local, dict) else False,
+        "system_context_doc": system_context_doc.is_file(),
+        "endpoint_contract_doc": endpoint_contract_doc.is_file(),
     }
 
 

@@ -56,6 +56,21 @@ class ArtifactSmokeTest(unittest.TestCase):
             "product_structure_apply",
             payload["consumer_bootstrap_product_structure"]["workflow_preset_expanded_flags"],
         )
+        self.assertTrue(payload["consumer_bootstrap_design_scaffold"]["ok"])
+        self.assertEqual("design-derivation", payload["consumer_bootstrap_design_scaffold"]["phase"])
+        self.assertEqual(
+            "design-scaffold",
+            payload["consumer_bootstrap_design_scaffold"]["workflow_preset"],
+        )
+        self.assertTrue(payload["consumer_bootstrap_design_scaffold"]["auto_repair_env"])
+        self.assertTrue(payload["consumer_bootstrap_design_scaffold"]["design_scaffold_apply_ok"])
+        self.assertTrue(payload["consumer_bootstrap_design_scaffold"]["post_verify_blocked_by_placeholders"])
+        self.assertTrue(payload["consumer_bootstrap_design_scaffold"]["system_context_doc"])
+        self.assertTrue(payload["consumer_bootstrap_design_scaffold"]["endpoint_contract_doc"])
+        self.assertIn(
+            "design_scaffold_apply",
+            payload["consumer_bootstrap_design_scaffold"]["workflow_preset_expanded_flags"],
+        )
         step_ids = {step["id"] for step in payload["steps"]}
         self.assertIn("export_artifact", step_ids)
         self.assertIn("unpacked_verify_pack_manifest", step_ids)
@@ -66,6 +81,7 @@ class ArtifactSmokeTest(unittest.TestCase):
         self.assertIn("fresh_target_governance_status", step_ids)
         self.assertIn("fresh_target_workflow_plan", step_ids)
         self.assertIn("unpacked_consumer_bootstrap_product_structure", step_ids)
+        self.assertIn("unpacked_consumer_bootstrap_design_scaffold", step_ids)
         self.assertIn("unpacked_dry_run", step_ids)
 
     def test_artifact_smoke_can_validate_existing_archive_without_reexporting(self) -> None:
@@ -120,6 +136,7 @@ class ArtifactSmokeTest(unittest.TestCase):
             self.assertIn("unpacked_verify_pack_manifest", step_ids)
             self.assertIn("unpacked_init_fresh_target", step_ids)
             self.assertIn("unpacked_consumer_bootstrap_product_structure", step_ids)
+            self.assertIn("unpacked_consumer_bootstrap_design_scaffold", step_ids)
             self.assertIn("unpacked_dry_run", step_ids)
 
     def test_artifact_smoke_reports_missing_provided_archive(self) -> None:

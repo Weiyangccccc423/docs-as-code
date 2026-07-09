@@ -184,6 +184,28 @@ def _artifact_smoke_consumer_bootstrap_ok(payload: dict[str, object] | None) -> 
     )
 
 
+def _artifact_smoke_consumer_design_scaffold_ok(payload: dict[str, object] | None) -> bool:
+    if payload is None:
+        return False
+    design_scaffold = payload.get("consumer_bootstrap_design_scaffold")
+    expanded_flags = design_scaffold.get("workflow_preset_expanded_flags") if isinstance(design_scaffold, dict) else []
+    return (
+        isinstance(design_scaffold, dict)
+        and design_scaffold.get("ok") is True
+        and design_scaffold.get("phase") == "design-derivation"
+        and design_scaffold.get("workflow_preset") == "design-scaffold"
+        and design_scaffold.get("auto_repair_env") is True
+        and design_scaffold.get("product_structure_apply_ok") is True
+        and design_scaffold.get("advanced_design_derivation") is True
+        and design_scaffold.get("design_scaffold_apply_ok") is True
+        and design_scaffold.get("post_verify_blocked_by_placeholders") is True
+        and design_scaffold.get("system_context_doc") is True
+        and design_scaffold.get("endpoint_contract_doc") is True
+        and isinstance(expanded_flags, list)
+        and "design_scaffold_apply" in expanded_flags
+    )
+
+
 def _env_repair_decision_allows_workflow(payload: dict[str, object] | None) -> bool:
     if payload is None:
         return False
@@ -457,7 +479,8 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
         and artifact_smoke_payload.get("archive_sha256") == export_payload.get("archive_sha256")
         and artifact_smoke_payload.get("manifest_sha256") == export_payload.get("manifest_sha256")
         and _artifact_smoke_fresh_target_init_ok(artifact_smoke_payload)
-        and _artifact_smoke_consumer_bootstrap_ok(artifact_smoke_payload),
+        and _artifact_smoke_consumer_bootstrap_ok(artifact_smoke_payload)
+        and _artifact_smoke_consumer_design_scaffold_ok(artifact_smoke_payload),
         evidence="python3 scripts/smoke_workflow_pack_artifact.py --archive <tmp>/docs-as-code-workflow-pack.tar.gz --json",
         details={
             "archive_source": artifact_smoke_payload.get("archive_source") if artifact_smoke_payload else "",
@@ -471,6 +494,12 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
             else {},
             "consumer_bootstrap_product_structure": artifact_smoke_payload.get(
                 "consumer_bootstrap_product_structure",
+                {},
+            )
+            if artifact_smoke_payload
+            else {},
+            "consumer_bootstrap_design_scaffold": artifact_smoke_payload.get(
+                "consumer_bootstrap_design_scaffold",
                 {},
             )
             if artifact_smoke_payload
