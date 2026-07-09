@@ -548,6 +548,92 @@ class ConsumerBootstrapTest(unittest.TestCase):
             step_ids = {step["id"] for step in payload["steps"]}
             self.assertIn("target_local_design_scaffold_preview", step_ids)
 
+    def test_exported_pack_can_apply_design_scaffold_after_preview(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            pack = base / "docs-as-code-workflow-pack"
+            product = base / "product.md"
+            target = base / "consumer-target"
+            product.write_text(
+                "# Consumer Design Scaffold Apply\n\n"
+                "## Goals and Requirements\n\n"
+                "- Initialize governance and write the standard design scaffold.\n"
+                "- Keep scaffold placeholders visible as blockers after writing.\n\n"
+                "## Acceptance Criteria\n\n"
+                "- The bootstrap output exposes placeholder blockers after design scaffold apply.\n",
+                encoding="utf-8",
+            )
+
+            export = subprocess.run(
+                [
+                    sys.executable,
+                    str(EXPORT),
+                    "--output",
+                    str(pack),
+                    "--no-archive",
+                    "--force",
+                    "--json",
+                ],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, export.returncode, export.stdout + export.stderr)
+            self.assertEqual("", export.stderr)
+            self.assertTrue(json.loads(export.stdout)["ok"])
+
+            payload = _run_bootstrap(
+                self,
+                pack,
+                target=target,
+                product=product,
+                check=False,
+                advance_product_structuring=True,
+                product_scaffold_preview=True,
+                product_structure_preview=True,
+                product_structure_apply=True,
+                advance_design_derivation=True,
+                design_scaffold_preview=True,
+                design_scaffold_apply=True,
+            )
+
+            self.assertTrue(payload["ok"])
+            self.assertTrue(payload["design_scaffold_apply_requested"])
+            self.assertTrue(payload["design_scaffold_applied"])
+            self.assertTrue(payload["design_scaffold_apply_ok"])
+            apply_payload = payload["design_scaffold_apply"]
+            self.assertTrue(apply_payload["ok"])
+            self.assertTrue(apply_payload["writes_state"])
+            self.assertEqual("design-derivation", apply_payload["phase"])
+            scaffold = apply_payload["scaffold"]
+            self.assertTrue(scaffold["ok"])
+            self.assertIn("next_actions_blocked_by", scaffold)
+            blocker_paths = {
+                blocker["path"]
+                for blocker in scaffold["next_actions_blocked_by"]
+                if isinstance(blocker, dict)
+            }
+            self.assertIn("docs/architecture/01-system-context.md", blocker_paths)
+            self.assertIn("docs/api/endpoints/01-endpoint-contract.md", blocker_paths)
+            self.assertIn("docs/development/03-verification-log.md", blocker_paths)
+            self.assertTrue(apply_payload["post_status"]["ok"])
+            self.assertEqual("design-derivation", apply_payload["post_workflow_plan"]["phase"])
+            self.assertFalse(apply_payload["post_verify_check"]["ok"])
+            self.assertTrue(apply_payload["post_verify_blocked_by_placeholders"])
+
+            system_context = target / "docs/architecture/01-system-context.md"
+            endpoint_contract = target / "docs/api/endpoints/01-endpoint-contract.md"
+            verification_log = target / "docs/development/03-verification-log.md"
+            self.assertTrue(system_context.is_file())
+            self.assertTrue(endpoint_contract.is_file())
+            self.assertTrue(verification_log.is_file())
+            self.assertIn("governance:scaffold-placeholder", system_context.read_text(encoding="utf-8"))
+            self.assertIn("METHOD /product-derived-path", endpoint_contract.read_text(encoding="utf-8"))
+            step_ids = {step["id"] for step in payload["steps"]}
+            self.assertIn("target_local_design_scaffold_apply", step_ids)
+            self.assertIn("target_local_verify_check_after_design_scaffold_apply", step_ids)
+
 
 def _run_bootstrap(
     testcase: unittest.TestCase,
@@ -562,6 +648,7 @@ def _run_bootstrap(
     product_structure_apply: bool = False,
     advance_design_derivation: bool = False,
     design_scaffold_preview: bool = False,
+    design_scaffold_apply: bool = False,
 ) -> dict[str, object]:
     argv = [
         sys.executable,
@@ -590,6 +677,8 @@ def _run_bootstrap(
         argv.insert(-1, "--advance-design-derivation")
     if design_scaffold_preview:
         argv.insert(-1, "--design-scaffold-preview")
+    if design_scaffold_apply:
+        argv.insert(-1, "--design-scaffold-apply")
     result = subprocess.run(
         argv,
         cwd=pack,

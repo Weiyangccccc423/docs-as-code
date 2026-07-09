@@ -91,6 +91,7 @@ def run_consumer_bootstrap(
     product_structure_apply: bool = False,
     advance_design_derivation: bool = False,
     design_scaffold_preview: bool = False,
+    design_scaffold_apply: bool = False,
     pack_root: Path = ROOT,
 ) -> dict[str, object]:
     pack_root = pack_root.resolve()
@@ -178,6 +179,11 @@ def run_consumer_bootstrap(
             "--design-scaffold-preview requires a write-mode bootstrap so the target can be initialized and advanced",
             payload=init_check,
         )
+        _require(
+            not design_scaffold_apply or design_scaffold_preview,
+            "--design-scaffold-apply requires --design-scaffold-preview",
+            payload=init_check,
+        )
 
         base_payload: dict[str, object] = {
             "ok": True,
@@ -205,6 +211,9 @@ def run_consumer_bootstrap(
             "design_scaffold_preview_requested": design_scaffold_preview,
             "design_scaffold_previewed": False,
             "design_scaffold_preview_ok": False,
+            "design_scaffold_apply_requested": design_scaffold_apply,
+            "design_scaffold_applied": False,
+            "design_scaffold_apply_ok": False,
             "pack_manifest_verification": pack_manifest_verification,
             "pack_verification": pack_verification,
             "env_check": env_check,
@@ -338,6 +347,11 @@ def run_consumer_bootstrap(
                                 payload["design_scaffold_previewed"] = True
                                 payload["design_scaffold_preview"] = scaffold_preview
                                 payload["design_scaffold_preview_ok"] = scaffold_preview.get("ok") is True
+                                if design_scaffold_apply:
+                                    scaffold_apply = _apply_design_scaffold(steps, target)
+                                    payload["design_scaffold_applied"] = True
+                                    payload["design_scaffold_apply"] = scaffold_apply
+                                    payload["design_scaffold_apply_ok"] = scaffold_apply.get("ok") is True
         if isinstance(status_payload.get("local_commands"), list):
             payload["local_commands"] = status_payload["local_commands"]
         elif isinstance(init_payload.get("local_commands"), list):
@@ -385,6 +399,9 @@ def run_consumer_bootstrap(
             "design_scaffold_preview_requested": design_scaffold_preview,
             "design_scaffold_previewed": False,
             "design_scaffold_preview_ok": False,
+            "design_scaffold_apply_requested": design_scaffold_apply,
+            "design_scaffold_applied": False,
+            "design_scaffold_apply_ok": False,
             "steps": steps,
             "failed_step": error.step,
             "failed_payload": error.payload,
@@ -417,6 +434,9 @@ def run_consumer_bootstrap(
             "design_scaffold_preview_requested": design_scaffold_preview,
             "design_scaffold_previewed": False,
             "design_scaffold_preview_ok": False,
+            "design_scaffold_apply_requested": design_scaffold_apply,
+            "design_scaffold_applied": False,
+            "design_scaffold_apply_ok": False,
             "steps": steps,
         }
 
@@ -859,6 +879,68 @@ def _preview_design_scaffold(steps: list[dict[str, object]], target: Path) -> di
     }
 
 
+def _apply_design_scaffold(steps: list[dict[str, object]], target: Path) -> dict[str, object]:
+    scaffold = _run_json(
+        steps,
+        "target_local_design_scaffold_apply",
+        ["bin/governance", "scaffold", "design", ".", "--json"],
+        target,
+    )
+    _require(scaffold.get("ok") is True, "design scaffold apply failed", payload=scaffold)
+
+    post_verify_check = _run_json(
+        steps,
+        "target_local_verify_check_after_design_scaffold_apply",
+        ["bin/governance", "verify", ".", "--check", "--json"],
+        target,
+        expected_returncode=1,
+    )
+    post_status = _run_json(
+        steps,
+        "target_local_governance_status_after_design_scaffold_apply",
+        ["make", "governance-status"],
+        target,
+    )
+    post_workflow_plan = _run_json(
+        steps,
+        "target_local_workflow_plan_after_design_scaffold_apply",
+        ["make", "workflow-plan"],
+        target,
+    )
+    blockers = scaffold.get("next_actions_blocked_by")
+    findings = post_verify_check.get("findings")
+    status_state = post_status.get("state")
+    phase = status_state.get("phase") if isinstance(status_state, dict) else "design-derivation"
+    return {
+        "ok": (
+            scaffold.get("ok") is True
+            and post_verify_check.get("ok") is False
+            and post_status.get("ok") is True
+            and post_workflow_plan.get("ok") is True
+            and phase == "design-derivation"
+        ),
+        "target": str(target),
+        "check": False,
+        "writes_state": True,
+        "phase": phase,
+        "scaffold": scaffold,
+        "post_verify_check": post_verify_check,
+        "post_status": post_status,
+        "post_workflow_plan": post_workflow_plan,
+        "next_actions_blocked_by": blockers if isinstance(blockers, list) else [],
+        "post_verify_blocked_by_placeholders": _has_scaffold_placeholder_findings(findings),
+    }
+
+
+def _has_scaffold_placeholder_findings(findings: object) -> bool:
+    if not isinstance(findings, list):
+        return False
+    return any(
+        isinstance(finding, dict) and finding.get("code") == "governance_scaffold_placeholder"
+        for finding in findings
+    )
+
+
 def _product_plan_mapping(product_plan: dict[str, object]) -> dict[str, list[str]]:
     suggested_mappings = product_plan.get("suggested_mappings")
     chapters: list[str] = []
@@ -939,6 +1021,14 @@ def build_parser() -> argparse.ArgumentParser:
             "would_skip, and would_index without writing design placeholders."
         ),
     )
+    parser.add_argument(
+        "--design-scaffold-apply",
+        action="store_true",
+        help=(
+            "With --design-scaffold-preview, write the standard design scaffold and return placeholder blockers "
+            "without treating design authoring as complete."
+        ),
+    )
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     return parser
 
@@ -966,6 +1056,7 @@ def main() -> int:
         product_structure_apply=args.product_structure_apply,
         advance_design_derivation=args.advance_design_derivation,
         design_scaffold_preview=args.design_scaffold_preview,
+        design_scaffold_apply=args.design_scaffold_apply,
     )
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
