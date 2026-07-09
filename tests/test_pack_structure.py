@@ -585,6 +585,7 @@ class PackStructureTest(unittest.TestCase):
             ("fresh_target_init", "target_init_preview"),
             ("unpacked_init_fresh_target", "unpacked_init_preview"),
             ("fresh_target_workflow_plan", "target_workflow_preview"),
+            ("--archive", "--artifact"),
         )
         for required_phrase, replacement in cases:
             with self.subTest(required_phrase=required_phrase):

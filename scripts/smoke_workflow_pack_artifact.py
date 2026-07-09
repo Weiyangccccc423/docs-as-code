@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -90,35 +91,52 @@ def _run_json(
     return payload
 
 
-def run_artifact_smoke(*, keep: bool = False) -> dict[str, object]:
+def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> dict[str, object]:
     workspace = Path(tempfile.mkdtemp(prefix="docs-as-code-artifact-")).resolve()
     steps: list[dict[str, object]] = []
     retained = True
     try:
         staged = workspace / "staged" / PACK_DIR_NAME
-        archive = workspace / f"{PACK_DIR_NAME}.tar.gz"
+        archive_path = archive.resolve() if archive is not None else workspace / f"{PACK_DIR_NAME}.tar.gz"
         unpack_dir = workspace / "unpacked"
-        export_payload = _run_json(
-            steps,
-            "export_artifact",
-            [
-                sys.executable,
-                ROOT / "scripts/export_workflow_pack.py",
-                "--output",
-                staged,
-                "--archive",
-                archive,
-                "--force",
-                "--json",
-            ],
-            ROOT,
-        )
-        _require(export_payload.get("ok") is True, "source export failed", payload=export_payload)
-        _require(archive.is_file(), "export did not create archive")
-        archive_members = _safe_extract_archive(archive, unpack_dir)
+        export_payload: dict[str, object] = {}
+        archive_source = "provided-archive" if archive is not None else "temporary-export"
+        if archive is None:
+            export_payload = _run_json(
+                steps,
+                "export_artifact",
+                [
+                    sys.executable,
+                    ROOT / "scripts/export_workflow_pack.py",
+                    "--output",
+                    staged,
+                    "--archive",
+                    archive_path,
+                    "--force",
+                    "--json",
+                ],
+                ROOT,
+            )
+            _require(export_payload.get("ok") is True, "source export failed", payload=export_payload)
+        _require(archive_path.is_file(), "artifact archive is not a file")
+        archive_sha256 = _sha256_file(archive_path)
+        if export_payload:
+            _require(
+                export_payload.get("archive_sha256") == archive_sha256,
+                "export archive hash does not match exported file",
+                payload=export_payload,
+            )
+        archive_members = _safe_extract_archive(archive_path, unpack_dir)
         unpacked_root = unpack_dir / PACK_DIR_NAME
         _require(unpacked_root.is_dir(), "archive did not unpack to expected root directory")
         _require((unpacked_root / "pack-manifest.json").is_file(), "unpacked artifact is missing pack-manifest.json")
+        manifest_sha256 = _sha256_file(unpacked_root / "pack-manifest.json")
+        if export_payload:
+            _require(
+                export_payload.get("manifest_sha256") == manifest_sha256,
+                "export manifest hash does not match unpacked manifest",
+                payload=export_payload,
+            )
 
         manifest_payload = _run_json(
             steps,
@@ -283,11 +301,12 @@ def run_artifact_smoke(*, keep: bool = False) -> dict[str, object]:
         payload = {
             "ok": True,
             "workspace": str(workspace),
-            "archive": str(archive),
+            "archive": str(archive_path),
+            "archive_source": archive_source,
             "unpacked_root": str(unpacked_root),
             "archive_member_count": len(archive_members),
-            "archive_sha256": export_payload.get("archive_sha256"),
-            "manifest_sha256": export_payload.get("manifest_sha256"),
+            "archive_sha256": archive_sha256,
+            "manifest_sha256": manifest_sha256,
             "target_local_make_coverage": target_local_make_coverage,
             "fresh_target_init": fresh_target_init,
             "steps": steps,
@@ -316,6 +335,14 @@ def run_artifact_smoke(*, keep: bool = False) -> dict[str, object]:
             "target_retained": True,
             "steps": steps,
         }
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _safe_extract_archive(archive: Path, destination: Path) -> list[str]:
@@ -420,6 +447,11 @@ def _require(condition: bool, message: str, *, payload: dict[str, object] | None
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Smoke-test the exported workflow-pack tar.gz artifact.")
+    parser.add_argument(
+        "--archive",
+        type=Path,
+        help="Validate an existing workflow-pack tar.gz instead of exporting a temporary artifact first.",
+    )
     parser.add_argument("--keep", action="store_true", help="Retain the temporary export and unpacked artifact.")
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     return parser
@@ -436,7 +468,7 @@ def _print_human(payload: dict[str, Any]) -> None:
 
 def main() -> int:
     args = build_parser().parse_args()
-    payload = run_artifact_smoke(keep=args.keep)
+    payload = run_artifact_smoke(archive=args.archive, keep=args.keep)
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
     else:

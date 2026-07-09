@@ -66,6 +66,15 @@ class ReleaseReadinessTest(unittest.TestCase):
         self.assertTrue(
             criteria["release-artifact-smoke"]["details"]["fresh_target_init"]["target_local_workflow_plan_ok"]
         )
+        self.assertEqual("provided-archive", criteria["release-artifact-smoke"]["details"]["archive_source"])
+        self.assertEqual(
+            criteria["source-pack-export"]["details"]["archive_sha256"],
+            criteria["release-artifact-smoke"]["details"]["archive_sha256"],
+        )
+        self.assertEqual(
+            criteria["source-pack-export"]["details"]["manifest_sha256"],
+            criteria["release-artifact-smoke"]["details"]["manifest_sha256"],
+        )
         step_ids = {step["id"] for step in payload["steps"]}
         self.assertIn("pack_verification", step_ids)
         self.assertIn("environment_inventory", step_ids)
@@ -75,6 +84,8 @@ class ReleaseReadinessTest(unittest.TestCase):
         self.assertIn("source_pack_export", step_ids)
         self.assertIn("source_pack_export_repeat", step_ids)
         self.assertIn("release_artifact_smoke", step_ids)
+        artifact_smoke_step = next(step for step in payload["steps"] if step["id"] == "release_artifact_smoke")
+        self.assertIn("--archive", artifact_smoke_step["argv"])
 
 
 if __name__ == "__main__":

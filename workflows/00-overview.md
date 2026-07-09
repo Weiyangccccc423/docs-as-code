@@ -48,9 +48,10 @@ To prove the transfer artifact is self-contained, smoke-test it with a command t
 ```bash
 make artifact-smoke
 python3 scripts/smoke_workflow_pack_artifact.py --json
+python3 scripts/smoke_workflow_pack_artifact.py --archive dist/docs-as-code-workflow-pack.tar.gz --json
 ```
 
-The artifact smoke also initializes a separate fresh target directory that contains only a product document, then verifies the target-local `bin/governance`, `make governance-status`, and `make workflow-plan` commands from that generated target.
+The default artifact smoke exports a temporary archive before checking it. Use `--archive` after `make package` to validate the exact tar.gz artifact intended for handoff. The artifact smoke also initializes a separate fresh target directory that contains only a product document, then verifies the target-local `bin/governance`, `make governance-status`, and `make workflow-plan` commands from that generated target.
 
 Before tagging or handing off a source workflow-pack release, run the release readiness gate and use `references/release-readiness-checklist.md` as the rubric:
 

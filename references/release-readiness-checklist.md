@@ -24,11 +24,12 @@ Use this checklist before tagging, exporting, or handing off this source workflo
 - Run `python3 scripts/export_workflow_pack.py --check --json` before writing a package when inspecting changes.
 - Run `python3 scripts/export_workflow_pack.py --output dist/docs-as-code-workflow-pack --archive dist/docs-as-code-workflow-pack.tar.gz --force --json` for the release artifact.
 - Run `python3 scripts/verify_pack_manifest.py dist/docs-as-code-workflow-pack --json` for explicit manifest verification of the exported directory.
-- Run `python3 scripts/smoke_workflow_pack_artifact.py --json` to unpack the tar.gz artifact and run manifest verification, `verify_pack`, fresh-target initialization, target-local command checks, plus dry-run checks from the unpacked artifact.
+- Run `python3 scripts/smoke_workflow_pack_artifact.py --json` for a self-contained temporary export smoke test.
+- Run `python3 scripts/smoke_workflow_pack_artifact.py --archive dist/docs-as-code-workflow-pack.tar.gz --json` to unpack the exact release tar.gz artifact and run manifest verification, `verify_pack`, fresh-target initialization, target-local command checks, plus dry-run checks from the unpacked artifact.
 - Confirm the export writes `pack-manifest.json` with SHA-256 evidence, verifies the exported directory with `verify_pack`, and reports archive SHA-256 and size for transfer evidence.
 - Confirm repeated exports from the same source checkout produce identical `manifest_sha256`, `archive_sha256`, and archive size.
 - Confirm manifest verification reports `ok: true` with no `findings`, including no hash, size, executable-bit, duplicate-path, invalid-path, missing-file, or unmanifested-file drift.
-- Confirm the unpacked artifact reports `ok: true`, has `pack-manifest.json`, reports `fresh_target_init.ok: true`, proves target-local verify/status/workflow-plan commands, reaches `final_phase: implementation` during its dry run, and reports `target_local_make_coverage.missing_step_ids: []`.
+- Confirm the unpacked artifact reports `ok: true`, `archive_source: provided-archive`, has `pack-manifest.json`, reports `fresh_target_init.ok: true`, proves target-local verify/status/workflow-plan commands, reaches `final_phase: implementation` during its dry run, and reports `target_local_make_coverage.missing_step_ids: []`.
 
 ## Environment and Tooling
 

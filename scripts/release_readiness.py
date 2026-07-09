@@ -381,6 +381,19 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
             parse_json=True,
         )
         repeat_export_step_ok = bool(steps[-1]["ok"])
+        artifact_smoke_payload = _run_step(
+            steps,
+            "release_artifact_smoke",
+            [
+                sys.executable,
+                "scripts/smoke_workflow_pack_artifact.py",
+                "--archive",
+                base / "docs-as-code-workflow-pack.tar.gz",
+                "--json",
+            ],
+            parse_json=True,
+        )
+        artifact_smoke_step_ok = bool(steps[-1]["ok"])
     verification = export_payload.get("verification", {}) if export_payload else {}
     _criterion(
         criteria,
@@ -416,23 +429,23 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
         },
     )
 
-    artifact_smoke_payload = _run_step(
-        steps,
-        "release_artifact_smoke",
-        [sys.executable, "scripts/smoke_workflow_pack_artifact.py", "--json"],
-        parse_json=True,
-    )
     _criterion(
         criteria,
         "release-artifact-smoke",
-        bool(steps[-1]["ok"])
+        artifact_smoke_step_ok
         and bool(artifact_smoke_payload and artifact_smoke_payload.get("ok") is True)
+        and artifact_smoke_payload.get("archive_source") == "provided-archive"
+        and artifact_smoke_payload.get("archive_sha256") == export_payload.get("archive_sha256")
+        and artifact_smoke_payload.get("manifest_sha256") == export_payload.get("manifest_sha256")
         and _artifact_smoke_fresh_target_init_ok(artifact_smoke_payload),
-        evidence="python3 scripts/smoke_workflow_pack_artifact.py --json",
+        evidence="python3 scripts/smoke_workflow_pack_artifact.py --archive <tmp>/docs-as-code-workflow-pack.tar.gz --json",
         details={
+            "archive_source": artifact_smoke_payload.get("archive_source") if artifact_smoke_payload else "",
             "archive_member_count": artifact_smoke_payload.get("archive_member_count") if artifact_smoke_payload else 0,
             "archive_sha256": artifact_smoke_payload.get("archive_sha256") if artifact_smoke_payload else "",
+            "export_archive_sha256": export_payload.get("archive_sha256") if export_payload else "",
             "manifest_sha256": artifact_smoke_payload.get("manifest_sha256") if artifact_smoke_payload else "",
+            "export_manifest_sha256": export_payload.get("manifest_sha256") if export_payload else "",
             "fresh_target_init": artifact_smoke_payload.get("fresh_target_init", {})
             if artifact_smoke_payload
             else {},

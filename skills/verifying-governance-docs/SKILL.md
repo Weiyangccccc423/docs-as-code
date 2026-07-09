@@ -24,11 +24,12 @@ python3 scripts/export_workflow_pack.py --output dist/docs-as-code-workflow-pack
 python3 scripts/verify_pack_manifest.py dist/docs-as-code-workflow-pack --json
 make artifact-smoke
 python3 scripts/smoke_workflow_pack_artifact.py --json
+python3 scripts/smoke_workflow_pack_artifact.py --archive dist/docs-as-code-workflow-pack.tar.gz --json
 make release-check
 python3 scripts/release_readiness.py --json
 ```
 
-Treat successful artifact smoke as evidence that the exported tar.gz can be unpacked, verified, used to initialize a fresh target folder containing only a product document, and then checked through target-local `bin/governance` and Make commands.
+Treat successful `--archive` artifact smoke as evidence that the exact exported tar.gz can be unpacked, verified, used to initialize a fresh target folder containing only a product document, and then checked through target-local `bin/governance` and Make commands.
 
 ```bash
 bin/governance verify <target> --check
