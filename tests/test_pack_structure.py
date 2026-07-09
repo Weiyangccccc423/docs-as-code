@@ -1321,6 +1321,36 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_missing_artifact_consumer_quick_start_phrase(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            readme = target / "README.md"
+            readme.write_text(
+                readme.read_text(encoding="utf-8").replace(
+                    "source-pack commands from the unpacked workflow pack",
+                    "source commands from the release bundle",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_artifact_consumer_quick_start_missing"
+                    and finding.path == "README.md"
+                    and "source-pack commands from the unpacked workflow pack" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_missing_runtime_local_commands_payload_call(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"

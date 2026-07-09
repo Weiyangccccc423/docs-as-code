@@ -507,6 +507,27 @@ README_AGENT_AUTOMATION_REQUIRED_COMMANDS = (
     "bin/governance env --repair --check --target /path/to/new-project --json",
     "bin/governance env --repair --target /path/to/new-project --json",
 )
+README_ARTIFACT_CONSUMER_QUICK_START_REQUIRED_PHRASES = (
+    "## Artifact Consumer Quick Start",
+    "source-pack commands from the unpacked workflow pack",
+    "target-local commands from the generated project",
+    "tar -xzf /path/to/docs-as-code-workflow-pack.tar.gz -C /path/to/workflow-pack",
+    "cd /path/to/workflow-pack/docs-as-code-workflow-pack",
+    "python3 scripts/verify_pack_manifest.py . --json",
+    "python3 scripts/verify_pack.py --json",
+    "python3 scripts/smoke_workflow_pack_artifact.py --archive /path/to/docs-as-code-workflow-pack.tar.gz --json",
+    "mkdir -p /path/to/new-project",
+    "cp /path/to/product.md /path/to/new-project/product.md",
+    "bin/governance env --repair --check --target /path/to/new-project --json",
+    'bin/governance init --check --target /path/to/new-project --profile web-app --project-name "Project Name" --json',
+    'bin/governance init --target /path/to/new-project --profile web-app --project-name "Project Name" --json',
+    "cd /path/to/new-project",
+    "bin/governance verify . --check --json",
+    "make governance-status",
+    "make workflow-plan",
+    "make product-plan",
+    "source-pack check has passed",
+)
 TARGET_MAKEFILE_DOC_PATHS = (
     "README.md",
     "workflows/00-overview.md",
@@ -3238,6 +3259,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_runtime_wrapper_commands(root, findings)
     _check_readme_package_layout(root, findings)
     _check_readme_quick_start(root, findings)
+    _check_readme_artifact_consumer_quick_start(root, findings)
     _check_dry_run_docs(root, findings)
     _check_source_pack_export_docs(root, findings)
     _check_pack_manifest_verify_docs(root, findings)
@@ -4707,6 +4729,36 @@ def _check_readme_quick_start(root: Path, findings: list[PackFinding]) -> None:
             PackFinding(
                 "pack_readme_agent_automation_command_missing",
                 f"README.md Quick Start must document agent automation command: {command}",
+                "README.md",
+            )
+        )
+
+
+def _check_readme_artifact_consumer_quick_start(root: Path, findings: list[PackFinding]) -> None:
+    readme = root / "README.md"
+    if not readme.is_file():
+        return
+    text = _read_utf8_text_or_none(readme)
+    if text is None:
+        return
+    section = _markdown_section(text, "Artifact Consumer Quick Start") or ""
+    if not section:
+        findings.append(
+            PackFinding(
+                "pack_artifact_consumer_quick_start_missing",
+                "README.md must document Artifact Consumer Quick Start",
+                "README.md",
+            )
+        )
+        return
+    for phrase in README_ARTIFACT_CONSUMER_QUICK_START_REQUIRED_PHRASES:
+        haystack = text if phrase.startswith("## ") else section
+        if phrase in haystack:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_artifact_consumer_quick_start_missing",
+                f"README.md Artifact Consumer Quick Start must document: {phrase}",
                 "README.md",
             )
         )

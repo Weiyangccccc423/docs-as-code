@@ -219,6 +219,41 @@ bin/governance design implementation-planning-authoring /path/to/new-project --j
 bin/governance design architecture-decisions-authoring /path/to/new-project --json
 ```
 
+## Artifact Consumer Quick Start
+
+When a new environment receives `docs-as-code-workflow-pack.tar.gz`, run source-pack commands from the unpacked workflow pack until the source-pack check has passed. After initialization creates the target runtime, switch to target-local commands from the generated project.
+
+```bash
+mkdir -p /path/to/workflow-pack
+tar -xzf /path/to/docs-as-code-workflow-pack.tar.gz -C /path/to/workflow-pack
+cd /path/to/workflow-pack/docs-as-code-workflow-pack
+python3 scripts/verify_pack_manifest.py . --json
+python3 scripts/verify_pack.py --json
+python3 scripts/smoke_workflow_pack_artifact.py --archive /path/to/docs-as-code-workflow-pack.tar.gz --json
+```
+
+Create a fresh target folder and put exactly one product document in the target root so `init` can auto-discover it without guessing:
+
+```bash
+mkdir -p /path/to/new-project
+cp /path/to/product.md /path/to/new-project/product.md
+bin/governance env --repair --check --target /path/to/new-project --json
+bin/governance init --check --target /path/to/new-project --profile web-app --project-name "Project Name" --json
+bin/governance init --target /path/to/new-project --profile web-app --project-name "Project Name" --json
+```
+
+Then work from the generated project with target-local commands:
+
+```bash
+cd /path/to/new-project
+bin/governance verify . --check --json
+bin/governance gate product-structuring . --json
+bin/governance status . --json
+make governance-status
+make workflow-plan
+make product-plan
+```
+
 ## Workflow Order
 
 1. `workflows/01-empty-repo-initialization.md`
