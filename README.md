@@ -237,7 +237,10 @@ For the fast path, run the consumer bootstrap script from the unpacked workflow 
 ```bash
 python3 scripts/bootstrap_consumer_project.py --target /path/to/new-project --product /path/to/product.md --profile web-app --project-name "Project Name" --check --json
 python3 scripts/bootstrap_consumer_project.py --target /path/to/new-project --product /path/to/product.md --profile web-app --project-name "Project Name" --json
+python3 scripts/bootstrap_consumer_project.py --target /path/to/new-project --product /path/to/product.md --profile web-app --project-name "Project Name" --advance-product-structuring --json
 ```
+
+The `--advance-product-structuring` form is state-writing: after initialization it runs the product-structuring advance preflight, records the phase transition only when the preflight passes, and returns `make product-plan` output for the first product authoring queue.
 
 For manual debugging, create a fresh target folder and put exactly one product document in the target root so `init` can auto-discover it without guessing:
 

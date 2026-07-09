@@ -83,6 +83,7 @@ def run_consumer_bootstrap(
     project_name: str = "Project Workspace",
     check: bool = False,
     force: bool = False,
+    advance_product_structuring: bool = False,
     pack_root: Path = ROOT,
 ) -> dict[str, object]:
     pack_root = pack_root.resolve()
@@ -146,6 +147,8 @@ def run_consumer_bootstrap(
             "profile": profile,
             "project_name": project_name,
             "force": force,
+            "advance_product_structuring_requested": advance_product_structuring,
+            "advanced_product_structuring": False,
             "pack_manifest_verification": pack_manifest_verification,
             "pack_verification": pack_verification,
             "env_check": env_check,
@@ -196,11 +199,31 @@ def run_consumer_bootstrap(
             "init": init_payload,
             "target_local": target_local,
         }
+        if advance_product_structuring:
+            product_structuring = _advance_product_structuring(steps, target)
+            payload["advanced_product_structuring"] = True
+            payload["product_structuring"] = product_structuring
+            payload["product_plan"] = product_structuring["product_plan"]
+            refreshed_status_payload = product_structuring["status"]
+            refreshed_workflow_plan_payload = product_structuring["workflow_plan"]
+            payload["target_local"] = _target_local_details(
+                target=target,
+                init_payload=init_payload,
+                verify_payload=verify_payload,
+                status_payload=refreshed_status_payload,
+                workflow_plan_payload=refreshed_workflow_plan_payload,
+                expected_phase="product-structuring",
+            )
         if isinstance(status_payload.get("local_commands"), list):
             payload["local_commands"] = status_payload["local_commands"]
         elif isinstance(init_payload.get("local_commands"), list):
             payload["local_commands"] = init_payload["local_commands"]
-        if isinstance(status_payload.get("next_actions"), list):
+        latest_status = payload.get("product_structuring", {}).get("status") if isinstance(payload.get("product_structuring"), dict) else status_payload
+        if isinstance(latest_status, dict) and isinstance(latest_status.get("local_commands"), list):
+            payload["local_commands"] = latest_status["local_commands"]
+        if isinstance(latest_status, dict) and isinstance(latest_status.get("next_actions"), list):
+            payload["next_actions"] = latest_status["next_actions"]
+        elif isinstance(status_payload.get("next_actions"), list):
             payload["next_actions"] = status_payload["next_actions"]
         elif isinstance(init_payload.get("next_actions"), list):
             payload["next_actions"] = init_payload["next_actions"]
@@ -217,6 +240,8 @@ def run_consumer_bootstrap(
             "profile": profile,
             "project_name": project_name,
             "force": force,
+            "advance_product_structuring_requested": advance_product_structuring,
+            "advanced_product_structuring": False,
             "steps": steps,
             "failed_step": error.step,
             "failed_payload": error.payload,
@@ -233,6 +258,8 @@ def run_consumer_bootstrap(
             "profile": profile,
             "project_name": project_name,
             "force": force,
+            "advance_product_structuring_requested": advance_product_structuring,
+            "advanced_product_structuring": False,
             "steps": steps,
         }
 
@@ -274,6 +301,7 @@ def _target_local_details(
     verify_payload: dict[str, object],
     status_payload: dict[str, object],
     workflow_plan_payload: dict[str, object],
+    expected_phase: str = "initialized",
 ) -> dict[str, object]:
     init_product = init_payload.get("product")
     status_state = status_payload.get("state")
@@ -287,7 +315,7 @@ def _target_local_details(
             and status_payload.get("ok") is True
             and workflow_plan_payload.get("ok") is True
             and workflow_plan_payload.get("phase") == phase
-            and phase == "initialized"
+            and phase == expected_phase
             and (target / "bin/governance").is_file()
             and (target / "scripts/governance_cli.py").is_file()
             and (target / "docs/agent-workflow/runtime-manifest.json").is_file()
@@ -308,6 +336,65 @@ def _target_local_details(
     }
 
 
+def _advance_product_structuring(steps: list[dict[str, object]], target: Path) -> dict[str, object]:
+    advance_check = _run_json(
+        steps,
+        "advance_product_structuring_check",
+        ["bin/governance", "advance", "product-structuring", ".", "--check", "--json"],
+        target,
+    )
+    _require(advance_check.get("ok") is True, "product-structuring advance preflight failed", payload=advance_check)
+    advance = _run_json(
+        steps,
+        "advance_product_structuring",
+        ["bin/governance", "advance", "product-structuring", ".", "--json"],
+        target,
+    )
+    _require(advance.get("ok") is True, "product-structuring advance failed", payload=advance)
+    status = _run_json(
+        steps,
+        "target_local_governance_status_product_structuring",
+        ["make", "governance-status"],
+        target,
+    )
+    workflow_plan = _run_json(
+        steps,
+        "target_local_workflow_plan_product_structuring",
+        ["make", "workflow-plan"],
+        target,
+    )
+    product_plan = _run_json(
+        steps,
+        "target_local_product_plan",
+        ["make", "product-plan"],
+        target,
+    )
+    status_state = status.get("state")
+    phase = status_state.get("phase") if isinstance(status_state, dict) else ""
+    return {
+        "ok": (
+            advance_check.get("ok") is True
+            and advance.get("ok") is True
+            and status.get("ok") is True
+            and workflow_plan.get("ok") is True
+            and product_plan.get("ok") is True
+            and phase == "product-structuring"
+            and workflow_plan.get("phase") == "product-structuring"
+        ),
+        "phase": phase,
+        "advance_check_ok": advance_check.get("ok") is True,
+        "advance_ok": advance.get("ok") is True,
+        "status_ok": status.get("ok") is True,
+        "workflow_plan_ok": workflow_plan.get("ok") is True,
+        "product_plan_ok": product_plan.get("ok") is True,
+        "advance_check": advance_check,
+        "advance": advance,
+        "status": status,
+        "workflow_plan": workflow_plan,
+        "product_plan": product_plan,
+    }
+
+
 def _require(condition: bool, message: str, *, payload: dict[str, object] | None = None) -> None:
     if not condition:
         raise ConsumerBootstrapError(message, payload=payload)
@@ -323,6 +410,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--project-name", default="Project Workspace", help="Project name recorded in governance state.")
     parser.add_argument("--force", action="store_true", help="Pass --force through to governance init.")
     parser.add_argument("--check", action="store_true", help="Run source-pack, environment, and init checks without writing.")
+    parser.add_argument(
+        "--advance-product-structuring",
+        action="store_true",
+        help="After initialization, run target-local product-structuring advance and product-plan commands.",
+    )
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     return parser
 
@@ -344,6 +436,7 @@ def main() -> int:
         project_name=args.project_name,
         check=args.check,
         force=args.force,
+        advance_product_structuring=args.advance_product_structuring,
     )
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))

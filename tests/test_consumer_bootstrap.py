@@ -109,6 +109,65 @@ class ConsumerBootstrapTest(unittest.TestCase):
             self.assertIn("target_local_governance_status", step_ids)
             self.assertIn("target_local_workflow_plan", step_ids)
 
+    def test_exported_pack_can_advance_to_product_structuring(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            pack = base / "docs-as-code-workflow-pack"
+            product = base / "product.md"
+            target = base / "consumer-target"
+            product.write_text(
+                "# Consumer Product Structuring\n\n"
+                "## Goals and Requirements\n\n"
+                "- Initialize governance and prepare product structuring in one bootstrap run.\n\n"
+                "## Acceptance Criteria\n\n"
+                "- A-001: The bootstrap output exposes the product authoring plan.\n",
+                encoding="utf-8",
+            )
+
+            export = subprocess.run(
+                [
+                    sys.executable,
+                    str(EXPORT),
+                    "--output",
+                    str(pack),
+                    "--no-archive",
+                    "--force",
+                    "--json",
+                ],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, export.returncode, export.stdout + export.stderr)
+            self.assertEqual("", export.stderr)
+            self.assertTrue(json.loads(export.stdout)["ok"])
+
+            payload = _run_bootstrap(
+                self,
+                pack,
+                target=target,
+                product=product,
+                check=False,
+                advance_product_structuring=True,
+            )
+
+            self.assertTrue(payload["ok"])
+            self.assertTrue(payload["initialized"])
+            self.assertTrue(payload["advanced_product_structuring"])
+            self.assertTrue(payload["product_structuring"]["ok"])
+            self.assertTrue(payload["product_structuring"]["advance_check_ok"])
+            self.assertTrue(payload["product_structuring"]["advance_ok"])
+            self.assertTrue(payload["product_structuring"]["product_plan_ok"])
+            self.assertEqual("product-structuring", payload["product_structuring"]["phase"])
+            self.assertEqual("product-structuring", payload["target_local"]["phase"])
+            self.assertEqual("do_not_guess_product_meaning", payload["product_plan"]["decision_policy"])
+            self.assertIn("manual_authoring_summary", payload["product_plan"])
+            step_ids = {step["id"] for step in payload["steps"]}
+            self.assertIn("advance_product_structuring_check", step_ids)
+            self.assertIn("advance_product_structuring", step_ids)
+            self.assertIn("target_local_product_plan", step_ids)
+
 
 def _run_bootstrap(
     testcase: unittest.TestCase,
@@ -117,6 +176,7 @@ def _run_bootstrap(
     target: Path,
     product: Path,
     check: bool,
+    advance_product_structuring: bool = False,
 ) -> dict[str, object]:
     argv = [
         sys.executable,
@@ -133,6 +193,8 @@ def _run_bootstrap(
     ]
     if check:
         argv.insert(-1, "--check")
+    if advance_product_structuring:
+        argv.insert(-1, "--advance-product-structuring")
     result = subprocess.run(
         argv,
         cwd=pack,
