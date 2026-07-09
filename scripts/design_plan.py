@@ -79,15 +79,24 @@ OPEN_BACKEND_DECISIONS = (
     "runtime_flow",
     "api_ownership",
     "data_ownership",
-    "entities",
-    "state_machines",
-    "transaction_boundaries",
-    "consistency_model",
     "external_dependencies",
     "retries_timeouts",
     "observability",
     "security_boundaries",
     "acceptance_tests",
+)
+OPEN_DATA_MODEL_DECISIONS = (
+    "entity_ownership",
+    "table_and_field_names",
+    "lifecycle_states",
+    "idempotency_constraints",
+    "transaction_boundaries",
+    "consistency_model",
+    "concurrency_conflicts",
+    "indexes_and_query_paths",
+    "migration_order",
+    "rollback_strategy",
+    "retention_and_audit",
 )
 BACKEND_MODULE_SECTIONS = (
     "Product Links",
@@ -319,7 +328,7 @@ DESIGN_TRACKS: tuple[DesignTrack, ...] = (
         title="Backend Modules",
         purpose="Replace backend placeholders with module boundaries, API ownership, failure modes, operability, and dependency behavior.",
         skills=("designing-backend-modules",),
-        specialist_skills=("senior-backend", "database-designer", "observability-designer", "senior-security"),
+        specialist_skills=("senior-backend", "observability-designer", "senior-security"),
         references=(
             "references/backend-design-checklist.md",
             "references/backend-operability-checklist.md",
@@ -333,8 +342,8 @@ DESIGN_TRACKS: tuple[DesignTrack, ...] = (
         title="Data Model",
         purpose="Replace data-model placeholders with entity ownership, states, constraints, indexes, migrations, retention, and audit decisions.",
         skills=("designing-data-models",),
-        specialist_skills=("database-designer", "database-schema-designer", "migration-architect"),
-        references=("references/backend-design-checklist.md", "references/data-model-design-checklist.md"),
+        specialist_skills=("database-designer", "database-schema-designer", "migration-architect", "senior-backend", "senior-security"),
+        references=("references/backend-design-checklist.md", "references/data-model-design-checklist.md", "references/security-design-checklist.md"),
         documents=("docs/backend/02-data-model.md",),
         procedure="Start from product nouns and backend ownership; define lifecycle and concurrency behavior before fields and indexes.",
     ),
@@ -518,8 +527,8 @@ def build_backend_authoring(root: Path) -> dict[str, object]:
     candidates = _api_candidates(root)
     if not candidates:
         errors.append("No product acceptance criteria with A-NNN headings found.")
-    skills = ["designing-backend-modules", "designing-data-models"]
-    specialist_skills = _combined_specialist_skills(BACKEND_TRACK_ID, DATA_MODEL_TRACK_ID)
+    skills = ["designing-backend-modules"]
+    specialist_skills = _specialist_skills(BACKEND_TRACK_ID)
     authoring_tasks = [
         _backend_authoring_task(root, candidate, index)
         for index, candidate in enumerate(candidates, start=1)
@@ -536,7 +545,6 @@ def build_backend_authoring(root: Path) -> dict[str, object]:
         **_skill_requirement_fields(root, skills, specialist_skills),
         "references": [
             "references/backend-design-checklist.md",
-            "references/data-model-design-checklist.md",
             "references/backend-operability-checklist.md",
             "references/security-design-checklist.md",
         ],
@@ -547,6 +555,55 @@ def build_backend_authoring(root: Path) -> dict[str, object]:
             root,
             authoring_tasks,
             ["bin/governance", "design", "backend-authoring", ".", "--json"],
+        ),
+        "errors": errors,
+    }
+    if not errors:
+        payload["local_commands"] = target_local_commands_payload(cwd=str(root))
+        payload["next_actions"] = next_actions_payload(state, cwd=str(root))
+    return payload
+
+
+def build_data_model_authoring(root: Path) -> dict[str, object]:
+    root = root.resolve()
+    state = load_state(root)
+    phase = state.get("phase") if isinstance(state.get("phase"), str) else ""
+    errors: list[str] = []
+    if not state:
+        errors.append("No governance state found.")
+    elif phase != DESIGN_PHASE:
+        errors.append(f"data model authoring requires recorded phase {DESIGN_PHASE}")
+    candidates = _api_candidates(root)
+    if not candidates:
+        errors.append("No product acceptance criteria with A-NNN headings found.")
+    skills = ["designing-data-models"]
+    specialist_skills = _specialist_skills(DATA_MODEL_TRACK_ID)
+    authoring_tasks = [
+        _data_model_authoring_task(root, candidate, index)
+        for index, candidate in enumerate(candidates, start=1)
+    ]
+    payload: dict[str, object] = {
+        "ok": not errors,
+        "target": str(root),
+        "phase": phase,
+        "workflow": DESIGN_WORKFLOW_PATH,
+        "track": DATA_MODEL_TRACK_ID,
+        "decision_policy": "do_not_guess_data_model",
+        "skills": skills,
+        "specialist_skills": specialist_skills,
+        **_skill_requirement_fields(root, skills, specialist_skills),
+        "references": [
+            "references/backend-design-checklist.md",
+            "references/data-model-design-checklist.md",
+            "references/security-design-checklist.md",
+        ],
+        "source_documents": _source_documents(root),
+        "authoring_tasks": authoring_tasks,
+        "authoring_summary": _authoring_summary(authoring_tasks),
+        "active_work": _active_design_authoring_work(
+            root,
+            authoring_tasks,
+            ["bin/governance", "design", "data-model-authoring", ".", "--json"],
         ),
         "errors": errors,
     }
@@ -1476,11 +1533,6 @@ def _backend_authoring_task(root: Path, candidate: dict[str, object], index: int
             "Define module boundaries, API ownership, runtime flow, failure modes, and open decisions.",
         ),
         _authoring_document(
-            "docs/backend/02-data-model.md",
-            BACKEND_DATA_MODEL_SECTIONS,
-            "Define data ownership, entities, lifecycle states, constraints, indexes, and migration order.",
-        ),
-        _authoring_document(
             "docs/backend/03-external-services.md",
             BACKEND_EXTERNAL_SERVICE_SECTIONS,
             "Document dependencies, contracts, retries, timeouts, authentication, and observability expectations.",
@@ -1503,11 +1555,11 @@ def _backend_authoring_task(root: Path, candidate: dict[str, object], index: int
         "acceptance_id": candidate["acceptance_id"],
         "title": candidate["title"],
         "source": source,
-        "specialist_skills": _combined_specialist_skills(BACKEND_TRACK_ID, DATA_MODEL_TRACK_ID),
+        "specialist_skills": _specialist_skills(BACKEND_TRACK_ID),
         **_skill_requirement_fields(
             root,
-            ["designing-backend-modules", "designing-data-models"],
-            _combined_specialist_skills(BACKEND_TRACK_ID, DATA_MODEL_TRACK_ID),
+            ["designing-backend-modules"],
+            _specialist_skills(BACKEND_TRACK_ID),
         ),
         "execution": _authoring_execution(
             "backend-design-authoring",
@@ -1539,25 +1591,24 @@ def _backend_authoring_steps(
         {
             "id": "load-backend-design-skills",
             "kind": "skill-load",
-            "skills": ["designing-backend-modules", "designing-data-models"],
-            "specialist_skills": _combined_specialist_skills(BACKEND_TRACK_ID, DATA_MODEL_TRACK_ID),
+            "skills": ["designing-backend-modules"],
+            "specialist_skills": _specialist_skills(BACKEND_TRACK_ID),
             **_skill_requirement_fields(
                 root,
-                ["designing-backend-modules", "designing-data-models"],
-                _combined_specialist_skills(BACKEND_TRACK_ID, DATA_MODEL_TRACK_ID),
+                ["designing-backend-modules"],
+                _specialist_skills(BACKEND_TRACK_ID),
             ),
-            "description": "Load backend and data-model skills before assigning modules, persistence, or operability responsibilities.",
+            "description": "Load backend skills before assigning modules, runtime flows, operability, or external dependency responsibilities.",
         },
         {
             "id": "read-backend-references",
             "kind": "read",
             "references": [
                 "references/backend-design-checklist.md",
-                "references/data-model-design-checklist.md",
                 "references/backend-operability-checklist.md",
                 "references/security-design-checklist.md",
             ],
-            "description": "Read backend, data-model, operability, and security checklists before resolving backend decisions.",
+            "description": "Read backend, operability, and security checklists before resolving backend module decisions.",
         },
         {
             "id": "read-source-acceptance",
@@ -1581,13 +1632,6 @@ def _backend_authoring_steps(
             "document": "docs/backend/01-modules.md",
             "sections": list(BACKEND_MODULE_SECTIONS),
             "description": "Define module boundaries, API ownership, runtime flow, failure modes, and unresolved backend gaps.",
-        },
-        {
-            "id": "author-data-model",
-            "kind": "author",
-            "document": "docs/backend/02-data-model.md",
-            "sections": list(BACKEND_DATA_MODEL_SECTIONS),
-            "description": "Define ownership, entities, state machines, constraints, indexes, migrations, retention, and audit decisions.",
         },
         {
             "id": "author-external-services",
@@ -1617,6 +1661,137 @@ def _backend_authoring_steps(
             "refresh-backend-authoring",
             "Refresh the backend authoring queue after verification.",
             ["bin/governance", "design", "backend-authoring", ".", "--json"],
+        ),
+    ])
+
+
+def _data_model_authoring_task(root: Path, candidate: dict[str, object], index: int) -> dict[str, object]:
+    source = candidate["source"]
+    if not isinstance(source, dict):  # pragma: no cover - internal invariant
+        source = {}
+    source_reference = str(source.get("reference", ""))
+    api_contract = str(candidate["suggested_endpoint_file"])
+    documents = [
+        _authoring_document(
+            "docs/backend/02-data-model.md",
+            BACKEND_DATA_MODEL_SECTIONS,
+            "Define entity ownership, lifecycle states, constraints, indexes, migration order, rollback, retention, and audit behavior.",
+        ),
+    ]
+    required_links = [
+        _required_link(root, "product_acceptance", source_reference),
+        _required_link(root, "architecture_containers", "docs/architecture/02-containers.md"),
+        _required_link(root, "backend_modules", "docs/backend/01-modules.md"),
+        _required_link(root, "api_contract", api_contract),
+        _required_link(root, "test_strategy", "docs/tests/01-strategy.md"),
+        _required_link(root, "unresolved_decisions", "docs/unresolved.md"),
+    ]
+    return {
+        "task_id": f"DATA-MODEL-AUTHOR-{index:03d}",
+        "sequence": index,
+        "api_candidate_id": candidate["candidate_id"],
+        "acceptance_id": candidate["acceptance_id"],
+        "title": candidate["title"],
+        "source": source,
+        "specialist_skills": _specialist_skills(DATA_MODEL_TRACK_ID),
+        **_skill_requirement_fields(
+            root,
+            ["designing-data-models"],
+            _specialist_skills(DATA_MODEL_TRACK_ID),
+        ),
+        "execution": _authoring_execution(
+            "data-model-authoring",
+            "designing-data-models",
+            "database-designer",
+            "verify-data-model-authoring",
+            "refresh-data-model-authoring",
+        ),
+        "documents": documents,
+        "required_links": required_links,
+        "link_repair_actions": _link_repair_actions(
+            root,
+            required_links,
+            "refresh-data-model-authoring",
+            ["bin/governance", "design", "data-model-authoring", ".", "--json"],
+        ),
+        "open_decisions": list(OPEN_DATA_MODEL_DECISIONS),
+        "steps": _data_model_authoring_steps(root, source_reference, api_contract, required_links),
+    }
+
+
+def _data_model_authoring_steps(
+    root: Path,
+    source_reference: str,
+    api_contract: str,
+    required_links: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    return _sequence_steps([
+        {
+            "id": "load-data-model-design-skills",
+            "kind": "skill-load",
+            "skills": ["designing-data-models"],
+            "specialist_skills": _specialist_skills(DATA_MODEL_TRACK_ID),
+            **_skill_requirement_fields(
+                root,
+                ["designing-data-models"],
+                _specialist_skills(DATA_MODEL_TRACK_ID),
+            ),
+            "description": "Load data-model and authority-routing database skills before naming entities, constraints, indexes, migrations, or rollback paths.",
+        },
+        {
+            "id": "read-data-model-references",
+            "kind": "read",
+            "references": [
+                "references/backend-design-checklist.md",
+                "references/data-model-design-checklist.md",
+                "references/security-design-checklist.md",
+            ],
+            "description": "Read backend, data-model, and security checklists before resolving persistence decisions.",
+        },
+        {
+            "id": "read-source-acceptance",
+            "kind": "read",
+            "documents": [source_reference],
+            "description": "Read the product acceptance criterion that drives this persistence design task.",
+        },
+        {
+            "id": "read-backend-and-api-sources",
+            "kind": "read",
+            "documents": [
+                "docs/architecture/02-containers.md",
+                "docs/backend/01-modules.md",
+                api_contract,
+            ],
+            "description": "Read architecture, backend ownership, and API contract sources before defining persistence behavior.",
+        },
+        {
+            "id": "author-data-model",
+            "kind": "author",
+            "document": "docs/backend/02-data-model.md",
+            "sections": list(BACKEND_DATA_MODEL_SECTIONS),
+            "description": "Define ownership, entities, state machines, constraints, indexes, migrations, rollback, retention, and audit decisions.",
+        },
+        {
+            "id": "link-tests-and-acceptance",
+            "kind": "link",
+            "required_links": [
+                link
+                for link in required_links
+                if link["kind"] in {"product_acceptance", "test_strategy", "unresolved_decisions"}
+            ],
+            "description": "Connect persistence decisions to acceptance criteria, verification strategy, and unresolved items.",
+        },
+        _command_step(
+            root,
+            "verify-data-model-authoring",
+            "Run read-only governance verification after data-model authoring.",
+            ["bin/governance", "verify", ".", "--check", "--json"],
+        ),
+        _command_step(
+            root,
+            "refresh-data-model-authoring",
+            "Refresh the data-model authoring queue after verification.",
+            ["bin/governance", "design", "data-model-authoring", ".", "--json"],
         ),
     ])
 

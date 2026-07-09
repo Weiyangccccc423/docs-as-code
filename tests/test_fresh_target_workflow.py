@@ -614,16 +614,40 @@ class FreshTargetWorkflowTest(unittest.TestCase):
             self.assertEqual("senior-backend", backend_task["execution"]["primary_specialist_skill"])
             self.assertEqual("A-001", backend_task["acceptance_id"])
             self.assertIn("designing-backend-modules", backend_authoring["skills"])
-            self.assertIn("designing-data-models", backend_authoring["skills"])
             self.assertIn("docs/backend/01-modules.md", [document["path"] for document in backend_task["documents"]])
-            self.assertIn("docs/backend/02-data-model.md", [document["path"] for document in backend_task["documents"]])
             self.assertIn("docs/backend/03-external-services.md", [document["path"] for document in backend_task["documents"]])
             self.assertIn("module_boundaries", backend_task["open_decisions"])
-            self.assertIn("transaction_boundaries", backend_task["open_decisions"])
+            self.assertIn("observability", backend_task["open_decisions"])
             self.assertIn("docs/api/endpoints/01-initialized-repository-exposes-local-governance-checks.md", [link["target"] for link in backend_task["required_links"]])
             self.assertEqual(
                 ["bin/governance", "design", "backend-authoring", ".", "--json"],
                 backend_task["steps"][-1]["argv"],
+            )
+
+            data_model_authoring = _run_json(
+                self,
+                ["bin/governance", "design", "data-model-authoring", ".", "--json"],
+                cwd=target,
+            )
+            self.assertTrue(data_model_authoring["ok"])
+            self.assertEqual("data-model", data_model_authoring["track"])
+            self.assertEqual("do_not_guess_data_model", data_model_authoring["decision_policy"])
+            self.assertEqual(1, len(data_model_authoring["authoring_tasks"]))
+            data_model_task = data_model_authoring["authoring_tasks"][0]
+            self.assertEqual("DATA-MODEL-AUTHOR-001", data_model_task["task_id"])
+            self.assertEqual("data-model-authoring", data_model_task["execution"]["stage"])
+            self.assertEqual("database-designer", data_model_task["execution"]["primary_specialist_skill"])
+            self.assertEqual("A-001", data_model_task["acceptance_id"])
+            self.assertIn("designing-data-models", data_model_authoring["skills"])
+            self.assertIn("docs/backend/02-data-model.md", [document["path"] for document in data_model_task["documents"]])
+            self.assertIn("entity_ownership", data_model_task["open_decisions"])
+            self.assertIn("transaction_boundaries", data_model_task["open_decisions"])
+            self.assertIn("migration_order", data_model_task["open_decisions"])
+            self.assertIn("rollback_strategy", data_model_task["open_decisions"])
+            self.assertIn("docs/api/endpoints/01-initialized-repository-exposes-local-governance-checks.md", [link["target"] for link in data_model_task["required_links"]])
+            self.assertEqual(
+                ["bin/governance", "design", "data-model-authoring", ".", "--json"],
+                data_model_task["steps"][-1]["argv"],
             )
 
             frontend_authoring = _run_json(

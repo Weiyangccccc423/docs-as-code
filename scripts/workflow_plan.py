@@ -10,6 +10,7 @@ try:
         build_api_candidates,
         build_architecture_decisions_authoring,
         build_backend_authoring,
+        build_data_model_authoring,
         build_design_plan,
         build_frontend_authoring,
         build_implementation_planning_authoring,
@@ -26,6 +27,7 @@ except ImportError:  # pragma: no cover - direct script execution
         build_api_candidates,
         build_architecture_decisions_authoring,
         build_backend_authoring,
+        build_data_model_authoring,
         build_design_plan,
         build_frontend_authoring,
         build_implementation_planning_authoring,
@@ -44,6 +46,11 @@ IMPLEMENTATION_PHASE = "implementation"
 DESIGN_AUTHORING_BUILDERS: tuple[tuple[str, list[str], Callable[[Path], dict[str, object]]], ...] = (
     ("api-authoring", ["bin/governance", "design", "api-authoring", ".", "--json"], build_api_authoring),
     ("backend-authoring", ["bin/governance", "design", "backend-authoring", ".", "--json"], build_backend_authoring),
+    (
+        "data-model-authoring",
+        ["bin/governance", "design", "data-model-authoring", ".", "--json"],
+        build_data_model_authoring,
+    ),
     ("frontend-authoring", ["bin/governance", "design", "frontend-authoring", ".", "--json"], build_frontend_authoring),
     (
         "test-strategy-authoring",

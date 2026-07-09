@@ -607,7 +607,12 @@ FRESH_TARGET_SMOKE_TEST_REQUIRED_PHRASES = (
     "backend_authoring",
     "backend-authoring",
     "module_boundaries",
-    "transaction_boundaries",
+    "observability",
+    "data_model_authoring",
+    "data-model-authoring",
+    "entity_ownership",
+    "migration_order",
+    "rollback_strategy",
     "frontend_authoring",
     "frontend-authoring",
     "state_ownership",
@@ -628,6 +633,7 @@ FRESH_TARGET_SMOKE_TEST_REQUIRED_PHRASES = (
     "alternatives",
     "api-contracts",
     "backend-modules",
+    "data-model",
     "frontend-modules",
     "test-strategy",
     "implementation-planning",
@@ -1327,7 +1333,6 @@ BACKEND_AUTHORING_DOC_PATHS = (
     "workflows/00-overview.md",
     "workflows/04-design-derivation.md",
     "skills/designing-backend-modules/SKILL.md",
-    "skills/designing-data-models/SKILL.md",
     "skills/verifying-governance-docs/SKILL.md",
 )
 BACKEND_AUTHORING_REQUIRED_PHRASES = (
@@ -1356,20 +1361,66 @@ BACKEND_AUTHORING_REQUIRED_PHRASES = (
     "refresh_command",
     "open_decisions",
     "module_boundaries",
-    "transaction_boundaries",
+    "observability",
     "specialist_skills",
     "skill_requirements",
     "authority_skill_requirements",
     "authority-routing",
     "missing_policy",
     "senior-backend",
-    "database-designer",
-    "database-schema-designer",
-    "migration-architect",
     "observability-designer",
     "senior-security",
     "verify-backend-authoring",
     "refresh-backend-authoring",
+)
+DATA_MODEL_AUTHORING_DOC_PATHS = (
+    "README.md",
+    "workflows/00-overview.md",
+    "workflows/04-design-derivation.md",
+    "skills/designing-data-models/SKILL.md",
+    "skills/verifying-governance-docs/SKILL.md",
+)
+DATA_MODEL_AUTHORING_REQUIRED_PHRASES = (
+    "design data-model-authoring",
+    "authoring_tasks",
+    "authoring_summary",
+    "sequence",
+    "execution",
+    "decision_policy",
+    "do_not_guess_data_model",
+    "primary_skill",
+    "primary_specialist_skill",
+    "verify_step",
+    "refresh_step",
+    "stop_condition",
+    "documents",
+    "sections",
+    "required_links",
+    "required_links[].status",
+    "required_link_status_counts",
+    "non_satisfied_required_link_count",
+    "link_repair_actions",
+    "link_repair_action_count",
+    "repair_strategy",
+    "verify_command",
+    "refresh_command",
+    "open_decisions",
+    "entity_ownership",
+    "transaction_boundaries",
+    "migration_order",
+    "rollback_strategy",
+    "specialist_skills",
+    "skill_requirements",
+    "authority_skill_requirements",
+    "authority-routing",
+    "missing_policy",
+    "database-designer",
+    "database-schema-designer",
+    "migration-architect",
+    "senior-backend",
+    "senior-security",
+    "verify-data-model-authoring",
+    "refresh-data-model-authoring",
 )
 FRONTEND_AUTHORING_DOC_PATHS = (
     "README.md",
@@ -2717,6 +2768,7 @@ GOVERNANCE_CLI_REQUIRED_SUBCOMMANDS = {
         "api-candidates",
         "api-authoring",
         "backend-authoring",
+        "data-model-authoring",
         "frontend-authoring",
         "test-strategy-authoring",
         "implementation-planning-authoring",
@@ -3033,6 +3085,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_api_candidates_docs(root, findings)
     _check_api_authoring_docs(root, findings)
     _check_backend_authoring_docs(root, findings)
+    _check_data_model_authoring_docs(root, findings)
     _check_frontend_authoring_docs(root, findings)
     _check_test_strategy_authoring_docs(root, findings)
     _check_implementation_planning_authoring_docs(root, findings)
@@ -4787,6 +4840,23 @@ def _check_backend_authoring_docs(root: Path, findings: list[PackFinding]) -> No
             PackFinding(
                 "pack_backend_authoring_doc_missing",
                 f"{rel} must document backend authoring phrase(s): {', '.join(missing)}",
+                rel,
+            )
+        )
+
+
+def _check_data_model_authoring_docs(root: Path, findings: list[PackFinding]) -> None:
+    for rel in DATA_MODEL_AUTHORING_DOC_PATHS:
+        text = _read_utf8_text_or_none(root / rel)
+        if text is None:
+            continue
+        missing = [phrase for phrase in DATA_MODEL_AUTHORING_REQUIRED_PHRASES if phrase not in text]
+        if not missing:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_data_model_authoring_doc_missing",
+                f"{rel} must document data model authoring phrase(s): {', '.join(missing)}",
                 rel,
             )
         )

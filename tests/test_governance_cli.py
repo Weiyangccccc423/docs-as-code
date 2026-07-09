@@ -464,6 +464,24 @@ def _implementation_ready_target(case: unittest.TestCase, tmp: str) -> Path:
     return target
 
 
+def _design_scaffold_target(case: unittest.TestCase, tmp: str) -> Path:
+    root = Path(tmp)
+    target = root / "target"
+    product = root / "product.md"
+    product.write_text("# Product\n", encoding="utf-8")
+    _run_governance_json(case, ["init", "--target", str(target), "--product", str(product)])
+    (target / "docs/product/01-goals.md").write_text("# Goals\n\nSource: [PRD](core/PRD.md).\n", encoding="utf-8")
+    _append_index(target / "docs/product/README.md", "01-goals.md")
+    _append_product_meta_chapter(target, "01-goals.md")
+    (target / "docs/product/08-acceptance-criteria.md").write_text(_acceptance_doc(), encoding="utf-8")
+    _append_index(target / "docs/product/README.md", "08-acceptance-criteria.md")
+    _append_product_meta_chapter(target, "08-acceptance-criteria.md")
+    _run_governance_json(case, ["advance", "product-structuring", str(target)])
+    _run_governance_json(case, ["advance", "design-derivation", str(target)])
+    _run_governance_json(case, ["scaffold", "design", str(target)])
+    return target
+
+
 class GovernanceCliTest(unittest.TestCase):
     def test_env_json_uses_shared_payload_builder(self) -> None:
         scripts_dir = str(ROOT / "scripts")
@@ -2742,6 +2760,7 @@ class GovernanceCliTest(unittest.TestCase):
                     "api-candidates",
                     "api-authoring",
                     "backend-authoring",
+                    "data-model-authoring",
                     "frontend-authoring",
                     "test-strategy-authoring",
                     "implementation-planning-authoring",
@@ -2787,7 +2806,7 @@ class GovernanceCliTest(unittest.TestCase):
             )
             self.assertIn(
                 "designing-data-models",
-                queues["backend-authoring"]["summary"]["skill_summary"]["local_workflow_skills"],
+                queues["data-model-authoring"]["summary"]["skill_summary"]["local_workflow_skills"],
             )
             self.assertIn(
                 "senior-backend",
@@ -2795,7 +2814,11 @@ class GovernanceCliTest(unittest.TestCase):
             )
             self.assertIn(
                 "database-schema-designer",
-                queues["backend-authoring"]["summary"]["skill_summary"]["authority_routing_skills"],
+                queues["data-model-authoring"]["summary"]["skill_summary"]["authority_routing_skills"],
+            )
+            self.assertIn(
+                "migration-architect",
+                queues["data-model-authoring"]["summary"]["skill_summary"]["authority_routing_skills"],
             )
             self.assertIn("senior-architect", payload["skill_summary"]["authority_routing_skills"])
             self.assertIn("api-design-reviewer", payload["skill_summary"]["authority_routing_skills"])
@@ -2836,6 +2859,11 @@ class GovernanceCliTest(unittest.TestCase):
                 commands["backend-authoring"]["argv"],
             )
             self.assertFalse(commands["backend-authoring"]["writes_state"])
+            self.assertEqual(
+                ["bin/governance", "design", "data-model-authoring", ".", "--json"],
+                commands["data-model-authoring"]["argv"],
+            )
+            self.assertFalse(commands["data-model-authoring"]["writes_state"])
 
     def test_implementation_plan_reports_ready_task_execution_plan(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -7191,7 +7219,14 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn("database-schema-designer", tracks["data-model"]["specialist_skills"])
             self.assertIn("references/data-model-design-checklist.md", tracks["data-model"]["references"])
             self.assertEqual(
-                ["designing-data-models", "database-designer", "database-schema-designer", "migration-architect"],
+                [
+                    "designing-data-models",
+                    "database-designer",
+                    "database-schema-designer",
+                    "migration-architect",
+                    "senior-backend",
+                    "senior-security",
+                ],
                 [step["name"] for step in tracks["data-model"]["skill_loading_plan"]["steps"]],
             )
 
@@ -7475,46 +7510,7 @@ class GovernanceCliTest(unittest.TestCase):
 
     def test_design_backend_authoring_builds_module_task_queue_without_guessing_boundaries(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            target = Path(tmp) / "target"
-            product = Path(tmp) / "product.md"
-            product.write_text("# Product\n", encoding="utf-8")
-            init_result = subprocess.run(
-                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
-                text=True,
-                capture_output=True,
-                check=False,
-            )
-            self.assertEqual(0, init_result.returncode, init_result.stderr)
-            (target / "docs/product/01-goals.md").write_text("# Goals\n\nSource: [PRD](core/PRD.md).\n", encoding="utf-8")
-            _append_index(target / "docs/product/README.md", "01-goals.md")
-            _append_product_meta_chapter(target, "01-goals.md")
-            (target / "docs/product/08-acceptance-criteria.md").write_text(
-                _acceptance_doc(),
-                encoding="utf-8",
-            )
-            _append_index(target / "docs/product/README.md", "08-acceptance-criteria.md")
-            _append_product_meta_chapter(target, "08-acceptance-criteria.md")
-            advance_product = subprocess.run(
-                [sys.executable, str(CLI), "advance", "product-structuring", str(target), "--json"],
-                text=True,
-                capture_output=True,
-                check=False,
-            )
-            self.assertEqual(0, advance_product.returncode, advance_product.stderr)
-            advance_design = subprocess.run(
-                [sys.executable, str(CLI), "advance", "design-derivation", str(target), "--json"],
-                text=True,
-                capture_output=True,
-                check=False,
-            )
-            self.assertEqual(0, advance_design.returncode, advance_design.stderr)
-            scaffold_design = subprocess.run(
-                [sys.executable, str(CLI), "scaffold", "design", str(target), "--json"],
-                text=True,
-                capture_output=True,
-                check=False,
-            )
-            self.assertEqual(0, scaffold_design.returncode, scaffold_design.stderr)
+            target = _design_scaffold_target(self, tmp)
 
             result = subprocess.run(
                 [sys.executable, str(CLI), "design", "backend-authoring", str(target), "--json"],
@@ -7531,19 +7527,16 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual("backend-modules", payload["track"])
             self.assertEqual("do_not_guess_backend_boundaries", payload["decision_policy"])
             self.assertIn("designing-backend-modules", payload["skills"])
-            self.assertIn("designing-data-models", payload["skills"])
+            self.assertNotIn("designing-data-models", payload["skills"])
             self.assertIn("senior-backend", payload["specialist_skills"])
-            self.assertIn("database-designer", payload["specialist_skills"])
-            self.assertIn("database-schema-designer", payload["specialist_skills"])
-            self.assertIn("migration-architect", payload["specialist_skills"])
+            self.assertIn("observability-designer", payload["specialist_skills"])
+            self.assertNotIn("database-schema-designer", payload["specialist_skills"])
             payload_requirements = _requirements_by_name(payload["skill_requirements"])
             self.assertEqual("local-workflow", payload_requirements["designing-backend-modules"]["type"])
-            self.assertEqual("local-workflow", payload_requirements["designing-data-models"]["type"])
+            self.assertNotIn("designing-data-models", payload_requirements)
             self.assertEqual("authority-routing", payload_requirements["senior-backend"]["type"])
-            self.assertEqual("authority-routing", payload_requirements["database-schema-designer"]["type"])
-            self.assertEqual("authority-routing", payload_requirements["migration-architect"]["type"])
+            self.assertEqual("authority-routing", payload_requirements["observability-designer"]["type"])
             self.assertIn("references/backend-design-checklist.md", payload["references"])
-            self.assertIn("references/data-model-design-checklist.md", payload["references"])
             self.assertIn("references/backend-operability-checklist.md", payload["references"])
             self.assertIn("references/security-design-checklist.md", payload["references"])
             self.assertIn("local_commands", payload)
@@ -7575,14 +7568,11 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual("docs/product/08-acceptance-criteria.md#a-001-goal-flow", task["source"]["reference"])
             self.assertIn("senior-backend", task["specialist_skills"])
             self.assertIn("observability-designer", task["specialist_skills"])
-            self.assertIn("database-schema-designer", task["specialist_skills"])
-            self.assertIn("migration-architect", task["specialist_skills"])
+            self.assertNotIn("database-schema-designer", task["specialist_skills"])
             task_requirements = _requirements_by_name(task["skill_requirements"])
             self.assertEqual("local-workflow", task_requirements["designing-backend-modules"]["type"])
-            self.assertEqual("local-workflow", task_requirements["designing-data-models"]["type"])
+            self.assertNotIn("designing-data-models", task_requirements)
             self.assertEqual("authority-routing", task_requirements["senior-backend"]["type"])
-            self.assertEqual("authority-routing", task_requirements["database-schema-designer"]["type"])
-            self.assertEqual("authority-routing", task_requirements["migration-architect"]["type"])
             self.assertEqual(
                 "load_from_agent_environment_or_stop_before_guessing",
                 task_requirements["senior-backend"]["missing_policy"],
@@ -7591,7 +7581,6 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual(
                 [
                     "docs/backend/01-modules.md",
-                    "docs/backend/02-data-model.md",
                     "docs/backend/03-external-services.md",
                 ],
                 document_paths,
@@ -7599,10 +7588,7 @@ class GovernanceCliTest(unittest.TestCase):
             module_doc = task["documents"][0]
             self.assertIn("Modules", module_doc["sections"])
             self.assertIn("API Ownership", module_doc["sections"])
-            data_doc = task["documents"][1]
-            self.assertIn("Entities", data_doc["sections"])
-            self.assertIn("State Machines", data_doc["sections"])
-            dependency_doc = task["documents"][2]
+            dependency_doc = task["documents"][1]
             self.assertIn("Retries", dependency_doc["sections"])
             self.assertIn("Observability", dependency_doc["sections"])
             required_links = {link["kind"]: link["target"] for link in task["required_links"]}
@@ -7634,7 +7620,7 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn("module_boundaries", task["open_decisions"])
             self.assertIn("api_ownership", task["open_decisions"])
             self.assertIn("data_ownership", task["open_decisions"])
-            self.assertIn("transaction_boundaries", task["open_decisions"])
+            self.assertNotIn("transaction_boundaries", task["open_decisions"])
             self.assertIn("observability", task["open_decisions"])
             self.assertEqual(
                 [
@@ -7643,7 +7629,6 @@ class GovernanceCliTest(unittest.TestCase):
                     "read-source-acceptance",
                     "read-architecture-and-api-sources",
                     "author-backend-modules",
-                    "author-data-model",
                     "author-external-services",
                     "link-tests-and-acceptance",
                     "verify-backend-authoring",
@@ -7651,23 +7636,18 @@ class GovernanceCliTest(unittest.TestCase):
                 ],
                 [step["id"] for step in task["steps"]],
             )
-            self.assertEqual(list(range(1, 11)), [step["sequence"] for step in task["steps"]])
-            self.assertEqual(["designing-backend-modules", "designing-data-models"], task["steps"][0]["skills"])
+            self.assertEqual(list(range(1, 10)), [step["sequence"] for step in task["steps"]])
+            self.assertEqual(["designing-backend-modules"], task["steps"][0]["skills"])
             self.assertIn("senior-backend", task["steps"][0]["specialist_skills"])
-            self.assertIn("database-schema-designer", task["steps"][0]["specialist_skills"])
+            self.assertNotIn("database-schema-designer", task["steps"][0]["specialist_skills"])
             step_requirements = _requirements_by_name(task["steps"][0]["skill_requirements"])
             self.assertEqual("authority-routing", step_requirements["senior-backend"]["type"])
-            self.assertEqual("authority-routing", step_requirements["database-schema-designer"]["type"])
             self.assertEqual(
                 [
                     "designing-backend-modules",
-                    "designing-data-models",
                     "senior-backend",
-                    "database-designer",
                     "observability-designer",
                     "senior-security",
-                    "database-schema-designer",
-                    "migration-architect",
                 ],
                 [step["name"] for step in task["skill_loading_plan"]["steps"]],
             )
@@ -7675,12 +7655,133 @@ class GovernanceCliTest(unittest.TestCase):
                 "missing_required_local_workflow_skill_or_unavailable_authority_routing_skill",
                 task["skill_loading_plan"]["stop_condition"],
             )
-            self.assertEqual(["bin/governance", "verify", ".", "--check", "--json"], task["steps"][8]["argv"])
-            self.assertFalse(task["steps"][8]["writes_state"])
-            self.assertEqual(["bin/governance", "design", "backend-authoring", ".", "--json"], task["steps"][9]["argv"])
+            self.assertEqual(["bin/governance", "verify", ".", "--check", "--json"], task["steps"][7]["argv"])
+            self.assertFalse(task["steps"][7]["writes_state"])
+            self.assertEqual(["bin/governance", "design", "backend-authoring", ".", "--json"], task["steps"][8]["argv"])
             self.assertNotIn("module_name", task)
             self.assertNotIn("table_name", task)
             self.assertNotIn("fields", task)
+
+    def test_design_data_model_authoring_builds_persistence_task_queue_without_guessing_schema(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _design_scaffold_target(self, tmp)
+
+            result = subprocess.run(
+                [sys.executable, str(CLI), "design", "data-model-authoring", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertEqual(str(target.resolve()), payload["target"])
+            self.assertEqual("design-derivation", payload["phase"])
+            self.assertEqual("data-model", payload["track"])
+            self.assertEqual("do_not_guess_data_model", payload["decision_policy"])
+            self.assertEqual(["designing-data-models"], payload["skills"])
+            self.assertIn("database-designer", payload["specialist_skills"])
+            self.assertIn("database-schema-designer", payload["specialist_skills"])
+            self.assertIn("migration-architect", payload["specialist_skills"])
+            self.assertIn("senior-backend", payload["specialist_skills"])
+            self.assertIn("senior-security", payload["specialist_skills"])
+            payload_requirements = _requirements_by_name(payload["skill_requirements"])
+            self.assertEqual("local-workflow", payload_requirements["designing-data-models"]["type"])
+            self.assertEqual("authority-routing", payload_requirements["database-designer"]["type"])
+            self.assertEqual("authority-routing", payload_requirements["database-schema-designer"]["type"])
+            self.assertEqual("authority-routing", payload_requirements["migration-architect"]["type"])
+            self.assertEqual(
+                "load_from_agent_environment_or_stop_before_guessing",
+                payload_requirements["database-designer"]["missing_policy"],
+            )
+            self.assertIn("references/backend-design-checklist.md", payload["references"])
+            self.assertIn("references/data-model-design-checklist.md", payload["references"])
+            self.assertIn("references/security-design-checklist.md", payload["references"])
+            self.assertIn("local_commands", payload)
+            self.assertEqual("advance-implementation-check", payload["next_actions"][0]["id"])
+            self.assertEqual(1, len(payload["authoring_tasks"]))
+            self.assertEqual("DATA-MODEL-AUTHOR-001", payload["active_work"]["task_id"])
+            self.assertEqual("blocked", payload["active_work"]["status"])
+            self.assertEqual("database-designer", payload["active_work"]["primary_specialist_skill"])
+            self.assertEqual("architecture_containers", payload["active_work"]["next_required_link"]["kind"])
+            self.assertEqual("entity_ownership", payload["active_work"]["next_open_decision"])
+            self.assertEqual(
+                ["bin/governance", "design", "data-model-authoring", ".", "--json"],
+                payload["active_work"]["refresh_command"]["argv"],
+            )
+            task = payload["authoring_tasks"][0]
+            self.assertEqual("DATA-MODEL-AUTHOR-001", task["task_id"])
+            self.assertEqual(1, task["sequence"])
+            self.assertEqual("data-model-authoring", task["execution"]["stage"])
+            self.assertEqual("designing-data-models", task["execution"]["primary_skill"])
+            self.assertEqual("database-designer", task["execution"]["primary_specialist_skill"])
+            self.assertEqual("verify-data-model-authoring", task["execution"]["verify_step"])
+            self.assertEqual("refresh-data-model-authoring", task["execution"]["refresh_step"])
+            self.assertEqual(
+                "open_decisions_unresolved_or_required_links_missing",
+                task["execution"]["stop_condition"],
+            )
+            self.assertEqual("A-001", task["acceptance_id"])
+            self.assertEqual("Goal Flow", task["title"])
+            self.assertEqual("docs/product/08-acceptance-criteria.md#a-001-goal-flow", task["source"]["reference"])
+            document_paths = [document["path"] for document in task["documents"]]
+            self.assertEqual(["docs/backend/02-data-model.md"], document_paths)
+            data_doc = task["documents"][0]
+            self.assertIn("Entities", data_doc["sections"])
+            self.assertIn("State Machines", data_doc["sections"])
+            self.assertIn("Indexes", data_doc["sections"])
+            self.assertIn("Migrations", data_doc["sections"])
+            required_links = {link["kind"]: link["target"] for link in task["required_links"]}
+            self.assertEqual(
+                "docs/product/08-acceptance-criteria.md#a-001-goal-flow",
+                required_links["product_acceptance"],
+            )
+            self.assertEqual("docs/architecture/02-containers.md", required_links["architecture_containers"])
+            self.assertEqual("docs/backend/01-modules.md", required_links["backend_modules"])
+            self.assertEqual("docs/api/endpoints/01-goal-flow.md", required_links["api_contract"])
+            self.assertEqual("docs/tests/01-strategy.md", required_links["test_strategy"])
+            required_link_statuses = _link_statuses(task["required_links"])
+            self.assertEqual("satisfied", required_link_statuses["product_acceptance"])
+            self.assertEqual("placeholder_present", required_link_statuses["architecture_containers"])
+            self.assertEqual("placeholder_present", required_link_statuses["backend_modules"])
+            self.assertEqual("missing", required_link_statuses["api_contract"])
+            self.assertEqual("placeholder_present", required_link_statuses["test_strategy"])
+            self.assertEqual("satisfied", required_link_statuses["unresolved_decisions"])
+            repair_actions = _repair_actions_by_link_kind(task["link_repair_actions"])
+            self.assertEqual("missing", repair_actions["api_contract"]["status"])
+            self.assertEqual(
+                ["bin/governance", "design", "data-model-authoring", ".", "--json"],
+                repair_actions["api_contract"]["refresh_command"]["argv"],
+            )
+            self.assertIn("entity_ownership", task["open_decisions"])
+            self.assertIn("idempotency_constraints", task["open_decisions"])
+            self.assertIn("transaction_boundaries", task["open_decisions"])
+            self.assertIn("migration_order", task["open_decisions"])
+            self.assertIn("rollback_strategy", task["open_decisions"])
+            self.assertEqual(
+                [
+                    "load-data-model-design-skills",
+                    "read-data-model-references",
+                    "read-source-acceptance",
+                    "read-backend-and-api-sources",
+                    "author-data-model",
+                    "link-tests-and-acceptance",
+                    "verify-data-model-authoring",
+                    "refresh-data-model-authoring",
+                ],
+                [step["id"] for step in task["steps"]],
+            )
+            self.assertEqual(list(range(1, 9)), [step["sequence"] for step in task["steps"]])
+            self.assertEqual(["designing-data-models"], task["steps"][0]["skills"])
+            self.assertIn("database-schema-designer", task["steps"][0]["specialist_skills"])
+            self.assertIn("migration-architect", task["steps"][0]["specialist_skills"])
+            self.assertEqual(["bin/governance", "verify", ".", "--check", "--json"], task["steps"][6]["argv"])
+            self.assertFalse(task["steps"][6]["writes_state"])
+            self.assertEqual(["bin/governance", "design", "data-model-authoring", ".", "--json"], task["steps"][7]["argv"])
+            self.assertNotIn("table_name", task)
+            self.assertNotIn("fields", task)
+            self.assertNotIn("migration_sql", task)
 
     def test_design_frontend_authoring_builds_ui_task_queue_without_guessing_behavior(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

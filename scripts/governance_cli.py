@@ -34,6 +34,7 @@ from design_plan import (
     build_api_candidates,
     build_architecture_decisions_authoring,
     build_backend_authoring,
+    build_data_model_authoring,
     build_design_plan,
     build_frontend_authoring,
     build_implementation_planning_authoring,
@@ -729,6 +730,23 @@ def _cmd_design_backend_authoring(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_design_data_model_authoring(args: argparse.Namespace) -> int:
+    target = Path(args.target)
+    payload = build_data_model_authoring(target)
+    if args.json:
+        _print_json(payload)
+        return 0 if payload["ok"] else 1
+    if not payload["ok"]:
+        print("Data model authoring plan failed:")
+        for error in payload["errors"]:
+            print(f"- ERROR: {error}")
+        return 1
+    print("Data model authoring tasks:")
+    for task in payload["authoring_tasks"]:
+        print(f"- {task['task_id']}: {task['acceptance_id']}")
+    return 0
+
+
 def _cmd_design_frontend_authoring(args: argparse.Namespace) -> int:
     target = Path(args.target)
     payload = build_frontend_authoring(target)
@@ -1001,6 +1019,13 @@ def build_parser() -> argparse.ArgumentParser:
     backend_authoring.add_argument("target", nargs="?", default=".")
     backend_authoring.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     backend_authoring.set_defaults(func=_cmd_design_backend_authoring)
+    data_model_authoring = design_sub.add_parser(
+        "data-model-authoring",
+        help="Build source-backed data model, schema, migration, and rollback authoring tasks.",
+    )
+    data_model_authoring.add_argument("target", nargs="?", default=".")
+    data_model_authoring.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    data_model_authoring.set_defaults(func=_cmd_design_data_model_authoring)
     frontend_authoring = design_sub.add_parser(
         "frontend-authoring",
         help="Build source-backed UI and frontend module authoring tasks.",
