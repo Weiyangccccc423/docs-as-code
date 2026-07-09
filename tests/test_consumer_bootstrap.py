@@ -245,6 +245,80 @@ class ConsumerBootstrapTest(unittest.TestCase):
             step_ids = {step["id"] for step in payload["steps"]}
             self.assertIn("target_local_product_scaffold_preview", step_ids)
 
+    def test_exported_pack_previews_product_structure_from_product_plan(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            pack = base / "docs-as-code-workflow-pack"
+            product = base / "product.md"
+            target = base / "consumer-target"
+            product.write_text(
+                "# Consumer Product Structure\n\n"
+                "## Goals and Requirements\n\n"
+                "- Initialize governance and identify source-backed product sections.\n"
+                "- Preview deterministic product structuring without writing chapters.\n\n"
+                "## Acceptance Criteria\n\n"
+                "- The bootstrap output previews source-backed product structure updates.\n",
+                encoding="utf-8",
+            )
+
+            export = subprocess.run(
+                [
+                    sys.executable,
+                    str(EXPORT),
+                    "--output",
+                    str(pack),
+                    "--no-archive",
+                    "--force",
+                    "--json",
+                ],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, export.returncode, export.stdout + export.stderr)
+            self.assertEqual("", export.stderr)
+            self.assertTrue(json.loads(export.stdout)["ok"])
+
+            payload = _run_bootstrap(
+                self,
+                pack,
+                target=target,
+                product=product,
+                check=False,
+                advance_product_structuring=True,
+                product_scaffold_preview=True,
+                product_structure_preview=True,
+            )
+
+            self.assertTrue(payload["ok"])
+            self.assertTrue(payload["product_scaffold_preview_ok"])
+            self.assertTrue(payload["product_structure_preview_requested"])
+            self.assertTrue(payload["product_structure_previewed"])
+            self.assertTrue(payload["product_structure_preview_ok"])
+            preview = payload["product_structure_preview"]
+            self.assertTrue(preview["ok"])
+            self.assertTrue(preview["check"])
+            self.assertFalse(preview["writes_state"])
+            self.assertEqual("do_not_guess_product_meaning", preview["decision_policy"])
+            self.assertEqual("product_plan.suggested_mappings[].command_arg", preview["source"])
+            self.assertEqual(
+                [
+                    "goals-and-requirements=Goals and Requirements",
+                    "acceptance-criteria=Acceptance Criteria",
+                ],
+                preview["command_args"],
+            )
+            structure_check = preview["structure_check"]
+            self.assertTrue(structure_check["ok"])
+            self.assertTrue(structure_check["check"])
+            self.assertIn("docs/product/03-goals-and-requirements.md", structure_check["would_update"])
+            self.assertIn("docs/product/08-acceptance-criteria.md", structure_check["would_update"])
+            self.assertFalse((target / "docs/product/03-goals-and-requirements.md").exists())
+            self.assertFalse((target / "docs/product/08-acceptance-criteria.md").exists())
+            step_ids = {step["id"] for step in payload["steps"]}
+            self.assertIn("target_local_product_structure_preview", step_ids)
+
 
 def _run_bootstrap(
     testcase: unittest.TestCase,
@@ -255,6 +329,7 @@ def _run_bootstrap(
     check: bool,
     advance_product_structuring: bool = False,
     product_scaffold_preview: bool = False,
+    product_structure_preview: bool = False,
 ) -> dict[str, object]:
     argv = [
         sys.executable,
@@ -275,6 +350,8 @@ def _run_bootstrap(
         argv.insert(-1, "--advance-product-structuring")
     if product_scaffold_preview:
         argv.insert(-1, "--product-scaffold-preview")
+    if product_structure_preview:
+        argv.insert(-1, "--product-structure-preview")
     result = subprocess.run(
         argv,
         cwd=pack,
