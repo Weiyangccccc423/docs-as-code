@@ -92,6 +92,7 @@ def run_consumer_bootstrap(
     advance_design_derivation: bool = False,
     design_scaffold_preview: bool = False,
     design_scaffold_apply: bool = False,
+    design_authoring_preview: bool = False,
     pack_root: Path = ROOT,
 ) -> dict[str, object]:
     pack_root = pack_root.resolve()
@@ -184,6 +185,11 @@ def run_consumer_bootstrap(
             "--design-scaffold-apply requires --design-scaffold-preview",
             payload=init_check,
         )
+        _require(
+            not design_authoring_preview or design_scaffold_apply,
+            "--design-authoring-preview requires --design-scaffold-apply",
+            payload=init_check,
+        )
 
         base_payload: dict[str, object] = {
             "ok": True,
@@ -214,6 +220,9 @@ def run_consumer_bootstrap(
             "design_scaffold_apply_requested": design_scaffold_apply,
             "design_scaffold_applied": False,
             "design_scaffold_apply_ok": False,
+            "design_authoring_preview_requested": design_authoring_preview,
+            "design_authoring_previewed": False,
+            "design_authoring_preview_ok": False,
             "pack_manifest_verification": pack_manifest_verification,
             "pack_verification": pack_verification,
             "env_check": env_check,
@@ -352,6 +361,11 @@ def run_consumer_bootstrap(
                                     payload["design_scaffold_applied"] = True
                                     payload["design_scaffold_apply"] = scaffold_apply
                                     payload["design_scaffold_apply_ok"] = scaffold_apply.get("ok") is True
+                                    if design_authoring_preview:
+                                        authoring_preview = _preview_design_authoring(steps, target)
+                                        payload["design_authoring_previewed"] = True
+                                        payload["design_authoring_preview"] = authoring_preview
+                                        payload["design_authoring_preview_ok"] = authoring_preview.get("ok") is True
         if isinstance(status_payload.get("local_commands"), list):
             payload["local_commands"] = status_payload["local_commands"]
         elif isinstance(init_payload.get("local_commands"), list):
@@ -402,6 +416,9 @@ def run_consumer_bootstrap(
             "design_scaffold_apply_requested": design_scaffold_apply,
             "design_scaffold_applied": False,
             "design_scaffold_apply_ok": False,
+            "design_authoring_preview_requested": design_authoring_preview,
+            "design_authoring_previewed": False,
+            "design_authoring_preview_ok": False,
             "steps": steps,
             "failed_step": error.step,
             "failed_payload": error.payload,
@@ -437,6 +454,9 @@ def run_consumer_bootstrap(
             "design_scaffold_apply_requested": design_scaffold_apply,
             "design_scaffold_applied": False,
             "design_scaffold_apply_ok": False,
+            "design_authoring_preview_requested": design_authoring_preview,
+            "design_authoring_previewed": False,
+            "design_authoring_preview_ok": False,
             "steps": steps,
         }
 
@@ -941,6 +961,42 @@ def _has_scaffold_placeholder_findings(findings: object) -> bool:
     )
 
 
+DESIGN_AUTHORING_QUEUE_IDS = [
+    ("architecture-authoring", "target_local_design_architecture_authoring_preview"),
+    ("api-authoring", "target_local_design_api_authoring_preview"),
+    ("backend-authoring", "target_local_design_backend_authoring_preview"),
+    ("data-model-authoring", "target_local_design_data_model_authoring_preview"),
+    ("ui-interaction-authoring", "target_local_design_ui_interaction_authoring_preview"),
+    ("frontend-authoring", "target_local_design_frontend_authoring_preview"),
+    ("test-strategy-authoring", "target_local_design_test_strategy_authoring_preview"),
+    ("implementation-planning-authoring", "target_local_design_implementation_planning_authoring_preview"),
+    ("architecture-decisions-authoring", "target_local_design_architecture_decisions_authoring_preview"),
+]
+
+
+def _preview_design_authoring(steps: list[dict[str, object]], target: Path) -> dict[str, object]:
+    queues: dict[str, object] = {}
+    ok = True
+    for queue_id, step_id in DESIGN_AUTHORING_QUEUE_IDS:
+        payload = _run_json(
+            steps,
+            step_id,
+            ["bin/governance", "design", queue_id, ".", "--json"],
+            target,
+        )
+        queues[queue_id] = payload
+        ok = ok and payload.get("ok") is True
+    return {
+        "ok": ok,
+        "target": str(target),
+        "check": True,
+        "writes_state": False,
+        "phase": "design-derivation",
+        "queue_order": [queue_id for queue_id, _step_id in DESIGN_AUTHORING_QUEUE_IDS],
+        "queues": queues,
+    }
+
+
 def _product_plan_mapping(product_plan: dict[str, object]) -> dict[str, list[str]]:
     suggested_mappings = product_plan.get("suggested_mappings")
     chapters: list[str] = []
@@ -1029,6 +1085,14 @@ def build_parser() -> argparse.ArgumentParser:
             "without treating design authoring as complete."
         ),
     )
+    parser.add_argument(
+        "--design-authoring-preview",
+        action="store_true",
+        help=(
+            "With --design-scaffold-apply, run all read-only design authoring queue commands and return their "
+            "skill, blocker, and active-work payloads."
+        ),
+    )
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     return parser
 
@@ -1057,6 +1121,7 @@ def main() -> int:
         advance_design_derivation=args.advance_design_derivation,
         design_scaffold_preview=args.design_scaffold_preview,
         design_scaffold_apply=args.design_scaffold_apply,
+        design_authoring_preview=args.design_authoring_preview,
     )
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))

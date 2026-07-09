@@ -634,6 +634,93 @@ class ConsumerBootstrapTest(unittest.TestCase):
             self.assertIn("target_local_design_scaffold_apply", step_ids)
             self.assertIn("target_local_verify_check_after_design_scaffold_apply", step_ids)
 
+    def test_exported_pack_previews_design_authoring_after_scaffold_apply(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            pack = base / "docs-as-code-workflow-pack"
+            product = base / "product.md"
+            target = base / "consumer-target"
+            product.write_text(
+                "# Consumer Design Authoring Preview\n\n"
+                "## Goals and Requirements\n\n"
+                "- Initialize governance and expose every design authoring queue.\n"
+                "- Keep authoring preview read-only after design scaffold is written.\n\n"
+                "## Acceptance Criteria\n\n"
+                "- The bootstrap output includes all design authoring payloads for agent routing.\n",
+                encoding="utf-8",
+            )
+
+            export = subprocess.run(
+                [
+                    sys.executable,
+                    str(EXPORT),
+                    "--output",
+                    str(pack),
+                    "--no-archive",
+                    "--force",
+                    "--json",
+                ],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, export.returncode, export.stdout + export.stderr)
+            self.assertEqual("", export.stderr)
+            self.assertTrue(json.loads(export.stdout)["ok"])
+
+            payload = _run_bootstrap(
+                self,
+                pack,
+                target=target,
+                product=product,
+                check=False,
+                advance_product_structuring=True,
+                product_scaffold_preview=True,
+                product_structure_preview=True,
+                product_structure_apply=True,
+                advance_design_derivation=True,
+                design_scaffold_preview=True,
+                design_scaffold_apply=True,
+                design_authoring_preview=True,
+            )
+
+            self.assertTrue(payload["ok"])
+            self.assertTrue(payload["design_authoring_preview_requested"])
+            self.assertTrue(payload["design_authoring_previewed"])
+            self.assertTrue(payload["design_authoring_preview_ok"])
+            preview = payload["design_authoring_preview"]
+            self.assertTrue(preview["ok"])
+            self.assertTrue(preview["check"])
+            self.assertFalse(preview["writes_state"])
+            self.assertEqual("design-derivation", preview["phase"])
+            expected_queues = [
+                "architecture-authoring",
+                "api-authoring",
+                "backend-authoring",
+                "data-model-authoring",
+                "ui-interaction-authoring",
+                "frontend-authoring",
+                "test-strategy-authoring",
+                "implementation-planning-authoring",
+                "architecture-decisions-authoring",
+            ]
+            self.assertEqual(expected_queues, preview["queue_order"])
+            self.assertEqual(set(expected_queues), set(preview["queues"].keys()))
+            architecture = preview["queues"]["architecture-authoring"]
+            self.assertTrue(architecture["ok"])
+            self.assertEqual("do_not_guess_architecture_boundaries", architecture["decision_policy"])
+            self.assertIn("authoring_summary", architecture)
+            self.assertIn("active_work", architecture)
+            self.assertIn("authoring_tasks", architecture)
+            api = preview["queues"]["api-authoring"]
+            self.assertTrue(api["ok"])
+            self.assertEqual("do_not_guess_contract_details", api["decision_policy"])
+            self.assertIn("authoring_tasks", api)
+            step_ids = {step["id"] for step in payload["steps"]}
+            for queue_id in expected_queues:
+                self.assertIn(f"target_local_design_{queue_id.replace('-', '_')}_preview", step_ids)
+
 
 def _run_bootstrap(
     testcase: unittest.TestCase,
@@ -649,6 +736,7 @@ def _run_bootstrap(
     advance_design_derivation: bool = False,
     design_scaffold_preview: bool = False,
     design_scaffold_apply: bool = False,
+    design_authoring_preview: bool = False,
 ) -> dict[str, object]:
     argv = [
         sys.executable,
@@ -679,6 +767,8 @@ def _run_bootstrap(
         argv.insert(-1, "--design-scaffold-preview")
     if design_scaffold_apply:
         argv.insert(-1, "--design-scaffold-apply")
+    if design_authoring_preview:
+        argv.insert(-1, "--design-authoring-preview")
     result = subprocess.run(
         argv,
         cwd=pack,
