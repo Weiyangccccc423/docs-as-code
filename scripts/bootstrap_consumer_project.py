@@ -99,6 +99,7 @@ def run_consumer_bootstrap(
     design_scaffold_apply: bool = False,
     design_authoring_preview: bool = False,
     implementation_readiness_preview: bool = False,
+    implementation_advance_preview: bool = False,
     implementation_start_preview: bool = False,
     pack_root: Path = ROOT,
 ) -> dict[str, object]:
@@ -203,6 +204,11 @@ def run_consumer_bootstrap(
             payload=init_check,
         )
         _require(
+            not implementation_advance_preview or implementation_readiness_preview,
+            "--implementation-advance-preview requires --implementation-readiness-preview",
+            payload=init_check,
+        )
+        _require(
             not implementation_start_preview or implementation_readiness_preview,
             "--implementation-start-preview requires --implementation-readiness-preview",
             payload=init_check,
@@ -243,6 +249,9 @@ def run_consumer_bootstrap(
             "implementation_readiness_preview_requested": implementation_readiness_preview,
             "implementation_readiness_previewed": False,
             "implementation_readiness_preview_ok": False,
+            "implementation_advance_preview_requested": implementation_advance_preview,
+            "implementation_advance_previewed": False,
+            "implementation_advance_preview_ok": False,
             "implementation_start_preview_requested": implementation_start_preview,
             "implementation_start_previewed": False,
             "implementation_start_preview_ok": False,
@@ -396,6 +405,13 @@ def run_consumer_bootstrap(
                                             payload["implementation_readiness_preview_ok"] = (
                                                 readiness_preview.get("ok") is True
                                             )
+                                            if implementation_advance_preview:
+                                                advance_preview = _preview_implementation_advance(steps, target)
+                                                payload["implementation_advance_previewed"] = True
+                                                payload["implementation_advance_preview"] = advance_preview
+                                                payload["implementation_advance_preview_ok"] = (
+                                                    advance_preview.get("ok") is True
+                                                )
                                             if implementation_start_preview:
                                                 start_preview = _preview_implementation_start(
                                                     steps,
@@ -463,6 +479,9 @@ def run_consumer_bootstrap(
             "implementation_readiness_preview_requested": implementation_readiness_preview,
             "implementation_readiness_previewed": False,
             "implementation_readiness_preview_ok": False,
+            "implementation_advance_preview_requested": implementation_advance_preview,
+            "implementation_advance_previewed": False,
+            "implementation_advance_preview_ok": False,
             "implementation_start_preview_requested": implementation_start_preview,
             "implementation_start_previewed": False,
             "implementation_start_preview_ok": False,
@@ -507,6 +526,9 @@ def run_consumer_bootstrap(
             "implementation_readiness_preview_requested": implementation_readiness_preview,
             "implementation_readiness_previewed": False,
             "implementation_readiness_preview_ok": False,
+            "implementation_advance_preview_requested": implementation_advance_preview,
+            "implementation_advance_previewed": False,
+            "implementation_advance_preview_ok": False,
             "implementation_start_preview_requested": implementation_start_preview,
             "implementation_start_previewed": False,
             "implementation_start_preview_ok": False,
@@ -1097,6 +1119,28 @@ def _preview_implementation_readiness(steps: list[dict[str, object]], target: Pa
     }
 
 
+def _preview_implementation_advance(steps: list[dict[str, object]], target: Path) -> dict[str, object]:
+    advance_check = _run_json(
+        steps,
+        "target_local_implementation_advance_preview",
+        ["bin/governance", "advance", "implementation", ".", "--check", "--json"],
+        target,
+        allowed_returncodes=(0, 1),
+    )
+    return {
+        "ok": True,
+        "target": str(target),
+        "check": True,
+        "writes_state": False,
+        "phase": str(advance_check.get("phase", "implementation")),
+        "advance_ready": advance_check.get("ok") is True and advance_check.get("would_advance") is True,
+        "advance_check_ok": advance_check.get("ok") is True,
+        "would_advance": advance_check.get("would_advance") is True,
+        "advanced": advance_check.get("advanced") is True,
+        "advance_check": advance_check,
+    }
+
+
 TASK_ID_PATTERN = re.compile(r"^TASK-\d{3}$")
 
 
@@ -1248,6 +1292,14 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--implementation-advance-preview",
+        action="store_true",
+        help=(
+            "With --implementation-readiness-preview, run read-only advance implementation --check and return "
+            "phase-transition blockers without recording the implementation phase."
+        ),
+    )
+    parser.add_argument(
         "--implementation-start-preview",
         action="store_true",
         help=(
@@ -1285,6 +1337,7 @@ def main() -> int:
         design_scaffold_apply=args.design_scaffold_apply,
         design_authoring_preview=args.design_authoring_preview,
         implementation_readiness_preview=args.implementation_readiness_preview,
+        implementation_advance_preview=args.implementation_advance_preview,
         implementation_start_preview=args.implementation_start_preview,
     )
     if args.json:
