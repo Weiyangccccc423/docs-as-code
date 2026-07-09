@@ -15,6 +15,53 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 
 
+WORKFLOW_PRESETS: dict[str, tuple[str, ...]] = {
+    "init": (),
+    "product-structure": (
+        "advance_product_structuring",
+        "product_scaffold_preview",
+        "product_structure_preview",
+        "product_structure_apply",
+    ),
+    "design-scaffold": (
+        "advance_product_structuring",
+        "product_scaffold_preview",
+        "product_structure_preview",
+        "product_structure_apply",
+        "advance_design_derivation",
+        "design_scaffold_preview",
+        "design_scaffold_apply",
+    ),
+    "design-routing": (
+        "advance_product_structuring",
+        "product_scaffold_preview",
+        "product_structure_preview",
+        "product_structure_apply",
+        "advance_design_derivation",
+        "design_scaffold_preview",
+        "design_scaffold_apply",
+        "design_authoring_preview",
+    ),
+    "implementation-routing": (
+        "advance_product_structuring",
+        "product_scaffold_preview",
+        "product_structure_preview",
+        "product_structure_apply",
+        "advance_design_derivation",
+        "design_scaffold_preview",
+        "design_scaffold_apply",
+        "design_authoring_preview",
+        "implementation_readiness_preview",
+        "implementation_advance_preview",
+        "implementation_advance_apply",
+        "implementation_start_preview",
+        "implementation_start_apply",
+        "implementation_closeout_preview",
+        "implementation_closeout_apply",
+    ),
+}
+
+
 class ConsumerBootstrapError(Exception):
     def __init__(
         self,
@@ -105,13 +152,38 @@ def run_consumer_bootstrap(
     implementation_start_apply: bool = False,
     implementation_closeout_preview: bool = False,
     implementation_closeout_apply: bool = False,
+    workflow_preset: str = "",
     pack_root: Path = ROOT,
 ) -> dict[str, object]:
     pack_root = pack_root.resolve()
     target = target.resolve()
     product = product.resolve() if product is not None else None
+    expanded_flags: tuple[str, ...] = ()
     steps: list[dict[str, object]] = []
     try:
+        expanded_flags = _workflow_preset_flags(workflow_preset)
+        advance_product_structuring = advance_product_structuring or "advance_product_structuring" in expanded_flags
+        product_scaffold_preview = product_scaffold_preview or "product_scaffold_preview" in expanded_flags
+        product_structure_preview = product_structure_preview or "product_structure_preview" in expanded_flags
+        product_structure_apply = product_structure_apply or "product_structure_apply" in expanded_flags
+        advance_design_derivation = advance_design_derivation or "advance_design_derivation" in expanded_flags
+        design_scaffold_preview = design_scaffold_preview or "design_scaffold_preview" in expanded_flags
+        design_scaffold_apply = design_scaffold_apply or "design_scaffold_apply" in expanded_flags
+        design_authoring_preview = design_authoring_preview or "design_authoring_preview" in expanded_flags
+        implementation_readiness_preview = (
+            implementation_readiness_preview or "implementation_readiness_preview" in expanded_flags
+        )
+        implementation_advance_preview = (
+            implementation_advance_preview or "implementation_advance_preview" in expanded_flags
+        )
+        implementation_advance_apply = implementation_advance_apply or "implementation_advance_apply" in expanded_flags
+        implementation_start_preview = implementation_start_preview or "implementation_start_preview" in expanded_flags
+        implementation_start_apply = implementation_start_apply or "implementation_start_apply" in expanded_flags
+        implementation_closeout_preview = (
+            implementation_closeout_preview or "implementation_closeout_preview" in expanded_flags
+        )
+        implementation_closeout_apply = implementation_closeout_apply or "implementation_closeout_apply" in expanded_flags
+
         pack_manifest_verification = _run_json(
             steps,
             "pack_manifest_verify",
@@ -248,6 +320,8 @@ def run_consumer_bootstrap(
             "profile": profile,
             "project_name": project_name,
             "force": force,
+            "workflow_preset": workflow_preset,
+            "workflow_preset_expanded_flags": list(expanded_flags),
             "advance_product_structuring_requested": advance_product_structuring,
             "advanced_product_structuring": False,
             "product_scaffold_preview_requested": product_scaffold_preview,
@@ -594,6 +668,8 @@ def run_consumer_bootstrap(
             "profile": profile,
             "project_name": project_name,
             "force": force,
+            "workflow_preset": workflow_preset,
+            "workflow_preset_expanded_flags": list(expanded_flags),
             "advance_product_structuring_requested": advance_product_structuring,
             "advanced_product_structuring": False,
             "product_scaffold_preview_requested": product_scaffold_preview,
@@ -653,6 +729,8 @@ def run_consumer_bootstrap(
             "profile": profile,
             "project_name": project_name,
             "force": force,
+            "workflow_preset": workflow_preset,
+            "workflow_preset_expanded_flags": list(expanded_flags),
             "advance_product_structuring_requested": advance_product_structuring,
             "advanced_product_structuring": False,
             "product_scaffold_preview_requested": product_scaffold_preview,
@@ -1700,6 +1778,14 @@ def _product_plan_mapping(product_plan: dict[str, object]) -> dict[str, list[str
     return {"chapters": chapters, "command_args": command_args}
 
 
+def _workflow_preset_flags(workflow_preset: str) -> tuple[str, ...]:
+    if not workflow_preset:
+        return ()
+    if workflow_preset not in WORKFLOW_PRESETS:
+        raise ConsumerBootstrapError(f"unknown workflow preset: {workflow_preset}")
+    return WORKFLOW_PRESETS[workflow_preset]
+
+
 def _require(condition: bool, message: str, *, payload: dict[str, object] | None = None) -> None:
     if not condition:
         raise ConsumerBootstrapError(message, payload=payload)
@@ -1715,6 +1801,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--project-name", default="Project Workspace", help="Project name recorded in governance state.")
     parser.add_argument("--force", action="store_true", help="Pass --force through to governance init.")
     parser.add_argument("--check", action="store_true", help="Run source-pack, environment, and init checks without writing.")
+    parser.add_argument(
+        "--workflow-preset",
+        choices=sorted(WORKFLOW_PRESETS),
+        default="",
+        help=(
+            "Expand a named workflow preset into existing bootstrap flags. Presets never bypass the normal "
+            "phase dependency and write-safety checks."
+        ),
+    )
     parser.add_argument(
         "--advance-product-structuring",
         action="store_true",
@@ -1868,6 +1963,7 @@ def main() -> int:
         implementation_start_apply=args.implementation_start_apply,
         implementation_closeout_preview=args.implementation_closeout_preview,
         implementation_closeout_apply=args.implementation_closeout_apply,
+        workflow_preset=args.workflow_preset,
     )
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))

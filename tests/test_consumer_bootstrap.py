@@ -407,6 +407,73 @@ class ConsumerBootstrapTest(unittest.TestCase):
             self.assertIn("target_local_product_structure_apply_check", step_ids)
             self.assertIn("target_local_product_structure_apply", step_ids)
 
+    def test_workflow_preset_expands_to_product_structure_apply_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            pack = base / "docs-as-code-workflow-pack"
+            product = base / "product.md"
+            target = base / "consumer-target"
+            product.write_text(
+                "# Consumer Product Preset\n\n"
+                "## Goals and Requirements\n\n"
+                "- Initialize governance and write source-backed product chapters via preset routing.\n"
+                "- Keep preset behavior equivalent to the explicit product structure flag chain.\n\n"
+                "## Acceptance Criteria\n\n"
+                "- A-001: The bootstrap output exposes expanded preset flags and writes product chapters.\n",
+                encoding="utf-8",
+            )
+
+            export = subprocess.run(
+                [
+                    sys.executable,
+                    str(EXPORT),
+                    "--output",
+                    str(pack),
+                    "--no-archive",
+                    "--force",
+                    "--json",
+                ],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, export.returncode, export.stdout + export.stderr)
+            self.assertEqual("", export.stderr)
+            self.assertTrue(json.loads(export.stdout)["ok"])
+
+            payload = _run_bootstrap(
+                self,
+                pack,
+                target=target,
+                product=product,
+                check=False,
+                workflow_preset="product-structure",
+            )
+
+            self.assertTrue(payload["ok"])
+            self.assertEqual("product-structure", payload["workflow_preset"])
+            self.assertEqual(
+                [
+                    "advance_product_structuring",
+                    "product_scaffold_preview",
+                    "product_structure_preview",
+                    "product_structure_apply",
+                ],
+                payload["workflow_preset_expanded_flags"],
+            )
+            self.assertTrue(payload["advanced_product_structuring"])
+            self.assertTrue(payload["product_scaffold_preview_requested"])
+            self.assertTrue(payload["product_structure_preview_requested"])
+            self.assertTrue(payload["product_structure_apply_requested"])
+            self.assertTrue(payload["product_structure_apply_ok"])
+            self.assertEqual("product-structuring", payload["target_local"]["phase"])
+            self.assertTrue((target / "docs/product/03-goals-and-requirements.md").is_file())
+            self.assertTrue((target / "docs/product/08-acceptance-criteria.md").is_file())
+            step_ids = {step["id"] for step in payload["steps"]}
+            self.assertIn("target_local_product_scaffold_apply", step_ids)
+            self.assertIn("target_local_product_structure_apply", step_ids)
+
     def test_exported_pack_can_advance_to_design_derivation_after_product_structure_apply(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
@@ -1270,6 +1337,7 @@ def _run_bootstrap(
     implementation_start_apply: bool = False,
     implementation_closeout_preview: bool = False,
     implementation_closeout_apply: bool = False,
+    workflow_preset: str = "",
 ) -> dict[str, object]:
     argv = [
         sys.executable,
@@ -1316,6 +1384,9 @@ def _run_bootstrap(
         argv.insert(-1, "--implementation-closeout-preview")
     if implementation_closeout_apply:
         argv.insert(-1, "--implementation-closeout-apply")
+    if workflow_preset:
+        argv.insert(-1, "--workflow-preset")
+        argv.insert(-1, workflow_preset)
     result = subprocess.run(
         argv,
         cwd=pack,
