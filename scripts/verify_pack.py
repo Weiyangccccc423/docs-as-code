@@ -911,6 +911,53 @@ PACK_MANIFEST_VERIFY_DOC_REQUIREMENTS = {
         "python3 scripts/verify_pack_manifest.py dist/docs-as-code-workflow-pack --json",
     ),
 }
+CONSUMER_BOOTSTRAP_PATH = "scripts/bootstrap_consumer_project.py"
+CONSUMER_BOOTSTRAP_REQUIRED_PHRASES = (
+    "run_consumer_bootstrap",
+    "pack_manifest_verify",
+    "pack_verify",
+    "env_repair_check",
+    "init_check",
+    "target_local_verify_check",
+    "target_local_governance_status",
+    "target_local_workflow_plan",
+    "_target_local_details",
+    "local_commands",
+    "next_actions",
+    "--check",
+    "--force",
+    "scripts/verify_pack_manifest.py",
+    "scripts/verify_pack.py",
+    "scripts/governance_cli.py",
+    "bin/governance",
+    "make",
+    "workflow-plan",
+)
+CONSUMER_BOOTSTRAP_DOC_REQUIREMENTS = {
+    "README.md": (
+        "python3 scripts/bootstrap_consumer_project.py --target /path/to/new-project --product /path/to/product.md --profile web-app --project-name \"Project Name\" --check --json",
+        "python3 scripts/bootstrap_consumer_project.py --target /path/to/new-project --product /path/to/product.md --profile web-app --project-name \"Project Name\" --json",
+        "source-pack manifest verification",
+        "target-local verify/status/workflow-plan checks",
+        "local_commands",
+        "next_actions",
+    ),
+    "workflows/00-overview.md": (
+        "python3 scripts/bootstrap_consumer_project.py --target /path/to/new-project --product /path/to/product.md --profile web-app --project-name \"Project Name\" --check --json",
+        "verify_pack_manifest",
+        "verify_pack",
+        "env --repair --check",
+        "init --check",
+        "target-local",
+        "local_commands",
+        "next_actions",
+    ),
+    "skills/verifying-governance-docs/SKILL.md": (
+        "python3 scripts/bootstrap_consumer_project.py --target <target> --product <product-doc> --profile <profile> --project-name \"<name>\" --check --json",
+        "local_commands",
+        "next_actions",
+    ),
+}
 ARTIFACT_SMOKE_PATH = "scripts/smoke_workflow_pack_artifact.py"
 ARTIFACT_SMOKE_REQUIRED_PHRASES = (
     "run_artifact_smoke",
@@ -3091,6 +3138,7 @@ SOURCE_PACK_REQUIRED_PATHS = tuple(
             "Makefile",
             "scripts/verify_pack_manifest.py",
             "scripts/verify_pack.py",
+            CONSUMER_BOOTSTRAP_PATH,
             *(path.as_posix() for path in RUNTIME_REQUIRED_PATHS),
             *WORKFLOW_PACK_REQUIRED_PATHS,
         )
@@ -3249,6 +3297,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_dry_run_golden_fixture(root, findings)
     _check_source_pack_export_workflow(root, findings)
     _check_pack_manifest_verify_workflow(root, findings)
+    _check_consumer_bootstrap_workflow(root, findings)
     _check_artifact_smoke_workflow(root, findings)
     _check_release_readiness_workflow(root, findings)
     _check_runtime_continuation_calls(root, findings)
@@ -3263,6 +3312,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_dry_run_docs(root, findings)
     _check_source_pack_export_docs(root, findings)
     _check_pack_manifest_verify_docs(root, findings)
+    _check_consumer_bootstrap_docs(root, findings)
     _check_artifact_smoke_docs(root, findings)
     _check_release_readiness_docs(root, findings)
     _check_target_makefile_command_docs(root, findings)
@@ -3500,6 +3550,36 @@ def _check_pack_manifest_verify_workflow(root: Path, findings: list[PackFinding]
                 f"missing phrase(s): {', '.join(missing)}"
             ),
             PACK_MANIFEST_VERIFY_PATH,
+        )
+    )
+
+
+def _check_consumer_bootstrap_workflow(root: Path, findings: list[PackFinding]) -> None:
+    path = root / CONSUMER_BOOTSTRAP_PATH
+    if not path.is_file():
+        findings.append(
+            PackFinding(
+                "pack_consumer_bootstrap_missing",
+                f"missing consumer bootstrap script: {CONSUMER_BOOTSTRAP_PATH}",
+                CONSUMER_BOOTSTRAP_PATH,
+            )
+        )
+        return
+    text = _read_utf8_text_or_none(path)
+    if text is None:
+        return
+    missing = [phrase for phrase in CONSUMER_BOOTSTRAP_REQUIRED_PHRASES if phrase not in text]
+    if not missing:
+        return
+    findings.append(
+        PackFinding(
+            "pack_consumer_bootstrap_incomplete",
+            (
+                f"{CONSUMER_BOOTSTRAP_PATH} must compose source-pack verification, env/init "
+                f"preflight, initialization, and target-local continuation checks; "
+                f"missing phrase(s): {', '.join(missing)}"
+            ),
+            CONSUMER_BOOTSTRAP_PATH,
         )
     )
 
@@ -4827,6 +4907,23 @@ def _check_artifact_smoke_docs(root: Path, findings: list[PackFinding]) -> None:
                 PackFinding(
                     "pack_artifact_smoke_doc_missing",
                     f"{rel} must document artifact smoke command or behavior: {phrase}",
+                    rel,
+                )
+            )
+
+
+def _check_consumer_bootstrap_docs(root: Path, findings: list[PackFinding]) -> None:
+    for rel, required_phrases in CONSUMER_BOOTSTRAP_DOC_REQUIREMENTS.items():
+        text = _read_utf8_text_or_none(root / rel)
+        if text is None:
+            continue
+        for phrase in required_phrases:
+            if phrase in text:
+                continue
+            findings.append(
+                PackFinding(
+                    "pack_consumer_bootstrap_doc_missing",
+                    f"{rel} must document consumer bootstrap command or behavior: {phrase}",
                     rel,
                 )
             )

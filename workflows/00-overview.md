@@ -43,6 +43,15 @@ python3 scripts/verify_pack_manifest.py dist/docs-as-code-workflow-pack --json
 The export writes `pack-manifest.json` with SHA-256 evidence for the included source-pack files, runs `verify_pack` on the exported directory, and can create a tar.gz artifact for transfer.
 The manifest verifier validates `pack-manifest.json` by recomputing file hashes, sizes, executable flags, path safety, duplicate entries, missing files, and unmanifested files.
 
+For a recipient environment that has already unpacked the source workflow-pack artifact, use the consumer bootstrap script to compose source-pack checks and target initialization without manually stitching commands:
+
+```bash
+python3 scripts/bootstrap_consumer_project.py --target /path/to/new-project --product /path/to/product.md --profile web-app --project-name "Project Name" --check --json
+python3 scripts/bootstrap_consumer_project.py --target /path/to/new-project --product /path/to/product.md --profile web-app --project-name "Project Name" --json
+```
+
+The bootstrap script runs `verify_pack_manifest`, `verify_pack`, `env --repair --check`, `init --check`, write-mode `init`, then target-local `bin/governance verify . --check --json`, `make governance-status`, and `make workflow-plan`. Its success payload includes `local_commands` and `next_actions` so agents can continue from the generated target without rerunning `status`.
+
 To prove the transfer artifact is self-contained, smoke-test it with a command that unpacks the tar.gz artifact and runs checks from the unpacked workflow pack:
 
 ```bash

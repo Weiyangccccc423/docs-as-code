@@ -232,7 +232,14 @@ python3 scripts/verify_pack.py --json
 python3 scripts/smoke_workflow_pack_artifact.py --archive /path/to/docs-as-code-workflow-pack.tar.gz --json
 ```
 
-Create a fresh target folder and put exactly one product document in the target root so `init` can auto-discover it without guessing:
+For the fast path, run the consumer bootstrap script from the unpacked workflow pack. It composes source-pack manifest verification, `verify_pack`, environment repair preflight, initialization preflight, initialization, and target-local verify/status/workflow-plan checks, then returns `local_commands` and `next_actions` for continuation:
+
+```bash
+python3 scripts/bootstrap_consumer_project.py --target /path/to/new-project --product /path/to/product.md --profile web-app --project-name "Project Name" --check --json
+python3 scripts/bootstrap_consumer_project.py --target /path/to/new-project --product /path/to/product.md --profile web-app --project-name "Project Name" --json
+```
+
+For manual debugging, create a fresh target folder and put exactly one product document in the target root so `init` can auto-discover it without guessing:
 
 ```bash
 mkdir -p /path/to/new-project

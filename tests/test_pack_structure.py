@@ -554,6 +554,66 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_missing_consumer_bootstrap_script(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/bootstrap_consumer_project.py"
+            if script.exists():
+                script.unlink()
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_required_file_missing"
+                    and finding.path == "scripts/bootstrap_consumer_project.py"
+                    for finding in report.findings
+                )
+            )
+            self.assertTrue(
+                any(
+                    finding.code == "pack_consumer_bootstrap_missing"
+                    and finding.path == "scripts/bootstrap_consumer_project.py"
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_incomplete_consumer_bootstrap_script(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/bootstrap_consumer_project.py"
+            script.write_text(
+                script.read_text(encoding="utf-8").replace(
+                    "target_local_workflow_plan",
+                    "target_workflow_preview",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_consumer_bootstrap_incomplete"
+                    and finding.path == "scripts/bootstrap_consumer_project.py"
+                    and "target_local_workflow_plan" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_missing_artifact_smoke_script(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
@@ -1256,6 +1316,37 @@ class PackStructureTest(unittest.TestCase):
                     finding.code == "pack_manifest_verify_doc_missing"
                     and finding.path == "README.md"
                     and "python3 scripts/verify_pack_manifest.py dist/docs-as-code-workflow-pack --json"
+                    in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_missing_consumer_bootstrap_doc_phrase(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            readme = target / "README.md"
+            readme.write_text(
+                readme.read_text(encoding="utf-8").replace(
+                    "python3 scripts/bootstrap_consumer_project.py --target /path/to/new-project --product /path/to/product.md --profile web-app --project-name \"Project Name\" --check --json",
+                    "python3 scripts/bootstrap_consumer_project.py --target /path/to/new-project --check --json",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_consumer_bootstrap_doc_missing"
+                    and finding.path == "README.md"
+                    and "bootstrap_consumer_project.py --target /path/to/new-project --product /path/to/product.md"
                     in finding.message
                     for finding in report.findings
                 )
