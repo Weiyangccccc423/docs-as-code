@@ -405,6 +405,77 @@ class ConsumerBootstrapTest(unittest.TestCase):
             self.assertIn("target_local_product_structure_apply_check", step_ids)
             self.assertIn("target_local_product_structure_apply", step_ids)
 
+    def test_exported_pack_can_advance_to_design_derivation_after_product_structure_apply(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            pack = base / "docs-as-code-workflow-pack"
+            product = base / "product.md"
+            target = base / "consumer-target"
+            product.write_text(
+                "# Consumer Design Derivation\n\n"
+                "## Goals and Requirements\n\n"
+                "- Initialize governance and write source-backed product chapters.\n"
+                "- Advance to design derivation only after product verification is clean.\n\n"
+                "## Acceptance Criteria\n\n"
+                "- The bootstrap output exposes the design authoring plan.\n",
+                encoding="utf-8",
+            )
+
+            export = subprocess.run(
+                [
+                    sys.executable,
+                    str(EXPORT),
+                    "--output",
+                    str(pack),
+                    "--no-archive",
+                    "--force",
+                    "--json",
+                ],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, export.returncode, export.stdout + export.stderr)
+            self.assertEqual("", export.stderr)
+            self.assertTrue(json.loads(export.stdout)["ok"])
+
+            payload = _run_bootstrap(
+                self,
+                pack,
+                target=target,
+                product=product,
+                check=False,
+                advance_product_structuring=True,
+                product_scaffold_preview=True,
+                product_structure_preview=True,
+                product_structure_apply=True,
+                advance_design_derivation=True,
+            )
+
+            self.assertTrue(payload["ok"])
+            self.assertTrue(payload["advance_design_derivation_requested"])
+            self.assertTrue(payload["advanced_design_derivation"])
+            self.assertTrue(payload["product_structure_apply_ok"])
+            design_derivation = payload["design_derivation"]
+            self.assertTrue(design_derivation["ok"])
+            self.assertTrue(design_derivation["product_verify_check_ok"])
+            self.assertTrue(design_derivation["advance_check_ok"])
+            self.assertTrue(design_derivation["advance_ok"])
+            self.assertTrue(design_derivation["status_ok"])
+            self.assertTrue(design_derivation["workflow_plan_ok"])
+            self.assertTrue(design_derivation["design_plan_ok"])
+            self.assertEqual("design-derivation", design_derivation["phase"])
+            self.assertEqual("design-derivation", payload["target_local"]["phase"])
+            self.assertEqual("design-derivation", payload["design_plan"]["phase"])
+            self.assertIn("tracks", payload["design_plan"])
+            self.assertTrue(payload["design_plan"]["tracks"])
+            step_ids = {step["id"] for step in payload["steps"]}
+            self.assertIn("product_clean_verify_check_before_design_derivation", step_ids)
+            self.assertIn("advance_design_derivation_check", step_ids)
+            self.assertIn("advance_design_derivation", step_ids)
+            self.assertIn("target_local_design_plan", step_ids)
+
 
 def _run_bootstrap(
     testcase: unittest.TestCase,
@@ -417,6 +488,7 @@ def _run_bootstrap(
     product_scaffold_preview: bool = False,
     product_structure_preview: bool = False,
     product_structure_apply: bool = False,
+    advance_design_derivation: bool = False,
 ) -> dict[str, object]:
     argv = [
         sys.executable,
@@ -441,6 +513,8 @@ def _run_bootstrap(
         argv.insert(-1, "--product-structure-preview")
     if product_structure_apply:
         argv.insert(-1, "--product-structure-apply")
+    if advance_design_derivation:
+        argv.insert(-1, "--advance-design-derivation")
     result = subprocess.run(
         argv,
         cwd=pack,

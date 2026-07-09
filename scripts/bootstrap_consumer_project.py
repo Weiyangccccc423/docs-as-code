@@ -89,6 +89,7 @@ def run_consumer_bootstrap(
     product_scaffold_preview: bool = False,
     product_structure_preview: bool = False,
     product_structure_apply: bool = False,
+    advance_design_derivation: bool = False,
     pack_root: Path = ROOT,
 ) -> dict[str, object]:
     pack_root = pack_root.resolve()
@@ -161,6 +162,11 @@ def run_consumer_bootstrap(
             "--product-structure-apply requires --product-structure-preview",
             payload=init_check,
         )
+        _require(
+            not advance_design_derivation or product_structure_apply,
+            "--advance-design-derivation requires --product-structure-apply",
+            payload=init_check,
+        )
 
         base_payload: dict[str, object] = {
             "ok": True,
@@ -183,6 +189,8 @@ def run_consumer_bootstrap(
             "product_structure_apply_requested": product_structure_apply,
             "product_structure_applied": False,
             "product_structure_apply_ok": False,
+            "advance_design_derivation_requested": advance_design_derivation,
+            "advanced_design_derivation": False,
             "pack_manifest_verification": pack_manifest_verification,
             "pack_verification": pack_verification,
             "env_check": env_check,
@@ -288,11 +296,39 @@ def run_consumer_bootstrap(
                             workflow_plan_payload=structure_apply["post_workflow_plan"],
                             expected_phase="product-structuring",
                         )
+                        if advance_design_derivation:
+                            _require(
+                                structure_apply.get("apply_skipped") is not True,
+                                "design-derivation advance requires product structure apply to write source-backed chapters",
+                                payload=structure_apply,
+                            )
+                            design_derivation = _advance_design_derivation(steps, target)
+                            _require(
+                                design_derivation.get("ok") is True,
+                                "design-derivation bootstrap sequence failed",
+                                payload=design_derivation,
+                            )
+                            payload["advanced_design_derivation"] = True
+                            payload["design_derivation"] = design_derivation
+                            payload["design_plan"] = design_derivation["design_plan"]
+                            payload["target_local"] = _target_local_details(
+                                target=target,
+                                init_payload=init_payload,
+                                verify_payload=design_derivation["product_verify_check"],
+                                status_payload=design_derivation["status"],
+                                workflow_plan_payload=design_derivation["workflow_plan"],
+                                expected_phase="design-derivation",
+                            )
         if isinstance(status_payload.get("local_commands"), list):
             payload["local_commands"] = status_payload["local_commands"]
         elif isinstance(init_payload.get("local_commands"), list):
             payload["local_commands"] = init_payload["local_commands"]
-        latest_status = payload.get("product_structuring", {}).get("status") if isinstance(payload.get("product_structuring"), dict) else status_payload
+        if isinstance(payload.get("design_derivation"), dict):
+            latest_status = payload["design_derivation"].get("status")
+        elif isinstance(payload.get("product_structuring"), dict):
+            latest_status = payload["product_structuring"].get("status")
+        else:
+            latest_status = status_payload
         if isinstance(latest_status, dict) and isinstance(latest_status.get("local_commands"), list):
             payload["local_commands"] = latest_status["local_commands"]
         if isinstance(latest_status, dict) and isinstance(latest_status.get("next_actions"), list):
@@ -325,6 +361,8 @@ def run_consumer_bootstrap(
             "product_structure_apply_requested": product_structure_apply,
             "product_structure_applied": False,
             "product_structure_apply_ok": False,
+            "advance_design_derivation_requested": advance_design_derivation,
+            "advanced_design_derivation": False,
             "steps": steps,
             "failed_step": error.step,
             "failed_payload": error.payload,
@@ -352,6 +390,8 @@ def run_consumer_bootstrap(
             "product_structure_apply_requested": product_structure_apply,
             "product_structure_applied": False,
             "product_structure_apply_ok": False,
+            "advance_design_derivation_requested": advance_design_derivation,
+            "advanced_design_derivation": False,
             "steps": steps,
         }
 
@@ -699,6 +739,82 @@ def _apply_product_structure(
     return payload
 
 
+def _advance_design_derivation(steps: list[dict[str, object]], target: Path) -> dict[str, object]:
+    product_verify_check = _run_json(
+        steps,
+        "product_clean_verify_check_before_design_derivation",
+        ["bin/governance", "verify", ".", "--check", "--json"],
+        target,
+    )
+    _require(
+        product_verify_check.get("ok") is True and product_verify_check.get("findings") == [],
+        "verification failed before design-derivation advance",
+        payload=product_verify_check,
+    )
+    advance_check = _run_json(
+        steps,
+        "advance_design_derivation_check",
+        ["bin/governance", "advance", "design-derivation", ".", "--check", "--json"],
+        target,
+    )
+    _require(advance_check.get("ok") is True, "design-derivation advance preflight failed", payload=advance_check)
+    advance = _run_json(
+        steps,
+        "advance_design_derivation",
+        ["bin/governance", "advance", "design-derivation", ".", "--json"],
+        target,
+    )
+    _require(advance.get("ok") is True, "design-derivation advance failed", payload=advance)
+    status = _run_json(
+        steps,
+        "target_local_governance_status_design_derivation",
+        ["make", "governance-status"],
+        target,
+    )
+    workflow_plan = _run_json(
+        steps,
+        "target_local_workflow_plan_design_derivation",
+        ["make", "workflow-plan"],
+        target,
+    )
+    design_plan = _run_json(
+        steps,
+        "target_local_design_plan",
+        ["make", "design-plan"],
+        target,
+    )
+    status_state = status.get("state")
+    phase = status_state.get("phase") if isinstance(status_state, dict) else ""
+    return {
+        "ok": (
+            product_verify_check.get("ok") is True
+            and product_verify_check.get("findings") == []
+            and advance_check.get("ok") is True
+            and advance.get("ok") is True
+            and status.get("ok") is True
+            and workflow_plan.get("ok") is True
+            and design_plan.get("ok") is True
+            and phase == "design-derivation"
+            and workflow_plan.get("phase") == "design-derivation"
+            and design_plan.get("phase") == "design-derivation"
+        ),
+        "phase": phase,
+        "product_verify_check_ok": product_verify_check.get("ok") is True
+        and product_verify_check.get("findings") == [],
+        "advance_check_ok": advance_check.get("ok") is True,
+        "advance_ok": advance.get("ok") is True,
+        "status_ok": status.get("ok") is True,
+        "workflow_plan_ok": workflow_plan.get("ok") is True,
+        "design_plan_ok": design_plan.get("ok") is True,
+        "product_verify_check": product_verify_check,
+        "advance_check": advance_check,
+        "advance": advance,
+        "status": status,
+        "workflow_plan": workflow_plan,
+        "design_plan": design_plan,
+    }
+
+
 def _product_plan_mapping(product_plan: dict[str, object]) -> dict[str, list[str]]:
     suggested_mappings = product_plan.get("suggested_mappings")
     chapters: list[str] = []
@@ -763,6 +879,14 @@ def build_parser() -> argparse.ArgumentParser:
             "product-plan command_arg mappings."
         ),
     )
+    parser.add_argument(
+        "--advance-design-derivation",
+        action="store_true",
+        help=(
+            "With --product-structure-apply, verify clean product docs, advance to design-derivation, "
+            "and return the target-local design plan."
+        ),
+    )
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     return parser
 
@@ -788,6 +912,7 @@ def main() -> int:
         product_scaffold_preview=args.product_scaffold_preview,
         product_structure_preview=args.product_structure_preview,
         product_structure_apply=args.product_structure_apply,
+        advance_design_derivation=args.advance_design_derivation,
     )
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
