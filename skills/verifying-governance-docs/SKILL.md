@@ -14,6 +14,7 @@ Read `references/governance-verification-checklist.md` before declaring a phase 
 For source workflow-pack health before using the pack on a real target:
 
 ```bash
+.github/workflows/ci.yml
 make dry-run
 make dry-run-golden
 python3 scripts/dry_run_workflow.py --json

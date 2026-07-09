@@ -845,6 +845,7 @@ SOURCE_PACK_EXPORT_PATH = "scripts/export_workflow_pack.py"
 SOURCE_PACK_EXPORT_REQUIRED_PHRASES = (
     "run_export",
     "EXPORT_RESOURCE_PATHS",
+    ".github",
     "pack-manifest.json",
     "verify_pack_manifest",
     "verify_pack",
@@ -1581,6 +1582,7 @@ RELEASE_READINESS_REQUIRED_PHRASES = (
 )
 RELEASE_READINESS_DOC_REQUIREMENTS = {
     "README.md": (
+        ".github/workflows/ci.yml",
         "make release-check",
         "python3 scripts/release_readiness.py --json",
         "references/release-readiness-checklist.md",
@@ -1602,6 +1604,10 @@ RELEASE_READINESS_DOC_REQUIREMENTS = {
         "references/release-readiness-checklist.md",
     ),
     "references/release-readiness-checklist.md": (
+        ".github/workflows/ci.yml",
+        "make test",
+        "python3 scripts/verify_pack.py --json",
+        "python3 scripts/check_env.py --json",
         "--auto-repair-env --workflow-preset product-structure",
         "--auto-repair-env --workflow-preset design-scaffold",
         "--auto-repair-env --workflow-preset design-routing",
@@ -3612,6 +3618,7 @@ AGENTS_VERIFICATION_REQUIRED_PHRASES = (
 SOURCE_PACK_REQUIRED_PATHS = tuple(
     dict.fromkeys(
         (
+            ".github/workflows/ci.yml",
             "README.md",
             "AGENTS.md",
             "Makefile",
@@ -3622,6 +3629,21 @@ SOURCE_PACK_REQUIRED_PATHS = tuple(
             *WORKFLOW_PACK_REQUIRED_PATHS,
         )
     )
+)
+CI_WORKFLOW_PATH = ".github/workflows/ci.yml"
+CI_WORKFLOW_REQUIRED_PHRASES = (
+    "name: CI",
+    "on:",
+    "push:",
+    "pull_request:",
+    "actions/checkout@v4",
+    "actions/setup-python@v5",
+    "python-version: '3.10'",
+    "sudo apt-get update",
+    "sudo apt-get install -y ripgrep",
+    "make test",
+    "python3 scripts/verify_pack.py --json",
+    "python3 scripts/check_env.py --json",
 )
 IGNORED_PACK_FILE_NAMES = {".DS_Store", "manifest.json"}
 MARKDOWN_LINK_RE = re.compile(r"(?<!!)\[[^\]]*]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
@@ -3779,6 +3801,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_consumer_bootstrap_workflow(root, findings)
     _check_artifact_smoke_workflow(root, findings)
     _check_release_readiness_workflow(root, findings)
+    _check_ci_workflow(root, findings)
     _check_runtime_continuation_calls(root, findings)
     _check_target_local_command_source(root, findings)
     _check_target_local_command_schema(root, findings)
@@ -4117,6 +4140,35 @@ def _check_release_readiness_workflow(root: Path, findings: list[PackFinding]) -
                 f"missing phrase(s): {', '.join(missing)}"
             ),
             RELEASE_READINESS_PATH,
+        )
+    )
+
+
+def _check_ci_workflow(root: Path, findings: list[PackFinding]) -> None:
+    path = root / CI_WORKFLOW_PATH
+    if not path.is_file():
+        findings.append(
+            PackFinding(
+                "pack_ci_workflow_missing",
+                f"missing GitHub Actions CI workflow: {CI_WORKFLOW_PATH}",
+                CI_WORKFLOW_PATH,
+            )
+        )
+        return
+    text = _read_utf8_text_or_none(path)
+    if text is None:
+        return
+    missing = [phrase for phrase in CI_WORKFLOW_REQUIRED_PHRASES if phrase not in text]
+    if not missing:
+        return
+    findings.append(
+        PackFinding(
+            "pack_ci_workflow_incomplete",
+            (
+                f"{CI_WORKFLOW_PATH} must run the source workflow-pack CI baseline; "
+                f"missing phrase(s): {', '.join(missing)}"
+            ),
+            CI_WORKFLOW_PATH,
         )
     )
 

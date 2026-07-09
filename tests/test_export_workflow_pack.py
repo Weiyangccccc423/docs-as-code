@@ -54,12 +54,14 @@ class ExportWorkflowPackTest(unittest.TestCase):
             self.assertTrue((output / "scripts/export_workflow_pack.py").is_file())
             self.assertTrue((output / "scripts/dry_run_workflow.py").is_file())
             self.assertTrue((output / "tests/test_export_workflow_pack.py").is_file())
+            self.assertTrue((output / ".github/workflows/ci.yml").is_file())
 
             manifest = json.loads((output / "pack-manifest.json").read_text(encoding="utf-8"))
             self.assertEqual(1, manifest["schema_version"])
             self.assertEqual("docs-as-code source workflow pack", manifest["source"])
             manifest_paths = {entry["path"] for entry in manifest["files"]}
             self.assertIn("README.md", manifest_paths)
+            self.assertIn(".github/workflows/ci.yml", manifest_paths)
             self.assertIn("scripts/export_workflow_pack.py", manifest_paths)
             self.assertIn("tests/test_export_workflow_pack.py", manifest_paths)
             self.assertNotIn("pack-manifest.json", manifest_paths)

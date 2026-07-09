@@ -464,6 +464,59 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_missing_ci_workflow(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            workflow = target / ".github/workflows/ci.yml"
+            if workflow.exists():
+                workflow.unlink()
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_ci_workflow_missing"
+                    and finding.path == ".github/workflows/ci.yml"
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_incomplete_ci_workflow(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            workflow = target / ".github/workflows/ci.yml"
+            workflow.write_text(
+                workflow.read_text(encoding="utf-8").replace(
+                    "make test",
+                    "python3 -m unittest",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_ci_workflow_incomplete"
+                    and finding.path == ".github/workflows/ci.yml"
+                    and "make test" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_incomplete_source_pack_export_script(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"

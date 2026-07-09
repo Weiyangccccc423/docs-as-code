@@ -25,6 +25,7 @@ DEFAULT_ARCHIVE = ROOT / "dist" / "docs-as-code-workflow-pack.tar.gz"
 REPRODUCIBLE_CREATED_AT = "1970-01-01T00:00:00Z"
 ARCHIVE_ROOT_NAME = "docs-as-code-workflow-pack"
 EXPORT_RESOURCE_PATHS = (
+    ".github",
     ".gitignore",
     "AGENTS.md",
     "Makefile",

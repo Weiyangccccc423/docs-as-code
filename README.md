@@ -120,6 +120,7 @@ python3 scripts/verify_pack_manifest.py dist/docs-as-code-workflow-pack --json
 
 The export writes `pack-manifest.json` with SHA-256 evidence for every included source-pack file, runs `verify_pack` against the exported directory, and creates a tar.gz artifact that can be unpacked as a trusted source workflow-pack checkout.
 The manifest verifier validates `pack-manifest.json` by recomputing SHA-256 hashes, `size_bytes`, executable flags, duplicate or invalid paths, and unmanifested files.
+The source workflow pack also carries `.github/workflows/ci.yml`, which runs the fast CI baseline on GitHub: `make test`, `python3 scripts/verify_pack.py --json`, and `python3 scripts/check_env.py --json`.
 
 To prove the transfer artifact is self-contained, smoke-test the tar.gz by unpacking it and running checks from the unpacked workflow pack:
 
@@ -328,6 +329,8 @@ make product-plan
 Read `workflows/00-overview.md` before running a phase.
 
 ## Verification
+
+GitHub Actions runs `.github/workflows/ci.yml` as the fast source-pack CI baseline.
 
 ```bash
 make test

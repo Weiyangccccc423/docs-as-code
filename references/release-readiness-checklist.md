@@ -4,6 +4,7 @@ Use this checklist before tagging, exporting, or handing off this source workflo
 
 ## Source Pack Verification
 
+- Confirm `.github/workflows/ci.yml` runs the fast source-pack CI baseline: `make test`, `python3 scripts/verify_pack.py --json`, and `python3 scripts/check_env.py --json`.
 - Run `make verify-pack`.
 - Run `python3 scripts/verify_pack.py --json` and require `ok: true` with no `findings`.
 - Confirm source-pack verification covers required files, runtime Python syntax, command surfaces, workflow action schemas, phase-skill alignment, reference routing, template guardrails, local Markdown links, and workflow-pack snapshot coverage.
