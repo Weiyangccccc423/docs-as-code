@@ -857,10 +857,24 @@ def _authority_skill_argv(*, strict: bool) -> list[str | Path]:
 
 def _empty_env_auto_repair(auto_repair_env: bool) -> dict[str, object]:
     return {
+        "ok": False,
         "requested": auto_repair_env,
         "applied": False,
         "skipped": False,
         "skip_reason": "",
+        "decision": "",
+        "status": "",
+        "stop_before_workflow": False,
+        "can_continue": False,
+        "can_auto_apply": False,
+        "requires_approval": False,
+        "manual_repair_required": False,
+        "runnable_action_ids": [],
+        "approval_action_ids": [],
+        "manual_action_ids": [],
+        "next_step": "",
+        "final_env_check_ok": False,
+        "final_missing_required": [],
         "initial_check": {},
         "repair": {},
         "post_check": {},
@@ -880,21 +894,38 @@ def _maybe_auto_repair_env(
     payload = _empty_env_auto_repair(auto_repair_env)
     payload["initial_check"] = env_check
     payload["final_env_check"] = env_check
+    _refresh_env_auto_repair_summary(payload, env_check)
     if not auto_repair_env:
         payload["skipped"] = True
         payload["skip_reason"] = "automatic environment repair was not requested"
+        payload["decision"] = "auto_repair_not_requested"
+        payload["status"] = "not_requested"
+        payload["can_auto_apply"] = False
+        if not payload["can_continue"]:
+            payload["stop_before_workflow"] = True
+            payload["next_step"] = "rerun with --auto-repair-env or repair environment manually"
+        payload["ok"] = payload["final_env_check_ok"] is True
         return payload
     if check:
         payload["skipped"] = True
         payload["skip_reason"] = "check mode must not write environment repairs"
+        payload["decision"] = "check_mode_no_repair"
+        payload["status"] = "check_mode"
+        payload["can_auto_apply"] = False
+        if not payload["can_continue"]:
+            payload["stop_before_workflow"] = True
+            payload["next_step"] = "rerun without --check or repair environment manually"
+        payload["ok"] = payload["final_env_check_ok"] is True
         return payload
     if _env_check_allows_workflow(env_check):
         payload["skipped"] = True
         payload["skip_reason"] = "environment already satisfies workflow requirements"
+        payload["ok"] = True
         return payload
     if not _env_check_allows_auto_repair(env_check):
         payload["skipped"] = True
-        payload["skip_reason"] = "environment repair requires approval or manual action"
+        payload["skip_reason"] = _env_auto_repair_skip_reason(payload)
+        payload["ok"] = False
         return payload
 
     repair = _run_json(
@@ -932,7 +963,98 @@ def _maybe_auto_repair_env(
     payload["repair"] = repair
     payload["post_check"] = post_check
     payload["final_env_check"] = post_check
+    _refresh_env_auto_repair_summary(payload, post_check)
+    payload["ok"] = payload["final_env_check_ok"] is True
     return payload
+
+
+def _refresh_env_auto_repair_summary(payload: dict[str, object], env_check: dict[str, object]) -> None:
+    decision = _mapping(env_check.get("repair_decision"))
+    execution = _mapping(env_check.get("repair_execution"))
+    final_missing_required = _string_list(env_check.get("missing_required"))
+    final_env_check_ok = env_check.get("ok") is True and final_missing_required == []
+    repair_decision = _string_value(decision.get("decision"))
+    repair_status = _string_value(decision.get("status")) or _string_value(execution.get("status"))
+    if not repair_decision and final_env_check_ok:
+        repair_decision = "continue_workflow"
+    if not repair_status and final_env_check_ok:
+        repair_status = "continue"
+    runnable_action_ids = _string_list(decision.get("runnable_action_ids"))
+    approval_action_ids = _string_list(decision.get("approval_action_ids"))
+    manual_action_ids = _string_list(decision.get("manual_action_ids"))
+    can_continue = decision.get("can_continue") is True or execution.get("can_continue") is True or final_env_check_ok
+    can_auto_apply = decision.get("can_auto_apply") is True or execution.get("can_auto_apply") is True
+    requires_approval = decision.get("requires_approval") is True or bool(approval_action_ids)
+    manual_repair_required = decision.get("manual_repair_required") is True or bool(manual_action_ids)
+    stop_before_workflow = (
+        decision.get("stop_before_workflow") is True
+        or not can_continue
+        or requires_approval
+        or manual_repair_required
+    )
+    next_step = _string_value(decision.get("next_step")) or _string_value(execution.get("next_step"))
+    if not next_step:
+        next_step = _env_auto_repair_next_step(repair_decision, repair_status, final_env_check_ok)
+    payload.update(
+        {
+            "decision": repair_decision,
+            "status": repair_status,
+            "stop_before_workflow": stop_before_workflow,
+            "can_continue": can_continue,
+            "can_auto_apply": can_auto_apply,
+            "requires_approval": requires_approval,
+            "manual_repair_required": manual_repair_required,
+            "runnable_action_ids": runnable_action_ids,
+            "approval_action_ids": approval_action_ids,
+            "manual_action_ids": manual_action_ids,
+            "next_step": next_step,
+            "final_env_check_ok": final_env_check_ok,
+            "final_missing_required": final_missing_required,
+            "ok": final_env_check_ok,
+        }
+    )
+
+
+def _env_auto_repair_skip_reason(payload: dict[str, object]) -> str:
+    if payload.get("requires_approval") is True:
+        return "environment repair requires approval"
+    if payload.get("manual_repair_required") is True:
+        return "environment repair requires manual action"
+    if payload.get("can_auto_apply") is not True:
+        return "environment repair is not auto-applicable"
+    return "environment repair requires approval or manual action"
+
+
+def _env_auto_repair_next_step(decision: str, status: str, final_env_check_ok: bool) -> str:
+    if decision == "continue_workflow" or final_env_check_ok:
+        return "continue workflow"
+    if decision == "run_repair_actions" or status == "ready_to_apply":
+        return "run repair_commands[].argv from repair_commands[].cwd"
+    if decision == "request_approval" or status == "approval_required":
+        return "request approval before running repair_commands"
+    if decision == "complete_manual_repairs" or status == "manual_repair_required":
+        return "complete manual_repairs before continuing"
+    if decision == "inspect_install_failure" or status == "install_failed":
+        return "inspect install_results and repair package-manager failure"
+    if decision == "inspect_unresolved_tools" or status == "applied_but_unresolved":
+        return "inspect post-repair missing tools before retrying package-manager repair"
+    if decision == "fix_repair_error" or status == "blocked_by_error":
+        return "fix reported environment repair error"
+    return "inspect environment repair payload"
+
+
+def _mapping(value: object) -> dict[str, object]:
+    return value if isinstance(value, dict) else {}
+
+
+def _string_value(value: object) -> str:
+    return value if isinstance(value, str) else ""
+
+
+def _string_list(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, str)]
 
 
 def _env_check_allows_workflow(env_check: dict[str, object]) -> bool:

@@ -236,6 +236,20 @@ class ConsumerBootstrapTest(unittest.TestCase):
             self.assertFalse(payload["skipped"])
             self.assertEqual("", payload["skip_reason"])
             self.assertEqual(initial_check, payload["initial_check"])
+            self.assertTrue(payload["ok"])
+            self.assertEqual("continue_workflow", payload["decision"])
+            self.assertEqual("continue", payload["status"])
+            self.assertFalse(payload["stop_before_workflow"])
+            self.assertTrue(payload["can_continue"])
+            self.assertFalse(payload["can_auto_apply"])
+            self.assertFalse(payload["requires_approval"])
+            self.assertFalse(payload["manual_repair_required"])
+            self.assertEqual([], payload["runnable_action_ids"])
+            self.assertEqual([], payload["approval_action_ids"])
+            self.assertEqual([], payload["manual_action_ids"])
+            self.assertEqual("continue workflow", payload["next_step"])
+            self.assertTrue(payload["final_env_check_ok"])
+            self.assertEqual([], payload["final_missing_required"])
             self.assertTrue(payload["repair"]["ok"])
             self.assertFalse(payload["repair"]["check"])
             self.assertTrue(payload["post_check"]["ok"])
@@ -288,7 +302,125 @@ class ConsumerBootstrapTest(unittest.TestCase):
             self.assertTrue(payload["requested"])
             self.assertFalse(payload["applied"])
             self.assertTrue(payload["skipped"])
-            self.assertEqual("environment repair requires approval or manual action", payload["skip_reason"])
+            self.assertEqual("environment repair requires approval", payload["skip_reason"])
+            self.assertFalse(payload["ok"])
+            self.assertEqual("request_approval", payload["decision"])
+            self.assertEqual("approval_required", payload["status"])
+            self.assertTrue(payload["stop_before_workflow"])
+            self.assertFalse(payload["can_continue"])
+            self.assertFalse(payload["can_auto_apply"])
+            self.assertTrue(payload["requires_approval"])
+            self.assertFalse(payload["manual_repair_required"])
+            self.assertEqual([], payload["runnable_action_ids"])
+            self.assertEqual(["env-repair-apt-install"], payload["approval_action_ids"])
+            self.assertEqual([], payload["manual_action_ids"])
+            self.assertEqual("request approval before running repair_commands", payload["next_step"])
+            self.assertEqual(initial_check, payload["final_env_check"])
+            self.assertEqual([], steps)
+
+    def test_auto_repair_env_skips_when_manual_repair_is_required(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            pack = base / "pack"
+            target = base / "target"
+            pack.mkdir()
+            target.mkdir()
+            initial_check = {
+                "ok": False,
+                "check": True,
+                "missing_required": ["node"],
+                "repair_execution": {
+                    "can_auto_apply": False,
+                    "manual_repair_required": True,
+                    "status": "manual_repair_required",
+                    "next_step": "complete manual_repairs before continuing",
+                },
+                "repair_decision": {
+                    "decision": "complete_manual_repairs",
+                    "manual_repair_required": True,
+                    "manual_action_ids": ["env-manual-repair-node"],
+                },
+            }
+            steps: list[dict[str, object]] = []
+
+            payload = _maybe_auto_repair_env(
+                steps,
+                pack,
+                target,
+                initial_check,
+                auto_repair_env=True,
+                check=False,
+            )
+
+            self.assertTrue(payload["requested"])
+            self.assertFalse(payload["applied"])
+            self.assertTrue(payload["skipped"])
+            self.assertEqual("environment repair requires manual action", payload["skip_reason"])
+            self.assertFalse(payload["ok"])
+            self.assertEqual("complete_manual_repairs", payload["decision"])
+            self.assertEqual("manual_repair_required", payload["status"])
+            self.assertTrue(payload["stop_before_workflow"])
+            self.assertFalse(payload["can_continue"])
+            self.assertFalse(payload["can_auto_apply"])
+            self.assertFalse(payload["requires_approval"])
+            self.assertTrue(payload["manual_repair_required"])
+            self.assertEqual([], payload["runnable_action_ids"])
+            self.assertEqual([], payload["approval_action_ids"])
+            self.assertEqual(["env-manual-repair-node"], payload["manual_action_ids"])
+            self.assertEqual("complete manual_repairs before continuing", payload["next_step"])
+            self.assertEqual(initial_check, payload["final_env_check"])
+            self.assertEqual([], steps)
+
+    def test_auto_repair_env_reports_not_requested_decision(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            pack = base / "pack"
+            target = base / "target"
+            pack.mkdir()
+            target.mkdir()
+            initial_check = {
+                "ok": False,
+                "check": True,
+                "missing_required": ["git"],
+                "repair_execution": {
+                    "can_auto_apply": True,
+                    "status": "ready_to_apply",
+                    "next_step": "run repair_commands[].argv from repair_commands[].cwd",
+                },
+                "repair_decision": {
+                    "decision": "run_repair_actions",
+                    "runnable_action_ids": ["env-repair-apt-install"],
+                    "approval_action_ids": [],
+                    "manual_action_ids": [],
+                },
+            }
+            steps: list[dict[str, object]] = []
+
+            payload = _maybe_auto_repair_env(
+                steps,
+                pack,
+                target,
+                initial_check,
+                auto_repair_env=False,
+                check=False,
+            )
+
+            self.assertFalse(payload["requested"])
+            self.assertFalse(payload["applied"])
+            self.assertTrue(payload["skipped"])
+            self.assertEqual("automatic environment repair was not requested", payload["skip_reason"])
+            self.assertFalse(payload["ok"])
+            self.assertEqual("auto_repair_not_requested", payload["decision"])
+            self.assertEqual("not_requested", payload["status"])
+            self.assertTrue(payload["stop_before_workflow"])
+            self.assertFalse(payload["can_continue"])
+            self.assertFalse(payload["can_auto_apply"])
+            self.assertFalse(payload["requires_approval"])
+            self.assertFalse(payload["manual_repair_required"])
+            self.assertEqual(["env-repair-apt-install"], payload["runnable_action_ids"])
+            self.assertEqual([], payload["approval_action_ids"])
+            self.assertEqual([], payload["manual_action_ids"])
+            self.assertEqual("rerun with --auto-repair-env or repair environment manually", payload["next_step"])
             self.assertEqual(initial_check, payload["final_env_check"])
             self.assertEqual([], steps)
 
