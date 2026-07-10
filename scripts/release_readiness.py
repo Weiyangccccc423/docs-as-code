@@ -287,6 +287,17 @@ def _artifact_smoke_bootstrap_env_auto_repair_ok(bootstrap_summary: dict[str, ob
     return (
         env_auto_repair.get("ok") is True
         and env_auto_repair.get("requested") is True
+        and env_auto_repair.get("decision") == "continue_workflow"
+        and env_auto_repair.get("status") == "continue"
+        and env_auto_repair.get("stop_before_workflow") is False
+        and env_auto_repair.get("can_continue") is True
+        and env_auto_repair.get("can_auto_apply") is False
+        and env_auto_repair.get("requires_approval") is False
+        and env_auto_repair.get("manual_repair_required") is False
+        and env_auto_repair.get("runnable_action_ids") == []
+        and env_auto_repair.get("approval_action_ids") == []
+        and env_auto_repair.get("manual_action_ids") == []
+        and env_auto_repair.get("next_step") == "continue workflow"
         and env_auto_repair.get("final_env_check_ok") is True
         and env_auto_repair.get("final_missing_required") == []
     )

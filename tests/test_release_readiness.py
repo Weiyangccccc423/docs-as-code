@@ -86,6 +86,67 @@ class ReleaseReadinessTest(unittest.TestCase):
             ]
         )
         self.assertEqual(
+            "continue_workflow",
+            criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_product_structure"]["env_auto_repair"][
+                "decision"
+            ],
+        )
+        self.assertEqual(
+            "continue",
+            criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_product_structure"]["env_auto_repair"][
+                "status"
+            ],
+        )
+        self.assertFalse(
+            criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_product_structure"]["env_auto_repair"][
+                "stop_before_workflow"
+            ],
+        )
+        self.assertTrue(
+            criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_product_structure"]["env_auto_repair"][
+                "can_continue"
+            ],
+        )
+        self.assertFalse(
+            criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_product_structure"]["env_auto_repair"][
+                "can_auto_apply"
+            ],
+        )
+        self.assertFalse(
+            criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_product_structure"]["env_auto_repair"][
+                "requires_approval"
+            ],
+        )
+        self.assertFalse(
+            criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_product_structure"]["env_auto_repair"][
+                "manual_repair_required"
+            ],
+        )
+        self.assertEqual(
+            [],
+            criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_product_structure"]["env_auto_repair"][
+                "runnable_action_ids"
+            ],
+        )
+        self.assertEqual(
+            [],
+            criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_product_structure"]["env_auto_repair"][
+                "approval_action_ids"
+            ],
+        )
+        self.assertEqual(
+            [],
+            criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_product_structure"]["env_auto_repair"][
+                "manual_action_ids"
+            ],
+        )
+        self.assertEqual(
+            "continue workflow",
+            criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_product_structure"]["env_auto_repair"][
+                "next_step"
+            ],
+        )
+        self.assertEqual(
             [],
             criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_product_structure"]["env_auto_repair"][
                 "final_missing_required"
@@ -120,6 +181,12 @@ class ReleaseReadinessTest(unittest.TestCase):
                 "ok"
             ]
         )
+        self.assertEqual(
+            "continue_workflow",
+            criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_design_scaffold"]["env_auto_repair"][
+                "decision"
+            ],
+        )
         self.assertTrue(
             criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_design_scaffold"][
                 "authority_skill_inventory"
@@ -149,6 +216,12 @@ class ReleaseReadinessTest(unittest.TestCase):
                 "ok"
             ]
         )
+        self.assertEqual(
+            "continue_workflow",
+            criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_design_routing"]["env_auto_repair"][
+                "decision"
+            ],
+        )
         self.assertTrue(
             criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_design_routing"][
                 "authority_skill_inventory"
@@ -174,6 +247,8 @@ class ReleaseReadinessTest(unittest.TestCase):
         ]
         self.assertTrue(implementation_routing["ok"])
         self.assertTrue(implementation_routing["env_auto_repair"]["ok"])
+        self.assertEqual("continue_workflow", implementation_routing["env_auto_repair"]["decision"])
+        self.assertFalse(implementation_routing["env_auto_repair"]["stop_before_workflow"])
         self.assertTrue(implementation_routing["authority_skill_inventory"]["ok"])
         self.assertEqual("design-derivation", implementation_routing["phase"])
         self.assertEqual("implementation-routing", implementation_routing["workflow_preset"])

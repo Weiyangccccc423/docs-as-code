@@ -892,12 +892,29 @@ def _env_auto_repair_details(bootstrap_payload: dict[str, object]) -> dict[str, 
     applied = auto_repair_map.get("applied") is True
     skipped = auto_repair_map.get("skipped") is True
     final_ok = final_env_check_map.get("ok") is True and final_missing_required_list == []
+    decision = auto_repair_map.get("decision")
+    status = auto_repair_map.get("status")
+    runnable_action_ids = auto_repair_map.get("runnable_action_ids")
+    approval_action_ids = auto_repair_map.get("approval_action_ids")
+    manual_action_ids = auto_repair_map.get("manual_action_ids")
+    next_step = auto_repair_map.get("next_step")
     return {
         "ok": requested and final_ok and (applied or skipped),
         "requested": requested,
         "applied": applied,
         "skipped": skipped,
         "skip_reason": auto_repair_map.get("skip_reason") if isinstance(auto_repair_map.get("skip_reason"), str) else "",
+        "decision": decision if isinstance(decision, str) else "",
+        "status": status if isinstance(status, str) else "",
+        "stop_before_workflow": auto_repair_map.get("stop_before_workflow") is True,
+        "can_continue": auto_repair_map.get("can_continue") is True,
+        "can_auto_apply": auto_repair_map.get("can_auto_apply") is True,
+        "requires_approval": auto_repair_map.get("requires_approval") is True,
+        "manual_repair_required": auto_repair_map.get("manual_repair_required") is True,
+        "runnable_action_ids": runnable_action_ids if isinstance(runnable_action_ids, list) else [],
+        "approval_action_ids": approval_action_ids if isinstance(approval_action_ids, list) else [],
+        "manual_action_ids": manual_action_ids if isinstance(manual_action_ids, list) else [],
+        "next_step": next_step if isinstance(next_step, str) else "",
         "initial_check_ok": initial_check_map.get("ok") is True,
         "initial_decision": initial_decision_map.get("decision")
         if isinstance(initial_decision_map.get("decision"), str)

@@ -51,6 +51,27 @@ class ArtifactSmokeTest(unittest.TestCase):
         self.assertTrue(payload["consumer_bootstrap_product_structure"]["auto_repair_env"])
         self.assertTrue(payload["consumer_bootstrap_product_structure"]["env_auto_repair"]["ok"])
         self.assertTrue(payload["consumer_bootstrap_product_structure"]["env_auto_repair"]["requested"])
+        self.assertEqual(
+            "continue_workflow",
+            payload["consumer_bootstrap_product_structure"]["env_auto_repair"]["decision"],
+        )
+        self.assertEqual("continue", payload["consumer_bootstrap_product_structure"]["env_auto_repair"]["status"])
+        self.assertFalse(
+            payload["consumer_bootstrap_product_structure"]["env_auto_repair"]["stop_before_workflow"]
+        )
+        self.assertTrue(payload["consumer_bootstrap_product_structure"]["env_auto_repair"]["can_continue"])
+        self.assertFalse(payload["consumer_bootstrap_product_structure"]["env_auto_repair"]["can_auto_apply"])
+        self.assertFalse(payload["consumer_bootstrap_product_structure"]["env_auto_repair"]["requires_approval"])
+        self.assertFalse(
+            payload["consumer_bootstrap_product_structure"]["env_auto_repair"]["manual_repair_required"]
+        )
+        self.assertEqual([], payload["consumer_bootstrap_product_structure"]["env_auto_repair"]["runnable_action_ids"])
+        self.assertEqual([], payload["consumer_bootstrap_product_structure"]["env_auto_repair"]["approval_action_ids"])
+        self.assertEqual([], payload["consumer_bootstrap_product_structure"]["env_auto_repair"]["manual_action_ids"])
+        self.assertEqual(
+            "continue workflow",
+            payload["consumer_bootstrap_product_structure"]["env_auto_repair"]["next_step"],
+        )
         self.assertTrue(payload["consumer_bootstrap_product_structure"]["env_auto_repair"]["final_env_check_ok"])
         self.assertEqual([], payload["consumer_bootstrap_product_structure"]["env_auto_repair"]["final_missing_required"])
         self.assertTrue(payload["consumer_bootstrap_product_structure"]["authority_skill_inventory"]["ok"])
@@ -74,6 +95,8 @@ class ArtifactSmokeTest(unittest.TestCase):
         )
         self.assertTrue(payload["consumer_bootstrap_design_scaffold"]["auto_repair_env"])
         self.assertTrue(payload["consumer_bootstrap_design_scaffold"]["env_auto_repair"]["ok"])
+        self.assertEqual("continue_workflow", payload["consumer_bootstrap_design_scaffold"]["env_auto_repair"]["decision"])
+        self.assertFalse(payload["consumer_bootstrap_design_scaffold"]["env_auto_repair"]["stop_before_workflow"])
         self.assertTrue(payload["consumer_bootstrap_design_scaffold"]["authority_skill_inventory"]["ok"])
         self.assertTrue(payload["consumer_bootstrap_design_scaffold"]["design_scaffold_apply_ok"])
         self.assertTrue(payload["consumer_bootstrap_design_scaffold"]["post_verify_blocked_by_placeholders"])
@@ -91,6 +114,8 @@ class ArtifactSmokeTest(unittest.TestCase):
         )
         self.assertTrue(payload["consumer_bootstrap_design_routing"]["design_authoring_preview_ok"])
         self.assertTrue(payload["consumer_bootstrap_design_routing"]["env_auto_repair"]["ok"])
+        self.assertEqual("continue_workflow", payload["consumer_bootstrap_design_routing"]["env_auto_repair"]["decision"])
+        self.assertFalse(payload["consumer_bootstrap_design_routing"]["env_auto_repair"]["stop_before_workflow"])
         self.assertTrue(payload["consumer_bootstrap_design_routing"]["authority_skill_inventory"]["ok"])
         self.assertEqual(9, payload["consumer_bootstrap_design_routing"]["queue_count"])
         self.assertEqual([], payload["consumer_bootstrap_design_routing"]["missing_queue_ids"])
@@ -106,6 +131,11 @@ class ArtifactSmokeTest(unittest.TestCase):
         )
         self.assertTrue(payload["consumer_bootstrap_implementation_routing"]["implementation_readiness_preview_ok"])
         self.assertTrue(payload["consumer_bootstrap_implementation_routing"]["env_auto_repair"]["ok"])
+        self.assertEqual(
+            "continue_workflow",
+            payload["consumer_bootstrap_implementation_routing"]["env_auto_repair"]["decision"],
+        )
+        self.assertFalse(payload["consumer_bootstrap_implementation_routing"]["env_auto_repair"]["stop_before_workflow"])
         self.assertTrue(payload["consumer_bootstrap_implementation_routing"]["authority_skill_inventory"]["ok"])
         self.assertTrue(payload["consumer_bootstrap_implementation_routing"]["readiness_previewed"])
         self.assertFalse(payload["consumer_bootstrap_implementation_routing"]["readiness_ok"])
