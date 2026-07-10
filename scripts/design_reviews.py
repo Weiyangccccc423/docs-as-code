@@ -10,8 +10,16 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 try:
+    from .api_review_evidence import (
+        api_review_required_evidence_paths,
+        build_api_review_evidence_inventory,
+    )
     from .state import StateFileError, load_state, utc_now
 except ImportError:  # pragma: no cover - direct script execution
+    from api_review_evidence import (
+        api_review_required_evidence_paths,
+        build_api_review_evidence_inventory,
+    )
     from state import StateFileError, load_state, utc_now
 
 
@@ -689,6 +697,22 @@ def _build_design_review_plan(
     explicit_evidence = _dedupe_strings(
         [path.strip() for path in evidence_paths if isinstance(path, str) and path.strip()]
     )
+    if normalized_track == "api-contracts":
+        machine_review = build_api_review_evidence_inventory(root)
+        machine_status = str(machine_review.get("status", "missing"))
+        if machine_review.get("ok") is not True:
+            if machine_status == "missing":
+                errors.append("API machine review evidence is missing; run design api-review before authority signoff")
+            elif machine_status == "invalid":
+                details = "; ".join(_string_items(machine_review.get("errors"))) or "invalid evidence document"
+                errors.append(f"API machine review evidence is invalid: {details}")
+            else:
+                details = "; ".join(_string_items(machine_review.get("stale_reasons"))) or "review inputs changed"
+                errors.append(f"API machine review evidence is stale: {details}")
+        else:
+            explicit_evidence = _dedupe_strings(
+                [*explicit_evidence, *api_review_required_evidence_paths()]
+            )
     if normalized_track == "architecture-decisions" and normalized_result == "approved":
         if not any(ADR_PATH_RE.fullmatch(path) for path in explicit_evidence):
             errors.append("approved architecture-decision review requires --evidence docs/decisions/NNN-<slug>.md")

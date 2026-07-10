@@ -178,6 +178,9 @@ class ReleaseReadinessTest(unittest.TestCase):
         self.assertTrue(
             criteria["fresh-target-dry-run"]["details"]["design_reviews"]["work_package_complete"]
         )
+        self.assertTrue(
+            criteria["fresh-target-dry-run"]["details"]["api_review"]["current_after_runtime_refresh"]
+        )
         self.assertEqual(
             [],
             criteria["multi-acceptance-dry-run"]["details"]["target_local_make_coverage"]["missing_step_ids"],
@@ -191,6 +194,9 @@ class ReleaseReadinessTest(unittest.TestCase):
         self.assertEqual(
             36,
             criteria["multi-acceptance-dry-run"]["details"]["design_reviews"]["active_count"],
+        )
+        self.assertTrue(
+            criteria["multi-acceptance-dry-run"]["details"]["api_review"]["current_after_runtime_refresh"]
         )
         self.assertTrue(criteria["release-artifact-smoke"]["details"]["fresh_target_init"]["ok"])
         self.assertTrue(
@@ -206,6 +212,12 @@ class ReleaseReadinessTest(unittest.TestCase):
             ],
         )
         self.assertTrue(criteria["release-artifact-smoke"]["details"]["design_reviews"]["ok"])
+        self.assertTrue(criteria["release-artifact-smoke"]["details"]["api_review"]["ok"])
+        self.assertTrue(
+            criteria["release-artifact-smoke"]["details"]["api_review"][
+                "current_after_runtime_refresh"
+            ]
+        )
         self.assertEqual(
             9,
             criteria["release-artifact-smoke"]["details"]["design_reviews"]["active_count"],

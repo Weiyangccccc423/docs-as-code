@@ -7,7 +7,7 @@ description: Use when creating or changing HTTP API contracts, endpoint document
 
 API contracts are shared truth between frontend, backend, tests, and agents.
 
-Read `references/architecture-methods.md` before writing API contracts. Use its OpenAPI note to keep Markdown endpoint files aligned with a future machine-readable contract.
+Read `references/architecture-methods.md` before writing API contracts. Keep the human-reviewed Markdown endpoint files aligned with the required machine-readable OpenAPI contract.
 Read `references/api-design-checklist.md` before writing API contracts. Use it as the completion checklist for contract shape, HTTP semantics, error responses, idempotency, collection operations, compatibility, and traceability.
 Read `references/security-design-checklist.md` before writing auth, authorization, abuse-limit, sensitive-data, or dependency-trust contract decisions.
 
@@ -18,6 +18,7 @@ Read `references/security-design-checklist.md` before writing auth, authorizatio
 - `docs/api/endpoints/NN-*.md`
 - `docs/api/error-codes.md`
 - `docs/api/changelog.md`
+- `docs/api/openapi.json`
 
 Endpoint files under `docs/api/endpoints/` must use `NN-<slug>.md` with unique `NN` prefixes.
 
@@ -96,6 +97,16 @@ Link `Frontend Consumers` to existing local UI or frontend API-consumption Markd
 10. Check contract shape, HTTP semantics, error responses, idempotency, collection behavior, compatibility, and traceability against `references/api-design-checklist.md`.
 11. Check object-level authorization, function-level authorization, mass-assignment, rate-limit, sensitive-field, and logging expectations against `references/security-design-checklist.md`.
 12. Update `docs/api/README.md` and endpoint indexes for every new Markdown file.
+13. Encode the complete reviewed contract as OpenAPI 3.0.x or 3.1.x JSON at `docs/api/openapi.json`. Do not add fields, auth behavior, errors, or endpoints that are absent from product and Markdown design evidence.
+14. Load the agent-environment `api-design-reviewer` skill, then run all three authority-provided tools through the governance command:
+
+   ```bash
+   bin/governance design api-review <target> --reviewed --min-grade B --check --json
+   bin/governance design api-review <target> --reviewed --min-grade B --json
+   ```
+
+   The linter must report zero errors and zero warnings, the breaking-change detector must report no breaking or potentially breaking changes, and the scorecard must meet grade B or better. The command writes the initial baseline and hash-bound reports under `docs/api/baselines/` and `docs/api/reviews/`; `--check` runs only in a temporary directory.
+15. Only after `docs/api/reviews/review-evidence.json` is current, run `design review --track api-contracts ... --reviewed --check --json`, then apply the authority signoff. OpenAPI, baseline, report, authority skill, or authority tool changes require machine review again before signoff.
 
 ## Stop Conditions
 
@@ -105,3 +116,5 @@ Link `Frontend Consumers` to existing local UI or frontend API-consumption Markd
 - Authorization or abuse-limit behavior is unclear.
 - Compatibility, versioning, pagination, retry, or duplicate-submission behavior is unclear for a contract that needs it.
 - The endpoint requires a DB schema that has not been designed.
+- `api-design-reviewer` or any required authority tool script is unavailable.
+- API lint contains an error or warning, scorecard grade is below the configured minimum, or compatibility detection reports a breaking or potentially breaking change.

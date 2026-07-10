@@ -3,6 +3,7 @@ import contextlib
 import importlib
 import io
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -10,6 +11,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -464,6 +466,7 @@ def _implementation_ready_target(
     _append_index(target / "docs/development/README.md", "02-task-board.md")
     (target / "docs/development/03-verification-log.md").write_text(_verification_log_doc(), encoding="utf-8")
     _append_index(target / "docs/development/README.md", "03-verification-log.md")
+    _write_test_openapi(target)
 
     if advance_implementation:
         _record_all_test_design_reviews(case, target)
@@ -497,6 +500,155 @@ def _install_test_authority_skills(target: Path, names: tuple[str, ...]) -> None
             f"---\nname: {name}\ndescription: Test-only authority routing fixture.\n---\n\n# {name}\n",
             encoding="utf-8",
         )
+        if name == "api-design-reviewer":
+            _install_test_api_review_tools(target)
+
+
+def _install_test_api_review_tools(
+    target: Path,
+    *,
+    breaking: bool = False,
+    lint_warnings: int = 0,
+    scorecard_grade: str = "A",
+    mutate_input: bool = False,
+) -> None:
+    skill_root = target / ".agents/skills/api-design-reviewer"
+    reports = {
+        "api_linter.py": {
+            "summary": {
+                "total_endpoints": 1,
+                "endpoints_with_issues": 0,
+                "total_issues": lint_warnings,
+                "errors": 0,
+                "warnings": lint_warnings,
+                "info": 0,
+                "score": 100.0,
+            },
+            "issues": [
+                {
+                    "severity": "warning",
+                    "category": "test-only",
+                    "message": "Deterministic warning fixture.",
+                }
+            ] if lint_warnings else [],
+        },
+        "breaking_change_detector.py": {
+            "summary": {
+                "total_changes": 1 if breaking else 0,
+                "breaking_changes": 1 if breaking else 0,
+                "potentially_breaking_changes": 0,
+                "non_breaking_changes": 0,
+                "enhancements": 0,
+                "critical_severity": 1 if breaking else 0,
+                "high_severity": 0,
+                "medium_severity": 0,
+                "low_severity": 0,
+                "info_severity": 0,
+            },
+            "hasBreakingChanges": breaking,
+            "changes": [
+                {
+                    "type": "endpoint_removed",
+                    "severity": "critical",
+                    "path": "/goals",
+                }
+            ] if breaking else [],
+        },
+        "api_scorecard.py": {
+            "overall": {
+                "score": 95.0 if scorecard_grade == "A" else 75.0,
+                "grade": scorecard_grade,
+                "totalEndpoints": 1,
+            },
+            "api_info": {
+                "title": "Goal API",
+                "version": "1.0.0",
+                "description": "Goal workflow API",
+                "total_paths": 1,
+                "openapi_version": "3.1.0",
+            },
+            "categories": {},
+            "topRecommendations": [],
+        },
+    }
+    for script_name, report in reports.items():
+        script = skill_root / "scripts" / script_name
+        script.parent.mkdir(parents=True, exist_ok=True)
+        input_mutation = (
+            "Path(sys.argv[1]).write_text('{\\\"openapi\\\": \\\"0.0.0\\\"}\\n', encoding='utf-8')\n"
+            if mutate_input and script_name == "api_linter.py"
+            else ""
+        )
+        script.write_text(
+            "import json\n"
+            "import sys\n"
+            "from pathlib import Path\n\n"
+            f"REPORT = {report!r}\n"
+            f"{input_mutation}"
+            "output_index = sys.argv.index('--output') + 1\n"
+            "Path(sys.argv[output_index]).write_text(json.dumps(REPORT, indent=2, sort_keys=True) + '\\n', encoding='utf-8')\n"
+            f"raise SystemExit({1 if script_name == 'breaking_change_detector.py' and breaking else 0})\n",
+            encoding="utf-8",
+        )
+
+
+def _write_test_openapi(target: Path) -> None:
+    path = target / "docs/api/openapi.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "openapi": "3.1.0",
+                "info": {
+                    "title": "Goal API",
+                    "version": "1.0.0",
+                    "description": "Source-backed goal workflow API.",
+                    "contact": {"name": "Goal API owners"},
+                },
+                "servers": [{"url": "https://api.example.test"}],
+                "paths": {
+                    "/goals": {
+                        "post": {
+                            "operationId": "createGoal",
+                            "summary": "Create a goal",
+                            "description": "Creates one source-backed goal for the authenticated owner.",
+                            "security": [{"bearerAuth": []}],
+                            "requestBody": {
+                                "required": True,
+                                "content": {
+                                    "application/json": {
+                                        "schema": {"$ref": "#/components/schemas/CreateGoal"}
+                                    }
+                                },
+                            },
+                            "responses": {
+                                "201": {"description": "Goal created."},
+                                "400": {"description": "Invalid request."},
+                                "401": {"description": "Authentication required."},
+                                "409": {"description": "Duplicate idempotency key."},
+                                "500": {"description": "Unexpected failure."},
+                            },
+                        }
+                    }
+                },
+                "components": {
+                    "securitySchemes": {
+                        "bearerAuth": {"type": "http", "scheme": "bearer"}
+                    },
+                    "schemas": {
+                        "CreateGoal": {
+                            "type": "object",
+                            "required": ["title"],
+                            "properties": {"title": {"type": "string", "minLength": 1}},
+                        }
+                    },
+                },
+            },
+            indent=2,
+            sort_keys=True,
+        ) + "\n",
+        encoding="utf-8",
+    )
 
 
 def _record_all_test_design_reviews(case: unittest.TestCase, target: Path) -> None:
@@ -512,6 +664,10 @@ def _record_all_test_design_reviews(case: unittest.TestCase, target: Path) -> No
         ("architecture-decisions", "ADR-AUTHOR-001", "not-applicable", "senior-architect"),
     )
     _install_test_authority_skills(target, tuple(dict.fromkeys(item[3] for item in reviews)))
+    _run_governance_json(
+        case,
+        ["design", "api-review", str(target), "--reviewed"],
+    )
     for track, work_id, result, authority_skill in reviews:
         _run_governance_json(
             case,
@@ -3153,6 +3309,296 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn("docs/api/00-conventions.md", api_package["next_action"]["paths"])
             self.assertNotEqual("repair", api_package["next_action"]["kind"])
 
+    def test_api_review_runs_authority_tools_and_records_hash_bound_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp, advance_implementation=False)
+            _install_test_authority_skills(target, ("api-design-reviewer",))
+            args = ["design", "api-review", str(target), "--reviewed"]
+
+            preview = _run_governance_json(self, [*args, "--check"])
+            expected_paths = {
+                "docs/api/baselines/openapi-baseline.json",
+                "docs/api/reviews/api-lint.json",
+                "docs/api/reviews/api-breaking-changes.json",
+                "docs/api/reviews/api-scorecard.json",
+                "docs/api/reviews/review-evidence.json",
+            }
+            self.assertTrue(preview["ok"])
+            self.assertTrue(preview["check"])
+            self.assertEqual(expected_paths, set(preview["would_update"]))
+            self.assertEqual("initial-baseline", preview["baseline_mode"])
+            self.assertEqual("A", preview["evidence"]["reports"]["scorecard"]["grade"])
+            self.assertFalse(any((target / path).exists() for path in expected_paths))
+
+            applied = _run_governance_json(self, args)
+            self.assertTrue(applied["ok"])
+            self.assertTrue(applied["applied"])
+            self.assertEqual(expected_paths, set(applied["updated"]))
+            self.assertTrue(all((target / path).is_file() for path in expected_paths))
+            evidence = json.loads(
+                (target / "docs/api/reviews/review-evidence.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual("api-design-reviewer", evidence["authority_skill"]["name"])
+            self.assertRegex(evidence["authority_skill"]["sha256"], r"^[0-9a-f]{64}$")
+            self.assertEqual(
+                {"api_linter", "api_scorecard", "breaking_change_detector"},
+                {tool["name"] for tool in evidence["authority_tools"]},
+            )
+            self.assertTrue(
+                all(re.fullmatch(r"[0-9a-f]{64}", tool["sha256"]) for tool in evidence["authority_tools"])
+            )
+
+            idempotent = _run_governance_json(self, [*args, "--check"])
+            self.assertTrue(idempotent["ok"])
+            self.assertEqual([], idempotent["would_update"])
+            self.assertEqual(evidence["recorded_at"], idempotent["evidence"]["recorded_at"])
+
+    def test_api_work_package_routes_machine_review_before_authority_signoff(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp, advance_implementation=False)
+            _install_test_authority_skills(
+                target,
+                ("api-design-reviewer", "senior-backend", "senior-security"),
+            )
+
+            machine_review = _run_governance_json(
+                self,
+                ["workflow", "work-package", str(target)],
+            )
+
+            self.assertEqual("api-authoring", machine_review["work_package"]["queue_id"])
+            self.assertEqual("api-contracts", machine_review["work_package"]["track_id"])
+            self.assertEqual("machine-review", machine_review["work_package"]["work_stage"])
+            self.assertEqual("machine_review_required", machine_review["status"])
+            self.assertEqual("run-api-review", machine_review["next_action"]["kind"])
+            self.assertEqual(
+                ["bin/governance", "design", "api-review", "."],
+                machine_review["next_action"]["command_contract"]["argv_prefix"],
+            )
+            self.assertEqual(
+                ["--reviewed"],
+                machine_review["next_action"]["command_contract"]["required_arguments"],
+            )
+
+            _run_governance_json(
+                self,
+                ["design", "api-review", str(target), "--reviewed"],
+            )
+            authority_review = _run_governance_json(
+                self,
+                ["workflow", "work-package", str(target)],
+            )
+            self.assertEqual("review", authority_review["work_package"]["work_stage"])
+            self.assertNotEqual("run-api-review", authority_review["next_action"]["kind"])
+
+    def test_api_design_review_requires_current_machine_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp, advance_implementation=False)
+            _install_test_authority_skills(target, ("api-design-reviewer",))
+            review_args = [
+                "design",
+                "review",
+                str(target),
+                "--track",
+                "api-contracts",
+                "--work",
+                "API-AUTHOR-001",
+                "--result",
+                "approved",
+                "--reason",
+                "API authority review confirms the OpenAPI contract and machine reports satisfy the declared decisions.",
+                "--reviewed",
+            ]
+            missing = _run_governance_json(self, review_args, expected_returncode=1)
+            self.assertIn("API machine review evidence is missing", "\n".join(missing["errors"]))
+
+            _run_governance_json(
+                self,
+                ["design", "api-review", str(target), "--reviewed"],
+            )
+            reviewed = _run_governance_json(self, review_args)
+            evidence_paths = {
+                snapshot["path"]
+                for snapshot in reviewed["review"]["evidence_snapshots"]
+            }
+            self.assertIn("docs/api/openapi.json", evidence_paths)
+            self.assertIn("docs/api/reviews/review-evidence.json", evidence_paths)
+            self.assertIn("docs/api/reviews/api-lint.json", evidence_paths)
+            self.assertIn("docs/api/reviews/api-scorecard.json", evidence_paths)
+            self.assertIn("docs/api/reviews/api-breaking-changes.json", evidence_paths)
+
+            openapi = target / "docs/api/openapi.json"
+            specification = json.loads(openapi.read_text(encoding="utf-8"))
+            specification["info"]["description"] = "Changed API meaning after machine and authority review."
+            openapi.write_text(
+                json.dumps(specification, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+            stale_verify = _run_governance_json(
+                self,
+                ["verify", str(target), "--check"],
+                expected_returncode=1,
+            )
+            finding_codes = {
+                finding["code"]
+                for finding in stale_verify["findings"]
+                if isinstance(finding, dict) and "code" in finding
+            }
+            self.assertIn("api_review_evidence_stale", finding_codes)
+            self.assertIn("design_review_stale", finding_codes)
+
+    def test_api_review_rejects_breaking_change_without_writing_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp, advance_implementation=False)
+            _install_test_authority_skills(target, ("api-design-reviewer",))
+            _run_governance_json(
+                self,
+                ["design", "api-review", str(target), "--reviewed"],
+            )
+            openapi = target / "docs/api/openapi.json"
+            specification = json.loads(openapi.read_text(encoding="utf-8"))
+            specification["paths"] = {"/replacement": specification["paths"]["/goals"]}
+            openapi.write_text(
+                json.dumps(specification, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+            _install_test_api_review_tools(target, breaking=True)
+
+            rejected = _run_governance_json(
+                self,
+                ["design", "api-review", str(target), "--reviewed", "--check"],
+                expected_returncode=1,
+            )
+
+            self.assertIn("breaking changes", "\n".join(rejected["errors"]))
+            evidence = json.loads(
+                (target / "docs/api/reviews/review-evidence.json").read_text(encoding="utf-8")
+            )
+            self.assertNotEqual(
+                rejected["openapi_snapshot"]["sha256"],
+                evidence["openapi_snapshot"]["sha256"],
+            )
+
+    def test_api_review_fails_closed_on_lint_warnings_and_low_scorecard_grade(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp, advance_implementation=False)
+            _install_test_authority_skills(target, ("api-design-reviewer",))
+            _install_test_api_review_tools(target, lint_warnings=1)
+
+            warned = _run_governance_json(
+                self,
+                ["design", "api-review", str(target), "--reviewed", "--check"],
+                expected_returncode=1,
+            )
+            self.assertIn("1 warning(s)", "\n".join(warned["errors"]))
+            self.assertFalse((target / "docs/api/reviews/review-evidence.json").exists())
+
+            _install_test_api_review_tools(target, scorecard_grade="C")
+            low_grade = _run_governance_json(
+                self,
+                ["design", "api-review", str(target), "--reviewed", "--check"],
+                expected_returncode=1,
+            )
+            self.assertIn("grade C is below required grade B", "\n".join(low_grade["errors"]))
+            self.assertFalse((target / "docs/api/reviews/review-evidence.json").exists())
+
+    def test_api_review_evidence_becomes_stale_when_authority_tool_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp, advance_implementation=False)
+            _install_test_authority_skills(target, ("api-design-reviewer",))
+            _run_governance_json(
+                self,
+                ["design", "api-review", str(target), "--reviewed"],
+            )
+            linter = target / ".agents/skills/api-design-reviewer/scripts/api_linter.py"
+            linter.write_text(
+                linter.read_text(encoding="utf-8") + "# Authority tool changed after review.\n",
+                encoding="utf-8",
+            )
+
+            stale = _run_governance_json(
+                self,
+                ["verify", str(target), "--check"],
+                expected_returncode=1,
+            )
+            findings = [
+                finding
+                for finding in stale["findings"]
+                if finding.get("code") == "api_review_evidence_stale"
+            ]
+            self.assertTrue(findings)
+            self.assertIn("authority tool changed", "\n".join(finding["message"] for finding in findings))
+
+    def test_api_review_tools_run_against_an_isolated_openapi_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp, advance_implementation=False)
+            _install_test_authority_skills(target, ("api-design-reviewer",))
+            _install_test_api_review_tools(target, mutate_input=True)
+            openapi = target / "docs/api/openapi.json"
+            original = openapi.read_bytes()
+
+            result = _run_governance_json(
+                self,
+                ["design", "api-review", str(target), "--reviewed", "--check"],
+            )
+
+            self.assertTrue(result["ok"])
+            self.assertEqual(original, openapi.read_bytes())
+            self.assertFalse((target / "docs/api/reviews/review-evidence.json").exists())
+
+    def test_api_review_public_check_returns_error_for_unsupported_grade(self) -> None:
+        from scripts.api_review_evidence import check_api_review_evidence
+
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp, advance_implementation=False)
+            result = check_api_review_evidence(target, reviewed=True, min_grade="Z")
+
+            self.assertFalse(result.ok)
+            self.assertIn("unsupported API scorecard minimum grade: Z", result.errors)
+
+    def test_api_review_atomic_write_cleans_staged_files_after_staging_failure(self) -> None:
+        from scripts import api_review_evidence
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            original_write_bytes = Path.write_bytes
+
+            def staged_write(path: Path, content: bytes) -> int:
+                if path.name == ".second.json.tmp":
+                    raise OSError("planned staging failure")
+                return original_write_bytes(path, content)
+
+            with mock.patch.object(Path, "write_bytes", new=staged_write):
+                with self.assertRaises(OSError):
+                    api_review_evidence._write_outputs_atomically(
+                        root,
+                        {"first.json": b"first\n", "second.json": b"second\n"},
+                    )
+
+            self.assertFalse((root / ".first.json.tmp").exists())
+            self.assertFalse((root / ".second.json.tmp").exists())
+            self.assertFalse((root / "first.json").exists())
+            self.assertFalse((root / "second.json").exists())
+
+    def test_api_review_reports_temporary_workspace_failure_without_crashing(self) -> None:
+        from scripts.api_review_evidence import check_api_review_evidence
+
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp, advance_implementation=False)
+            _install_test_authority_skills(target, ("api-design-reviewer",))
+
+            with mock.patch(
+                "scripts.api_review_evidence.tempfile.TemporaryDirectory",
+                side_effect=OSError("temporary storage unavailable"),
+            ):
+                result = check_api_review_evidence(target, reviewed=True)
+
+            self.assertFalse(result.ok)
+            self.assertIn(
+                "API authority tool workspace failed: temporary storage unavailable",
+                result.errors,
+            )
+
     def test_design_review_records_authority_bound_decisions_and_detects_stale_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = _implementation_ready_target(self, tmp, advance_implementation=False)
@@ -3163,6 +3609,7 @@ class GovernanceCliTest(unittest.TestCase):
                     "senior-security",
                     "observability-designer",
                     "slo-architect",
+                    "api-design-reviewer",
                 ),
             )
 
@@ -3174,6 +3621,10 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn(
                 "design_review_missing",
                 {finding["code"] for finding in missing_review["findings"]},
+            )
+            _run_governance_json(
+                self,
+                ["design", "api-review", str(target), "--reviewed"],
             )
             review_package = _run_governance_json(
                 self,
@@ -7965,6 +8416,7 @@ class GovernanceCliTest(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
+            _write_test_openapi(target)
             _record_all_test_design_reviews(self, target)
 
             allowed = subprocess.run(
@@ -8635,10 +9087,10 @@ class GovernanceCliTest(unittest.TestCase):
                 {
                     "task_count": 1,
                     "document_status_counts": {
-                        "missing": 1,
+                        "missing": 2,
                         "placeholder_present": 3,
                     },
-                    "non_authored_document_count": 4,
+                    "non_authored_document_count": 5,
                     "open_decision_count": 8,
                     "required_link_status_counts": {
                         "placeholder_present": 4,
@@ -8703,6 +9155,7 @@ class GovernanceCliTest(unittest.TestCase):
                     "docs/api/error-codes.md",
                     "docs/api/changelog.md",
                     "docs/api/endpoints/01-goal-flow.md",
+                    "docs/api/openapi.json",
                 ],
                 document_paths,
             )
@@ -8750,6 +9203,7 @@ class GovernanceCliTest(unittest.TestCase):
                     "read-source-acceptance",
                     "fill-shared-api-documents",
                     "author-endpoint-contract",
+                    "author-openapi-contract",
                     "link-consumers-and-owners",
                     "update-acceptance-matrix",
                     "verify-api-authoring",
@@ -8757,15 +9211,15 @@ class GovernanceCliTest(unittest.TestCase):
                 ],
                 [step["id"] for step in task["steps"]],
             )
-            self.assertEqual(list(range(1, 10)), [step["sequence"] for step in task["steps"]])
+            self.assertEqual(list(range(1, 11)), [step["sequence"] for step in task["steps"]])
             self.assertEqual(["designing-api-contracts"], task["steps"][0]["skills"])
             self.assertIn("api-design-reviewer", task["steps"][0]["specialist_skills"])
             step_requirements = _requirements_by_name(task["steps"][0]["skill_requirements"])
             self.assertEqual("local-workflow", step_requirements["designing-api-contracts"]["type"])
             self.assertEqual("authority-routing", step_requirements["api-design-reviewer"]["type"])
-            self.assertEqual(["bin/governance", "verify", ".", "--check", "--json"], task["steps"][7]["argv"])
-            self.assertFalse(task["steps"][7]["writes_state"])
-            self.assertEqual(["bin/governance", "design", "api-authoring", ".", "--json"], task["steps"][8]["argv"])
+            self.assertEqual(["bin/governance", "verify", ".", "--check", "--json"], task["steps"][8]["argv"])
+            self.assertFalse(task["steps"][8]["writes_state"])
+            self.assertEqual(["bin/governance", "design", "api-authoring", ".", "--json"], task["steps"][9]["argv"])
             self.assertNotIn("method", task)
             self.assertNotIn("path", task)
             self.assertNotIn("request_schema", task)

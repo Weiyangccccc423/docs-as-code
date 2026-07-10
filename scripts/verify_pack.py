@@ -2249,6 +2249,85 @@ DESIGN_REVIEW_DOC_REQUIREMENTS = {
         "docs/decisions/design-reviews.json",
     ),
 }
+API_REVIEW_SOURCE_PATH = "scripts/api_review_evidence.py"
+API_REVIEW_SOURCE_REQUIRED_PHRASES = (
+    "ApiReviewEvidenceResult",
+    "check_api_review_evidence",
+    "record_api_review_evidence",
+    "build_api_review_evidence_inventory",
+    "build_openapi_contract_inventory",
+    "API_OPENAPI_REL",
+    "API_BASELINE_REL",
+    "API_REVIEW_EVIDENCE_REL",
+    "API_REVIEW_AUTHORITY_SKILL",
+    "API_REVIEW_TOOL_FILES",
+    "api_linter.py",
+    "breaking_change_detector.py",
+    "api_scorecard.py",
+    "sys.executable",
+    "subprocess.run",
+    "TemporaryDirectory",
+    "--exit-on-breaking",
+    "_write_outputs_atomically",
+)
+API_REVIEW_DOC_REQUIREMENTS = {
+    "README.md": (
+        "design api-review",
+        "docs/api/openapi.json",
+        "work_stage: machine-review",
+        "run-api-review",
+        "grade B",
+    ),
+    "workflows/00-overview.md": (
+        "design api-review",
+        "API-machine-review-third",
+        "run-api-review",
+        "zero lint errors/warnings",
+    ),
+    "workflows/04-design-derivation.md": (
+        "design api-review",
+        "work_stage: machine-review",
+        "api_linter.py",
+        "breaking_change_detector.py",
+        "api_scorecard.py",
+        "api_review_evidence_stale",
+    ),
+    "skills/designing-api-contracts/SKILL.md": (
+        "design api-review",
+        "docs/api/openapi.json",
+        "zero errors and zero warnings",
+        "breaking or potentially breaking changes",
+        "grade B or better",
+    ),
+    "skills/using-governance-workflow/SKILL.md": (
+        "machine-review",
+        "run-api-review",
+        "api_review_evidence_stale",
+    ),
+    "skills/verifying-governance-docs/SKILL.md": (
+        "api_review.ok: true",
+        "api_review_evidence_missing",
+        "api_review_evidence_invalid",
+        "api_review_evidence_stale",
+    ),
+    "references/api-design-checklist.md": (
+        "Machine Review Evidence",
+        "design api-review",
+        "zero errors and zero warnings",
+        "grade B or better",
+    ),
+    "references/design-review-checklist.md": (
+        "API Machine Review",
+        "work_stage: machine-review",
+        "api_linter.py",
+        "docs/api/reviews/review-evidence.json",
+    ),
+    "references/workflow-routing-checklist.md": (
+        "machine-review",
+        "run-api-review",
+        "design api-review --reviewed --min-grade B --check",
+    ),
+}
 DESIGN_SCAFFOLD_DOC_PATHS = (
     "README.md",
     "workflows/00-overview.md",
@@ -4115,6 +4194,7 @@ GOVERNANCE_CLI_REQUIRED_SUBCOMMANDS = {
     "design": (
         "plan",
         "review",
+        "api-review",
         "api-candidates",
         "architecture-authoring",
         "api-authoring",
@@ -4476,6 +4556,8 @@ def verify_pack(root: Path) -> PackReport:
     _check_product_disposition_docs(root, findings)
     _check_design_review_source(root, findings)
     _check_design_review_docs(root, findings)
+    _check_api_review_source(root, findings)
+    _check_api_review_docs(root, findings)
     _check_design_scaffold_docs(root, findings)
     _check_design_plan_source(root, findings)
     _check_design_plan_docs(root, findings)
@@ -6350,6 +6432,50 @@ def _check_design_review_docs(root: Path, findings: list[PackFinding]) -> None:
                 PackFinding(
                     "pack_design_review_doc_missing",
                     f"{rel} must document design review phrase(s): {', '.join(missing)}",
+                    rel,
+                )
+            )
+
+
+def _check_api_review_source(root: Path, findings: list[PackFinding]) -> None:
+    path = root / API_REVIEW_SOURCE_PATH
+    if not path.is_file():
+        findings.append(
+            PackFinding(
+                "pack_api_review_source_missing",
+                f"missing API machine-review source script: {API_REVIEW_SOURCE_PATH}",
+                API_REVIEW_SOURCE_PATH,
+            )
+        )
+        return
+    text = _read_utf8_text_or_none(path)
+    if text is None:
+        return
+    missing = [phrase for phrase in API_REVIEW_SOURCE_REQUIRED_PHRASES if phrase not in text]
+    if missing:
+        findings.append(
+            PackFinding(
+                "pack_api_review_source_incomplete",
+                (
+                    f"{API_REVIEW_SOURCE_PATH} must preserve authority-tool execution and hash-bound "
+                    f"OpenAPI evidence; missing phrase(s): {', '.join(missing)}"
+                ),
+                API_REVIEW_SOURCE_PATH,
+            )
+        )
+
+
+def _check_api_review_docs(root: Path, findings: list[PackFinding]) -> None:
+    for rel, phrases in API_REVIEW_DOC_REQUIREMENTS.items():
+        text = _read_utf8_text_or_none(root / rel)
+        if text is None:
+            continue
+        missing = [phrase for phrase in phrases if phrase not in text]
+        if missing:
+            findings.append(
+                PackFinding(
+                    "pack_api_review_doc_missing",
+                    f"{rel} must document API machine-review phrase(s): {', '.join(missing)}",
                     rel,
                 )
             )

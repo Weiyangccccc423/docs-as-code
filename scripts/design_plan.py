@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 try:
+    from .api_review_evidence import API_OPENAPI_REL, build_openapi_contract_inventory
     from .bootstrap_tree import target_local_commands_payload
     from .design_reviews import (
         DESIGN_REVIEWS_REL,
@@ -18,6 +19,7 @@ try:
     from .verify_governance import VerificationFinding, verify
     from .workflow_actions import next_actions_payload
 except ImportError:  # pragma: no cover - direct script execution
+    from api_review_evidence import API_OPENAPI_REL, build_openapi_contract_inventory
     from bootstrap_tree import target_local_commands_payload
     from design_reviews import (
         DESIGN_REVIEWS_REL,
@@ -1142,6 +1144,15 @@ def _design_document_status(root: Path, rel: str, sections: list[str]) -> tuple[
         return "reference_template", "underscore-prefixed template is reference-only"
     if SCAFFOLD_PLACEHOLDER in text:
         return "placeholder_present", "design document still contains a governance scaffold placeholder"
+    if rel == API_OPENAPI_REL.as_posix():
+        inventory = build_openapi_contract_inventory(root)
+        if inventory.get("ok") is not True:
+            errors = inventory.get("errors")
+            details = "; ".join(
+                str(error) for error in errors if isinstance(error, str) and error
+            ) if isinstance(errors, list) else "OpenAPI contract is invalid"
+            return "invalid_structured_document", details
+        return "authored", "OpenAPI contract is valid JSON with a supported version, info, and endpoint paths"
     heading_names = {
         match.group("title").strip().casefold()
         for match in MARKDOWN_HEADING_RE.finditer(text)
@@ -1665,6 +1676,11 @@ def _api_authoring_task(root: Path, candidate: dict[str, object], index: int) ->
             API_ENDPOINT_SECTIONS,
             "Author the concrete endpoint contract only after every open decision has a source.",
         ),
+        _authoring_document(
+            API_OPENAPI_REL.as_posix(),
+            (),
+            "Encode the reviewed HTTP contract as OpenAPI 3.0.x or 3.1.x JSON for deterministic validation.",
+        ),
     ]
     required_links = [
         _required_link(root, "product_acceptance", source_reference),
@@ -1927,7 +1943,11 @@ def _api_authoring_steps(
         {
             "id": "fill-shared-api-documents",
             "kind": "author",
-            "documents": [document for document in documents if document["path"] != endpoint_file],
+            "documents": [
+                document
+                for document in documents
+                if document["path"] not in {endpoint_file, API_OPENAPI_REL.as_posix()}
+            ],
             "description": "Complete conventions, error registry, and changelog sections with source-backed content.",
         },
         {
@@ -1936,6 +1956,13 @@ def _api_authoring_steps(
             "document": endpoint_file,
             "sections": list(API_ENDPOINT_SECTIONS),
             "description": "Write method/path, auth, idempotency, fields, errors, upstream links, and consumers only after sources are known.",
+        },
+        {
+            "id": "author-openapi-contract",
+            "kind": "author",
+            "document": API_OPENAPI_REL.as_posix(),
+            "format": "openapi-3-json",
+            "description": "Encode the complete reviewed endpoint set as OpenAPI JSON without inventing behavior absent from Markdown and source evidence.",
         },
         {
             "id": "link-consumers-and-owners",

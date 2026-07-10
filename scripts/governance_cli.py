@@ -4,6 +4,12 @@ import argparse
 import json
 from pathlib import Path
 
+from api_review_evidence import (
+    API_REVIEW_DEFAULT_MIN_GRADE,
+    API_REVIEW_GRADE_ORDER,
+    check_api_review_evidence,
+    record_api_review_evidence,
+)
 from bootstrap_tree import (
     InitPreflightError,
     bootstrap,
@@ -901,6 +907,61 @@ def _cmd_design_review(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_design_api_review(args: argparse.Namespace) -> int:
+    target = Path(args.target)
+    kwargs = {
+        "reviewed": args.reviewed,
+        "min_grade": args.min_grade,
+        "skill_roots": list(args.skill_root),
+    }
+    result = (
+        check_api_review_evidence(target, **kwargs)
+        if args.check
+        else record_api_review_evidence(target, **kwargs)
+    )
+    payload = result.to_dict()
+    if result.ok:
+        cwd = result.target
+        payload["refresh_command"] = _continuation_command(
+            cwd,
+            "refresh-api-authoring",
+            ["bin/governance", "design", "api-authoring", ".", "--json"],
+            "Refresh API authoring and machine-review status.",
+        )
+        payload["work_package_command"] = _continuation_command(
+            cwd,
+            "refresh-work-package",
+            ["bin/governance", "workflow", "work-package", ".", "--json"],
+            "Select the next design work package after API machine review.",
+        )
+        payload["verify_command"] = _continuation_command(
+            cwd,
+            "verify-api-review-evidence",
+            ["bin/governance", "verify", ".", "--check", "--json"],
+            "Verify API machine-review evidence and downstream review freshness.",
+        )
+        if not args.check:
+            payload["local_commands"] = target_local_commands_payload(cwd=cwd)
+            payload["next_actions"] = next_actions_payload(result.state, cwd=cwd)
+    if args.json:
+        _print_json(payload)
+        return 0 if result.ok else 1
+    if not result.ok:
+        print("API machine review failed:")
+        for error in result.errors:
+            print(f"- ERROR: {error}")
+        return 1
+    if args.check:
+        print("API machine-review preflight passed.")
+        for path in result.would_update:
+            print(f"- WOULD UPDATE: {path}")
+        return 0
+    print("API machine-review evidence recorded.")
+    for path in result.updated:
+        print(f"- UPDATED: {path}")
+    return 0
+
+
 def _cmd_design_api_candidates(args: argparse.Namespace) -> int:
     target = Path(args.target)
     payload = build_api_candidates(target)
@@ -1314,6 +1375,32 @@ def build_parser() -> argparse.ArgumentParser:
     design_review.add_argument("--check", action="store_true", help="Preview without writing files.")
     design_review.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     design_review.set_defaults(func=_cmd_design_review)
+    api_review = design_sub.add_parser(
+        "api-review",
+        help="Run authority-provided API lint, breaking-change, and scorecard tools and bind their evidence.",
+    )
+    api_review.add_argument("target", nargs="?", default=".")
+    api_review.add_argument(
+        "--reviewed",
+        action="store_true",
+        help="Confirm the generated reports were reviewed before recording their evidence.",
+    )
+    api_review.add_argument(
+        "--min-grade",
+        choices=API_REVIEW_GRADE_ORDER,
+        default=API_REVIEW_DEFAULT_MIN_GRADE,
+        help=f"Minimum accepted API scorecard grade (default: {API_REVIEW_DEFAULT_MIN_GRADE}).",
+    )
+    api_review.add_argument(
+        "--skill-root",
+        action="append",
+        type=Path,
+        default=[],
+        help="Additional authority skill root containing api-design-reviewer. Repeat when needed.",
+    )
+    api_review.add_argument("--check", action="store_true", help="Run tools in a temporary directory without writing evidence.")
+    api_review.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    api_review.set_defaults(func=_cmd_design_api_review)
     api_candidates = design_sub.add_parser(
         "api-candidates",
         help="Extract source-backed API endpoint candidates from product acceptance criteria.",

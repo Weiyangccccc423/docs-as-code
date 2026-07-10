@@ -4,6 +4,10 @@ from pathlib import Path
 from typing import Any, Callable
 
 try:
+    from .api_review_evidence import (
+        api_review_required_evidence_paths,
+        build_api_review_evidence_inventory,
+    )
     from .authority_skills import build_authority_skill_inventory
     from .bootstrap_tree import WORKFLOW_PACK_SNAPSHOT_ROOT, target_local_commands_payload
     from .design_reviews import DESIGN_REVIEW_TRACK_SPECS
@@ -25,6 +29,10 @@ try:
     from .state import load_state
     from .workflow_actions import next_actions_payload
 except ImportError:  # pragma: no cover - direct script execution
+    from api_review_evidence import (
+        api_review_required_evidence_paths,
+        build_api_review_evidence_inventory,
+    )
     from authority_skills import build_authority_skill_inventory
     from bootstrap_tree import WORKFLOW_PACK_SNAPSHOT_ROOT, target_local_commands_payload
     from design_reviews import DESIGN_REVIEW_TRACK_SPECS
@@ -310,10 +318,12 @@ def _design_work_package(root: Path) -> tuple[dict[str, object], list[str], str]
         queues.append((track, queue_id, authoring_payload))
 
     selected: tuple[dict[str, object], str, dict[str, object], dict[str, object], str] | None = None
-    for stage in ("authoring", "integration", "review"):
+    for stage in ("authoring", "integration", "machine-review", "review"):
         for track, queue_id, authoring_payload in queues:
             authoring_tasks = _dict_items(authoring_payload.get("authoring_tasks"))
             task = _first_design_task_for_stage(
+                root,
+                str(track.get("id", "")),
                 authoring_tasks,
                 stage,
             )
@@ -360,11 +370,19 @@ def _design_work_package(root: Path) -> tuple[dict[str, object], list[str], str]
         for blocker in _dict_items(track.get("blockers"))
         if str(blocker.get("code", "")).startswith("design_review_")
     ]
+    api_machine_review = (
+        build_api_review_evidence_inventory(root)
+        if stage == "machine-review"
+        else {}
+    )
+    machine_review_blockers = _api_machine_review_blockers(api_machine_review)
     blockers = (
         document_blockers
         if stage == "authoring"
         else link_blockers
         if stage == "integration"
+        else machine_review_blockers
+        if stage == "machine-review"
         else review_blockers
     )
     repair_actions = (
@@ -377,6 +395,7 @@ def _design_work_package(root: Path) -> tuple[dict[str, object], list[str], str]
     status_by_stage = {
         "authoring": "authoring_required",
         "integration": "integration_required",
+        "machine-review": "machine_review_required",
         "review": "review_required",
     }
     return {
@@ -400,7 +419,13 @@ def _design_work_package(root: Path) -> tuple[dict[str, object], list[str], str]
         "write_scope": {
             "mode": "declared_design_track_documents",
             "primary_paths": primary_paths,
-            "supporting_paths": ["docs/unresolved.md", "docs/decisions/design-reviews.json"],
+            "supporting_paths": _dedupe_strings(
+                [
+                    "docs/unresolved.md",
+                    "docs/decisions/design-reviews.json",
+                    *(api_review_required_evidence_paths() if track_id == "api-contracts" else []),
+                ]
+            ),
             "requires_codebase_mapping": False,
         },
         "documents": _dict_items(task.get("documents")),
@@ -412,6 +437,7 @@ def _design_work_package(root: Path) -> tuple[dict[str, object], list[str], str]
         "blockers": blockers,
         "repair_actions": repair_actions,
         "review_status": str(task.get("review_status", "missing")),
+        "api_machine_review": api_machine_review,
         "design_review": _dict_value(task.get("design_review")),
         "required_authority_skill": str(
             _dict_value(task.get("execution")).get("primary_specialist_skill", "")
@@ -430,6 +456,8 @@ def _design_work_package(root: Path) -> tuple[dict[str, object], list[str], str]
 
 
 def _first_design_task_for_stage(
+    root: Path,
+    track_id: str,
     tasks: list[dict[str, object]],
     stage: str,
 ) -> dict[str, object]:
@@ -441,9 +469,32 @@ def _first_design_task_for_stage(
             for item in _dict_items(task.get("required_links"))
         ):
             return task
+        if (
+            stage == "machine-review"
+            and track_id == "api-contracts"
+            and build_api_review_evidence_inventory(root).get("ok") is not True
+        ):
+            return task
         if stage == "review" and _string_list(task.get("open_decisions")):
             return task
     return {}
+
+
+def _api_machine_review_blockers(inventory: dict[str, object]) -> list[dict[str, object]]:
+    if not inventory or inventory.get("ok") is True:
+        return []
+    status = str(inventory.get("status", "missing"))
+    details = _string_list(inventory.get("errors"))
+    if status == "stale":
+        details = _string_list(inventory.get("stale_reasons"))
+    return [
+        {
+            "kind": "api_machine_review",
+            "target": str(inventory.get("path", "docs/api/reviews/review-evidence.json")),
+            "status": status,
+            "details": details,
+        }
+    ]
 
 
 def _implementation_work_package(root: Path) -> tuple[dict[str, object], list[str], str]:
@@ -648,6 +699,25 @@ def _work_package_next_action(
             "required_decisions": _string_list(package.get("required_decisions")),
             "authority_skill": str(package.get("required_authority_skill", "")),
             "success_condition": "declared design documents become authored before integration review",
+        }
+    if package.get("kind") == "design-authoring" and package.get("work_stage") == "machine-review":
+        return {
+            "kind": "run-api-review",
+            "track": str(package.get("track_id", "")),
+            "work_id": str(package.get("work_id", "")),
+            "authority_skill": str(package.get("required_authority_skill", "")),
+            "machine_review": _dict_value(package.get("api_machine_review")),
+            "decision_policy": "run_api_design_reviewer_tools_before_authority_signoff",
+            "command_contract": {
+                "cwd": str(root),
+                "argv_prefix": ["bin/governance", "design", "api-review", "."],
+                "required_arguments": ["--reviewed"],
+                "optional_arguments": ["--min-grade", "--skill-root"],
+                "preflight_argument": "--check",
+                "writes_state": True,
+                "approval_required": False,
+            },
+            "success_condition": "API lint and warning counts are zero, no breaking changes exist, and scorecard grade meets the configured minimum",
         }
     if package.get("kind") == "design-authoring" and package.get("work_stage") == "review":
         track = str(package.get("track_id", ""))

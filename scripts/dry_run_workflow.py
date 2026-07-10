@@ -944,6 +944,7 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
     _require(implementation_preflight.get("ok") is False, "implementation gate unexpectedly passed")
 
     _write_minimal_implementation_ready_docs(target, acceptance_ids)
+    api_review_apply = _record_api_review(target, steps)
     design_review_applies = _record_design_reviews(
         target,
         acceptance_ids,
@@ -1169,6 +1170,18 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         "runtime refresh did not refresh target runtime and workflow-pack snapshot",
         payload=runtime_refresh,
     )
+    api_review_after_runtime_refresh = _run_json(
+        steps,
+        "api_review_check_after_runtime_refresh",
+        ["bin/governance", "design", "api-review", ".", "--reviewed", "--check", "--json"],
+        target,
+    )
+    _require(
+        api_review_after_runtime_refresh.get("ok") is True
+        and api_review_after_runtime_refresh.get("would_update") == [],
+        "API machine-review evidence did not remain current after runtime refresh",
+        payload=api_review_after_runtime_refresh,
+    )
     make_workflow_plan_after_runtime_refresh = _run_json(
         steps,
         "make_workflow_plan_after_runtime_refresh",
@@ -1215,6 +1228,17 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
                 work_package_after_product_dispositions.get("package_available") is False
                 and work_package_after_product_dispositions.get("status") == "phase_action_required"
             ),
+        },
+        "api_review": {
+            "preflight_ok": api_review_apply.get("preflight_ok") is True,
+            "applied": api_review_apply.get("applied") is True,
+            "baseline_mode": str(api_review_apply.get("baseline_mode", "")),
+            "scorecard_grade": str(api_review_apply.get("scorecard_grade", "")),
+            "current_after_runtime_refresh": (
+                api_review_after_runtime_refresh.get("ok") is True
+                and api_review_after_runtime_refresh.get("would_update") == []
+            ),
+            "evidence_paths": list(api_review_apply.get("evidence_paths", [])),
         },
         "design_reviews": {
             "recorded_count": len(design_review_applies),
@@ -1283,6 +1307,7 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
                 for path in (
                     "bin/governance",
                     "scripts/governance_cli.py",
+                    "scripts/api_review_evidence.py",
                     "scripts/design_reviews.py",
                     "docs/agent-workflow/runtime-manifest.json",
                     "docs/agent-workflow/workflow-pack/manifest.json",
@@ -1304,6 +1329,7 @@ def _write_minimal_implementation_ready_docs(target: Path, acceptance_ids: list[
         "docs/api/error-codes.md": _api_error_codes_doc(),
         "docs/api/changelog.md": _api_changelog_doc(),
         "docs/api/endpoints/01-endpoint-contract.md": _api_endpoint_contract_doc(),
+        "docs/api/openapi.json": _openapi_contract_doc(),
         "docs/backend/01-modules.md": _backend_modules_doc(),
         "docs/backend/02-data-model.md": _backend_data_model_doc(),
         "docs/backend/03-external-services.md": _backend_external_services_doc(),
@@ -1455,6 +1481,60 @@ def _api_endpoint_contract_doc() -> str:
         "- [Interaction model](../../ui/01-interaction-model.md)\n"
         "- [API consumption](../../frontend/02-api-consumption.md)\n"
     )
+
+
+def _openapi_contract_doc() -> str:
+    return json.dumps(
+        {
+            "openapi": "3.1.0",
+            "info": {
+                "title": "Governance Check API",
+                "version": "1.0.0",
+                "description": "Source-backed contract used by the disposable governance dry run.",
+                "contact": {"name": "Governance maintainers"},
+            },
+            "servers": [{"url": "https://api.example.test"}],
+            "paths": {
+                "/governance/checks": {
+                    "post": {
+                        "operationId": "runGovernanceCheck",
+                        "summary": "Run a governance check",
+                        "description": "Runs one read-only governance check against a repository target.",
+                        "requestBody": {
+                            "required": True,
+                            "content": {
+                                "application/json": {
+                                    "schema": {"$ref": "#/components/schemas/GovernanceCheckRequest"}
+                                }
+                            },
+                        },
+                        "responses": {
+                            "200": {"description": "Governance check completed."},
+                            "400": {"description": "The target or request is invalid."},
+                            "500": {"description": "The governance check failed unexpectedly."},
+                        },
+                    }
+                }
+            },
+            "components": {
+                "schemas": {
+                    "GovernanceCheckRequest": {
+                        "type": "object",
+                        "required": ["target"],
+                        "properties": {
+                            "target": {
+                                "type": "string",
+                                "description": "Repository root to inspect.",
+                                "example": ".",
+                            }
+                        },
+                    }
+                }
+            },
+        },
+        indent=2,
+        sort_keys=True,
+    ) + "\n"
 
 
 def _backend_modules_doc() -> str:
@@ -1788,6 +1868,58 @@ def _record_optional_product_dispositions(
     return applied
 
 
+def _record_api_review(
+    target: Path,
+    steps: list[dict[str, object]],
+) -> dict[str, object]:
+    _install_dry_run_authority_skill_fixtures(target)
+    argv = ["bin/governance", "design", "api-review", ".", "--reviewed"]
+    expected_paths = {
+        "docs/api/baselines/openapi-baseline.json",
+        "docs/api/reviews/api-lint.json",
+        "docs/api/reviews/api-breaking-changes.json",
+        "docs/api/reviews/api-scorecard.json",
+        "docs/api/reviews/review-evidence.json",
+    }
+    preview = _run_json(
+        steps,
+        "api_review_check",
+        [*argv, "--check", "--json"],
+        target,
+    )
+    _require(
+        preview.get("ok") is True
+        and preview.get("check") is True
+        and set(preview.get("would_update", [])) == expected_paths,
+        "API machine-review preflight did not plan complete evidence",
+        payload=preview,
+    )
+    result = _run_json(
+        steps,
+        "api_review_apply",
+        [*argv, "--json"],
+        target,
+    )
+    evidence = result.get("evidence") if isinstance(result.get("evidence"), dict) else {}
+    reports = evidence.get("reports") if isinstance(evidence.get("reports"), dict) else {}
+    scorecard = reports.get("scorecard") if isinstance(reports.get("scorecard"), dict) else {}
+    _require(
+        result.get("ok") is True
+        and result.get("applied") is True
+        and set(result.get("updated", [])) == expected_paths
+        and scorecard.get("grade") == "A",
+        "API machine-review apply did not record passing authority-tool evidence",
+        payload=result,
+    )
+    return {
+        "preflight_ok": preview.get("ok") is True,
+        "applied": result.get("applied") is True,
+        "baseline_mode": str(result.get("baseline_mode", "")),
+        "scorecard_grade": str(scorecard.get("grade", "")),
+        "evidence_paths": sorted(expected_paths),
+    }
+
+
 def _record_design_reviews(
     target: Path,
     acceptance_ids: list[str],
@@ -1871,6 +2003,61 @@ def _install_dry_run_authority_skill_fixtures(target: Path) -> None:
             "---\n\n"
             f"# {skill_name}\n\n"
             "Used only to exercise source-, evidence-, and skill-hash-bound design review mechanics.\n",
+            encoding="utf-8",
+        )
+    reports = {
+        "api_linter.py": {
+            "summary": {
+                "total_endpoints": 1,
+                "endpoints_with_issues": 0,
+                "total_issues": 0,
+                "errors": 0,
+                "warnings": 0,
+                "info": 0,
+                "score": 100.0,
+            },
+            "issues": [],
+        },
+        "breaking_change_detector.py": {
+            "summary": {
+                "total_changes": 0,
+                "breaking_changes": 0,
+                "potentially_breaking_changes": 0,
+                "non_breaking_changes": 0,
+                "enhancements": 0,
+                "critical_severity": 0,
+                "high_severity": 0,
+                "medium_severity": 0,
+                "low_severity": 0,
+                "info_severity": 0,
+            },
+            "hasBreakingChanges": False,
+            "changes": [],
+        },
+        "api_scorecard.py": {
+            "overall": {"score": 95.0, "grade": "A", "totalEndpoints": 1},
+            "api_info": {
+                "title": "Governance Check API",
+                "version": "1.0.0",
+                "description": "Deterministic dry-run API review fixture.",
+                "total_paths": 1,
+                "openapi_version": "3.1.0",
+            },
+            "categories": {},
+            "topRecommendations": [],
+        },
+    }
+    skill_root = target / ".agents/skills/api-design-reviewer/scripts"
+    skill_root.mkdir(parents=True, exist_ok=True)
+    for script_name, report in reports.items():
+        (skill_root / script_name).write_text(
+            "# Deterministic dry-run fixture only; not a production authority tool.\n"
+            "import json\n"
+            "import sys\n"
+            "from pathlib import Path\n\n"
+            f"REPORT = {report!r}\n"
+            "output_index = sys.argv.index('--output') + 1\n"
+            "Path(sys.argv[output_index]).write_text(json.dumps(REPORT, indent=2, sort_keys=True) + '\\n', encoding='utf-8')\n",
             encoding="utf-8",
         )
 

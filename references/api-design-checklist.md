@@ -2,7 +2,14 @@
 
 Use this checklist before API endpoint contracts are used for backend, frontend, or test implementation tasks.
 
-Calibrate against OpenAPI, HTTP Semantics, and Problem Details without treating any single format as the whole design process. OpenAPI is the future machine-readable contract target; Markdown endpoint files remain the human review layer.
+Calibrate against OpenAPI, HTTP Semantics, and Problem Details without treating any single format as the whole design process. `docs/api/openapi.json` is the required machine-readable contract; Markdown endpoint files remain the human review layer.
+
+## Machine Review Evidence
+
+- Does `bin/governance design api-review <target> --reviewed --min-grade B --check --json` pass before write mode is run?
+- Does API lint report zero errors and zero warnings, compatibility analysis report no breaking or potentially breaking changes, and the scorecard meet grade B or better?
+- Are `docs/api/baselines/openapi-baseline.json`, all three `docs/api/reviews/*.json` reports, and `review-evidence.json` committed with the contract?
+- After OpenAPI, baseline, report, authority `SKILL.md`, or tool changes, was machine review repeated before API authority signoff?
 
 ## Contract Shape
 

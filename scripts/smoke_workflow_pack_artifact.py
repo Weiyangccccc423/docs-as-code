@@ -465,6 +465,12 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
             "unpacked artifact dry-run did not prove source- and authority-bound design reviews",
             payload=dry_run_payload,
         )
+        api_review = _dry_run_api_review_details(dry_run_payload)
+        _require(
+            api_review.get("ok") is True,
+            "unpacked artifact dry-run did not prove machine-reviewed OpenAPI evidence",
+            payload=dry_run_payload,
+        )
 
         payload = {
             "ok": True,
@@ -478,6 +484,7 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
             "target_local_make_coverage": target_local_make_coverage,
             "product_dispositions": product_dispositions,
             "design_reviews": design_reviews,
+            "api_review": api_review,
             "fresh_target_init": fresh_target_init,
             "consumer_bootstrap_product_structure": consumer_bootstrap_product_structure,
             "consumer_bootstrap_design_scaffold": consumer_bootstrap_design_scaffold,
@@ -611,6 +618,32 @@ def _dry_run_design_review_details(payload: dict[str, object]) -> dict[str, obje
         "missing_count": missing_count if isinstance(missing_count, int) else 0,
         "stale_count": stale_count if isinstance(stale_count, int) else 0,
         "work_package_complete": work_package_complete,
+    }
+
+
+def _dry_run_api_review_details(payload: dict[str, object]) -> dict[str, object]:
+    review = payload.get("api_review")
+    review_map = review if isinstance(review, dict) else {}
+    preflight_ok = review_map.get("preflight_ok") is True
+    applied = review_map.get("applied") is True
+    current_after_runtime_refresh = review_map.get("current_after_runtime_refresh") is True
+    scorecard_grade = str(review_map.get("scorecard_grade", ""))
+    evidence_paths = review_map.get("evidence_paths")
+    return {
+        "ok": (
+            preflight_ok
+            and applied
+            and current_after_runtime_refresh
+            and scorecard_grade in {"A", "B"}
+            and isinstance(evidence_paths, list)
+            and len(evidence_paths) == 5
+        ),
+        "preflight_ok": preflight_ok,
+        "applied": applied,
+        "current_after_runtime_refresh": current_after_runtime_refresh,
+        "baseline_mode": str(review_map.get("baseline_mode", "")),
+        "scorecard_grade": scorecard_grade,
+        "evidence_paths": list(evidence_paths) if isinstance(evidence_paths, list) else [],
     }
 
 

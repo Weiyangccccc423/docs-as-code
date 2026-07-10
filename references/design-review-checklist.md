@@ -30,6 +30,13 @@ Calibrate architecture review against ISO/IEC/IEEE 42010 and ISO/IEC 25010, API 
 - Is `not-applicable` used only for ADR-trigger review with a concrete no-ADR reason?
 - If an ADR is approved, is a numbered `docs/decisions/NNN-<slug>.md` supplied as additional evidence?
 
+## API Machine Review
+
+- Before API authority review, is `work_stage: machine-review` complete and `docs/api/reviews/review-evidence.json` current?
+- Did `api_linter.py`, `breaking_change_detector.py`, and `api_scorecard.py` run from the loaded `api-design-reviewer` skill with their script hashes recorded?
+- Are lint errors and warnings both zero, breaking and potentially breaking changes both zero, and the scorecard grade B or better?
+- Does the API design review snapshot `docs/api/openapi.json`, the baseline, all three reports, and machine review evidence?
+
 ## Freshness
 
 - Does `--check` succeed before writing the review record?

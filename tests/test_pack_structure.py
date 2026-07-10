@@ -15,6 +15,7 @@ from scripts.verify_pack import (
     verify_pack,
 )
 from scripts.verify_governance import (
+    RUNTIME_REQUIRED_PATHS,
     TARGET_ENTRY_DOC_GUARDRAILS,
     TARGET_MAKEFILE_REQUIRED_TARGETS,
     TARGET_MAKEFILE_REQUIRED_TARGET_RECIPES,
@@ -26,6 +27,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class PackStructureTest(unittest.TestCase):
+    def test_api_review_runtime_is_required_in_generated_targets(self) -> None:
+        self.assertIn(Path("scripts/api_review_evidence.py"), RUNTIME_REQUIRED_PATHS)
+
     def test_target_local_command_contracts_stay_aligned(self) -> None:
         expected_targets = tuple(target for target, _recipe, _description, _writes_state in TARGET_LOCAL_COMMANDS)
         expected_recipes = {
@@ -3079,6 +3083,56 @@ class PackStructureTest(unittest.TestCase):
                 any(
                     finding.code == "pack_design_review_source_missing"
                     and finding.path == "scripts/design_reviews.py"
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_missing_api_review_evidence_source(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            (target / "scripts/api_review_evidence.py").unlink()
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_api_review_source_missing"
+                    and finding.path == "scripts/api_review_evidence.py"
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_missing_api_review_doc_phrase(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            skill = target / "skills/designing-api-contracts/SKILL.md"
+            skill.write_text(
+                skill.read_text(encoding="utf-8").replace(
+                    "design api-review",
+                    "design review",
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_api_review_doc_missing"
+                    and finding.path == "skills/designing-api-contracts/SKILL.md"
+                    and "design api-review" in finding.message
                     for finding in report.findings
                 )
             )

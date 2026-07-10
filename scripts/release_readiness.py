@@ -193,6 +193,22 @@ def _dry_run_design_reviews_ok(payload: dict[str, object] | None) -> bool:
     )
 
 
+def _dry_run_api_review_ok(payload: dict[str, object] | None) -> bool:
+    if payload is None:
+        return False
+    review = payload.get("api_review")
+    return (
+        isinstance(review, dict)
+        and review.get("preflight_ok") is True
+        and review.get("applied") is True
+        and review.get("current_after_runtime_refresh") is True
+        and review.get("baseline_mode") == "initial-baseline"
+        and review.get("scorecard_grade") in {"A", "B"}
+        and isinstance(review.get("evidence_paths"), list)
+        and len(review.get("evidence_paths", [])) == 5
+    )
+
+
 def _dry_run_target_local_make_details(payload: dict[str, object] | None) -> dict[str, object]:
     steps = payload.get("steps") if payload else []
     step_ids = {str(step.get("id")) for step in steps if isinstance(step, dict)} if isinstance(steps, list) else set()
@@ -249,6 +265,20 @@ def _artifact_smoke_design_reviews_ok(payload: dict[str, object] | None) -> bool
         and reviews.get("missing_count") == 0
         and reviews.get("stale_count") == 0
         and reviews.get("work_package_complete") is True
+    )
+
+
+def _artifact_smoke_api_review_ok(payload: dict[str, object] | None) -> bool:
+    if payload is None:
+        return False
+    review = payload.get("api_review")
+    return (
+        isinstance(review, dict)
+        and review.get("ok") is True
+        and review.get("preflight_ok") is True
+        and review.get("applied") is True
+        and review.get("current_after_runtime_refresh") is True
+        and review.get("scorecard_grade") in {"A", "B"}
     )
 
 
@@ -683,6 +713,7 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
         and dry_run_payload.get("final_phase") == "implementation"
         and _dry_run_closeout_evidence_ok(dry_run_payload)
         and _dry_run_product_dispositions_ok(dry_run_payload)
+        and _dry_run_api_review_ok(dry_run_payload)
         and _dry_run_design_reviews_ok(dry_run_payload)
         and _dry_run_target_local_make_coverage_ok(dry_run_payload),
         evidence="python3 scripts/dry_run_workflow.py --json",
@@ -691,6 +722,7 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
             "api_candidate_count": dry_run_payload.get("api_candidate_count") if dry_run_payload else 0,
             "implementation_closeout": dry_run_payload.get("implementation_closeout") if dry_run_payload else {},
             "product_dispositions": dry_run_payload.get("product_dispositions") if dry_run_payload else {},
+            "api_review": dry_run_payload.get("api_review") if dry_run_payload else {},
             "design_reviews": dry_run_payload.get("design_reviews") if dry_run_payload else {},
             "target_local_make_coverage": _dry_run_target_local_make_details(dry_run_payload),
         },
@@ -717,6 +749,7 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
         and multi_acceptance_payload.get("final_phase") == "implementation"
         and _dry_run_closeout_evidence_ok(multi_acceptance_payload)
         and _dry_run_product_dispositions_ok(multi_acceptance_payload)
+        and _dry_run_api_review_ok(multi_acceptance_payload)
         and _dry_run_design_reviews_ok(multi_acceptance_payload)
         and multi_acceptance_payload.get("acceptance_id_count") == 4
         and multi_acceptance_payload.get("api_candidate_count") == 4
@@ -735,6 +768,9 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
             if multi_acceptance_payload
             else {},
             "product_dispositions": multi_acceptance_payload.get("product_dispositions")
+            if multi_acceptance_payload
+            else {},
+            "api_review": multi_acceptance_payload.get("api_review")
             if multi_acceptance_payload
             else {},
             "design_reviews": multi_acceptance_payload.get("design_reviews")
@@ -869,6 +905,7 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
         and artifact_smoke_payload.get("manifest_sha256") == export_payload.get("manifest_sha256")
         and _artifact_smoke_fresh_target_init_ok(artifact_smoke_payload)
         and _artifact_smoke_product_dispositions_ok(artifact_smoke_payload)
+        and _artifact_smoke_api_review_ok(artifact_smoke_payload)
         and _artifact_smoke_design_reviews_ok(artifact_smoke_payload)
         and _artifact_smoke_consumer_bootstrap_ok(artifact_smoke_payload)
         and _artifact_smoke_consumer_design_scaffold_ok(artifact_smoke_payload)
@@ -886,6 +923,9 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
             if artifact_smoke_payload
             else {},
             "product_dispositions": artifact_smoke_payload.get("product_dispositions", {})
+            if artifact_smoke_payload
+            else {},
+            "api_review": artifact_smoke_payload.get("api_review", {})
             if artifact_smoke_payload
             else {},
             "design_reviews": artifact_smoke_payload.get("design_reviews", {})

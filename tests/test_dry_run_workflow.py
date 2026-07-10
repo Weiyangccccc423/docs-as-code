@@ -218,10 +218,16 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertTrue(payload["runtime_refresh"]["applied"])
             self.assertTrue(payload["runtime_refresh"]["runtime_refreshed_at"])
             self.assertTrue(payload["runtime_refresh"]["workflow_plan_complete_after_refresh"])
+            self.assertTrue(payload["api_review"]["preflight_ok"])
+            self.assertTrue(payload["api_review"]["applied"])
+            self.assertTrue(payload["api_review"]["current_after_runtime_refresh"])
+            self.assertEqual("initial-baseline", payload["api_review"]["baseline_mode"])
+            self.assertEqual("A", payload["api_review"]["scorecard_grade"])
             self.assertEqual(
                 [
                     "bin/governance",
                     "scripts/governance_cli.py",
+                    "scripts/api_review_evidence.py",
                     "scripts/design_reviews.py",
                     "docs/agent-workflow/runtime-manifest.json",
                     "docs/agent-workflow/workflow-pack/manifest.json",
@@ -264,6 +270,9 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertIn("product_plan_after_dispositions", step_ids)
             self.assertIn("work_package_after_product_dispositions", step_ids)
             self.assertIn("product_dispositions_verify_check", step_ids)
+            self.assertIn("api_review_check", step_ids)
+            self.assertIn("api_review_apply", step_ids)
+            self.assertIn("api_review_check_after_runtime_refresh", step_ids)
             self.assertIn("design_plan", step_ids)
             self.assertIn("make_design_plan", step_ids)
             self.assertIn("workflow_plan_design_derivation", step_ids)
@@ -358,6 +367,9 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertTrue(payload["runtime_refresh"]["check_ok"])
             self.assertTrue(payload["runtime_refresh"]["applied"])
             self.assertTrue(payload["runtime_refresh"]["workflow_plan_complete_after_refresh"])
+            self.assertTrue(payload["api_review"]["preflight_ok"])
+            self.assertTrue(payload["api_review"]["applied"])
+            self.assertTrue(payload["api_review"]["current_after_runtime_refresh"])
             self.assertEqual([], payload["target_local_make_coverage"]["missing_step_ids"])
             self.assertEqual(36, payload["design_reviews"]["recorded_count"])
             self.assertEqual(36, payload["design_reviews"]["expected_count"])

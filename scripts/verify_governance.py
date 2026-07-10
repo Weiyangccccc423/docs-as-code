@@ -12,6 +12,11 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Callable
 
 try:
+    from .api_review_evidence import (
+        API_REVIEW_EVIDENCE_REL,
+        api_review_enforcement_ready,
+        build_api_review_evidence_inventory,
+    )
     from .bootstrap_tree import TARGET_LOCAL_COMMANDS, target_local_commands_payload
     from .design_reviews import (
         DESIGN_REVIEWS_REL,
@@ -22,6 +27,11 @@ try:
     from .state import StateFileError, load_state
     from .workflow_actions import next_actions_payload
 except ImportError:  # pragma: no cover - direct script execution
+    from api_review_evidence import (
+        API_REVIEW_EVIDENCE_REL,
+        api_review_enforcement_ready,
+        build_api_review_evidence_inventory,
+    )
     from bootstrap_tree import TARGET_LOCAL_COMMANDS, target_local_commands_payload
     from design_reviews import (
         DESIGN_REVIEWS_REL,
@@ -177,6 +187,7 @@ RUNTIME_REQUIRED_BIN_FILES = (
 RUNTIME_REQUIRED_SCRIPT_FILES = (
     "__init__.py",
     "authority_skills.py",
+    "api_review_evidence.py",
     "bootstrap_tree.py",
     "check_env.py",
     "design_reviews.py",
@@ -731,6 +742,7 @@ def verify(root: Path) -> VerificationReport:
     _check_domain_agents_guardrails(root, report)
     _check_product_source_manifest(root, report)
     _check_product_chapter_dispositions(root, report)
+    _check_api_review_evidence(root, report)
     _check_design_reviews(root, report)
     _check_product_chapter_links(root, report)
     _check_api_conventions(root, report)
@@ -765,6 +777,37 @@ def verify(root: Path) -> VerificationReport:
     _check_task_board_acceptance_matrix_alignment(root, report)
 
     return report
+
+
+def _check_api_review_evidence(root: Path, report: VerificationReport) -> None:
+    try:
+        state = load_state(root)
+    except StateFileError:
+        return
+    if state.get("phase") not in {"design-derivation", "implementation"}:
+        return
+    inventory = build_api_review_evidence_inventory(root)
+    if inventory.get("exists") is not True and not api_review_enforcement_ready(root):
+        return
+    rel = API_REVIEW_EVIDENCE_REL.as_posix()
+    status = str(inventory.get("status", "missing"))
+    if status == "missing":
+        report.add_error(
+            "api_review_evidence_missing",
+            "API machine review evidence is missing; run design api-review before API authority signoff",
+            rel,
+        )
+        return
+    if status == "invalid":
+        errors = inventory.get("errors")
+        for error in errors if isinstance(errors, list) else ["API machine review evidence is invalid"]:
+            if isinstance(error, str):
+                report.add_error("api_review_evidence_invalid", error, rel)
+        return
+    stale_reasons = inventory.get("stale_reasons")
+    for reason in stale_reasons if isinstance(stale_reasons, list) else []:
+        if isinstance(reason, str):
+            report.add_error("api_review_evidence_stale", reason, rel)
 
 
 def _check_product_chapter_dispositions(root: Path, report: VerificationReport) -> None:

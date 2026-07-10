@@ -40,6 +40,7 @@ RUNTIME_BIN_FILES = [
 RUNTIME_SCRIPT_FILES = [
     "__init__.py",
     "authority_skills.py",
+    "api_review_evidence.py",
     "bootstrap_tree.py",
     "check_env.py",
     "design_reviews.py",
