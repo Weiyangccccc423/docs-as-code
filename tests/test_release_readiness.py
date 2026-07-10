@@ -75,6 +75,16 @@ class ReleaseReadinessTest(unittest.TestCase):
         self.assertTrue(
             criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_product_structure"]["ok"]
         )
+        self.assertTrue(
+            criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_product_structure"][
+                "authority_skill_inventory"
+            ]["ok"]
+        )
+        self.assertFalse(
+            criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_product_structure"][
+                "authority_skill_inventory"
+            ]["strict"]
+        )
         self.assertEqual(
             "product-structuring",
             criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_product_structure"]["phase"],
@@ -89,6 +99,11 @@ class ReleaseReadinessTest(unittest.TestCase):
             ]
         )
         self.assertTrue(criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_design_scaffold"]["ok"])
+        self.assertTrue(
+            criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_design_scaffold"][
+                "authority_skill_inventory"
+            ]["ok"]
+        )
         self.assertEqual(
             "design-derivation",
             criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_design_scaffold"]["phase"],
@@ -108,6 +123,11 @@ class ReleaseReadinessTest(unittest.TestCase):
             ]
         )
         self.assertTrue(criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_design_routing"]["ok"])
+        self.assertTrue(
+            criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_design_routing"][
+                "authority_skill_inventory"
+            ]["ok"]
+        )
         self.assertEqual(
             "design-derivation",
             criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_design_routing"]["phase"],
@@ -127,6 +147,7 @@ class ReleaseReadinessTest(unittest.TestCase):
             "consumer_bootstrap_implementation_routing"
         ]
         self.assertTrue(implementation_routing["ok"])
+        self.assertTrue(implementation_routing["authority_skill_inventory"]["ok"])
         self.assertEqual("design-derivation", implementation_routing["phase"])
         self.assertEqual("implementation-routing", implementation_routing["workflow_preset"])
         self.assertTrue(implementation_routing["implementation_readiness_preview_ok"])

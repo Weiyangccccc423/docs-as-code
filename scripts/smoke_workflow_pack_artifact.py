@@ -610,11 +610,13 @@ def _consumer_bootstrap_details(
     ] if isinstance(expanded_flags, list) else []
     goals_chapter = target / "docs/product/03-goals-and-requirements.md"
     acceptance_chapter = target / "docs/product/08-acceptance-criteria.md"
+    authority_skill_inventory = _authority_skill_inventory_details(bootstrap_payload)
     return {
         "ok": (
             bootstrap_payload.get("ok") is True
             and phase == "product-structuring"
             and workflow_preset == "product-structure"
+            and authority_skill_inventory.get("ok") is True
             and bootstrap_payload.get("auto_repair_env") is True
             and bootstrap_payload.get("product_structure_apply_ok") is True
             and "advance_product_structuring" in expanded_flag_list
@@ -628,6 +630,7 @@ def _consumer_bootstrap_details(
         "phase": phase,
         "workflow_preset": workflow_preset if isinstance(workflow_preset, str) else "",
         "workflow_preset_expanded_flags": expanded_flag_list,
+        "authority_skill_inventory": authority_skill_inventory,
         "auto_repair_env": bootstrap_payload.get("auto_repair_env") is True,
         "product_structure_apply_ok": bootstrap_payload.get("product_structure_apply_ok") is True,
         "target_local_ok": target_local.get("ok") is True if isinstance(target_local, dict) else False,
@@ -657,6 +660,7 @@ def _consumer_bootstrap_design_scaffold_details(
         if isinstance(design_scaffold_apply, dict)
         else False
     )
+    authority_skill_inventory = _authority_skill_inventory_details(bootstrap_payload)
     system_context_doc = target / "docs/architecture/01-system-context.md"
     endpoint_contract_doc = target / "docs/api/endpoints/01-endpoint-contract.md"
     return {
@@ -664,6 +668,7 @@ def _consumer_bootstrap_design_scaffold_details(
             bootstrap_payload.get("ok") is True
             and phase == "design-derivation"
             and workflow_preset == expected_workflow_preset
+            and authority_skill_inventory.get("ok") is True
             and bootstrap_payload.get("auto_repair_env") is True
             and bootstrap_payload.get("product_structure_apply_ok") is True
             and bootstrap_payload.get("advanced_design_derivation") is True
@@ -680,6 +685,7 @@ def _consumer_bootstrap_design_scaffold_details(
         "phase": phase,
         "workflow_preset": workflow_preset if isinstance(workflow_preset, str) else "",
         "workflow_preset_expanded_flags": expanded_flag_list,
+        "authority_skill_inventory": authority_skill_inventory,
         "auto_repair_env": bootstrap_payload.get("auto_repair_env") is True,
         "product_structure_apply_ok": bootstrap_payload.get("product_structure_apply_ok") is True,
         "advanced_design_derivation": bootstrap_payload.get("advanced_design_derivation") is True,
@@ -838,6 +844,25 @@ def _has_finding_code(findings: object, code: str) -> bool:
     if not isinstance(findings, list):
         return False
     return any(isinstance(finding, dict) and finding.get("code") == code for finding in findings)
+
+
+def _authority_skill_inventory_details(bootstrap_payload: dict[str, object]) -> dict[str, object]:
+    inventory = bootstrap_payload.get("authority_skill_inventory")
+    inventory_map = inventory if isinstance(inventory, dict) else {}
+    return {
+        "ok": inventory_map.get("ok") is True,
+        "strict": inventory_map.get("strict") is True,
+        "required_skill_count": inventory_map.get("required_skill_count")
+        if isinstance(inventory_map.get("required_skill_count"), int)
+        else 0,
+        "available_skill_count": inventory_map.get("available_skill_count")
+        if isinstance(inventory_map.get("available_skill_count"), int)
+        else 0,
+        "missing_skill_count": inventory_map.get("missing_skill_count")
+        if isinstance(inventory_map.get("missing_skill_count"), int)
+        else 0,
+        "missing_policy": inventory_map.get("missing_policy") if isinstance(inventory_map.get("missing_policy"), str) else "",
+    }
 
 
 def _require(condition: bool, message: str, *, payload: dict[str, object] | None = None) -> None:

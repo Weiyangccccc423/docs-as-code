@@ -49,6 +49,12 @@ class ArtifactSmokeTest(unittest.TestCase):
             payload["consumer_bootstrap_product_structure"]["workflow_preset"],
         )
         self.assertTrue(payload["consumer_bootstrap_product_structure"]["auto_repair_env"])
+        self.assertTrue(payload["consumer_bootstrap_product_structure"]["authority_skill_inventory"]["ok"])
+        self.assertFalse(payload["consumer_bootstrap_product_structure"]["authority_skill_inventory"]["strict"])
+        self.assertGreaterEqual(
+            payload["consumer_bootstrap_product_structure"]["authority_skill_inventory"]["required_skill_count"],
+            19,
+        )
         self.assertTrue(payload["consumer_bootstrap_product_structure"]["product_structure_apply_ok"])
         self.assertTrue(payload["consumer_bootstrap_product_structure"]["goals_chapter"])
         self.assertTrue(payload["consumer_bootstrap_product_structure"]["acceptance_chapter"])
@@ -63,6 +69,7 @@ class ArtifactSmokeTest(unittest.TestCase):
             payload["consumer_bootstrap_design_scaffold"]["workflow_preset"],
         )
         self.assertTrue(payload["consumer_bootstrap_design_scaffold"]["auto_repair_env"])
+        self.assertTrue(payload["consumer_bootstrap_design_scaffold"]["authority_skill_inventory"]["ok"])
         self.assertTrue(payload["consumer_bootstrap_design_scaffold"]["design_scaffold_apply_ok"])
         self.assertTrue(payload["consumer_bootstrap_design_scaffold"]["post_verify_blocked_by_placeholders"])
         self.assertTrue(payload["consumer_bootstrap_design_scaffold"]["system_context_doc"])
@@ -78,6 +85,7 @@ class ArtifactSmokeTest(unittest.TestCase):
             payload["consumer_bootstrap_design_routing"]["workflow_preset"],
         )
         self.assertTrue(payload["consumer_bootstrap_design_routing"]["design_authoring_preview_ok"])
+        self.assertTrue(payload["consumer_bootstrap_design_routing"]["authority_skill_inventory"]["ok"])
         self.assertEqual(9, payload["consumer_bootstrap_design_routing"]["queue_count"])
         self.assertEqual([], payload["consumer_bootstrap_design_routing"]["missing_queue_ids"])
         self.assertIn(
@@ -91,6 +99,7 @@ class ArtifactSmokeTest(unittest.TestCase):
             payload["consumer_bootstrap_implementation_routing"]["workflow_preset"],
         )
         self.assertTrue(payload["consumer_bootstrap_implementation_routing"]["implementation_readiness_preview_ok"])
+        self.assertTrue(payload["consumer_bootstrap_implementation_routing"]["authority_skill_inventory"]["ok"])
         self.assertTrue(payload["consumer_bootstrap_implementation_routing"]["readiness_previewed"])
         self.assertFalse(payload["consumer_bootstrap_implementation_routing"]["readiness_ok"])
         self.assertFalse(payload["consumer_bootstrap_implementation_routing"]["implementation_ready"])

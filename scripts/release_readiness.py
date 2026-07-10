@@ -175,6 +175,7 @@ def _artifact_smoke_consumer_bootstrap_ok(payload: dict[str, object] | None) -> 
         and consumer_bootstrap.get("ok") is True
         and consumer_bootstrap.get("phase") == "product-structuring"
         and consumer_bootstrap.get("workflow_preset") == "product-structure"
+        and _artifact_smoke_bootstrap_authority_inventory_ok(consumer_bootstrap)
         and consumer_bootstrap.get("auto_repair_env") is True
         and consumer_bootstrap.get("product_structure_apply_ok") is True
         and consumer_bootstrap.get("goals_chapter") is True
@@ -194,6 +195,7 @@ def _artifact_smoke_consumer_design_scaffold_ok(payload: dict[str, object] | Non
         and design_scaffold.get("ok") is True
         and design_scaffold.get("phase") == "design-derivation"
         and design_scaffold.get("workflow_preset") == "design-scaffold"
+        and _artifact_smoke_bootstrap_authority_inventory_ok(design_scaffold)
         and design_scaffold.get("auto_repair_env") is True
         and design_scaffold.get("product_structure_apply_ok") is True
         and design_scaffold.get("advanced_design_derivation") is True
@@ -216,6 +218,7 @@ def _artifact_smoke_consumer_design_routing_ok(payload: dict[str, object] | None
         and design_routing.get("ok") is True
         and design_routing.get("phase") == "design-derivation"
         and design_routing.get("workflow_preset") == "design-routing"
+        and _artifact_smoke_bootstrap_authority_inventory_ok(design_routing)
         and design_routing.get("design_scaffold_apply_ok") is True
         and design_routing.get("design_authoring_preview_ok") is True
         and design_routing.get("queue_count") == 9
@@ -240,6 +243,7 @@ def _artifact_smoke_consumer_implementation_routing_ok(payload: dict[str, object
         and implementation_routing.get("ok") is True
         and implementation_routing.get("phase") == "design-derivation"
         and implementation_routing.get("workflow_preset") == "implementation-routing"
+        and _artifact_smoke_bootstrap_authority_inventory_ok(implementation_routing)
         and implementation_routing.get("design_authoring_preview_ok") is True
         and implementation_routing.get("implementation_readiness_preview_ok") is True
         and implementation_routing.get("readiness_previewed") is True
@@ -257,6 +261,18 @@ def _artifact_smoke_consumer_implementation_routing_ok(payload: dict[str, object
         and "implementation_readiness_preview" in expanded_flags
         and "implementation_advance_preview" in expanded_flags
         and "implementation_closeout_apply" in expanded_flags
+    )
+
+
+def _artifact_smoke_bootstrap_authority_inventory_ok(bootstrap_summary: dict[str, object]) -> bool:
+    inventory = bootstrap_summary.get("authority_skill_inventory")
+    if not isinstance(inventory, dict):
+        return False
+    return (
+        inventory.get("ok") is True
+        and inventory.get("strict") is False
+        and inventory.get("required_skill_count", 0) >= 19
+        and inventory.get("missing_policy") == "load_from_agent_environment_or_stop_before_guessing"
     )
 
 
