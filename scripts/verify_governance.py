@@ -13,11 +13,21 @@ from typing import Callable
 
 try:
     from .bootstrap_tree import TARGET_LOCAL_COMMANDS, target_local_commands_payload
+    from .design_reviews import (
+        DESIGN_REVIEWS_REL,
+        build_design_review_inventory,
+        design_review_enforcement_ready,
+    )
     from .product_dispositions import PRODUCT_DISPOSITIONS_REL, build_product_disposition_inventory
     from .state import StateFileError, load_state
     from .workflow_actions import next_actions_payload
 except ImportError:  # pragma: no cover - direct script execution
     from bootstrap_tree import TARGET_LOCAL_COMMANDS, target_local_commands_payload
+    from design_reviews import (
+        DESIGN_REVIEWS_REL,
+        build_design_review_inventory,
+        design_review_enforcement_ready,
+    )
     from product_dispositions import PRODUCT_DISPOSITIONS_REL, build_product_disposition_inventory
     from state import StateFileError, load_state
     from workflow_actions import next_actions_payload
@@ -95,6 +105,7 @@ WORKFLOW_PACK_REQUIRED_PATHS = (
     "references/backend-operability-checklist.md",
     "references/community-practices.md",
     "references/data-model-design-checklist.md",
+    "references/design-review-checklist.md",
     "references/frontend-interaction-checklist.md",
     "references/governance-verification-checklist.md",
     "references/implementation-execution-checklist.md",
@@ -168,6 +179,7 @@ RUNTIME_REQUIRED_SCRIPT_FILES = (
     "authority_skills.py",
     "bootstrap_tree.py",
     "check_env.py",
+    "design_reviews.py",
     "design_plan.py",
     "gates.py",
     "governance_cli.py",
@@ -719,6 +731,7 @@ def verify(root: Path) -> VerificationReport:
     _check_domain_agents_guardrails(root, report)
     _check_product_source_manifest(root, report)
     _check_product_chapter_dispositions(root, report)
+    _check_design_reviews(root, report)
     _check_product_chapter_links(root, report)
     _check_api_conventions(root, report)
     _check_api_error_codes(root, report)
@@ -775,6 +788,78 @@ def _check_product_chapter_dispositions(root: Path, report: VerificationReport) 
         report.add_error(
             "product_chapter_disposition_stale",
             f"product chapter disposition for {chapter} was reviewed against a different PRD hash",
+            rel,
+        )
+
+
+def _check_design_reviews(root: Path, report: VerificationReport) -> None:
+    try:
+        state = load_state(root)
+    except StateFileError:
+        return
+    if state.get("phase") not in {"design-derivation", "implementation"}:
+        return
+    inventory = build_design_review_inventory(root)
+    exists = inventory.get("exists") is True
+    enforce_missing = design_review_enforcement_ready(root)
+    if not exists and not enforce_missing:
+        return
+    rel = DESIGN_REVIEWS_REL.as_posix()
+    errors = inventory.get("errors")
+    if isinstance(errors, list) and errors:
+        for error in errors:
+            if isinstance(error, str):
+                report.add_error("design_review_invalid", error, rel)
+        return
+    stale_keys: set[tuple[str, str]] = set()
+    stale = inventory.get("stale")
+    if isinstance(stale, list):
+        for review in stale:
+            if not isinstance(review, dict):
+                continue
+            track = str(review.get("track", "<unknown>"))
+            acceptance_id = str(review.get("acceptance_id", "<unknown>"))
+            stale_keys.add((track, acceptance_id))
+            reasons = review.get("stale_reasons")
+            reason_text = "; ".join(
+                str(reason) for reason in reasons if isinstance(reason, str) and reason
+            ) if isinstance(reasons, list) else "source or evidence changed"
+            report.add_error(
+                "design_review_stale",
+                f"design review for {track} {acceptance_id} is stale: {reason_text}",
+                rel,
+            )
+    orphan = inventory.get("orphan")
+    if isinstance(orphan, list):
+        for review in orphan:
+            if not isinstance(review, dict):
+                continue
+            report.add_error(
+                "design_review_orphan",
+                (
+                    f"design review for {review.get('track', '<unknown>')} "
+                    f"{review.get('acceptance_id', '<unknown>')} no longer maps to current acceptance evidence"
+                ),
+                rel,
+            )
+    if not enforce_missing:
+        return
+    missing = inventory.get("missing")
+    if not isinstance(missing, list):
+        return
+    for review in missing:
+        if not isinstance(review, dict):
+            continue
+        track = str(review.get("track", "<unknown>"))
+        acceptance_id = str(review.get("acceptance_id", "<unknown>"))
+        if (track, acceptance_id) in stale_keys:
+            continue
+        report.add_error(
+            "design_review_missing",
+            (
+                f"design review for {track} {acceptance_id} is missing; "
+                f"load {review.get('primary_authority_skill', '<unknown>')} and record the review"
+            ),
             rel,
         )
 

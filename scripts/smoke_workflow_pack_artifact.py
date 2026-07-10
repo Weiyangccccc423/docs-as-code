@@ -459,6 +459,12 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
             "unpacked artifact dry-run did not prove source-bound product chapter dispositions",
             payload=dry_run_payload,
         )
+        design_reviews = _dry_run_design_review_details(dry_run_payload)
+        _require(
+            design_reviews.get("ok") is True,
+            "unpacked artifact dry-run did not prove source- and authority-bound design reviews",
+            payload=dry_run_payload,
+        )
 
         payload = {
             "ok": True,
@@ -471,6 +477,7 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
             "manifest_sha256": manifest_sha256,
             "target_local_make_coverage": target_local_make_coverage,
             "product_dispositions": product_dispositions,
+            "design_reviews": design_reviews,
             "fresh_target_init": fresh_target_init,
             "consumer_bootstrap_product_structure": consumer_bootstrap_product_structure,
             "consumer_bootstrap_design_scaffold": consumer_bootstrap_design_scaffold,
@@ -574,6 +581,36 @@ def _dry_run_product_disposition_details(payload: dict[str, object]) -> dict[str
         "omit_unsupported_count": omitted_count if isinstance(omitted_count, int) else 0,
         "unresolved_decision_count": unresolved_count if isinstance(unresolved_count, int) else 0,
         "work_package_routed_to_phase_action": routed,
+    }
+
+
+def _dry_run_design_review_details(payload: dict[str, object]) -> dict[str, object]:
+    reviews = payload.get("design_reviews")
+    review_map = reviews if isinstance(reviews, dict) else {}
+    expected_count = review_map.get("expected_count")
+    recorded_count = review_map.get("recorded_count")
+    active_count = review_map.get("active_count")
+    missing_count = review_map.get("missing_count")
+    stale_count = review_map.get("stale_count")
+    work_package_complete = review_map.get("work_package_complete") is True
+    ok = (
+        isinstance(expected_count, int)
+        and not isinstance(expected_count, bool)
+        and expected_count > 0
+        and recorded_count == expected_count
+        and active_count == expected_count
+        and missing_count == 0
+        and stale_count == 0
+        and work_package_complete
+    )
+    return {
+        "ok": ok,
+        "expected_count": expected_count if isinstance(expected_count, int) else 0,
+        "recorded_count": recorded_count if isinstance(recorded_count, int) else 0,
+        "active_count": active_count if isinstance(active_count, int) else 0,
+        "missing_count": missing_count if isinstance(missing_count, int) else 0,
+        "stale_count": stale_count if isinstance(stale_count, int) else 0,
+        "work_package_complete": work_package_complete,
     }
 
 

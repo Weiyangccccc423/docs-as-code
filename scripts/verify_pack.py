@@ -698,6 +698,8 @@ DRY_RUN_WORKFLOW_REQUIRED_PHRASES = (
     "run_dry_run",
     "fresh-target-governance-dry-run",
     "SAMPLE_PRODUCT",
+    "DESIGN_REVIEW_TRACK_ORDER",
+    "DESIGN_REVIEW_TRACK_SPECS",
     "ACCEPTANCE_ID_HEADING_RE",
     "acceptance_id_count",
     "expected_task_count",
@@ -759,6 +761,13 @@ DRY_RUN_WORKFLOW_REQUIRED_PHRASES = (
     '"test-strategy-authoring"',
     '"implementation-planning-authoring"',
     '"architecture-decisions-authoring"',
+    "_record_design_reviews",
+    "design_review_{step_slug}_check",
+    "design_review_{step_slug}_apply",
+    "design_plan_after_reviews",
+    "expected_design_review_count",
+    "design_reviews",
+    "work_package_complete",
     "implementation_advance_check",
     "implementation_plan",
     "make_implementation_plan",
@@ -814,6 +823,9 @@ DRY_RUN_GOLDEN_TEST_REQUIRED_PHRASES = (
     "acceptance_id_count",
     "api_candidate_count",
     "authoring_task_counts",
+    "design_reviews",
+    "active_count",
+    "work_package_complete",
     "A-004",
 )
 DRY_RUN_DOC_REQUIREMENTS = {
@@ -824,6 +836,7 @@ DRY_RUN_DOC_REQUIREMENTS = {
         "python3 scripts/dry_run_workflow.py --product tests/fixtures/product-docs/field-service-ops.md --json",
         "temporary target",
         "multi-acceptance",
+        "design_reviews",
         "implementation gate remains blocked",
         "closeout blocks `Done`",
         "passing local evidence",
@@ -835,6 +848,7 @@ DRY_RUN_DOC_REQUIREMENTS = {
         "python3 scripts/dry_run_workflow.py --product tests/fixtures/product-docs/field-service-ops.md --json",
         "temporary target",
         "multi-acceptance",
+        "design_reviews",
         "implementation gate remains blocked",
         "implementation closeout blocks `Done`",
         "passing local evidence",
@@ -845,6 +859,7 @@ DRY_RUN_DOC_REQUIREMENTS = {
         "make dry-run-golden",
         "python3 scripts/dry_run_workflow.py --json",
         "python3 scripts/dry_run_workflow.py --product tests/fixtures/product-docs/field-service-ops.md --json",
+        "design_reviews",
         "implementation closeout",
     ),
     "references/release-readiness-checklist.md": (
@@ -853,6 +868,7 @@ DRY_RUN_DOC_REQUIREMENTS = {
         "final_phase: implementation",
         "acceptance_id_count: 4",
         "api_candidate_count: 4",
+        "design_reviews",
         "implementation closeout blocked without evidence",
         "passing local evidence",
     ),
@@ -1584,9 +1600,16 @@ ARTIFACT_SMOKE_REQUIRED_PHRASES = (
     "ready_with_evidence",
     "_dry_run_target_local_make_details",
     "_dry_run_product_disposition_details",
+    "_dry_run_design_review_details",
     "target_local_make_coverage",
     "product_dispositions",
+    "design_reviews",
     "recorded_count",
+    "expected_count",
+    "active_count",
+    "missing_count",
+    "stale_count",
+    "work_package_complete",
     "omit_unsupported_count",
     "unresolved_decision_count",
     "work_package_routed_to_phase_action",
@@ -1621,6 +1644,7 @@ ARTIFACT_SMOKE_DOC_REQUIREMENTS = {
         "--auto-repair-env --workflow-preset design-scaffold",
         "--auto-repair-env --workflow-preset design-routing",
         "--auto-repair-env --workflow-preset implementation-routing",
+        "design_reviews.ok: true",
     ),
     "workflows/00-overview.md": (
         "make artifact-smoke",
@@ -1632,6 +1656,7 @@ ARTIFACT_SMOKE_DOC_REQUIREMENTS = {
         "--auto-repair-env --workflow-preset design-scaffold",
         "--auto-repair-env --workflow-preset design-routing",
         "--auto-repair-env --workflow-preset implementation-routing",
+        "design_reviews.ok: true",
     ),
     "references/release-readiness-checklist.md": (
         "make artifact-smoke",
@@ -1639,6 +1664,7 @@ ARTIFACT_SMOKE_DOC_REQUIREMENTS = {
         "python3 scripts/smoke_workflow_pack_artifact.py --archive dist/docs-as-code-workflow-pack.tar.gz --json",
         "unpacked artifact",
         "fresh_target_init.ok: true",
+        "design_reviews.ok: true",
         "consumer_bootstrap_implementation_routing.ok: true",
     ),
     "skills/verifying-governance-docs/SKILL.md": (
@@ -1650,6 +1676,7 @@ ARTIFACT_SMOKE_DOC_REQUIREMENTS = {
         "--auto-repair-env --workflow-preset design-scaffold",
         "--auto-repair-env --workflow-preset design-routing",
         "--auto-repair-env --workflow-preset implementation-routing",
+        "design_reviews.ok: true",
     ),
 }
 RELEASE_READINESS_PATH = "scripts/release_readiness.py"
@@ -1670,9 +1697,11 @@ RELEASE_READINESS_REQUIRED_PHRASES = (
     "stop_before_workflow",
     "_dry_run_closeout_evidence_ok",
     "_dry_run_product_dispositions_ok",
+    "_dry_run_design_reviews_ok",
     "_dry_run_target_local_make_coverage_ok",
     "_artifact_smoke_fresh_target_init_ok",
     "_artifact_smoke_product_dispositions_ok",
+    "_artifact_smoke_design_reviews_ok",
     "_artifact_smoke_consumer_bootstrap_ok",
     "_artifact_smoke_work_package_ok",
     "_artifact_smoke_consumer_design_scaffold_ok",
@@ -1696,6 +1725,11 @@ RELEASE_READINESS_REQUIRED_PHRASES = (
     "runtime_manifest",
     "workflow_pack_snapshot",
     "product_source_manifest",
+    "design_reviews",
+    "active_count",
+    "missing_count",
+    "stale_count",
+    "work_package_complete",
     "product-structure",
     "design-scaffold",
     "design-routing",
@@ -1840,6 +1874,7 @@ RELEASE_READINESS_DOC_REQUIREMENTS = {
         "consumer_bootstrap_design_scaffold.ok: true",
         "consumer_bootstrap_design_routing.ok: true",
         "consumer_bootstrap_implementation_routing.ok: true",
+        "design_reviews.ok: true",
         "readiness_blocker_codes",
         "readiness_next_repair_action",
         "advance_preview_not_ready",
@@ -2106,6 +2141,114 @@ PRODUCT_DISPOSITION_DOC_REQUIREMENTS = {
         "review_scope",
     ),
 }
+DESIGN_REVIEW_SOURCE_PATH = "scripts/design_reviews.py"
+DESIGN_REVIEW_SOURCE_REQUIRED_PHRASES = (
+    "DesignReviewResult",
+    "check_design_review",
+    "record_design_review",
+    "apply_design_reviews",
+    "build_design_review_inventory",
+    "design_review_enforcement_ready",
+    "DESIGN_REVIEWS_REL",
+    "DESIGN_REVIEW_SCHEMA_VERSION",
+    "DESIGN_REVIEW_DECISION_POLICY",
+    "DESIGN_REVIEW_ALLOWED_PHASES",
+    "DESIGN_REVIEW_TRACK_SPECS",
+    "DESIGN_REVIEW_SCOPE",
+    "approved",
+    "not-applicable",
+    "primary_authority_skill",
+    "source_snapshots",
+    "evidence_snapshots",
+    "authority_skill",
+    "sha256",
+    "IMPLEMENTATION_MUTABLE_TABLE_COLUMNS",
+    "IMPLEMENTATION_EXECUTION_LOG_REVIEW_EVIDENCE",
+    "semantic_sha256",
+    "_safe_relative_path",
+    "_write_atomic_bytes",
+)
+DESIGN_REVIEW_DOC_REQUIREMENTS = {
+    "README.md": (
+        "author-design-documents",
+        "record-design-review",
+        "docs/decisions/design-reviews.json",
+        "authority `SKILL.md` SHA-256",
+        "Missing, malformed, orphaned, or stale reviews block implementation",
+        "roadmap/task-board `Status`",
+        "implementation phase",
+    ),
+    "workflows/00-overview.md": (
+        "document-first, integration-second, authority-review-last",
+        "docs/decisions/design-reviews.json",
+        "source/evidence hashes",
+        "primary authority skill hash",
+        "missing, malformed, orphaned, or stale reviews block implementation",
+    ),
+    "workflows/04-design-derivation.md": (
+        "record-design-review",
+        "references/design-review-checklist.md",
+        "docs/decisions/design-reviews.json",
+        "`not-applicable`",
+        "requires `--evidence docs/decisions/NNN-<slug>.md`",
+        "semantic hashes",
+        "During implementation",
+    ),
+    "skills/designing-system-architecture/SKILL.md": (
+        "design review --track architecture",
+        "references/design-review-checklist.md",
+        "`senior-architect` skill SHA-256",
+    ),
+    "skills/designing-backend-modules/SKILL.md": (
+        "design review --track backend-modules",
+        "references/design-review-checklist.md",
+        "`senior-backend` skill SHA-256",
+    ),
+    "skills/using-governance-workflow/SKILL.md": (
+        "record-design-review",
+        "references/design-review-checklist.md",
+        "docs/decisions/design-reviews.json",
+        "missing, malformed, orphaned, or stale",
+    ),
+    "skills/verifying-governance-docs/SKILL.md": (
+        "design review --check",
+        "source/evidence snapshots",
+        "design_review_invalid",
+        "design_review_missing",
+        "design_review_orphan",
+        "design_review_stale",
+        "semantic planning changes",
+        "implementation phase",
+    ),
+    "references/design-review-checklist.md": (
+        "docs/decisions/design-reviews.json",
+        "documents[].status",
+        "required_links[].status",
+        "authority skill name and SHA-256",
+        "source and evidence snapshots",
+        "semantic_sha256",
+        "`not-applicable`",
+        "`--check`",
+    ),
+    "references/architecture-quality-checklist.md": (
+        "Authority Review Evidence",
+        "`senior-architect`",
+        "docs/decisions/design-reviews.json",
+        "design review --check",
+    ),
+    "references/backend-design-checklist.md": (
+        "Authority Review Evidence",
+        "`senior-backend`",
+        "docs/decisions/design-reviews.json",
+        "design review --check",
+    ),
+    "references/workflow-routing-checklist.md": (
+        "work_stage",
+        "record-design-review",
+        "design review --check",
+        "docs/decisions/design-reviews.json",
+    ),
+}
 DESIGN_SCAFFOLD_DOC_PATHS = (
     "README.md",
     "workflows/00-overview.md",
@@ -2150,6 +2293,8 @@ DESIGN_PLAN_REQUIRED_PHRASES = (
     "references",
     "documents",
     "blockers",
+    "required_decisions",
+    "docs/decisions/design-reviews.json",
     "steps",
     "local_commands",
     "next_actions",
@@ -2186,6 +2331,13 @@ DESIGN_PLAN_SOURCE_REQUIRED_PHRASES = (
     "tech-debt-tracker",
     "tech-stack-evaluator",
     "slo-architect",
+    "DESIGN_REVIEW_TRACK_SPECS",
+    "DESIGN_AUTHORING_PHASES",
+    "build_design_review_inventory",
+    "design_review_enforcement_ready",
+    "design_review_summary",
+    "review_summary",
+    "review_status",
 )
 WORK_PACKAGE_SOURCE_PATH = "scripts/workflow_plan.py"
 WORK_PACKAGE_SOURCE_REQUIRED_PHRASES = (
@@ -2210,7 +2362,10 @@ WORK_PACKAGE_SOURCE_REQUIRED_PHRASES = (
     "refresh_command",
     "load-authority-skills",
     "claim-implementation-task",
-    "ready_for_review",
+    "work_stage",
+    "author-design-documents",
+    "record-design-review",
+    "design_review_orphan",
 )
 WORK_PACKAGE_DOC_REQUIREMENTS = {
     "README.md": (
@@ -2226,6 +2381,9 @@ WORK_PACKAGE_DOC_REQUIREMENTS = {
         "write_scope",
         "next_action",
         "refresh_command",
+        "work_stage",
+        "author-design-documents",
+        "record-design-review",
         "docs/agent-workflow/workflow-pack/references/",
     ),
     "workflows/00-overview.md": (
@@ -2241,7 +2399,9 @@ WORK_PACKAGE_DOC_REQUIREMENTS = {
         "write_scope",
         "next_action",
         "refresh_command",
-        "ready_for_review",
+        "work_stage",
+        "author-design-documents",
+        "record-design-review",
         "docs/agent-workflow/workflow-pack/references/",
     ),
     "skills/using-governance-workflow/SKILL.md": (
@@ -2257,6 +2417,9 @@ WORK_PACKAGE_DOC_REQUIREMENTS = {
         "work_package.write_scope",
         "next_action",
         "refresh_command",
+        "work_stage",
+        "author-design-documents",
+        "record-design-review",
         "docs/agent-workflow/workflow-pack/references/",
     ),
     "skills/verifying-governance-docs/SKILL.md": (
@@ -2270,6 +2433,8 @@ WORK_PACKAGE_DOC_REQUIREMENTS = {
         "refresh_command",
         "can_start: true",
         "package_available: false",
+        "work_stage",
+        "record-design-review",
     ),
     "workflows/03-product-structuring.md": (
         "workflow work-package",
@@ -2283,7 +2448,9 @@ WORK_PACKAGE_DOC_REQUIREMENTS = {
     "workflows/04-design-derivation.md": (
         "workflow work-package",
         "make work-package",
-        "ready_for_review",
+        "work_stage",
+        "author-design-documents",
+        "record-design-review",
         "work_id",
         "read_order",
         "write_scope",
@@ -2365,6 +2532,24 @@ ARCHITECTURE_AUTHORING_REQUIRED_PHRASES = (
     "slo-architect",
     "verify-architecture-authoring",
     "refresh-architecture-authoring",
+)
+ARCHITECTURE_AUTHORING_SKILL_PATH = "skills/designing-system-architecture/SKILL.md"
+ARCHITECTURE_AUTHORING_SKILL_REQUIRED_PHRASES = (
+    "design architecture-authoring",
+    "authoring_summary",
+    "document_status_counts",
+    "non_authored_document_count",
+    "required_decisions",
+    "open_decisions",
+    "review_status",
+    "document_blockers",
+    "skill_loading_plan.steps[]",
+    "authority-routing",
+    "senior-architect",
+    "load_from_agent_environment_or_stop_before_guessing",
+    "workflow work-package",
+    "references/design-review-checklist.md",
+    "design review --track architecture",
 )
 API_AUTHORING_DOC_PATHS = (
     "README.md",
@@ -2453,6 +2638,22 @@ BACKEND_AUTHORING_REQUIRED_PHRASES = (
     "senior-security",
     "verify-backend-authoring",
     "refresh-backend-authoring",
+)
+BACKEND_AUTHORING_SKILL_PATH = "skills/designing-backend-modules/SKILL.md"
+BACKEND_AUTHORING_SKILL_REQUIRED_PHRASES = (
+    "design backend-authoring",
+    "authoring_summary",
+    "document_status_counts",
+    "non_authored_document_count",
+    "required_decisions",
+    "open_decisions",
+    "review_status",
+    "senior-backend",
+    "observability-designer",
+    "senior-security",
+    "workflow work-package",
+    "references/design-review-checklist.md",
+    "design review --track backend-modules",
 )
 DATA_MODEL_AUTHORING_DOC_PATHS = (
     "README.md",
@@ -3913,6 +4114,7 @@ GOVERNANCE_CLI_REQUIRED_SUBCOMMANDS = {
     "product": ("mark-ready", "plan", "disposition", "structure"),
     "design": (
         "plan",
+        "review",
         "api-candidates",
         "architecture-authoring",
         "api-authoring",
@@ -4272,6 +4474,8 @@ def verify_pack(root: Path) -> PackReport:
     _check_product_structure_docs(root, findings)
     _check_product_disposition_source(root, findings)
     _check_product_disposition_docs(root, findings)
+    _check_design_review_source(root, findings)
+    _check_design_review_docs(root, findings)
     _check_design_scaffold_docs(root, findings)
     _check_design_plan_source(root, findings)
     _check_design_plan_docs(root, findings)
@@ -6107,6 +6311,50 @@ def _check_product_disposition_docs(root: Path, findings: list[PackFinding]) -> 
             )
 
 
+def _check_design_review_source(root: Path, findings: list[PackFinding]) -> None:
+    path = root / DESIGN_REVIEW_SOURCE_PATH
+    if not path.is_file():
+        findings.append(
+            PackFinding(
+                "pack_design_review_source_missing",
+                f"missing design review source script: {DESIGN_REVIEW_SOURCE_PATH}",
+                DESIGN_REVIEW_SOURCE_PATH,
+            )
+        )
+        return
+    text = _read_utf8_text_or_none(path)
+    if text is None:
+        return
+    missing = [phrase for phrase in DESIGN_REVIEW_SOURCE_REQUIRED_PHRASES if phrase not in text]
+    if missing:
+        findings.append(
+            PackFinding(
+                "pack_design_review_source_incomplete",
+                (
+                    f"{DESIGN_REVIEW_SOURCE_PATH} must preserve source-, evidence-, and authority-bound "
+                    f"design review enforcement; missing phrase(s): {', '.join(missing)}"
+                ),
+                DESIGN_REVIEW_SOURCE_PATH,
+            )
+        )
+
+
+def _check_design_review_docs(root: Path, findings: list[PackFinding]) -> None:
+    for rel, phrases in DESIGN_REVIEW_DOC_REQUIREMENTS.items():
+        text = _read_utf8_text_or_none(root / rel)
+        if text is None:
+            continue
+        missing = [phrase for phrase in phrases if phrase not in text]
+        if missing:
+            findings.append(
+                PackFinding(
+                    "pack_design_review_doc_missing",
+                    f"{rel} must document design review phrase(s): {', '.join(missing)}",
+                    rel,
+                )
+            )
+
+
 def _check_design_scaffold_docs(root: Path, findings: list[PackFinding]) -> None:
     for rel in DESIGN_SCAFFOLD_DOC_PATHS:
         text = _read_utf8_text_or_none(root / rel)
@@ -6255,7 +6503,12 @@ def _check_architecture_authoring_docs(root: Path, findings: list[PackFinding]) 
         text = _read_utf8_text_or_none(root / rel)
         if text is None:
             continue
-        missing = [phrase for phrase in ARCHITECTURE_AUTHORING_REQUIRED_PHRASES if phrase not in text]
+        required_phrases = (
+            ARCHITECTURE_AUTHORING_SKILL_REQUIRED_PHRASES
+            if rel == ARCHITECTURE_AUTHORING_SKILL_PATH
+            else ARCHITECTURE_AUTHORING_REQUIRED_PHRASES
+        )
+        missing = [phrase for phrase in required_phrases if phrase not in text]
         if not missing:
             continue
         findings.append(
@@ -6272,7 +6525,12 @@ def _check_backend_authoring_docs(root: Path, findings: list[PackFinding]) -> No
         text = _read_utf8_text_or_none(root / rel)
         if text is None:
             continue
-        missing = [phrase for phrase in BACKEND_AUTHORING_REQUIRED_PHRASES if phrase not in text]
+        required_phrases = (
+            BACKEND_AUTHORING_SKILL_REQUIRED_PHRASES
+            if rel == BACKEND_AUTHORING_SKILL_PATH
+            else BACKEND_AUTHORING_REQUIRED_PHRASES
+        )
+        missing = [phrase for phrase in required_phrases if phrase not in text]
         if not missing:
             continue
         findings.append(

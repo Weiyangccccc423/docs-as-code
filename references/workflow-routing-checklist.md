@@ -29,6 +29,10 @@ Reference: `https://www.omg.org/spec/BPMN/2.0.2/`
 - Is `workflow plan --json` `skill_summary` used to load local workflow skills and authority-routing skills before entering architecture, API, backend, data-model, security, or implementation-planning work?
 - Is `workflow work-package --json` or `make work-package` used when one agent session needs a single evidence-selected task instead of every phase queue?
 - When product `next_action.kind` is `decide-product-chapter`, is `product disposition --check` run before a reviewed apply, and is the returned `work_package_command` used to prove the stable work ID advanced?
+- During design, is `work_stage` followed in authoring, integration, review order so downstream reverse links cannot block track-owned documents?
+- When `next_action.kind` is `record-design-review`, is the primary authority skill loaded and `design review --check` run before writing source/evidence/skill hashes?
+- Are missing, malformed, orphaned, or stale `docs/decisions/design-reviews.json` records treated as implementation blockers?
+- If only an orphan review remains, does the work package route `record-design-review` for a current work item so apply can remove orphaned state atomically?
 - Are `package_available`, `can_start`, `stop_before_work`, `skill_readiness`, `work_package.read_order`, `work_package.write_scope`, `next_action`, and `refresh_command` checked before edits?
 - Are target-local `.agents/skills` and `.codex/skills`, or explicit `--skill-root` paths, included before declaring an authority-routing skill unavailable?
 - Are `skill_loading_plan.steps[]` followed by `sequence`, loading local workflow skills before authority-routing skills and stopping on the declared `missing_policy` instead of guessing?

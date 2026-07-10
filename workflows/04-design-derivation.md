@@ -50,6 +50,7 @@ Load according to the design track:
    bin/governance design test-strategy-authoring <target> --json
    bin/governance design implementation-planning-authoring <target> --json
    bin/governance design architecture-decisions-authoring <target> --json
+   bin/governance design review <target> --track <track> --work <WORK-ID> --result <result> --reason "<authority-review explanation>" --reviewed --check --json
    ```
 
    `--check` reports `would_create`, `would_skip`, and `would_index` without writing placeholders. The scaffold creates the starter endpoint contract at `docs/api/endpoints/01-endpoint-contract.md`, the acceptance matrix, and the verification log when those standard files are missing. The write command returns `local_commands`, `next_actions`, and `scaffold_phase` when gate state is readable; when scaffold placeholders remain, it also returns `next_actions_blocked_by`.
@@ -58,7 +59,11 @@ Load according to the design track:
 
    After the recorded phase is `design-derivation`, `workflow plan --json` exposes top-level and per-queue `active_work`, `skill_summary`, and `skill_loading_plan` objects. Use `design plan --json` to inspect `source_documents`, ordered tracks, `available_in_workflow_pack` skill requirements, and track `blockers` before replacing placeholders. Use `active_work` to resume the first blocked queue, then load local workflow skills first and authority-routing skills such as `senior-architect`, `api-design-reviewer`, `senior-backend`, database design skills, `observability-designer`, and `senior-security` before resolving architecture, API, backend, or data decisions.
 
-   Prefer `workflow work-package --json` or `make work-package` for repeated agent sessions. It chooses the first track whose verification status is not `ready_for_review`, resolves the matching authoring queue, checks required authority skills in the current agent environment, and returns one `work_id`, `read_order`, `write_scope`, blocker/decision set, `next_action`, and verify/refresh contract.
+   Prefer `workflow work-package --json` or `make work-package` for repeated agent sessions. It scans every track in stable order and performs three passes: `work_stage: authoring` returns `next_action.kind: author-design-documents` for the first task whose own `documents[].status` is not `authored` or `reference_template`; `work_stage: integration` selects the first remaining non-satisfied cross-track link; `work_stage: review` selects the first unreviewed or stale decision set. This prevents API/backend/data/test reverse links from blocking their owning documents before those documents can be authored. The package checks authority skills in the current agent environment and returns one `work_id`, `read_order`, `write_scope`, blocker/decision set, `next_action`, and verify/refresh contract.
+
+   When `next_action.kind` is `record-design-review`, read `references/design-review-checklist.md`, load the reported `authority_skill`, and run the returned command contract first with `--check`, then without it. The command records `docs/decisions/design-reviews.json` with the current canonical PRD, acceptance source, repository evidence, and authority `SKILL.md` SHA-256. Every track/acceptance pair must cover the exact `required_decisions`; `open_decisions` clears only while the record is current. Source or design evidence changes make the record stale and block implementation. `not-applicable` is limited to ADR-trigger review; an approved ADR review requires `--evidence docs/decisions/NNN-<slug>.md`. Roadmap/task-board `Status`, task-board `Verification`, and verification-log evidence changes are allowed after implementation begins; semantic hashes still detect task scope, traceability, and other planning changes.
+
+   During implementation, design authoring commands remain read-only drift planners and `design review` remains the authority-bound repair command. Re-run the affected track/work preflight and apply after current evidence is authored and linked; no phase rollback or direct review-JSON editing is required.
 
    When consumer bootstrap returns `design_authoring_preview`, inspect ordered `queue_summaries[]` and aggregate `authoring_summary` first. Use `queue_status_counts`, total task/decision/link-repair counts, `next_queue_id`, `next_active_work`, and top-level `active_work.queue_id` to choose the first non-ready queue; only then open that queue's full payload under `queues` and follow its verify/refresh commands.
 
@@ -82,7 +87,7 @@ Load according to the design track:
 
    Replace all `governance:scaffold-placeholder` markers before implementation handoff.
 
-   Design plan tracks include `sequence`, `primary_skill`, `primary_specialist_skill`, `skill_requirements`, `authority_skill_requirements`, and `skill_loading_plan`. Design authoring payloads include queue-level `active_work`; use it to inspect the selected task, next repair action, and verify/refresh commands before running `authoring_tasks[]` by sequence. Design authoring tasks include `sequence`, `skill_loading_plan`, plus `execution` metadata with `primary_skill`, `primary_specialist_skill`, `verify_step`, `refresh_step`, and `stop_condition`; run tasks in sequence and stop when `stop_condition` is true.
+   Design plan tracks include `sequence`, `primary_skill`, `primary_specialist_skill`, `skill_requirements`, `authority_skill_requirements`, `skill_loading_plan`, and per-track `review_summary`. Design authoring payloads include `design_reviews`, `stale_design_reviews`, `review_summary`, and queue-level `active_work`; use document status before link status, then authority review status. Design authoring tasks include `required_decisions`, current `open_decisions`, `review_status`, `document_blockers`, `document_repair_actions`, `sequence`, `skill_loading_plan`, and `execution` metadata; run tasks in sequence and do not treat authored files alone as review completion.
 
 3. Read `references/architecture-methods.md` and `references/architecture-quality-checklist.md`, then create or complete `docs/architecture/` views:
    - system context
@@ -132,6 +137,7 @@ Design documents sufficient for creating a task board without guessing product m
 
 ## Verification
 
+- Every current `A-NNN` and design track has a non-stale authority review in `docs/decisions/design-reviews.json`; malformed, missing, orphaned, or stale records block implementation.
 - API endpoints have request, response, error code, auth, and idempotency notes.
 - Architecture documents are checked against `references/architecture-quality-checklist.md` for architecture-description coverage, quality model coverage, measurable quality scenarios, runtime/failure flow, tradeoffs, and implementation readiness.
 - API contracts are checked against `references/api-design-checklist.md` for contract shape, HTTP semantics, error responses, idempotency, collection operations, compatibility, and traceability.

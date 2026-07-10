@@ -11,6 +11,11 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+try:
+    from .design_reviews import DESIGN_REVIEW_TRACK_ORDER, DESIGN_REVIEW_TRACK_SPECS
+except ImportError:  # pragma: no cover - direct script execution
+    from design_reviews import DESIGN_REVIEW_TRACK_ORDER, DESIGN_REVIEW_TRACK_SPECS
+
 
 ROOT = Path(__file__).resolve().parents[1]
 CLI = ROOT / "scripts" / "governance_cli.py"
@@ -52,6 +57,7 @@ AUTHORING_COMMANDS = [
 ]
 ACCEPTANCE_ID_HEADING_RE = re.compile(r"^##[ \t]+(?P<id>A-[0-9]{3})\b", re.MULTILINE)
 IMPLEMENTATION_TASK_ID = "TASK-001"
+DESIGN_REVIEW_REL = "docs/decisions/design-reviews.json"
 OPTIONAL_PRODUCT_CHAPTERS = {
     "background-and-problems",
     "change-log",
@@ -938,6 +944,29 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
     _require(implementation_preflight.get("ok") is False, "implementation gate unexpectedly passed")
 
     _write_minimal_implementation_ready_docs(target, acceptance_ids)
+    design_review_applies = _record_design_reviews(
+        target,
+        acceptance_ids,
+        steps,
+    )
+    reviewed_design_plan = _run_json(
+        steps,
+        "design_plan_after_reviews",
+        ["bin/governance", "design", "plan", ".", "--json"],
+        target,
+    )
+    expected_design_review_count = len(DESIGN_REVIEW_TRACK_ORDER) * len(acceptance_ids)
+    design_review_summary = reviewed_design_plan.get("design_review_summary")
+    _require(
+        reviewed_design_plan.get("ok") is True
+        and isinstance(design_review_summary, dict)
+        and design_review_summary.get("expected_count") == expected_design_review_count
+        and design_review_summary.get("active_count") == expected_design_review_count
+        and design_review_summary.get("missing_count") == 0
+        and design_review_summary.get("stale_count") == 0,
+        "design authority reviews did not cover every acceptance and track",
+        payload=reviewed_design_plan,
+    )
     implementation_ready_verify = _run_json(
         steps,
         "implementation_ready_verify_check",
@@ -1187,6 +1216,17 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
                 and work_package_after_product_dispositions.get("status") == "phase_action_required"
             ),
         },
+        "design_reviews": {
+            "recorded_count": len(design_review_applies),
+            "expected_count": expected_design_review_count,
+            "active_count": design_review_summary.get("active_count", 0),
+            "missing_count": design_review_summary.get("missing_count", 0),
+            "stale_count": design_review_summary.get("stale_count", 0),
+            "work_package_complete": (
+                make_design_complete_work_package.get("package_available") is False
+                and make_design_complete_work_package.get("status") == "complete"
+            ),
+        },
         "target_local_make_coverage": _target_local_make_coverage_details(steps),
         "implementation_gate": {
             "placeholder_blocked_ok": implementation_preflight.get("ok"),
@@ -1243,6 +1283,7 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
                 for path in (
                     "bin/governance",
                     "scripts/governance_cli.py",
+                    "scripts/design_reviews.py",
                     "docs/agent-workflow/runtime-manifest.json",
                     "docs/agent-workflow/workflow-pack/manifest.json",
                 )
@@ -1745,6 +1786,93 @@ def _record_optional_product_dispositions(
         )
         applied.append(result)
     return applied
+
+
+def _record_design_reviews(
+    target: Path,
+    acceptance_ids: list[str],
+    steps: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    _install_dry_run_authority_skill_fixtures(target)
+    applied: list[dict[str, object]] = []
+    for track in DESIGN_REVIEW_TRACK_ORDER:
+        spec = DESIGN_REVIEW_TRACK_SPECS[track]
+        work_prefix = str(spec["work_prefix"])
+        authority_skill = str(spec["primary_authority_skill"])
+        result_value = "not-applicable" if track == "architecture-decisions" else "approved"
+        for index, acceptance_id in enumerate(acceptance_ids, start=1):
+            work_id = f"{work_prefix}-{index:03d}"
+            reason = (
+                f"Golden dry-run {authority_skill} review confirms {track} decisions for "
+                f"{acceptance_id} are addressed in current repository evidence."
+            )
+            argv = [
+                "bin/governance",
+                "design",
+                "review",
+                ".",
+                "--track",
+                track,
+                "--work",
+                work_id,
+                "--result",
+                result_value,
+                "--reason",
+                reason,
+                "--reviewed",
+            ]
+            step_slug = f"{track.replace('-', '_')}_{acceptance_id.lower().replace('-', '_')}"
+            preview = _run_json(
+                steps,
+                f"design_review_{step_slug}_check",
+                [*argv, "--check", "--json"],
+                target,
+            )
+            review = preview.get("review")
+            review_authority = review.get("authority_skill") if isinstance(review, dict) else None
+            _require(
+                preview.get("ok") is True
+                and preview.get("check") is True
+                and preview.get("would_update") == [DESIGN_REVIEW_REL]
+                and isinstance(review_authority, dict)
+                and review_authority.get("name") == authority_skill,
+                f"design review preflight failed for {track} {acceptance_id}",
+                payload=preview,
+            )
+            result = _run_json(
+                steps,
+                f"design_review_{step_slug}_apply",
+                [*argv, "--json"],
+                target,
+            )
+            _require(
+                result.get("ok") is True
+                and result.get("applied") is True
+                and result.get("updated") == [DESIGN_REVIEW_REL],
+                f"design review apply failed for {track} {acceptance_id}",
+                payload=result,
+            )
+            applied.append(result)
+    return applied
+
+
+def _install_dry_run_authority_skill_fixtures(target: Path) -> None:
+    skill_names = {
+        str(spec["primary_authority_skill"])
+        for spec in DESIGN_REVIEW_TRACK_SPECS.values()
+    }
+    for skill_name in sorted(skill_names):
+        path = target / ".agents/skills" / skill_name / "SKILL.md"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            "---\n"
+            f"name: {skill_name}\n"
+            "description: Deterministic dry-run authority routing fixture; not a production skill.\n"
+            "---\n\n"
+            f"# {skill_name}\n\n"
+            "Used only to exercise source-, evidence-, and skill-hash-bound design review mechanics.\n",
+            encoding="utf-8",
+        )
 
 
 def _require_phase_action_work_package(payload: dict[str, object], phase: str, next_action_id: str) -> None:
@@ -2272,7 +2400,7 @@ def _authoring_summary_matches_tasks(payload: dict[str, object]) -> bool:
     summary = payload.get("authoring_summary")
     if not isinstance(tasks, list) or not isinstance(summary, dict):
         return False
-    return summary == _task_collection_summary(
+    expected = _task_collection_summary(
         tasks,
         item_key="required_links",
         status_counts_key="required_link_status_counts",
@@ -2280,6 +2408,21 @@ def _authoring_summary_matches_tasks(payload: dict[str, object]) -> bool:
         repair_actions_key="link_repair_actions",
         repair_action_count_key="link_repair_action_count",
     )
+    document_status_counts: dict[str, int] = {}
+    non_authored_document_count = 0
+    for task in tasks:
+        if not isinstance(task, dict) or not isinstance(task.get("documents"), list):
+            continue
+        for document in task["documents"]:
+            if not isinstance(document, dict):
+                continue
+            status = str(document.get("status", "unknown") or "unknown")
+            document_status_counts[status] = document_status_counts.get(status, 0) + 1
+            if status not in {"authored", "reference_template"}:
+                non_authored_document_count += 1
+    expected["document_status_counts"] = dict(sorted(document_status_counts.items()))
+    expected["non_authored_document_count"] = non_authored_document_count
+    return summary == expected
 
 
 def _task_collection_summary(

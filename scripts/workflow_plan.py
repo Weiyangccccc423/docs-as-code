@@ -6,6 +6,7 @@ from typing import Any, Callable
 try:
     from .authority_skills import build_authority_skill_inventory
     from .bootstrap_tree import WORKFLOW_PACK_SNAPSHOT_ROOT, target_local_commands_payload
+    from .design_reviews import DESIGN_REVIEW_TRACK_SPECS
     from .design_plan import (
         build_api_authoring,
         build_api_candidates,
@@ -26,6 +27,7 @@ try:
 except ImportError:  # pragma: no cover - direct script execution
     from authority_skills import build_authority_skill_inventory
     from bootstrap_tree import WORKFLOW_PACK_SNAPSHOT_ROOT, target_local_commands_payload
+    from design_reviews import DESIGN_REVIEW_TRACK_SPECS
     from design_plan import (
         build_api_authoring,
         build_api_candidates,
@@ -295,33 +297,98 @@ def _design_work_package(root: Path) -> tuple[dict[str, object], list[str], str]
     if design_plan.get("ok") is not True:
         return {}, _string_list(design_plan.get("errors")), "failed"
     tracks = _dict_items(design_plan.get("tracks"))
-    track = next((item for item in tracks if item.get("status") != "ready_for_review"), {})
-    if not track:
+    queues: list[tuple[dict[str, object], str, dict[str, object]]] = []
+    for track in tracks:
+        track_id = str(track.get("id", ""))
+        builder_entry = DESIGN_WORK_PACKAGE_BUILDERS.get(track_id)
+        if builder_entry is None:
+            return {}, [f"No design authoring builder registered for track {track_id or '<missing>'}."], "failed"
+        queue_id, builder = builder_entry
+        authoring_payload = builder(root)
+        if authoring_payload.get("ok") is not True:
+            return {}, _string_list(authoring_payload.get("errors")), "failed"
+        queues.append((track, queue_id, authoring_payload))
+
+    selected: tuple[dict[str, object], str, dict[str, object], dict[str, object], str] | None = None
+    for stage in ("authoring", "integration", "review"):
+        for track, queue_id, authoring_payload in queues:
+            authoring_tasks = _dict_items(authoring_payload.get("authoring_tasks"))
+            task = _first_design_task_for_stage(
+                authoring_tasks,
+                stage,
+            )
+            if (
+                not task
+                and stage == "review"
+                and authoring_tasks
+                and any(
+                    blocker.get("code") == "design_review_orphan"
+                    for blocker in _dict_items(track.get("blockers"))
+                )
+            ):
+                task = authoring_tasks[0]
+            if task:
+                selected = (track, queue_id, authoring_payload, task, stage)
+                break
+        if selected is not None:
+            break
+    if selected is None:
         return {}, [], "complete"
+
+    track, queue_id, authoring_payload, task, stage = selected
     track_id = str(track.get("id", ""))
-    builder_entry = DESIGN_WORK_PACKAGE_BUILDERS.get(track_id)
-    if builder_entry is None:
-        return {}, [f"No design authoring builder registered for track {track_id or '<missing>'}."], "failed"
-    queue_id, builder = builder_entry
-    authoring_payload = builder(root)
-    if authoring_payload.get("ok") is not True:
-        return {}, _string_list(authoring_payload.get("errors")), "failed"
-    tasks = _dict_items(authoring_payload.get("authoring_tasks"))
     active_work = _dict_value(authoring_payload.get("active_work"))
-    task = _selected_work_item(tasks, str(active_work.get("task_id", "")))
     work_id = str(task.get("task_id", track_id))
     source_documents = _string_list(authoring_payload.get("source_documents"))
-    references = _target_read_paths(root, _string_list(track.get("references")))
-    primary_paths = _string_list(track.get("documents"))
+    references = _target_read_paths(
+        root,
+        [*_string_list(track.get("references")), "references/design-review-checklist.md"],
+    )
+    primary_paths = [
+        str(item.get("path", ""))
+        for item in _dict_items(task.get("documents"))
+        if str(item.get("path", "")) and not Path(str(item.get("path", ""))).name.startswith("_")
+    ]
+    document_blockers = _dict_items(task.get("document_blockers"))
+    link_blockers = [
+        item
+        for item in _dict_items(task.get("required_links"))
+        if item.get("status") != "satisfied"
+    ]
+    review_blockers = [
+        blocker
+        for blocker in _dict_items(track.get("blockers"))
+        if str(blocker.get("code", "")).startswith("design_review_")
+    ]
+    blockers = (
+        document_blockers
+        if stage == "authoring"
+        else link_blockers
+        if stage == "integration"
+        else review_blockers
+    )
+    repair_actions = (
+        _dict_items(task.get("document_repair_actions"))
+        if stage == "authoring"
+        else _dict_items(task.get("link_repair_actions"))
+        if stage == "integration"
+        else []
+    )
+    status_by_stage = {
+        "authoring": "authoring_required",
+        "integration": "integration_required",
+        "review": "review_required",
+    }
     return {
         "package_id": _package_id(DESIGN_PHASE, queue_id, work_id),
         "kind": "design-authoring",
         "phase": DESIGN_PHASE,
         "queue_id": queue_id,
         "track_id": track_id,
+        "work_stage": stage,
         "track_sequence": track.get("sequence", 0),
         "work_id": work_id,
-        "status": str(track.get("status", "authoring_blocked")),
+        "status": status_by_stage[stage],
         "title": str(track.get("title", task.get("title", ""))),
         "objective": str(track.get("purpose", "")),
         "procedure": str(track.get("procedure", "")),
@@ -333,14 +400,25 @@ def _design_work_package(root: Path) -> tuple[dict[str, object], list[str], str]
         "write_scope": {
             "mode": "declared_design_track_documents",
             "primary_paths": primary_paths,
-            "supporting_paths": ["docs/unresolved.md"],
+            "supporting_paths": ["docs/unresolved.md", "docs/decisions/design-reviews.json"],
             "requires_codebase_mapping": False,
         },
         "documents": _dict_items(task.get("documents")),
+        "document_blockers": document_blockers,
+        "document_repair_actions": _dict_items(task.get("document_repair_actions")),
         "required_links": _dict_items(task.get("required_links")),
+        "required_decisions": _string_list(task.get("required_decisions")),
         "open_decisions": _string_list(task.get("open_decisions")),
-        "blockers": _dict_items(track.get("blockers")),
-        "repair_actions": _dict_items(task.get("link_repair_actions")),
+        "blockers": blockers,
+        "repair_actions": repair_actions,
+        "review_status": str(task.get("review_status", "missing")),
+        "design_review": _dict_value(task.get("design_review")),
+        "required_authority_skill": str(
+            _dict_value(task.get("execution")).get("primary_specialist_skill", "")
+        ),
+        "review_result_options": _string_list(
+            DESIGN_REVIEW_TRACK_SPECS.get(track_id, {}).get("results")
+        ),
         "skill_requirements": _dict_items(track.get("skill_requirements")),
         "authority_skill_requirements": _dict_items(track.get("authority_skill_requirements")),
         "skill_loading_plan": _dict_value(track.get("skill_loading_plan")),
@@ -349,6 +427,23 @@ def _design_work_package(root: Path) -> tuple[dict[str, object], list[str], str]
         "verify_command": _dict_value(active_work.get("verify_command")),
         "refresh_command": _dict_value(active_work.get("refresh_command")),
     }, [], ""
+
+
+def _first_design_task_for_stage(
+    tasks: list[dict[str, object]],
+    stage: str,
+) -> dict[str, object]:
+    for task in tasks:
+        if stage == "authoring" and _dict_items(task.get("document_blockers")):
+            return task
+        if stage == "integration" and any(
+            item.get("status") != "satisfied"
+            for item in _dict_items(task.get("required_links"))
+        ):
+            return task
+        if stage == "review" and _string_list(task.get("open_decisions")):
+            return task
+    return {}
 
 
 def _implementation_work_package(root: Path) -> tuple[dict[str, object], list[str], str]:
@@ -538,6 +633,52 @@ def _work_package_next_action(
                 "approval_required": False,
             },
         }
+    if package.get("kind") == "design-authoring" and package.get("work_stage") == "authoring":
+        paths = [
+            str(item.get("target", ""))
+            for item in _dict_items(package.get("document_blockers"))
+            if str(item.get("target", ""))
+        ]
+        return {
+            "kind": "author-design-documents",
+            "track": str(package.get("track_id", "")),
+            "work_id": str(package.get("work_id", "")),
+            "paths": paths,
+            "decision_policy": str(package.get("decision_policy", "")),
+            "required_decisions": _string_list(package.get("required_decisions")),
+            "authority_skill": str(package.get("required_authority_skill", "")),
+            "success_condition": "declared design documents become authored before integration review",
+        }
+    if package.get("kind") == "design-authoring" and package.get("work_stage") == "review":
+        track = str(package.get("track_id", ""))
+        work_id = str(package.get("work_id", ""))
+        return {
+            "kind": "record-design-review",
+            "track": track,
+            "work_id": work_id,
+            "authority_skill": str(package.get("required_authority_skill", "")),
+            "reviewed_decisions": _string_list(package.get("required_decisions")),
+            "result_options": _string_list(package.get("review_result_options")),
+            "decision_policy": str(package.get("decision_policy", "")),
+            "command_contract": {
+                "cwd": str(root),
+                "argv_prefix": [
+                    "bin/governance",
+                    "design",
+                    "review",
+                    ".",
+                    "--track",
+                    track,
+                    "--work",
+                    work_id,
+                ],
+                "required_arguments": ["--result", "--reason", "--reviewed"],
+                "optional_arguments": ["--evidence", "--skill-root"],
+                "preflight_argument": "--check",
+                "writes_state": True,
+                "approval_required": False,
+            },
+        }
     repair_actions = _dict_items(package.get("repair_actions"))
     if repair_actions:
         return {"kind": "repair", "source": "repair_actions", "action": repair_actions[0]}
@@ -613,7 +754,11 @@ def _dict_value(value: object) -> dict[str, object]:
 
 
 def _string_list(value: object) -> list[str]:
-    return [str(item) for item in value if isinstance(item, str) and item] if isinstance(value, list) else []
+    return (
+        [str(item) for item in value if isinstance(item, str) and item]
+        if isinstance(value, (list, tuple))
+        else []
+    )
 
 
 def _dedupe_strings(values: list[str]) -> list[str]:

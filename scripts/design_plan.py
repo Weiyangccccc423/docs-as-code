@@ -7,11 +7,25 @@ from typing import Any
 
 try:
     from .bootstrap_tree import target_local_commands_payload
+    from .design_reviews import (
+        DESIGN_REVIEWS_REL,
+        DESIGN_REVIEW_TRACK_SPECS,
+        apply_design_reviews,
+        build_design_review_inventory,
+        design_review_enforcement_ready,
+    )
     from .state import load_state
     from .verify_governance import VerificationFinding, verify
     from .workflow_actions import next_actions_payload
 except ImportError:  # pragma: no cover - direct script execution
     from bootstrap_tree import target_local_commands_payload
+    from design_reviews import (
+        DESIGN_REVIEWS_REL,
+        DESIGN_REVIEW_TRACK_SPECS,
+        apply_design_reviews,
+        build_design_review_inventory,
+        design_review_enforcement_ready,
+    )
     from state import load_state
     from verify_governance import VerificationFinding, verify
     from workflow_actions import next_actions_payload
@@ -19,6 +33,7 @@ except ImportError:  # pragma: no cover - direct script execution
 
 DESIGN_WORKFLOW_PATH = "workflows/04-design-derivation.md"
 DESIGN_PHASE = "design-derivation"
+DESIGN_AUTHORING_PHASES = frozenset({DESIGN_PHASE, "implementation"})
 TARGET_WORKFLOW_PACK_ROOT = "docs/agent-workflow/workflow-pack"
 ARCHITECTURE_TRACK_ID = "architecture"
 UI_INTERACTION_TRACK_ID = "ui-interaction"
@@ -36,29 +51,8 @@ MARKDOWN_HEADING_RE = re.compile(r"^(?P<hashes>#{1,6})[ \t]+(?P<title>.+?)[ \t]*
 TASK_ID_RE = re.compile(r"\bTASK-(?P<num>[0-9]{3})\b")
 ADR_ID_RE = re.compile(r"^(?P<num>[0-9]{3})-[a-z0-9][a-z0-9-]*\.md$")
 SLUG_TOKEN_RE = re.compile(r"[a-z0-9]+")
-OPEN_API_DECISIONS = (
-    "method_path",
-    "auth",
-    "idempotency",
-    "request_fields",
-    "response_fields",
-    "error_codes",
-    "upstream_links",
-    "frontend_consumers",
-)
-OPEN_ARCHITECTURE_DECISIONS = (
-    "system_boundary",
-    "actors",
-    "external_systems",
-    "trust_boundaries",
-    "container_responsibilities",
-    "runtime_flows",
-    "quality_scenarios",
-    "deployment_assumptions",
-    "risk_tradeoffs",
-    "verification_hooks",
-    "adr_candidates",
-)
+OPEN_API_DECISIONS = tuple(DESIGN_REVIEW_TRACK_SPECS[API_TRACK_ID]["decisions"])
+OPEN_ARCHITECTURE_DECISIONS = tuple(DESIGN_REVIEW_TRACK_SPECS[ARCHITECTURE_TRACK_ID]["decisions"])
 ARCHITECTURE_SYSTEM_CONTEXT_SECTIONS = (
     "Product Links",
     "Actors",
@@ -110,30 +104,8 @@ API_ENDPOINT_SECTIONS = (
     "Upstream Links",
     "Frontend Consumers",
 )
-OPEN_BACKEND_DECISIONS = (
-    "module_boundaries",
-    "runtime_flow",
-    "api_ownership",
-    "data_ownership",
-    "external_dependencies",
-    "retries_timeouts",
-    "observability",
-    "security_boundaries",
-    "acceptance_tests",
-)
-OPEN_DATA_MODEL_DECISIONS = (
-    "entity_ownership",
-    "table_and_field_names",
-    "lifecycle_states",
-    "idempotency_constraints",
-    "transaction_boundaries",
-    "consistency_model",
-    "concurrency_conflicts",
-    "indexes_and_query_paths",
-    "migration_order",
-    "rollback_strategy",
-    "retention_and_audit",
-)
+OPEN_BACKEND_DECISIONS = tuple(DESIGN_REVIEW_TRACK_SPECS[BACKEND_TRACK_ID]["decisions"])
+OPEN_DATA_MODEL_DECISIONS = tuple(DESIGN_REVIEW_TRACK_SPECS[DATA_MODEL_TRACK_ID]["decisions"])
 BACKEND_MODULE_SECTIONS = (
     "Product Links",
     "Architecture Links",
@@ -160,23 +132,8 @@ BACKEND_EXTERNAL_SERVICE_SECTIONS = (
     "Authentication",
     "Observability",
 )
-OPEN_FRONTEND_DECISIONS = (
-    "route_ownership",
-    "state_ownership",
-    "api_consumption",
-    "loading_states",
-    "error_actions",
-    "performance",
-    "cache_invalidation",
-)
-OPEN_UI_INTERACTION_DECISIONS = (
-    "primary_flows",
-    "screens",
-    "states",
-    "error_actions",
-    "accessibility",
-    "copy_and_content",
-)
+OPEN_FRONTEND_DECISIONS = tuple(DESIGN_REVIEW_TRACK_SPECS[FRONTEND_TRACK_ID]["decisions"])
+OPEN_UI_INTERACTION_DECISIONS = tuple(DESIGN_REVIEW_TRACK_SPECS[UI_INTERACTION_TRACK_ID]["decisions"])
 UI_INTERACTION_SECTIONS = (
     "Product Links",
     "Primary Flows",
@@ -200,20 +157,7 @@ FRONTEND_API_CONSUMPTION_SECTIONS = (
     "Loading States",
     "Error Actions",
 )
-OPEN_TEST_STRATEGY_DECISIONS = (
-    "acceptance_coverage",
-    "test_layers",
-    "contract_tests",
-    "end_to_end_flows",
-    "accessibility_checks",
-    "security_checks",
-    "non_functional_checks",
-    "test_data",
-    "environment_assumptions",
-    "local_verification_commands",
-    "evidence_targets",
-    "uncovered_criteria",
-)
+OPEN_TEST_STRATEGY_DECISIONS = tuple(DESIGN_REVIEW_TRACK_SPECS[TEST_STRATEGY_TRACK_ID]["decisions"])
 TEST_STRATEGY_SECTIONS = (
     "Product Links",
     "Acceptance Links",
@@ -225,22 +169,8 @@ ACCEPTANCE_MATRIX_SECTIONS = (
     "Matrix",
     "Uncovered Criteria",
 )
-OPEN_IMPLEMENTATION_PLANNING_DECISIONS = (
-    "task_scope",
-    "milestone_sequence",
-    "task_boundaries",
-    "task_status",
-    "ready_criteria",
-    "product_traceability",
-    "design_traceability",
-    "api_traceability",
-    "acceptance_mapping",
-    "verification_plan",
-    "agent_handoff",
-    "dependency_order",
-    "done_evidence",
-    "deferred_scope",
-    "supply_chain_checks",
+OPEN_IMPLEMENTATION_PLANNING_DECISIONS = tuple(
+    DESIGN_REVIEW_TRACK_SPECS[IMPLEMENTATION_PLANNING_TRACK_ID]["decisions"]
 )
 ROADMAP_SECTIONS = (
     "Product Links",
@@ -259,19 +189,8 @@ VERIFICATION_LOG_SECTIONS = (
     "Artifacts",
     "Open Follow-ups",
 )
-OPEN_ARCHITECTURE_DECISION_DECISIONS = (
-    "adr_trigger",
-    "decision_scope",
-    "decision_drivers",
-    "affected_modules",
-    "alternatives",
-    "selected_option",
-    "consequences",
-    "status",
-    "verification_path",
-    "reverse_links",
-    "supersession",
-    "deferred_or_no_adr_reason",
+OPEN_ARCHITECTURE_DECISION_DECISIONS = tuple(
+    DESIGN_REVIEW_TRACK_SPECS[ARCHITECTURE_DECISIONS_TRACK_ID]["decisions"]
 )
 ADR_SECTIONS = (
     "Context",
@@ -450,6 +369,13 @@ def build_design_plan(root: Path) -> dict[str, object]:
         _track_payload(root, track, sequence, source_documents, findings_by_path)
         for sequence, track in enumerate(DESIGN_TRACKS, start=1)
     ]
+    review_inventory = build_design_review_inventory(root)
+    errors.extend(_string_items(review_inventory.get("errors")))
+    tracks = _apply_design_review_track_status(
+        tracks,
+        review_inventory,
+        enforce_missing=design_review_enforcement_ready(root),
+    )
     payload: dict[str, object] = {
         "ok": not errors,
         "target": str(root),
@@ -458,6 +384,11 @@ def build_design_plan(root: Path) -> dict[str, object]:
         "verification_ok": report.ok,
         "errors": errors,
         "source_documents": source_documents,
+        "design_review_path": DESIGN_REVIEWS_REL.as_posix(),
+        "design_review_summary": review_inventory.get("summary", {}),
+        "active_design_reviews": review_inventory.get("active", []),
+        "stale_design_reviews": review_inventory.get("stale", []),
+        "missing_design_reviews": review_inventory.get("missing", []),
         "tracks": tracks,
         "active_work": _active_design_track_work(root, tracks),
     }
@@ -465,6 +396,74 @@ def build_design_plan(root: Path) -> dict[str, object]:
         payload["local_commands"] = target_local_commands_payload(cwd=str(root))
         payload["next_actions"] = next_actions_payload(state, cwd=str(root))
     return payload
+
+
+def _apply_design_review_track_status(
+    tracks: list[dict[str, object]],
+    inventory: dict[str, object],
+    *,
+    enforce_missing: bool,
+) -> list[dict[str, object]]:
+    active = _dict_items(inventory.get("active"))
+    stale = _dict_items(inventory.get("stale"))
+    missing = _dict_items(inventory.get("missing")) if enforce_missing else []
+    orphan = _dict_items(inventory.get("orphan"))
+    updated: list[dict[str, object]] = []
+    for original in tracks:
+        track = dict(original)
+        track_id = str(track.get("id", ""))
+        active_items = [item for item in active if item.get("track") == track_id]
+        stale_items = [item for item in stale if item.get("track") == track_id]
+        missing_items = [item for item in missing if item.get("track") == track_id]
+        orphan_items = [item for item in orphan if item.get("track") == track_id]
+        review_blockers: list[dict[str, str]] = []
+        for item in stale_items:
+            review_blockers.append(
+                {
+                    "code": "design_review_stale",
+                    "path": DESIGN_REVIEWS_REL.as_posix(),
+                    "message": (
+                        f"{track_id} review for {item.get('acceptance_id', '<unknown>')} "
+                        "is stale against current source or evidence"
+                    ),
+                }
+            )
+        for item in missing_items:
+            review_blockers.append(
+                {
+                    "code": "design_review_missing",
+                    "path": DESIGN_REVIEWS_REL.as_posix(),
+                    "message": (
+                        f"{track_id} review for {item.get('acceptance_id', '<unknown>')} "
+                        "has not been recorded"
+                    ),
+                }
+            )
+        for item in orphan_items:
+            review_blockers.append(
+                {
+                    "code": "design_review_orphan",
+                    "path": DESIGN_REVIEWS_REL.as_posix(),
+                    "message": (
+                        f"{track_id} review for {item.get('acceptance_id', '<unknown>')} "
+                        "no longer maps to current acceptance evidence"
+                    ),
+                }
+            )
+        blockers = _dict_items(track.get("blockers"))
+        if review_blockers:
+            blockers.extend(review_blockers)
+            if track.get("status") == "ready_for_review":
+                track["status"] = "review_required"
+        track["blockers"] = blockers
+        track["review_summary"] = {
+            "active_count": len(active_items),
+            "stale_count": len(stale_items),
+            "missing_count": len(missing_items),
+            "orphan_count": len(orphan_items),
+        }
+        updated.append(track)
+    return updated
 
 
 def build_api_candidates(root: Path) -> dict[str, object]:
@@ -513,8 +512,8 @@ def build_architecture_authoring(root: Path) -> dict[str, object]:
     errors: list[str] = []
     if not state:
         errors.append("No governance state found.")
-    elif phase != DESIGN_PHASE:
-        errors.append(f"architecture authoring requires recorded phase {DESIGN_PHASE}")
+    elif phase not in DESIGN_AUTHORING_PHASES:
+        errors.append("architecture authoring requires recorded phase design-derivation or implementation")
     candidates = _api_candidates(root)
     if not candidates:
         errors.append("No product acceptance criteria with A-NNN headings found.")
@@ -524,6 +523,12 @@ def build_architecture_authoring(root: Path) -> dict[str, object]:
         _architecture_authoring_task(root, candidate, index)
         for index, candidate in enumerate(candidates, start=1)
     ]
+    authoring_tasks, review_state = _prepare_design_authoring_tasks(
+        root,
+        ARCHITECTURE_TRACK_ID,
+        authoring_tasks,
+    )
+    errors.extend(_string_items(review_state.get("errors")))
     payload: dict[str, object] = {
         "ok": not errors,
         "target": str(root),
@@ -540,6 +545,7 @@ def build_architecture_authoring(root: Path) -> dict[str, object]:
             "references/security-design-checklist.md",
         ],
         "source_documents": _source_documents(root),
+        **_design_review_payload_fields(review_state),
         "authoring_tasks": authoring_tasks,
         "authoring_summary": _authoring_summary(authoring_tasks),
         "active_work": _active_design_authoring_work(
@@ -562,8 +568,8 @@ def build_api_authoring(root: Path) -> dict[str, object]:
     errors: list[str] = []
     if not state:
         errors.append("No governance state found.")
-    elif phase != DESIGN_PHASE:
-        errors.append(f"API authoring requires recorded phase {DESIGN_PHASE}")
+    elif phase not in DESIGN_AUTHORING_PHASES:
+        errors.append("API authoring requires recorded phase design-derivation or implementation")
     candidates = _api_candidates(root)
     if not candidates:
         errors.append("No product acceptance criteria with A-NNN headings found.")
@@ -573,6 +579,12 @@ def build_api_authoring(root: Path) -> dict[str, object]:
         _api_authoring_task(root, candidate, index)
         for index, candidate in enumerate(candidates, start=1)
     ]
+    authoring_tasks, review_state = _prepare_design_authoring_tasks(
+        root,
+        API_TRACK_ID,
+        authoring_tasks,
+    )
+    errors.extend(_string_items(review_state.get("errors")))
     payload: dict[str, object] = {
         "ok": not errors,
         "target": str(root),
@@ -589,6 +601,7 @@ def build_api_authoring(root: Path) -> dict[str, object]:
             "references/security-design-checklist.md",
         ],
         "source_documents": _source_documents(root),
+        **_design_review_payload_fields(review_state),
         "authoring_tasks": authoring_tasks,
         "authoring_summary": _authoring_summary(authoring_tasks),
         "active_work": _active_design_authoring_work(
@@ -611,8 +624,8 @@ def build_backend_authoring(root: Path) -> dict[str, object]:
     errors: list[str] = []
     if not state:
         errors.append("No governance state found.")
-    elif phase != DESIGN_PHASE:
-        errors.append(f"backend authoring requires recorded phase {DESIGN_PHASE}")
+    elif phase not in DESIGN_AUTHORING_PHASES:
+        errors.append("backend authoring requires recorded phase design-derivation or implementation")
     candidates = _api_candidates(root)
     if not candidates:
         errors.append("No product acceptance criteria with A-NNN headings found.")
@@ -622,6 +635,12 @@ def build_backend_authoring(root: Path) -> dict[str, object]:
         _backend_authoring_task(root, candidate, index)
         for index, candidate in enumerate(candidates, start=1)
     ]
+    authoring_tasks, review_state = _prepare_design_authoring_tasks(
+        root,
+        BACKEND_TRACK_ID,
+        authoring_tasks,
+    )
+    errors.extend(_string_items(review_state.get("errors")))
     payload: dict[str, object] = {
         "ok": not errors,
         "target": str(root),
@@ -638,6 +657,7 @@ def build_backend_authoring(root: Path) -> dict[str, object]:
             "references/security-design-checklist.md",
         ],
         "source_documents": _source_documents(root),
+        **_design_review_payload_fields(review_state),
         "authoring_tasks": authoring_tasks,
         "authoring_summary": _authoring_summary(authoring_tasks),
         "active_work": _active_design_authoring_work(
@@ -660,8 +680,8 @@ def build_data_model_authoring(root: Path) -> dict[str, object]:
     errors: list[str] = []
     if not state:
         errors.append("No governance state found.")
-    elif phase != DESIGN_PHASE:
-        errors.append(f"data model authoring requires recorded phase {DESIGN_PHASE}")
+    elif phase not in DESIGN_AUTHORING_PHASES:
+        errors.append("data model authoring requires recorded phase design-derivation or implementation")
     candidates = _api_candidates(root)
     if not candidates:
         errors.append("No product acceptance criteria with A-NNN headings found.")
@@ -671,6 +691,12 @@ def build_data_model_authoring(root: Path) -> dict[str, object]:
         _data_model_authoring_task(root, candidate, index)
         for index, candidate in enumerate(candidates, start=1)
     ]
+    authoring_tasks, review_state = _prepare_design_authoring_tasks(
+        root,
+        DATA_MODEL_TRACK_ID,
+        authoring_tasks,
+    )
+    errors.extend(_string_items(review_state.get("errors")))
     payload: dict[str, object] = {
         "ok": not errors,
         "target": str(root),
@@ -687,6 +713,7 @@ def build_data_model_authoring(root: Path) -> dict[str, object]:
             "references/security-design-checklist.md",
         ],
         "source_documents": _source_documents(root),
+        **_design_review_payload_fields(review_state),
         "authoring_tasks": authoring_tasks,
         "authoring_summary": _authoring_summary(authoring_tasks),
         "active_work": _active_design_authoring_work(
@@ -709,8 +736,8 @@ def build_ui_interaction_authoring(root: Path) -> dict[str, object]:
     errors: list[str] = []
     if not state:
         errors.append("No governance state found.")
-    elif phase != DESIGN_PHASE:
-        errors.append(f"UI interaction authoring requires recorded phase {DESIGN_PHASE}")
+    elif phase not in DESIGN_AUTHORING_PHASES:
+        errors.append("UI interaction authoring requires recorded phase design-derivation or implementation")
     candidates = _api_candidates(root)
     if not candidates:
         errors.append("No product acceptance criteria with A-NNN headings found.")
@@ -720,6 +747,12 @@ def build_ui_interaction_authoring(root: Path) -> dict[str, object]:
         _ui_interaction_authoring_task(root, candidate, index)
         for index, candidate in enumerate(candidates, start=1)
     ]
+    authoring_tasks, review_state = _prepare_design_authoring_tasks(
+        root,
+        UI_INTERACTION_TRACK_ID,
+        authoring_tasks,
+    )
+    errors.extend(_string_items(review_state.get("errors")))
     payload: dict[str, object] = {
         "ok": not errors,
         "target": str(root),
@@ -735,6 +768,7 @@ def build_ui_interaction_authoring(root: Path) -> dict[str, object]:
             "references/security-design-checklist.md",
         ],
         "source_documents": _source_documents(root),
+        **_design_review_payload_fields(review_state),
         "authoring_tasks": authoring_tasks,
         "authoring_summary": _authoring_summary(authoring_tasks),
         "active_work": _active_design_authoring_work(
@@ -757,8 +791,8 @@ def build_frontend_authoring(root: Path) -> dict[str, object]:
     errors: list[str] = []
     if not state:
         errors.append("No governance state found.")
-    elif phase != DESIGN_PHASE:
-        errors.append(f"frontend authoring requires recorded phase {DESIGN_PHASE}")
+    elif phase not in DESIGN_AUTHORING_PHASES:
+        errors.append("frontend authoring requires recorded phase design-derivation or implementation")
     candidates = _api_candidates(root)
     if not candidates:
         errors.append("No product acceptance criteria with A-NNN headings found.")
@@ -768,6 +802,12 @@ def build_frontend_authoring(root: Path) -> dict[str, object]:
         _frontend_authoring_task(root, candidate, index)
         for index, candidate in enumerate(candidates, start=1)
     ]
+    authoring_tasks, review_state = _prepare_design_authoring_tasks(
+        root,
+        FRONTEND_TRACK_ID,
+        authoring_tasks,
+    )
+    errors.extend(_string_items(review_state.get("errors")))
     payload: dict[str, object] = {
         "ok": not errors,
         "target": str(root),
@@ -783,6 +823,7 @@ def build_frontend_authoring(root: Path) -> dict[str, object]:
             "references/security-design-checklist.md",
         ],
         "source_documents": _source_documents(root),
+        **_design_review_payload_fields(review_state),
         "authoring_tasks": authoring_tasks,
         "authoring_summary": _authoring_summary(authoring_tasks),
         "active_work": _active_design_authoring_work(
@@ -805,8 +846,8 @@ def build_test_strategy_authoring(root: Path) -> dict[str, object]:
     errors: list[str] = []
     if not state:
         errors.append("No governance state found.")
-    elif phase != DESIGN_PHASE:
-        errors.append(f"test strategy authoring requires recorded phase {DESIGN_PHASE}")
+    elif phase not in DESIGN_AUTHORING_PHASES:
+        errors.append("test strategy authoring requires recorded phase design-derivation or implementation")
     candidates = _api_candidates(root)
     if not candidates:
         errors.append("No product acceptance criteria with A-NNN headings found.")
@@ -816,6 +857,12 @@ def build_test_strategy_authoring(root: Path) -> dict[str, object]:
         _test_strategy_authoring_task(root, candidate, index)
         for index, candidate in enumerate(candidates, start=1)
     ]
+    authoring_tasks, review_state = _prepare_design_authoring_tasks(
+        root,
+        TEST_STRATEGY_TRACK_ID,
+        authoring_tasks,
+    )
+    errors.extend(_string_items(review_state.get("errors")))
     payload: dict[str, object] = {
         "ok": not errors,
         "target": str(root),
@@ -831,6 +878,7 @@ def build_test_strategy_authoring(root: Path) -> dict[str, object]:
             "references/security-design-checklist.md",
         ],
         "source_documents": _source_documents(root),
+        **_design_review_payload_fields(review_state),
         "authoring_tasks": authoring_tasks,
         "authoring_summary": _authoring_summary(authoring_tasks),
         "active_work": _active_design_authoring_work(
@@ -853,8 +901,8 @@ def build_implementation_planning_authoring(root: Path) -> dict[str, object]:
     errors: list[str] = []
     if not state:
         errors.append("No governance state found.")
-    elif phase != DESIGN_PHASE:
-        errors.append(f"implementation planning authoring requires recorded phase {DESIGN_PHASE}")
+    elif phase not in DESIGN_AUTHORING_PHASES:
+        errors.append("implementation planning authoring requires recorded phase design-derivation or implementation")
     candidates = _api_candidates(root)
     if not candidates:
         errors.append("No product acceptance criteria with A-NNN headings found.")
@@ -870,6 +918,12 @@ def build_implementation_planning_authoring(root: Path) -> dict[str, object]:
         )
         for index, candidate in enumerate(candidates, start=1)
     ]
+    authoring_tasks, review_state = _prepare_design_authoring_tasks(
+        root,
+        IMPLEMENTATION_PLANNING_TRACK_ID,
+        authoring_tasks,
+    )
+    errors.extend(_string_items(review_state.get("errors")))
     payload: dict[str, object] = {
         "ok": not errors,
         "target": str(root),
@@ -885,6 +939,7 @@ def build_implementation_planning_authoring(root: Path) -> dict[str, object]:
             "references/implementation-execution-checklist.md",
         ],
         "source_documents": _source_documents(root),
+        **_design_review_payload_fields(review_state),
         "authoring_tasks": authoring_tasks,
         "authoring_summary": _authoring_summary(authoring_tasks),
         "active_work": _active_design_authoring_work(
@@ -907,8 +962,8 @@ def build_architecture_decisions_authoring(root: Path) -> dict[str, object]:
     errors: list[str] = []
     if not state:
         errors.append("No governance state found.")
-    elif phase != DESIGN_PHASE:
-        errors.append(f"architecture decisions authoring requires recorded phase {DESIGN_PHASE}")
+    elif phase not in DESIGN_AUTHORING_PHASES:
+        errors.append("architecture decisions authoring requires recorded phase design-derivation or implementation")
     candidates = _api_candidates(root)
     if not candidates:
         errors.append("No product acceptance criteria with A-NNN headings found.")
@@ -919,6 +974,12 @@ def build_architecture_decisions_authoring(root: Path) -> dict[str, object]:
         _architecture_decision_authoring_task(root, candidate, index, next_adr_prefix)
         for index, candidate in enumerate(candidates, start=1)
     ]
+    authoring_tasks, review_state = _prepare_design_authoring_tasks(
+        root,
+        ARCHITECTURE_DECISIONS_TRACK_ID,
+        authoring_tasks,
+    )
+    errors.extend(_string_items(review_state.get("errors")))
     payload: dict[str, object] = {
         "ok": not errors,
         "target": str(root),
@@ -934,6 +995,7 @@ def build_architecture_decisions_authoring(root: Path) -> dict[str, object]:
             "references/architecture-decision-record-checklist.md",
         ],
         "source_documents": _source_documents(root),
+        **_design_review_payload_fields(review_state),
         "authoring_tasks": authoring_tasks,
         "authoring_summary": _authoring_summary(authoring_tasks),
         "active_work": _active_design_authoring_work(
@@ -951,10 +1013,21 @@ def build_architecture_decisions_authoring(root: Path) -> dict[str, object]:
 
 def _authoring_summary(tasks: list[dict[str, object]]) -> dict[str, object]:
     status_counts: dict[str, int] = {}
+    document_status_counts: dict[str, int] = {}
+    non_authored_document_count = 0
     non_satisfied_count = 0
     open_decision_count = 0
     repair_action_count = 0
     for task in tasks:
+        documents = task.get("documents")
+        if isinstance(documents, list):
+            for document in documents:
+                if not isinstance(document, dict):
+                    continue
+                document_status = str(document.get("status", "unknown") or "unknown")
+                document_status_counts[document_status] = document_status_counts.get(document_status, 0) + 1
+                if document_status not in {"authored", "reference_template"}:
+                    non_authored_document_count += 1
         open_decisions = task.get("open_decisions")
         if isinstance(open_decisions, list):
             open_decision_count += len(open_decisions)
@@ -973,11 +1046,110 @@ def _authoring_summary(tasks: list[dict[str, object]]) -> dict[str, object]:
                 non_satisfied_count += 1
     return {
         "task_count": len(tasks),
+        "document_status_counts": dict(sorted(document_status_counts.items())),
+        "non_authored_document_count": non_authored_document_count,
         "open_decision_count": open_decision_count,
         "required_link_status_counts": dict(sorted(status_counts.items())),
         "non_satisfied_required_link_count": non_satisfied_count,
         "link_repair_action_count": repair_action_count,
     }
+
+
+def _prepare_design_authoring_tasks(
+    root: Path,
+    track: str,
+    tasks: list[dict[str, object]],
+) -> tuple[list[dict[str, object]], dict[str, object]]:
+    for task in tasks:
+        document_blockers: list[dict[str, object]] = []
+        document_repair_actions: list[dict[str, object]] = []
+        documents = task.get("documents") if isinstance(task.get("documents"), list) else []
+        for document in documents:
+            if not isinstance(document, dict):
+                continue
+            path = str(document.get("path", ""))
+            sections = [
+                str(section)
+                for section in document.get("sections", [])
+                if isinstance(section, str) and section
+            ] if isinstance(document.get("sections"), list) else []
+            status, details = _design_document_status(root, path, sections)
+            document["status"] = status
+            if details:
+                document["details"] = details
+            if status in {"authored", "reference_template"}:
+                continue
+            blocker = {
+                "kind": "design_document",
+                "target": path,
+                "status": status,
+                "details": details,
+            }
+            document_blockers.append(blocker)
+            document_repair_actions.append(
+                {
+                    "id": f"author-design-document-{_slugify(path)}",
+                    "sequence": len(document_repair_actions) + 1,
+                    "kind": "design-document-authoring",
+                    "target": path,
+                    "status": status,
+                    "reason": details,
+                    "repair_strategy": "author_declared_sections_from_source_and_authority_review",
+                    "can_auto_apply": False,
+                    "writes_state": True,
+                    "approval_required": False,
+                    "success_condition": "design document status becomes authored after verify and refresh",
+                }
+            )
+        task["document_blockers"] = document_blockers
+        task["document_repair_actions"] = document_repair_actions
+    review_state = apply_design_reviews(root, track=track, tasks=tasks)
+    return list(review_state.get("tasks", [])), review_state
+
+
+def _design_review_payload_fields(review_state: dict[str, object]) -> dict[str, object]:
+    return {
+        "design_review_path": str(review_state.get("path", DESIGN_REVIEWS_REL.as_posix())),
+        "design_reviews": list(review_state.get("active", []))
+        if isinstance(review_state.get("active"), list)
+        else [],
+        "stale_design_reviews": list(review_state.get("stale", []))
+        if isinstance(review_state.get("stale"), list)
+        else [],
+        "review_summary": dict(review_state.get("summary", {}))
+        if isinstance(review_state.get("summary"), dict)
+        else {},
+    }
+
+
+def _design_document_status(root: Path, rel: str, sections: list[str]) -> tuple[str, str]:
+    path = root / rel
+    if not rel:
+        return "missing", "design document path is missing"
+    if path.is_symlink():
+        return "unsafe_path", "design document must not be a symbolic link"
+    if not path.exists():
+        return "missing", "design document does not exist"
+    if not path.is_file():
+        return "not_file", "design document path is not a file"
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return "unreadable", "design document must be UTF-8 Markdown"
+    except OSError as error:
+        return "unreadable", f"design document is unreadable: {_os_error_reason(error)}"
+    if path.name.startswith("_"):
+        return "reference_template", "underscore-prefixed template is reference-only"
+    if SCAFFOLD_PLACEHOLDER in text:
+        return "placeholder_present", "design document still contains a governance scaffold placeholder"
+    heading_names = {
+        match.group("title").strip().casefold()
+        for match in MARKDOWN_HEADING_RE.finditer(text)
+    }
+    missing_sections = [section for section in sections if section.casefold() not in heading_names]
+    if missing_sections:
+        return "missing_sections", f"missing required sections: {', '.join(missing_sections)}"
+    return "authored", "design document exists with declared sections and no scaffold placeholder"
 
 
 def _active_design_track_work(root: Path, tracks: list[dict[str, object]]) -> dict[str, object]:
@@ -1088,18 +1260,35 @@ def _active_design_authoring_work(
             "next_repair_action": {},
         }
 
-    task = _first_blocked_task(tasks, item_key="required_links")
+    task = _first_design_authoring_task(tasks)
+    if not task:
+        return {
+            "kind": "design-authoring-task",
+            "status": "complete",
+            "blocker_count": 0,
+            "document_blocker_count": 0,
+            "link_blocker_count": 0,
+            "open_decision_count": 0,
+            "next_repair_action": {},
+        }
     links = task.get("required_links")
+    document_blockers = task.get("document_blockers")
     open_decisions = task.get("open_decisions") if isinstance(task.get("open_decisions"), list) else []
     execution = task.get("execution") if isinstance(task.get("execution"), dict) else {}
     verify_step = str(execution.get("verify_step", "verify-design-authoring"))
     refresh_step = str(execution.get("refresh_step", "refresh-design-authoring"))
-    blocker_count = _non_satisfied_item_count(links)
+    document_blocker_count = _list_count(document_blockers)
+    link_blocker_count = _non_satisfied_item_count(links)
+    blocker_count = document_blocker_count + link_blocker_count
     return {
         "kind": "design-authoring-task",
         "task_id": str(task.get("task_id", "")),
         "sequence": int(task.get("sequence", 0)) if isinstance(task.get("sequence"), int) else 0,
-        "status": _authoring_work_status(blocker_count, len(open_decisions)),
+        "status": _authoring_work_status(
+            document_blocker_count,
+            link_blocker_count,
+            len(open_decisions),
+        ),
         "acceptance_id": str(task.get("acceptance_id", "")),
         "title": str(task.get("title", "")),
         "documents": [
@@ -1115,10 +1304,18 @@ def _active_design_authoring_work(
         "refresh_step": refresh_step,
         "stop_condition": str(execution.get("stop_condition", "")),
         "blocker_count": blocker_count,
+        "document_blocker_count": document_blocker_count,
+        "link_blocker_count": link_blocker_count,
         "open_decision_count": len(open_decisions),
+        "next_document_blocker": _first_dict(document_blockers),
         "next_required_link": _first_non_satisfied_item(links),
         "next_open_decision": str(open_decisions[0]) if open_decisions else "",
-        "next_repair_action": _first_dict(task.get("link_repair_actions")),
+        "next_repair_action": (
+            _first_dict(task.get("document_repair_actions"))
+            or _first_dict(task.get("link_repair_actions"))
+        ),
+        "review_status": str(task.get("review_status", "missing")),
+        "required_authority_skill": str(execution.get("primary_specialist_skill", "")),
         "skill_loading_plan": task.get("skill_loading_plan", {}),
         "verify_command": _embedded_command(
             root,
@@ -1135,12 +1332,30 @@ def _active_design_authoring_work(
     }
 
 
-def _authoring_work_status(blocker_count: int, open_decision_count: int) -> str:
-    if blocker_count > 0:
-        return "blocked"
+def _authoring_work_status(
+    document_blocker_count: int,
+    link_blocker_count: int,
+    open_decision_count: int,
+) -> str:
+    if document_blocker_count > 0:
+        return "authoring_required"
+    if link_blocker_count > 0:
+        return "integration_required"
     if open_decision_count > 0:
-        return "decision_required"
-    return "ready"
+        return "review_required"
+    return "complete"
+
+
+def _first_design_authoring_task(tasks: list[dict[str, object]]) -> dict[str, object]:
+    for item_key in ("document_blockers", "required_links", "open_decisions"):
+        for task in tasks:
+            if item_key == "required_links":
+                blocked = _non_satisfied_item_count(task.get(item_key)) > 0
+            else:
+                blocked = _list_count(task.get(item_key)) > 0
+            if blocked:
+                return task
+    return {}
 
 
 def _first_blocked_task(tasks: list[dict[str, object]], *, item_key: str) -> dict[str, object]:
@@ -1178,6 +1393,14 @@ def _list_count(value: object) -> int:
     return len(value) if isinstance(value, list) else 0
 
 
+def _string_items(value: object) -> list[str]:
+    return [str(item) for item in value if isinstance(item, str) and item] if isinstance(value, list) else []
+
+
+def _dict_items(value: object) -> list[dict[str, object]]:
+    return [dict(item) for item in value if isinstance(item, dict)] if isinstance(value, list) else []
+
+
 def _command_from_steps_or_default(
     root: Path,
     steps: list[object],
@@ -1201,6 +1424,8 @@ def _source_documents(root: Path) -> list[str]:
         for path in sorted(product_root.glob("[0-9][0-9]-*.md")):
             if path.is_file():
                 candidates.append(path.relative_to(root).as_posix())
+    if (root / DESIGN_REVIEWS_REL).is_file():
+        candidates.append(DESIGN_REVIEWS_REL.as_posix())
     return sorted(dict.fromkeys(candidates))
 
 
@@ -1354,12 +1579,18 @@ def _local_workflow_skill_path(root: Path, skill: str) -> tuple[str, bool]:
 
 def _api_candidates(root: Path) -> list[dict[str, object]]:
     acceptance_headings = _acceptance_headings(root)
-    start_prefix = _next_endpoint_prefix(root)
+    existing_by_slug = _existing_endpoint_paths_by_slug(root)
+    authored_starter = _authored_starter_endpoint(root)
+    next_prefix = _next_endpoint_prefix(root)
     candidates: list[dict[str, object]] = []
     for index, item in enumerate(acceptance_headings, start=1):
-        prefix = start_prefix + index - 1
         slug = _slugify(item["title"])
-        suggested_endpoint_file = f"docs/api/endpoints/{prefix:02d}-{slug}.md"
+        suggested_endpoint_file = existing_by_slug.get(slug, "")
+        if not suggested_endpoint_file and authored_starter:
+            suggested_endpoint_file = authored_starter
+        if not suggested_endpoint_file:
+            suggested_endpoint_file = f"docs/api/endpoints/{next_prefix:02d}-{slug}.md"
+            next_prefix += 1
         candidates.append(
             {
                 "candidate_id": f"API-{index:03d}",
@@ -1379,6 +1610,32 @@ def _api_candidates(root: Path) -> list[dict[str, object]]:
             }
         )
     return candidates
+
+
+def _existing_endpoint_paths_by_slug(root: Path) -> dict[str, str]:
+    endpoint_root = root / "docs/api/endpoints"
+    existing: dict[str, str] = {}
+    if not endpoint_root.is_dir():
+        return existing
+    for path in sorted(endpoint_root.glob("[0-9][0-9]-*.md")):
+        rel = path.relative_to(root).as_posix()
+        if rel == STARTER_ENDPOINT_CONTRACT or not path.is_file():
+            continue
+        slug = path.stem[3:]
+        if slug:
+            existing.setdefault(slug, rel)
+    return existing
+
+
+def _authored_starter_endpoint(root: Path) -> str:
+    path = root / STARTER_ENDPOINT_CONTRACT
+    if not path.is_file() or path.is_symlink():
+        return ""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return ""
+    return STARTER_ENDPOINT_CONTRACT if SCAFFOLD_PLACEHOLDER not in text else ""
 
 
 def _api_authoring_task(root: Path, candidate: dict[str, object], index: int) -> dict[str, object]:

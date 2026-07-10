@@ -42,6 +42,12 @@ from design_plan import (
     build_test_strategy_authoring,
     build_ui_interaction_authoring,
 )
+from design_reviews import (
+    DESIGN_REVIEW_RESULTS,
+    DESIGN_REVIEW_TRACK_SPECS,
+    check_design_review,
+    record_design_review,
+)
 from gates import GATE_NAMES, evaluate_gate
 from implementation_plan import (
     apply_implementation_closeout,
@@ -71,6 +77,30 @@ from state import STATE_REL, StateFileError, load_state, merge_state, utc_now
 from verify_governance import verify
 from workflow_actions import next_actions_payload
 from workflow_plan import build_work_package, build_workflow_plan
+
+
+DESIGN_REVIEW_BUILDERS = {
+    "architecture": build_architecture_authoring,
+    "ui-interaction": build_ui_interaction_authoring,
+    "api-contracts": build_api_authoring,
+    "backend-modules": build_backend_authoring,
+    "data-model": build_data_model_authoring,
+    "frontend-modules": build_frontend_authoring,
+    "test-strategy": build_test_strategy_authoring,
+    "implementation-planning": build_implementation_planning_authoring,
+    "architecture-decisions": build_architecture_decisions_authoring,
+}
+DESIGN_REVIEW_AUTHORING_COMMANDS = {
+    "architecture": "architecture-authoring",
+    "ui-interaction": "ui-interaction-authoring",
+    "api-contracts": "api-authoring",
+    "backend-modules": "backend-authoring",
+    "data-model": "data-model-authoring",
+    "frontend-modules": "frontend-authoring",
+    "test-strategy": "test-strategy-authoring",
+    "implementation-planning": "implementation-planning-authoring",
+    "architecture-decisions": "architecture-decisions-authoring",
+}
 
 
 def _print_json(payload: dict[str, object]) -> None:
@@ -774,6 +804,103 @@ def _cmd_design_plan(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_design_review(args: argparse.Namespace) -> int:
+    target = Path(args.target)
+    builder = DESIGN_REVIEW_BUILDERS[args.track]
+    authoring_payload = builder(target)
+    tasks = authoring_payload.get("authoring_tasks")
+    task = next(
+        (
+            item
+            for item in tasks
+            if isinstance(item, dict) and item.get("task_id") == args.work
+        ),
+        {},
+    ) if isinstance(tasks, list) else {}
+    if authoring_payload.get("ok") is not True or not task:
+        errors = [
+            str(error)
+            for error in authoring_payload.get("errors", [])
+            if isinstance(error, str) and error
+        ] if isinstance(authoring_payload.get("errors"), list) else []
+        if not task:
+            errors.append(f"design review work item does not exist in track {args.track}: {args.work}")
+        payload = {
+            "ok": False,
+            "target": str(target.resolve()),
+            "workflow": "workflows/04-design-derivation.md",
+            "track": args.track,
+            "work_id": args.work,
+            "errors": list(dict.fromkeys(errors)),
+        }
+        if args.json:
+            _print_json(payload)
+        else:
+            print("Design review failed:")
+            for error in payload["errors"]:
+                print(f"- ERROR: {error}")
+        return 1
+
+    kwargs = {
+        "track": args.track,
+        "work_id": args.work,
+        "result": args.result,
+        "reason": args.reason,
+        "reviewed": args.reviewed,
+        "task": task,
+        "evidence_paths": list(args.evidence),
+        "skill_roots": list(args.skill_root),
+    }
+    result = check_design_review(target, **kwargs) if args.check else record_design_review(target, **kwargs)
+    payload = result.to_dict()
+    if result.ok:
+        cwd = result.target
+        payload["refresh_command"] = _continuation_command(
+            cwd,
+            "refresh-design-authoring",
+            [
+                "bin/governance",
+                "design",
+                DESIGN_REVIEW_AUTHORING_COMMANDS[args.track],
+                ".",
+                "--json",
+            ],
+            "Refresh design authoring evidence after recording the authority review.",
+        )
+        payload["work_package_command"] = _continuation_command(
+            cwd,
+            "refresh-work-package",
+            ["bin/governance", "workflow", "work-package", ".", "--json"],
+            "Select the next design work package after recording the authority review.",
+        )
+        payload["verify_command"] = _continuation_command(
+            cwd,
+            "verify-design-review",
+            ["bin/governance", "verify", ".", "--check", "--json"],
+            "Verify design review coverage and stale evidence without updating state.",
+        )
+        if not args.check:
+            payload["local_commands"] = target_local_commands_payload(cwd=cwd)
+            payload["next_actions"] = next_actions_payload(result.state, cwd=cwd)
+    if args.json:
+        _print_json(payload)
+        return 0 if result.ok else 1
+    if not result.ok:
+        print("Design review failed:")
+        for error in result.errors:
+            print(f"- ERROR: {error}")
+        return 1
+    if args.check:
+        print("Design review preflight passed.")
+        for path in result.would_update:
+            print(f"- WOULD UPDATE: {path}")
+        return 0
+    print("Design review recorded.")
+    for path in result.updated:
+        print(f"- UPDATED: {path}")
+    return 0
+
+
 def _cmd_design_api_candidates(args: argparse.Namespace) -> int:
     target = Path(args.target)
     payload = build_api_candidates(target)
@@ -1157,6 +1284,36 @@ def build_parser() -> argparse.ArgumentParser:
     design_plan.add_argument("target", nargs="?", default=".")
     design_plan.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     design_plan.set_defaults(func=_cmd_design_plan)
+    design_review = design_sub.add_parser(
+        "review",
+        help="Record a source-, evidence-, and authority-skill-bound review for one design work item.",
+    )
+    design_review.add_argument("target", nargs="?", default=".")
+    design_review.add_argument("--track", choices=tuple(DESIGN_REVIEW_TRACK_SPECS), required=True)
+    design_review.add_argument("--work", required=True, help="Current design authoring work ID.")
+    design_review.add_argument("--result", choices=DESIGN_REVIEW_RESULTS, required=True)
+    design_review.add_argument("--reason", required=True, help="Concrete authority-review explanation.")
+    design_review.add_argument(
+        "--reviewed",
+        action="store_true",
+        help="Confirm every listed decision, source, required link, and authority review scope was checked.",
+    )
+    design_review.add_argument(
+        "--evidence",
+        action="append",
+        default=[],
+        help="Additional repository-relative evidence path. Repeat when needed, including an approved ADR.",
+    )
+    design_review.add_argument(
+        "--skill-root",
+        action="append",
+        type=Path,
+        default=[],
+        help="Additional authority skill root to scan for the required SKILL.md.",
+    )
+    design_review.add_argument("--check", action="store_true", help="Preview without writing files.")
+    design_review.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    design_review.set_defaults(func=_cmd_design_review)
     api_candidates = design_sub.add_parser(
         "api-candidates",
         help="Extract source-backed API endpoint candidates from product acceptance criteria.",

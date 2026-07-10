@@ -374,7 +374,12 @@ def _run_governance_json(
     return json.loads(result.stdout)
 
 
-def _implementation_ready_target(case: unittest.TestCase, tmp: str) -> Path:
+def _implementation_ready_target(
+    case: unittest.TestCase,
+    tmp: str,
+    *,
+    advance_implementation: bool = True,
+) -> Path:
     root = Path(tmp)
     target = root / "target"
     product = root / "product.md"
@@ -460,7 +465,9 @@ def _implementation_ready_target(case: unittest.TestCase, tmp: str) -> Path:
     (target / "docs/development/03-verification-log.md").write_text(_verification_log_doc(), encoding="utf-8")
     _append_index(target / "docs/development/README.md", "03-verification-log.md")
 
-    _run_governance_json(case, ["advance", "implementation", str(target)])
+    if advance_implementation:
+        _record_all_test_design_reviews(case, target)
+        _run_governance_json(case, ["advance", "implementation", str(target)])
     return target
 
 
@@ -480,6 +487,49 @@ def _design_scaffold_target(case: unittest.TestCase, tmp: str) -> Path:
     _run_governance_json(case, ["advance", "design-derivation", str(target)])
     _run_governance_json(case, ["scaffold", "design", str(target)])
     return target
+
+
+def _install_test_authority_skills(target: Path, names: tuple[str, ...]) -> None:
+    for name in names:
+        path = target / ".agents/skills" / name / "SKILL.md"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            f"---\nname: {name}\ndescription: Test-only authority routing fixture.\n---\n\n# {name}\n",
+            encoding="utf-8",
+        )
+
+
+def _record_all_test_design_reviews(case: unittest.TestCase, target: Path) -> None:
+    reviews = (
+        ("architecture", "ARCHITECTURE-AUTHOR-001", "approved", "senior-architect"),
+        ("ui-interaction", "UI-INTERACTION-AUTHOR-001", "approved", "senior-frontend"),
+        ("api-contracts", "API-AUTHOR-001", "approved", "api-design-reviewer"),
+        ("backend-modules", "BACKEND-AUTHOR-001", "approved", "senior-backend"),
+        ("data-model", "DATA-MODEL-AUTHOR-001", "approved", "database-designer"),
+        ("frontend-modules", "FRONTEND-AUTHOR-001", "approved", "senior-frontend"),
+        ("test-strategy", "TEST-AUTHOR-001", "approved", "senior-qa"),
+        ("implementation-planning", "PLAN-AUTHOR-001", "approved", "senior-fullstack"),
+        ("architecture-decisions", "ADR-AUTHOR-001", "not-applicable", "senior-architect"),
+    )
+    _install_test_authority_skills(target, tuple(dict.fromkeys(item[3] for item in reviews)))
+    for track, work_id, result, authority_skill in reviews:
+        _run_governance_json(
+            case,
+            [
+                "design",
+                "review",
+                str(target),
+                "--track",
+                track,
+                "--work",
+                work_id,
+                "--result",
+                result,
+                "--reason",
+                f"Test fixture review with {authority_skill} confirms all declared decisions are addressed.",
+                "--reviewed",
+            ],
+        )
 
 
 class GovernanceCliTest(unittest.TestCase):
@@ -3005,7 +3055,7 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertTrue(work_package_payload["ok"])
             self.assertTrue(work_package_payload["package_available"])
             self.assertEqual("design-derivation", work_package_payload["phase"])
-            self.assertEqual("authoring_blocked", work_package_payload["status"])
+            self.assertEqual("authoring_required", work_package_payload["status"])
             self.assertFalse(work_package_payload["can_start"])
             self.assertTrue(work_package_payload["stop_before_work"])
             package = work_package_payload["work_package"]
@@ -3047,10 +3097,444 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertTrue(local_skill_payload["can_start"])
             self.assertFalse(local_skill_payload["stop_before_work"])
             self.assertEqual([], local_skill_payload["skill_readiness"]["missing_authority_routing_skills"])
+            self.assertEqual("author-design-documents", local_skill_payload["next_action"]["kind"])
             resolved_requirements = _requirements_by_name(
                 local_skill_payload["skill_readiness"]["resolved_requirements"]
             )
             self.assertIn(".agents/skills/senior-architect/SKILL.md", resolved_requirements["senior-architect"]["resolved_path"])
+
+    def test_design_work_package_authors_own_track_before_downstream_link_repairs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _design_scaffold_target(self, tmp)
+            _install_test_authority_skills(
+                target,
+                (
+                    "senior-architect",
+                    "senior-security",
+                    "observability-designer",
+                    "slo-architect",
+                    "senior-frontend",
+                    "a11y-audit",
+                    "api-design-reviewer",
+                    "senior-backend",
+                ),
+            )
+
+            architecture_package = _run_governance_json(
+                self,
+                ["workflow", "work-package", str(target)],
+            )
+            self.assertEqual("architecture-authoring", architecture_package["work_package"]["queue_id"])
+            self.assertEqual("authoring_required", architecture_package["status"])
+            self.assertEqual("author-design-documents", architecture_package["next_action"]["kind"])
+            self.assertIn(
+                "docs/architecture/01-system-context.md",
+                architecture_package["next_action"]["paths"],
+            )
+
+            for filename, body in (
+                ("01-system-context.md", _architecture_system_context_doc()),
+                ("02-containers.md", _architecture_containers_doc()),
+                ("03-quality-attributes.md", _architecture_quality_attributes_doc()),
+            ):
+                (target / "docs/architecture" / filename).write_text(body, encoding="utf-8")
+            (target / "docs/ui/01-interaction-model.md").write_text(
+                _ui_interaction_model_doc(),
+                encoding="utf-8",
+            )
+
+            api_package = _run_governance_json(
+                self,
+                ["workflow", "work-package", str(target)],
+            )
+            self.assertEqual("api-authoring", api_package["work_package"]["queue_id"])
+            self.assertEqual("authoring_required", api_package["status"])
+            self.assertEqual("author-design-documents", api_package["next_action"]["kind"])
+            self.assertIn("docs/api/00-conventions.md", api_package["next_action"]["paths"])
+            self.assertNotEqual("repair", api_package["next_action"]["kind"])
+
+    def test_design_review_records_authority_bound_decisions_and_detects_stale_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp, advance_implementation=False)
+            _install_test_authority_skills(
+                target,
+                (
+                    "senior-architect",
+                    "senior-security",
+                    "observability-designer",
+                    "slo-architect",
+                ),
+            )
+
+            missing_review = _run_governance_json(
+                self,
+                ["verify", str(target), "--check"],
+                expected_returncode=1,
+            )
+            self.assertIn(
+                "design_review_missing",
+                {finding["code"] for finding in missing_review["findings"]},
+            )
+            review_package = _run_governance_json(
+                self,
+                ["workflow", "work-package", str(target)],
+            )
+            self.assertEqual("architecture-authoring", review_package["work_package"]["queue_id"])
+            self.assertEqual("review_required", review_package["status"])
+            self.assertEqual("record-design-review", review_package["next_action"]["kind"])
+            self.assertEqual("senior-architect", review_package["next_action"]["authority_skill"])
+
+            reason = "Senior architecture review confirms every listed boundary decision is addressed in linked evidence."
+            review_args = [
+                "design",
+                "review",
+                str(target),
+                "--track",
+                "architecture",
+                "--work",
+                "ARCHITECTURE-AUTHOR-001",
+                "--result",
+                "approved",
+                "--reason",
+                reason,
+                "--reviewed",
+            ]
+            review_rel = "docs/decisions/design-reviews.json"
+            preview = _run_governance_json(self, [*review_args, "--check"])
+            self.assertTrue(preview["ok"])
+            self.assertEqual([review_rel], preview["would_update"])
+            self.assertFalse((target / review_rel).exists())
+
+            applied = _run_governance_json(self, review_args)
+            self.assertTrue(applied["applied"])
+            self.assertEqual([review_rel], applied["updated"])
+            review = applied["review"]
+            self.assertEqual("architecture", review["track"])
+            self.assertEqual("A-001", review["acceptance_id"])
+            self.assertEqual("senior-architect", review["authority_skill"]["name"])
+            self.assertRegex(review["authority_skill"]["sha256"], r"^[0-9a-f]{64}$")
+            self.assertGreater(len(review["reviewed_decisions"]), 5)
+            self.assertTrue(review["source_snapshots"])
+            self.assertTrue(review["evidence_snapshots"])
+
+            architecture_plan = _run_governance_json(
+                self,
+                ["design", "architecture-authoring", str(target)],
+            )
+            architecture_task = architecture_plan["authoring_tasks"][0]
+            self.assertEqual([], architecture_task["open_decisions"])
+            self.assertEqual("satisfied", architecture_task["review_status"])
+            repeated = _run_governance_json(self, review_args)
+            self.assertFalse(repeated["applied"])
+            self.assertEqual([], repeated["updated"])
+
+            context_path = target / "docs/architecture/01-system-context.md"
+            context_path.write_text(
+                context_path.read_text(encoding="utf-8")
+                + "\n## Review-sensitive change\n\n- Architecture evidence changed after review.\n",
+                encoding="utf-8",
+            )
+            stale_verify = _run_governance_json(
+                self,
+                ["verify", str(target), "--check"],
+                expected_returncode=1,
+            )
+            self.assertIn(
+                "design_review_stale",
+                {finding["code"] for finding in stale_verify["findings"]},
+            )
+            stale_plan = _run_governance_json(
+                self,
+                ["design", "architecture-authoring", str(target)],
+            )
+            self.assertGreater(len(stale_plan["authoring_tasks"][0]["open_decisions"]), 5)
+            self.assertEqual("stale", stale_plan["authoring_tasks"][0]["review_status"])
+
+    def test_design_review_rejects_missing_authority_unreviewed_and_unsafe_outputs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp, advance_implementation=False)
+            review_args = [
+                "design",
+                "review",
+                str(target),
+                "--track",
+                "architecture",
+                "--work",
+                "ARCHITECTURE-AUTHOR-001",
+                "--result",
+                "approved",
+                "--reason",
+                "Senior architecture review confirms the declared decisions are covered by repository evidence.",
+                "--reviewed",
+                "--check",
+                "--json",
+            ]
+            isolated_env = _agent_env()
+            isolated_env["HOME"] = str(Path(tmp) / "isolated-home")
+            isolated_env["CODEX_HOME"] = str(Path(tmp) / "isolated-codex")
+            missing_skill = subprocess.run(
+                [sys.executable, str(CLI), *review_args],
+                env=isolated_env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(1, missing_skill.returncode, missing_skill.stderr)
+            self.assertIn(
+                "required authority skill is unavailable",
+                "\n".join(json.loads(missing_skill.stdout)["errors"]),
+            )
+
+            _install_test_authority_skills(target, ("senior-architect",))
+            unreviewed = _run_governance_json(
+                self,
+                [item for item in review_args[:-1] if item != "--reviewed"],
+                expected_returncode=1,
+            )
+            self.assertIn("--reviewed is required", unreviewed["errors"])
+            unsupported = _run_governance_json(
+                self,
+                [
+                    "design",
+                    "review",
+                    str(target),
+                    "--track",
+                    "architecture",
+                    "--work",
+                    "ARCHITECTURE-AUTHOR-001",
+                    "--result",
+                    "not-applicable",
+                    "--reason",
+                    "Architecture review found all decisions applicable and documented in evidence.",
+                    "--reviewed",
+                    "--check",
+                ],
+                expected_returncode=1,
+            )
+            self.assertIn("unsupported design review result for architecture", "\n".join(unsupported["errors"]))
+
+            outside = Path(tmp) / "outside.txt"
+            outside.write_text("do not overwrite\n", encoding="utf-8")
+            temp_path = target / "docs/decisions/.design-reviews.json.tmp"
+            temp_path.symlink_to(outside)
+            unsafe_temp = _run_governance_json(
+                self,
+                review_args[:-1],
+                expected_returncode=1,
+            )
+            self.assertIn("temporary path already exists", "\n".join(unsafe_temp["errors"]))
+            self.assertEqual("do not overwrite\n", outside.read_text(encoding="utf-8"))
+            temp_path.unlink()
+
+            decisions_dir = target / "docs/decisions"
+            internal_decisions = target / "docs/review-storage"
+            decisions_dir.rename(internal_decisions)
+            decisions_dir.symlink_to(internal_decisions, target_is_directory=True)
+            unsafe_internal_parent = _run_governance_json(
+                self,
+                review_args[:-1],
+                expected_returncode=1,
+            )
+            self.assertIn(
+                "output parent must not contain symbolic links",
+                "\n".join(unsafe_internal_parent["errors"]),
+            )
+            self.assertFalse((internal_decisions / "design-reviews.json").exists())
+            decisions_dir.unlink()
+            internal_decisions.rename(decisions_dir)
+
+            outside_decisions = Path(tmp) / "outside-decisions"
+            decisions_dir.rename(outside_decisions)
+            decisions_dir.symlink_to(outside_decisions, target_is_directory=True)
+            unsafe_parent = _run_governance_json(
+                self,
+                review_args[:-1],
+                expected_returncode=1,
+            )
+            self.assertIn("output parent resolves outside target", "\n".join(unsafe_parent["errors"]))
+            self.assertFalse((outside_decisions / "design-reviews.json").exists())
+
+    def test_design_review_invalid_document_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp, advance_implementation=False)
+            review_path = target / "docs/decisions/design-reviews.json"
+            review_path.write_text('{"schema_version": 1, "reviews": "invalid"}\n', encoding="utf-8")
+            verify_payload = _run_governance_json(
+                self,
+                ["verify", str(target), "--check"],
+                expected_returncode=1,
+            )
+            self.assertIn(
+                "design_review_invalid",
+                {finding["code"] for finding in verify_payload["findings"]},
+            )
+            authoring_payload = _run_governance_json(
+                self,
+                ["design", "architecture-authoring", str(target)],
+                expected_returncode=1,
+            )
+            self.assertIn("design review document reviews must be a list", authoring_payload["errors"])
+
+    def test_authored_starter_endpoint_still_requires_design_reviews(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp, advance_implementation=False)
+            endpoint_root = target / "docs/api/endpoints"
+            product_endpoint = endpoint_root / "01-goal-flow.md"
+            starter_endpoint = endpoint_root / "01-endpoint-contract.md"
+            product_endpoint.rename(starter_endpoint)
+            for path in target.rglob("*.md"):
+                text = path.read_text(encoding="utf-8")
+                if "01-goal-flow.md" in text:
+                    path.write_text(
+                        text.replace("01-goal-flow.md", "01-endpoint-contract.md"),
+                        encoding="utf-8",
+                    )
+
+            verify_payload = _run_governance_json(
+                self,
+                ["verify", str(target), "--check"],
+                expected_returncode=1,
+            )
+
+            findings = verify_payload["findings"]
+            self.assertIsInstance(findings, list)
+            self.assertIn(
+                "design_review_missing",
+                {
+                    finding["code"]
+                    for finding in findings
+                    if isinstance(finding, dict) and "code" in finding
+                },
+            )
+
+    def test_implementation_phase_can_refresh_stale_design_review(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp)
+            architecture = target / "docs/architecture/01-system-context.md"
+            architecture.write_text(
+                architecture.read_text(encoding="utf-8")
+                + "\nImplementation-discovered constraint: preserve the documented service boundary.\n",
+                encoding="utf-8",
+            )
+            stale_verify = _run_governance_json(
+                self,
+                ["verify", str(target), "--check"],
+                expected_returncode=1,
+            )
+            self.assertIn(
+                "design_review_stale",
+                {
+                    finding["code"]
+                    for finding in stale_verify["findings"]
+                    if isinstance(finding, dict) and "code" in finding
+                },
+            )
+
+            review_args = [
+                "design",
+                "review",
+                str(target),
+                "--track",
+                "architecture",
+                "--work",
+                "ARCHITECTURE-AUTHOR-001",
+                "--result",
+                "approved",
+                "--reason",
+                "Senior architecture re-review confirms the implementation-discovered constraint preserves the approved boundary.",
+                "--reviewed",
+            ]
+            preview = _run_governance_json(self, [*review_args, "--check"])
+            self.assertTrue(preview["ok"])
+            self.assertEqual(["docs/decisions/design-reviews.json"], preview["would_update"])
+            applied = _run_governance_json(self, review_args)
+            self.assertTrue(applied["applied"])
+
+            authoring = _run_governance_json(
+                self,
+                ["design", "architecture-authoring", str(target)],
+            )
+            self.assertEqual("satisfied", authoring["authoring_tasks"][0]["review_status"])
+
+    def test_implementation_phase_task_scope_change_stales_design_review(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp)
+            task_board = target / "docs/development/02-task-board.md"
+            task_board.write_text(
+                task_board.read_text(encoding="utf-8").replace(
+                    "Implement goal flow",
+                    "Implement unrelated administrator flow",
+                ),
+                encoding="utf-8",
+            )
+
+            verify_payload = _run_governance_json(
+                self,
+                ["verify", str(target), "--check"],
+                expected_returncode=1,
+            )
+
+            stale_messages = [
+                finding["message"]
+                for finding in verify_payload["findings"]
+                if isinstance(finding, dict) and finding.get("code") == "design_review_stale"
+            ]
+            self.assertTrue(stale_messages)
+            self.assertTrue(
+                any("docs/development/02-task-board.md" in message for message in stale_messages)
+            )
+
+    def test_design_work_package_routes_orphan_review_cleanup(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp, advance_implementation=False)
+            _record_all_test_design_reviews(self, target)
+            review_path = target / "docs/decisions/design-reviews.json"
+            review_document = json.loads(review_path.read_text(encoding="utf-8"))
+            orphan = dict(review_document["reviews"][0])
+            orphan["acceptance_id"] = "A-999"
+            orphan["work_id"] = "ARCHITECTURE-AUTHOR-999"
+            review_document["reviews"].append(orphan)
+            review_path.write_text(
+                json.dumps(review_document, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+
+            work_package = _run_governance_json(
+                self,
+                ["workflow", "work-package", str(target)],
+            )
+            self.assertTrue(work_package["package_available"])
+            self.assertEqual("review", work_package["work_package"]["work_stage"])
+            self.assertEqual("architecture", work_package["work_package"]["track_id"])
+            self.assertEqual("record-design-review", work_package["next_action"]["kind"])
+            self.assertIn(
+                "design_review_orphan",
+                {blocker["code"] for blocker in work_package["work_package"]["blockers"]},
+            )
+
+            _run_governance_json(
+                self,
+                [
+                    "design",
+                    "review",
+                    str(target),
+                    "--track",
+                    "architecture",
+                    "--work",
+                    "ARCHITECTURE-AUTHOR-001",
+                    "--result",
+                    "approved",
+                    "--reason",
+                    "Senior architecture review reconfirms current evidence while removing orphaned review state.",
+                    "--reviewed",
+                ],
+            )
+            repaired = _run_governance_json(
+                self,
+                ["workflow", "work-package", str(target)],
+            )
+            self.assertFalse(repaired["package_available"])
+            self.assertEqual("complete", repaired["status"])
 
     def test_implementation_plan_reports_ready_task_execution_plan(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -7260,6 +7744,8 @@ class GovernanceCliTest(unittest.TestCase):
             )
             _append_index(target / "docs/product/README.md", "08-acceptance-criteria.md")
             _append_product_meta_chapter(target, "08-acceptance-criteria.md")
+            _run_governance_json(self, ["advance", "product-structuring", str(target)])
+            _run_governance_json(self, ["advance", "design-derivation", str(target)])
 
             blocked = subprocess.run(
                 [sys.executable, str(CLI), "gate", "implementation", str(target), "--json"],
@@ -7479,6 +7965,7 @@ class GovernanceCliTest(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
+            _record_all_test_design_reviews(self, target)
 
             allowed = subprocess.run(
                 [sys.executable, str(CLI), "gate", "implementation", str(target), "--json"],
@@ -7975,6 +8462,10 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual(
                 {
                     "task_count": 1,
+                    "document_status_counts": {
+                        "placeholder_present": 3,
+                    },
+                    "non_authored_document_count": 3,
                     "open_decision_count": 11,
                     "required_link_status_counts": {
                         "satisfied": 4,
@@ -7985,7 +8476,7 @@ class GovernanceCliTest(unittest.TestCase):
                 payload["authoring_summary"],
             )
             self.assertEqual("ARCHITECTURE-AUTHOR-001", payload["active_work"]["task_id"])
-            self.assertEqual("decision_required", payload["active_work"]["status"])
+            self.assertEqual("authoring_required", payload["active_work"]["status"])
             self.assertEqual("senior-architect", payload["active_work"]["primary_specialist_skill"])
             self.assertEqual("system_boundary", payload["active_work"]["next_open_decision"])
             self.assertEqual(
@@ -8143,6 +8634,11 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual(
                 {
                     "task_count": 1,
+                    "document_status_counts": {
+                        "missing": 1,
+                        "placeholder_present": 3,
+                    },
+                    "non_authored_document_count": 4,
                     "open_decision_count": 8,
                     "required_link_status_counts": {
                         "placeholder_present": 4,
@@ -8155,11 +8651,14 @@ class GovernanceCliTest(unittest.TestCase):
             )
             self.assertEqual("API-AUTHOR-001", payload["active_work"]["task_id"])
             self.assertEqual("design-authoring-task", payload["active_work"]["kind"])
-            self.assertEqual("blocked", payload["active_work"]["status"])
+            self.assertEqual("authoring_required", payload["active_work"]["status"])
             self.assertEqual("api-design-reviewer", payload["active_work"]["primary_specialist_skill"])
             self.assertEqual("error_registry", payload["active_work"]["next_required_link"]["kind"])
             self.assertEqual("method_path", payload["active_work"]["next_open_decision"])
-            self.assertEqual("error_registry", payload["active_work"]["next_repair_action"]["link_kind"])
+            self.assertEqual(
+                "docs/api/00-conventions.md",
+                payload["active_work"]["next_repair_action"]["target"],
+            )
             self.assertEqual(
                 ["bin/governance", "verify", ".", "--check", "--json"],
                 payload["active_work"]["verify_command"]["argv"],
@@ -8307,7 +8806,7 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual("advance-implementation-check", payload["next_actions"][0]["id"])
             self.assertEqual(1, len(payload["authoring_tasks"]))
             self.assertEqual("BACKEND-AUTHOR-001", payload["active_work"]["task_id"])
-            self.assertEqual("blocked", payload["active_work"]["status"])
+            self.assertEqual("authoring_required", payload["active_work"]["status"])
             self.assertEqual("senior-backend", payload["active_work"]["primary_specialist_skill"])
             self.assertEqual("architecture_context", payload["active_work"]["next_required_link"]["kind"])
             self.assertEqual("module_boundaries", payload["active_work"]["next_open_decision"])
@@ -8466,7 +8965,7 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual("advance-implementation-check", payload["next_actions"][0]["id"])
             self.assertEqual(1, len(payload["authoring_tasks"]))
             self.assertEqual("DATA-MODEL-AUTHOR-001", payload["active_work"]["task_id"])
-            self.assertEqual("blocked", payload["active_work"]["status"])
+            self.assertEqual("authoring_required", payload["active_work"]["status"])
             self.assertEqual("database-designer", payload["active_work"]["primary_specialist_skill"])
             self.assertEqual("architecture_containers", payload["active_work"]["next_required_link"]["kind"])
             self.assertEqual("entity_ownership", payload["active_work"]["next_open_decision"])

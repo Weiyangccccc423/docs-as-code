@@ -42,6 +42,7 @@ RUNTIME_SCRIPT_FILES = [
     "authority_skills.py",
     "bootstrap_tree.py",
     "check_env.py",
+    "design_reviews.py",
     "design_plan.py",
     "gates.py",
     "governance_cli.py",

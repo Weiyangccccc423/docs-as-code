@@ -101,6 +101,10 @@ class DryRunWorkflowTest(unittest.TestCase):
             "authoring_tasks": [
                 {
                     "open_decisions": ["api_contract", "frontend_consumers"],
+                    "documents": [
+                        {"path": "docs/backend/01-modules.md", "status": "placeholder_present"},
+                        {"path": "docs/backend/03-external-services.md", "status": "authored"},
+                    ],
                     "required_links": [
                         {"kind": "api_contract", "target": "docs/api/endpoints/01-flow.md", "status": "missing"},
                         {"kind": "product_acceptance", "target": "docs/product/08-acceptance.md", "status": "satisfied"},
@@ -119,6 +123,11 @@ class DryRunWorkflowTest(unittest.TestCase):
             ],
             "authoring_summary": {
                 "task_count": 1,
+                "document_status_counts": {
+                    "authored": 1,
+                    "placeholder_present": 1,
+                },
+                "non_authored_document_count": 1,
                 "open_decision_count": 2,
                 "required_link_status_counts": {
                     "missing": 1,
@@ -213,6 +222,7 @@ class DryRunWorkflowTest(unittest.TestCase):
                 [
                     "bin/governance",
                     "scripts/governance_cli.py",
+                    "scripts/design_reviews.py",
                     "docs/agent-workflow/runtime-manifest.json",
                     "docs/agent-workflow/workflow-pack/manifest.json",
                 ],
@@ -231,6 +241,12 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertEqual(4, payload["product_dispositions"]["omit_unsupported_count"])
             self.assertEqual(0, payload["product_dispositions"]["unresolved_decision_count"])
             self.assertTrue(payload["product_dispositions"]["work_package_routed_to_phase_action"])
+            self.assertEqual(9, payload["design_reviews"]["recorded_count"])
+            self.assertEqual(9, payload["design_reviews"]["expected_count"])
+            self.assertEqual(9, payload["design_reviews"]["active_count"])
+            self.assertEqual(0, payload["design_reviews"]["missing_count"])
+            self.assertEqual(0, payload["design_reviews"]["stale_count"])
+            self.assertTrue(payload["design_reviews"]["work_package_complete"])
             step_ids = {step["id"] for step in payload["steps"]}
             self.assertIn("make_verify_governance", step_ids)
             self.assertIn("make_verify_check", step_ids)
@@ -253,6 +269,10 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertIn("workflow_plan_design_derivation", step_ids)
             self.assertIn("make_workflow_plan_design_derivation", step_ids)
             self.assertIn("make_work_package_design_derivation", step_ids)
+            self.assertIn("design_review_architecture_a_001_check", step_ids)
+            self.assertIn("design_review_architecture_a_001_apply", step_ids)
+            self.assertIn("design_review_architecture_decisions_a_001_apply", step_ids)
+            self.assertIn("design_plan_after_reviews", step_ids)
             self.assertIn("make_work_package_design_complete", step_ids)
             self.assertIn("implementation_advance_check", step_ids)
             self.assertIn("implementation_ready_verify_check", step_ids)
@@ -276,6 +296,7 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertIn("make_work_package_complete_after_runtime_refresh", step_ids)
             self.assertTrue((target / "bin/governance").is_file())
             self.assertTrue((target / "docs/product/core/chapter-dispositions.json").is_file())
+            self.assertTrue((target / "docs/decisions/design-reviews.json").is_file())
             self.assertTrue((target / "docs/api/endpoints/01-endpoint-contract.md").is_file())
 
     def test_dry_run_handles_realistic_multi_acceptance_product_fixture(self) -> None:
@@ -338,6 +359,12 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertTrue(payload["runtime_refresh"]["applied"])
             self.assertTrue(payload["runtime_refresh"]["workflow_plan_complete_after_refresh"])
             self.assertEqual([], payload["target_local_make_coverage"]["missing_step_ids"])
+            self.assertEqual(36, payload["design_reviews"]["recorded_count"])
+            self.assertEqual(36, payload["design_reviews"]["expected_count"])
+            self.assertEqual(36, payload["design_reviews"]["active_count"])
+            self.assertEqual(0, payload["design_reviews"]["missing_count"])
+            self.assertEqual(0, payload["design_reviews"]["stale_count"])
+            self.assertTrue(payload["design_reviews"]["work_package_complete"])
 
 
 def _repair_action(

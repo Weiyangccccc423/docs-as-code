@@ -385,6 +385,7 @@ class PackStructureTest(unittest.TestCase):
             ("make_product_plan", "local_product_plan"),
             ("make_design_plan", "local_design_plan"),
             ("make_implementation_plan", "local_implementation_plan"),
+            ("_record_design_reviews", "_record_design_approvals"),
         )
         for required_phrase, replacement in cases:
             with self.subTest(required_phrase=required_phrase):
@@ -1244,6 +1245,7 @@ class PackStructureTest(unittest.TestCase):
         cases = (
             ("unpacked_dry_run", "unpacked_preview"),
             ("_dry_run_target_local_make_details", "_dry_run_local_command_details"),
+            ("_dry_run_design_review_details", "_dry_run_design_approval_details"),
             ("make_verify_check", "local_verify_check"),
             ("fresh_target_init", "target_init_preview"),
             ("unpacked_init_fresh_target", "unpacked_init_preview"),
@@ -1397,33 +1399,40 @@ class PackStructureTest(unittest.TestCase):
             )
 
     def test_verify_pack_reports_incomplete_release_readiness_script(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            target = Path(tmp) / "pack"
-            shutil.copytree(
-                ROOT,
-                target,
-                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
-            )
-            script = target / "scripts/release_readiness.py"
-            script.write_text(
-                script.read_text(encoding="utf-8").replace(
-                    "release_ready",
-                    "handoff_ready",
-                ),
-                encoding="utf-8",
-            )
+        cases = (
+            ("release_ready", "handoff_ready"),
+            ("_dry_run_design_reviews_ok", "_dry_run_design_approvals_ok"),
+            ("_artifact_smoke_design_reviews_ok", "_artifact_smoke_design_approvals_ok"),
+        )
+        for required_phrase, replacement in cases:
+            with self.subTest(required_phrase=required_phrase):
+                with tempfile.TemporaryDirectory() as tmp:
+                    target = Path(tmp) / "pack"
+                    shutil.copytree(
+                        ROOT,
+                        target,
+                        ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+                    )
+                    script = target / "scripts/release_readiness.py"
+                    script.write_text(
+                        script.read_text(encoding="utf-8").replace(
+                            required_phrase,
+                            replacement,
+                        ),
+                        encoding="utf-8",
+                    )
 
-            report = verify_pack(target)
+                    report = verify_pack(target)
 
-            self.assertFalse(report.ok)
-            self.assertTrue(
-                any(
-                    finding.code == "pack_release_readiness_incomplete"
-                    and finding.path == "scripts/release_readiness.py"
-                    and "release_ready" in finding.message
-                    for finding in report.findings
-                )
-            )
+                    self.assertFalse(report.ok)
+                    self.assertTrue(
+                        any(
+                            finding.code == "pack_release_readiness_incomplete"
+                            and finding.path == "scripts/release_readiness.py"
+                            and required_phrase in finding.message
+                            for finding in report.findings
+                        )
+                    )
 
     def test_verify_pack_reports_release_readiness_missing_closeout_gate(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -3049,6 +3058,85 @@ class PackStructureTest(unittest.TestCase):
                     finding.code == "pack_design_plan_source_incomplete"
                     and finding.path == "scripts/design_plan.py"
                     and "load_from_agent_environment_or_stop_before_guessing" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_missing_design_review_source(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            (target / "scripts/design_reviews.py").unlink()
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_design_review_source_missing"
+                    and finding.path == "scripts/design_reviews.py"
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_incomplete_design_review_source(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/design_reviews.py"
+            script.write_text(
+                script.read_text(encoding="utf-8").replace(
+                    "source_snapshots",
+                    "origin_snapshots",
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_design_review_source_incomplete"
+                    and finding.path == "scripts/design_reviews.py"
+                    and "source_snapshots" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_missing_design_review_doc_phrase(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            reference = target / "references/design-review-checklist.md"
+            reference.write_text(
+                reference.read_text(encoding="utf-8").replace(
+                    "authority skill name and SHA-256",
+                    "authority skill identity",
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_design_review_doc_missing"
+                    and finding.path == "references/design-review-checklist.md"
+                    and "authority skill name and SHA-256" in finding.message
                     for finding in report.findings
                 )
             )
@@ -5280,6 +5368,34 @@ class PackStructureTest(unittest.TestCase):
                     and finding.path == "scripts/governance_cli.py"
                     and "design" in finding.message
                     and "plan" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_missing_design_review_subcommand(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/governance_cli.py"
+            original = 'design_review = design_sub.add_parser(\n        "review",'
+            replacement = 'design_review = design_sub.add_parser(\n        "approve",'
+            text = script.read_text(encoding="utf-8")
+            self.assertIn(original, text)
+            script.write_text(text.replace(original, replacement, 1), encoding="utf-8")
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_governance_cli_subcommand_missing"
+                    and finding.path == "scripts/governance_cli.py"
+                    and "design" in finding.message
+                    and "review" in finding.message
                     for finding in report.findings
                 )
             )
