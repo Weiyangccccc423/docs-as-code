@@ -789,6 +789,11 @@ def _consumer_bootstrap_implementation_routing_details(
     start_apply_skipped = start_apply_map.get("apply_skipped") is True
     closeout_preview_skipped = closeout_preview_map.get("preview_skipped") is True
     closeout_apply_skipped = closeout_apply_map.get("apply_skipped") is True
+    advance_apply_skip_code = _string_field(advance_apply_map, "skip_code")
+    start_preview_skip_code = _string_field(start_preview_map, "skip_code")
+    start_apply_skip_code = _string_field(start_apply_map, "skip_code")
+    closeout_preview_skip_code = _string_field(closeout_preview_map, "skip_code")
+    closeout_apply_skip_code = _string_field(closeout_apply_map, "skip_code")
     return {
         **base,
         "ok": (
@@ -817,6 +822,11 @@ def _consumer_bootstrap_implementation_routing_details(
             and start_apply_skipped
             and closeout_preview_skipped
             and closeout_apply_skipped
+            and advance_apply_skip_code == "advance_preview_not_ready"
+            and start_preview_skip_code == "readiness_preview_not_ready"
+            and start_apply_skip_code == "start_preview_not_ready"
+            and closeout_preview_skip_code == "start_apply_not_applied"
+            and closeout_apply_skip_code == "closeout_preview_not_ready"
             and blocked_by_placeholders
         ),
         "workflow_preset": workflow_preset if isinstance(workflow_preset, str) else "",
@@ -838,10 +848,20 @@ def _consumer_bootstrap_implementation_routing_details(
         "advance_check_ok": advance_preview_map.get("advance_check_ok") is True,
         "would_advance": advance_preview_map.get("would_advance") is True,
         "advance_apply_skipped": advance_apply_skipped,
+        "advance_apply_skip_code": advance_apply_skip_code,
+        "advance_apply_blocked_by": _string_field(advance_apply_map, "blocked_by"),
         "start_preview_skipped": start_preview_skipped,
+        "start_preview_skip_code": start_preview_skip_code,
+        "start_preview_blocked_by": _string_field(start_preview_map, "blocked_by"),
         "start_apply_skipped": start_apply_skipped,
+        "start_apply_skip_code": start_apply_skip_code,
+        "start_apply_blocked_by": _string_field(start_apply_map, "blocked_by"),
         "closeout_preview_skipped": closeout_preview_skipped,
+        "closeout_preview_skip_code": closeout_preview_skip_code,
+        "closeout_preview_blocked_by": _string_field(closeout_preview_map, "blocked_by"),
         "closeout_apply_skipped": closeout_apply_skipped,
+        "closeout_apply_skip_code": closeout_apply_skip_code,
+        "closeout_apply_blocked_by": _string_field(closeout_apply_map, "blocked_by"),
         "blocked_by_placeholders": blocked_by_placeholders,
     }
 
@@ -850,6 +870,11 @@ def _has_finding_code(findings: object, code: str) -> bool:
     if not isinstance(findings, list):
         return False
     return any(isinstance(finding, dict) and finding.get("code") == code for finding in findings)
+
+
+def _string_field(payload: dict[str, object], key: str) -> str:
+    value = payload.get(key)
+    return value if isinstance(value, str) else ""
 
 
 def _authority_skill_inventory_details(bootstrap_payload: dict[str, object]) -> dict[str, object]:

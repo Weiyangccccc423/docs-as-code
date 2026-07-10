@@ -256,10 +256,20 @@ def _artifact_smoke_consumer_implementation_routing_ok(payload: dict[str, object
         and implementation_routing.get("advance_previewed") is True
         and implementation_routing.get("advance_ready") is False
         and implementation_routing.get("advance_apply_skipped") is True
+        and implementation_routing.get("advance_apply_skip_code") == "advance_preview_not_ready"
+        and implementation_routing.get("advance_apply_blocked_by") == "implementation_advance_preview"
         and implementation_routing.get("start_preview_skipped") is True
+        and implementation_routing.get("start_preview_skip_code") == "readiness_preview_not_ready"
+        and implementation_routing.get("start_preview_blocked_by") == "implementation_readiness_preview"
         and implementation_routing.get("start_apply_skipped") is True
+        and implementation_routing.get("start_apply_skip_code") == "start_preview_not_ready"
+        and implementation_routing.get("start_apply_blocked_by") == "implementation_start_preview"
         and implementation_routing.get("closeout_preview_skipped") is True
+        and implementation_routing.get("closeout_preview_skip_code") == "start_apply_not_applied"
+        and implementation_routing.get("closeout_preview_blocked_by") == "implementation_start_apply"
         and implementation_routing.get("closeout_apply_skipped") is True
+        and implementation_routing.get("closeout_apply_skip_code") == "closeout_preview_not_ready"
+        and implementation_routing.get("closeout_apply_blocked_by") == "implementation_closeout_preview"
         and implementation_routing.get("blocked_by_placeholders") is True
         and isinstance(expanded_flags, list)
         and "implementation_readiness_preview" in expanded_flags

@@ -1664,6 +1664,9 @@ def _apply_implementation_advance(
         "phase": "implementation",
         "advance_ready": advance_preview.get("advance_ready") is True,
         "apply_skipped": False,
+        "skip_code": "",
+        "blocked_by": "",
+        "required_preview_ready": advance_preview.get("advance_ready") is True,
         "skip_reason": "",
         "advance": {},
         "post_verify_check": {},
@@ -1674,6 +1677,9 @@ def _apply_implementation_advance(
     }
     if advance_preview.get("advance_ready") is not True:
         payload["apply_skipped"] = True
+        payload["skip_code"] = "advance_preview_not_ready"
+        payload["blocked_by"] = "implementation_advance_preview"
+        payload["required_preview_ready"] = False
         payload["skip_reason"] = "implementation advance preview did not pass"
         return payload
 
@@ -1758,15 +1764,23 @@ def _preview_implementation_start(
         "task_id": normalized_task_id,
         "start_ready": False,
         "preview_skipped": False,
+        "skip_code": "",
+        "blocked_by": "",
+        "required_readiness_ok": readiness_preview.get("readiness_ok") is True,
         "skip_reason": "",
         "implementation_start": {},
     }
     if readiness_preview.get("readiness_ok") is not True:
         payload["preview_skipped"] = True
+        payload["skip_code"] = "readiness_preview_not_ready"
+        payload["blocked_by"] = "implementation_readiness_preview"
+        payload["required_readiness_ok"] = False
         payload["skip_reason"] = "implementation readiness preview did not pass"
         return payload
     if not TASK_ID_PATTERN.match(normalized_task_id):
         payload["preview_skipped"] = True
+        payload["skip_code"] = "active_task_id_missing"
+        payload["blocked_by"] = "implementation_plan.active_work.task_id"
         payload["skip_reason"] = "implementation plan did not expose a concrete active_work.task_id"
         return payload
 
@@ -1797,6 +1811,9 @@ def _apply_implementation_start(
         "task_id": task_id,
         "start_ready": start_preview.get("start_ready") is True,
         "apply_skipped": False,
+        "skip_code": "",
+        "blocked_by": "",
+        "required_preview_ready": start_preview.get("start_ready") is True,
         "skip_reason": "",
         "implementation_start_apply": {},
         "post_verify_check": {},
@@ -1806,10 +1823,15 @@ def _apply_implementation_start(
     }
     if start_preview.get("start_ready") is not True:
         payload["apply_skipped"] = True
+        payload["skip_code"] = "start_preview_not_ready"
+        payload["blocked_by"] = "implementation_start_preview"
+        payload["required_preview_ready"] = False
         payload["skip_reason"] = "implementation start preview did not pass"
         return payload
     if TASK_ID_PATTERN.match(task_id) is None:
         payload["apply_skipped"] = True
+        payload["skip_code"] = "task_id_missing"
+        payload["blocked_by"] = "implementation_start_preview.task_id"
         payload["skip_reason"] = "implementation start preview did not expose a concrete task_id"
         return payload
 
@@ -1903,15 +1925,25 @@ def _preview_implementation_closeout(
         "task_id": normalized_task_id,
         "closeout_ready": False,
         "preview_skipped": False,
+        "skip_code": "",
+        "blocked_by": "",
+        "required_start_applied": (
+            start_apply.get("ok") is True and start_apply.get("apply_skipped") is not True
+        ),
         "skip_reason": "",
         "implementation_closeout": {},
     }
     if start_apply.get("ok") is not True or start_apply.get("apply_skipped") is True:
         payload["preview_skipped"] = True
+        payload["skip_code"] = "start_apply_not_applied"
+        payload["blocked_by"] = "implementation_start_apply"
+        payload["required_start_applied"] = False
         payload["skip_reason"] = "implementation start apply did not pass"
         return payload
     if TASK_ID_PATTERN.match(normalized_task_id) is None:
         payload["preview_skipped"] = True
+        payload["skip_code"] = "active_task_id_missing"
+        payload["blocked_by"] = "implementation_plan.active_work.task_id"
         payload["skip_reason"] = "implementation plan did not expose a concrete active_work.task_id"
         return payload
 
@@ -1942,6 +1974,9 @@ def _apply_implementation_closeout(
         "task_id": task_id,
         "closeout_ready": closeout_preview.get("closeout_ready") is True,
         "apply_skipped": False,
+        "skip_code": "",
+        "blocked_by": "",
+        "required_preview_ready": closeout_preview.get("closeout_ready") is True,
         "skip_reason": "",
         "implementation_closeout_apply": {},
         "post_verify_check": {},
@@ -1951,10 +1986,15 @@ def _apply_implementation_closeout(
     }
     if closeout_preview.get("closeout_ready") is not True:
         payload["apply_skipped"] = True
+        payload["skip_code"] = "closeout_preview_not_ready"
+        payload["blocked_by"] = "implementation_closeout_preview"
+        payload["required_preview_ready"] = False
         payload["skip_reason"] = "implementation closeout preview did not pass"
         return payload
     if TASK_ID_PATTERN.match(task_id) is None:
         payload["apply_skipped"] = True
+        payload["skip_code"] = "task_id_missing"
+        payload["blocked_by"] = "implementation_closeout_preview.task_id"
         payload["skip_reason"] = "implementation closeout preview did not expose a concrete task_id"
         return payload
 

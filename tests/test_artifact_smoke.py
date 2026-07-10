@@ -143,10 +143,50 @@ class ArtifactSmokeTest(unittest.TestCase):
         self.assertTrue(payload["consumer_bootstrap_implementation_routing"]["advance_previewed"])
         self.assertFalse(payload["consumer_bootstrap_implementation_routing"]["advance_ready"])
         self.assertTrue(payload["consumer_bootstrap_implementation_routing"]["advance_apply_skipped"])
+        self.assertEqual(
+            "advance_preview_not_ready",
+            payload["consumer_bootstrap_implementation_routing"]["advance_apply_skip_code"],
+        )
+        self.assertEqual(
+            "implementation_advance_preview",
+            payload["consumer_bootstrap_implementation_routing"]["advance_apply_blocked_by"],
+        )
         self.assertTrue(payload["consumer_bootstrap_implementation_routing"]["start_preview_skipped"])
+        self.assertEqual(
+            "readiness_preview_not_ready",
+            payload["consumer_bootstrap_implementation_routing"]["start_preview_skip_code"],
+        )
+        self.assertEqual(
+            "implementation_readiness_preview",
+            payload["consumer_bootstrap_implementation_routing"]["start_preview_blocked_by"],
+        )
         self.assertTrue(payload["consumer_bootstrap_implementation_routing"]["start_apply_skipped"])
+        self.assertEqual(
+            "start_preview_not_ready",
+            payload["consumer_bootstrap_implementation_routing"]["start_apply_skip_code"],
+        )
+        self.assertEqual(
+            "implementation_start_preview",
+            payload["consumer_bootstrap_implementation_routing"]["start_apply_blocked_by"],
+        )
         self.assertTrue(payload["consumer_bootstrap_implementation_routing"]["closeout_preview_skipped"])
+        self.assertEqual(
+            "start_apply_not_applied",
+            payload["consumer_bootstrap_implementation_routing"]["closeout_preview_skip_code"],
+        )
+        self.assertEqual(
+            "implementation_start_apply",
+            payload["consumer_bootstrap_implementation_routing"]["closeout_preview_blocked_by"],
+        )
         self.assertTrue(payload["consumer_bootstrap_implementation_routing"]["closeout_apply_skipped"])
+        self.assertEqual(
+            "closeout_preview_not_ready",
+            payload["consumer_bootstrap_implementation_routing"]["closeout_apply_skip_code"],
+        )
+        self.assertEqual(
+            "implementation_closeout_preview",
+            payload["consumer_bootstrap_implementation_routing"]["closeout_apply_blocked_by"],
+        )
         self.assertTrue(payload["consumer_bootstrap_implementation_routing"]["blocked_by_placeholders"])
         self.assertIn(
             "implementation_readiness_preview",
