@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -70,8 +71,17 @@ class ConsumerBootstrapTest(unittest.TestCase):
             self.assertTrue(check_payload["env_check"]["ok"])
             self.assertTrue(check_payload["init_check"]["ok"])
             self.assertEqual("explicit", check_payload["init_check"]["product"]["selection"])
+            self.assertTrue(check_payload["authority_skill_inventory"]["ok"])
+            self.assertFalse(check_payload["authority_skill_inventory"]["strict"])
+            self.assertGreaterEqual(check_payload["authority_skill_inventory"]["required_skill_count"], 19)
             self.assertEqual(
-                {"pack_manifest_verify", "pack_verify", "env_repair_check", "init_check"},
+                {
+                    "pack_manifest_verify",
+                    "pack_verify",
+                    "authority_skill_inventory",
+                    "env_repair_check",
+                    "init_check",
+                },
                 {step["id"] for step in check_payload["steps"]},
             )
 
@@ -90,6 +100,7 @@ class ConsumerBootstrapTest(unittest.TestCase):
             self.assertEqual(str(product.resolve()), payload["product"])
             self.assertTrue(payload["pack_manifest_verification"]["ok"])
             self.assertTrue(payload["pack_verification"]["ok"])
+            self.assertTrue(payload["authority_skill_inventory"]["ok"])
             self.assertTrue(payload["env_check"]["ok"])
             self.assertTrue(payload["init_check"]["ok"])
             self.assertTrue(payload["init"]["ok"])
@@ -110,10 +121,68 @@ class ConsumerBootstrapTest(unittest.TestCase):
             self.assertIn("local_commands", payload)
             self.assertIn("next_actions", payload)
             step_ids = {step["id"] for step in payload["steps"]}
+            self.assertIn("authority_skill_inventory", step_ids)
             self.assertIn("init", step_ids)
             self.assertIn("target_local_verify_check", step_ids)
             self.assertIn("target_local_governance_status", step_ids)
             self.assertIn("target_local_workflow_plan", step_ids)
+
+    def test_strict_authority_skills_blocks_bootstrap_when_agent_skills_are_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            pack = base / "docs-as-code-workflow-pack"
+            product = base / "product.md"
+            target = base / "consumer-target"
+            codex_home = base / "empty-codex-home"
+            home = base / "empty-home"
+            (codex_home / "skills").mkdir(parents=True)
+            (home / ".codex" / "skills").mkdir(parents=True)
+            product.write_text(
+                "# Consumer Bootstrap Product\n\n"
+                "## Acceptance Criteria\n\n"
+                "- The bootstrap reports missing authority skills before target writes.\n",
+                encoding="utf-8",
+            )
+
+            export = subprocess.run(
+                [
+                    sys.executable,
+                    str(EXPORT),
+                    "--output",
+                    str(pack),
+                    "--no-archive",
+                    "--force",
+                    "--json",
+                ],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, export.returncode, export.stdout + export.stderr)
+            self.assertTrue(json.loads(export.stdout)["ok"])
+
+            payload = _run_bootstrap(
+                self,
+                pack,
+                target=target,
+                product=product,
+                check=True,
+                strict_authority_skills=True,
+                expected_returncode=1,
+                env={"CODEX_HOME": str(codex_home), "HOME": str(home)},
+            )
+
+            self.assertFalse(payload["ok"])
+            self.assertFalse(payload["initialized"])
+            self.assertTrue(payload["strict_authority_skills"])
+            self.assertEqual("authority skill inventory failed", payload["error"])
+            self.assertEqual("authority_skill_inventory", payload["steps"][-1]["id"])
+            self.assertEqual("authority_skill_inventory", payload["failed_step"]["id"])
+            self.assertFalse(payload["failed_payload"]["ok"])
+            self.assertTrue(payload["failed_payload"]["strict"])
+            self.assertIn("senior-architect", payload["failed_payload"]["missing_skills"])
+            self.assertFalse(target.exists())
 
     def test_auto_repair_env_runs_write_mode_repair_then_rechecks_when_safe(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1451,6 +1520,9 @@ def _run_bootstrap(
     implementation_closeout_apply: bool = False,
     workflow_preset: str = "",
     auto_repair_env: bool = False,
+    strict_authority_skills: bool = False,
+    expected_returncode: int = 0,
+    env: dict[str, str] | None = None,
 ) -> dict[str, object]:
     argv = [
         sys.executable,
@@ -1502,14 +1574,20 @@ def _run_bootstrap(
         argv.insert(-1, workflow_preset)
     if auto_repair_env:
         argv.insert(-1, "--auto-repair-env")
+    if strict_authority_skills:
+        argv.insert(-1, "--strict-authority-skills")
+    run_env = None
+    if env is not None:
+        run_env = {**os.environ, **env}
     result = subprocess.run(
         argv,
         cwd=pack,
+        env=run_env,
         text=True,
         capture_output=True,
         check=False,
     )
-    testcase.assertEqual(0, result.returncode, result.stdout + result.stderr)
+    testcase.assertEqual(expected_returncode, result.returncode, result.stdout + result.stderr)
     testcase.assertEqual("", result.stderr)
     try:
         payload = json.loads(result.stdout)

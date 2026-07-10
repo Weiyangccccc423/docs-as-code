@@ -154,6 +154,7 @@ def run_consumer_bootstrap(
     implementation_closeout_apply: bool = False,
     workflow_preset: str = "",
     auto_repair_env: bool = False,
+    strict_authority_skills: bool = False,
     pack_root: Path = ROOT,
 ) -> dict[str, object]:
     pack_root = pack_root.resolve()
@@ -204,6 +205,19 @@ def run_consumer_bootstrap(
             pack_root,
         )
         _require(pack_verification.get("ok") is True, "workflow-pack verification failed", payload=pack_verification)
+
+        authority_skill_inventory = _run_json(
+            steps,
+            "authority_skill_inventory",
+            _authority_skill_argv(strict=strict_authority_skills),
+            pack_root,
+            allowed_returncodes=(0, 1),
+        )
+        _require(
+            authority_skill_inventory.get("ok") is True,
+            "authority skill inventory failed",
+            payload=authority_skill_inventory,
+        )
 
         env_check = _run_json(
             steps,
@@ -335,6 +349,7 @@ def run_consumer_bootstrap(
             "workflow_preset": workflow_preset,
             "workflow_preset_expanded_flags": list(expanded_flags),
             "auto_repair_env": auto_repair_env,
+            "strict_authority_skills": strict_authority_skills,
             "env_auto_repair": env_auto_repair,
             "advance_product_structuring_requested": advance_product_structuring,
             "advanced_product_structuring": False,
@@ -381,6 +396,7 @@ def run_consumer_bootstrap(
             "implementation_closeout_apply_ok": False,
             "pack_manifest_verification": pack_manifest_verification,
             "pack_verification": pack_verification,
+            "authority_skill_inventory": authority_skill_inventory,
             "env_check": env_check,
             "init_check": init_check,
             "steps": steps,
@@ -671,6 +687,7 @@ def run_consumer_bootstrap(
             payload["next_actions"] = init_payload["next_actions"]
         return payload
     except ConsumerBootstrapError as error:
+        failed_step = error.step if error.step is not None else (steps[-1] if steps else None)
         return {
             "ok": False,
             "check": check,
@@ -685,7 +702,11 @@ def run_consumer_bootstrap(
             "workflow_preset": workflow_preset,
             "workflow_preset_expanded_flags": list(expanded_flags),
             "auto_repair_env": auto_repair_env,
+            "strict_authority_skills": strict_authority_skills,
             "env_auto_repair": env_auto_repair,
+            "authority_skill_inventory": error.payload
+            if error.message == "authority skill inventory failed" and error.payload is not None
+            else {},
             "advance_product_structuring_requested": advance_product_structuring,
             "advanced_product_structuring": False,
             "product_scaffold_preview_requested": product_scaffold_preview,
@@ -730,7 +751,7 @@ def run_consumer_bootstrap(
             "implementation_closeout_applied": False,
             "implementation_closeout_apply_ok": False,
             "steps": steps,
-            "failed_step": error.step,
+            "failed_step": failed_step,
             "failed_payload": error.payload,
         }
     except OSError as error:
@@ -748,6 +769,7 @@ def run_consumer_bootstrap(
             "workflow_preset": workflow_preset,
             "workflow_preset_expanded_flags": list(expanded_flags),
             "auto_repair_env": auto_repair_env,
+            "strict_authority_skills": strict_authority_skills,
             "env_auto_repair": env_auto_repair,
             "advance_product_structuring_requested": advance_product_structuring,
             "advanced_product_structuring": False,
@@ -823,6 +845,13 @@ def _init_argv(
         argv.append("--check")
     if force:
         argv.append("--force")
+    return argv
+
+
+def _authority_skill_argv(*, strict: bool) -> list[str | Path]:
+    argv: list[str | Path] = [sys.executable, "scripts/authority_skills.py", "--json"]
+    if strict:
+        argv.append("--strict")
     return argv
 
 
@@ -1936,6 +1965,14 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--strict-authority-skills",
+        action="store_true",
+        help=(
+            "Run authority_skills.py in strict mode before environment and target initialization checks; missing "
+            "agent-environment specialist skills stop bootstrap."
+        ),
+    )
+    parser.add_argument(
         "--advance-product-structuring",
         action="store_true",
         help="After initialization, run target-local product-structuring advance and product-plan commands.",
@@ -2090,6 +2127,7 @@ def main() -> int:
         implementation_closeout_apply=args.implementation_closeout_apply,
         workflow_preset=args.workflow_preset,
         auto_repair_env=args.auto_repair_env,
+        strict_authority_skills=args.strict_authority_skills,
     )
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
