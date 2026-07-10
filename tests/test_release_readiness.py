@@ -76,6 +76,22 @@ class ReleaseReadinessTest(unittest.TestCase):
             criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_product_structure"]["ok"]
         )
         self.assertTrue(
+            criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_product_structure"]["env_auto_repair"][
+                "ok"
+            ]
+        )
+        self.assertTrue(
+            criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_product_structure"]["env_auto_repair"][
+                "requested"
+            ]
+        )
+        self.assertEqual(
+            [],
+            criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_product_structure"]["env_auto_repair"][
+                "final_missing_required"
+            ],
+        )
+        self.assertTrue(
             criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_product_structure"][
                 "authority_skill_inventory"
             ]["ok"]
@@ -99,6 +115,11 @@ class ReleaseReadinessTest(unittest.TestCase):
             ]
         )
         self.assertTrue(criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_design_scaffold"]["ok"])
+        self.assertTrue(
+            criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_design_scaffold"]["env_auto_repair"][
+                "ok"
+            ]
+        )
         self.assertTrue(
             criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_design_scaffold"][
                 "authority_skill_inventory"
@@ -124,6 +145,11 @@ class ReleaseReadinessTest(unittest.TestCase):
         )
         self.assertTrue(criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_design_routing"]["ok"])
         self.assertTrue(
+            criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_design_routing"]["env_auto_repair"][
+                "ok"
+            ]
+        )
+        self.assertTrue(
             criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_design_routing"][
                 "authority_skill_inventory"
             ]["ok"]
@@ -147,6 +173,7 @@ class ReleaseReadinessTest(unittest.TestCase):
             "consumer_bootstrap_implementation_routing"
         ]
         self.assertTrue(implementation_routing["ok"])
+        self.assertTrue(implementation_routing["env_auto_repair"]["ok"])
         self.assertTrue(implementation_routing["authority_skill_inventory"]["ok"])
         self.assertEqual("design-derivation", implementation_routing["phase"])
         self.assertEqual("implementation-routing", implementation_routing["workflow_preset"])

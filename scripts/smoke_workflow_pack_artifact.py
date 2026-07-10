@@ -611,12 +611,14 @@ def _consumer_bootstrap_details(
     goals_chapter = target / "docs/product/03-goals-and-requirements.md"
     acceptance_chapter = target / "docs/product/08-acceptance-criteria.md"
     authority_skill_inventory = _authority_skill_inventory_details(bootstrap_payload)
+    env_auto_repair = _env_auto_repair_details(bootstrap_payload)
     return {
         "ok": (
             bootstrap_payload.get("ok") is True
             and phase == "product-structuring"
             and workflow_preset == "product-structure"
             and authority_skill_inventory.get("ok") is True
+            and env_auto_repair.get("ok") is True
             and bootstrap_payload.get("auto_repair_env") is True
             and bootstrap_payload.get("product_structure_apply_ok") is True
             and "advance_product_structuring" in expanded_flag_list
@@ -631,6 +633,7 @@ def _consumer_bootstrap_details(
         "workflow_preset": workflow_preset if isinstance(workflow_preset, str) else "",
         "workflow_preset_expanded_flags": expanded_flag_list,
         "authority_skill_inventory": authority_skill_inventory,
+        "env_auto_repair": env_auto_repair,
         "auto_repair_env": bootstrap_payload.get("auto_repair_env") is True,
         "product_structure_apply_ok": bootstrap_payload.get("product_structure_apply_ok") is True,
         "target_local_ok": target_local.get("ok") is True if isinstance(target_local, dict) else False,
@@ -661,6 +664,7 @@ def _consumer_bootstrap_design_scaffold_details(
         else False
     )
     authority_skill_inventory = _authority_skill_inventory_details(bootstrap_payload)
+    env_auto_repair = _env_auto_repair_details(bootstrap_payload)
     system_context_doc = target / "docs/architecture/01-system-context.md"
     endpoint_contract_doc = target / "docs/api/endpoints/01-endpoint-contract.md"
     return {
@@ -669,6 +673,7 @@ def _consumer_bootstrap_design_scaffold_details(
             and phase == "design-derivation"
             and workflow_preset == expected_workflow_preset
             and authority_skill_inventory.get("ok") is True
+            and env_auto_repair.get("ok") is True
             and bootstrap_payload.get("auto_repair_env") is True
             and bootstrap_payload.get("product_structure_apply_ok") is True
             and bootstrap_payload.get("advanced_design_derivation") is True
@@ -686,6 +691,7 @@ def _consumer_bootstrap_design_scaffold_details(
         "workflow_preset": workflow_preset if isinstance(workflow_preset, str) else "",
         "workflow_preset_expanded_flags": expanded_flag_list,
         "authority_skill_inventory": authority_skill_inventory,
+        "env_auto_repair": env_auto_repair,
         "auto_repair_env": bootstrap_payload.get("auto_repair_env") is True,
         "product_structure_apply_ok": bootstrap_payload.get("product_structure_apply_ok") is True,
         "advanced_design_derivation": bootstrap_payload.get("advanced_design_derivation") is True,
@@ -862,6 +868,47 @@ def _authority_skill_inventory_details(bootstrap_payload: dict[str, object]) -> 
         if isinstance(inventory_map.get("missing_skill_count"), int)
         else 0,
         "missing_policy": inventory_map.get("missing_policy") if isinstance(inventory_map.get("missing_policy"), str) else "",
+    }
+
+
+def _env_auto_repair_details(bootstrap_payload: dict[str, object]) -> dict[str, object]:
+    auto_repair = bootstrap_payload.get("env_auto_repair")
+    auto_repair_map = auto_repair if isinstance(auto_repair, dict) else {}
+    initial_check = auto_repair_map.get("initial_check")
+    initial_check_map = initial_check if isinstance(initial_check, dict) else {}
+    final_env_check = auto_repair_map.get("final_env_check")
+    final_env_check_map = final_env_check if isinstance(final_env_check, dict) else {}
+    repair = auto_repair_map.get("repair")
+    repair_map = repair if isinstance(repair, dict) else {}
+    post_check = auto_repair_map.get("post_check")
+    post_check_map = post_check if isinstance(post_check, dict) else {}
+    initial_decision = initial_check_map.get("repair_decision")
+    initial_decision_map = initial_decision if isinstance(initial_decision, dict) else {}
+    final_decision = final_env_check_map.get("repair_decision")
+    final_decision_map = final_decision if isinstance(final_decision, dict) else {}
+    final_missing_required = final_env_check_map.get("missing_required")
+    final_missing_required_list = final_missing_required if isinstance(final_missing_required, list) else []
+    requested = auto_repair_map.get("requested") is True
+    applied = auto_repair_map.get("applied") is True
+    skipped = auto_repair_map.get("skipped") is True
+    final_ok = final_env_check_map.get("ok") is True and final_missing_required_list == []
+    return {
+        "ok": requested and final_ok and (applied or skipped),
+        "requested": requested,
+        "applied": applied,
+        "skipped": skipped,
+        "skip_reason": auto_repair_map.get("skip_reason") if isinstance(auto_repair_map.get("skip_reason"), str) else "",
+        "initial_check_ok": initial_check_map.get("ok") is True,
+        "initial_decision": initial_decision_map.get("decision")
+        if isinstance(initial_decision_map.get("decision"), str)
+        else "",
+        "repair_ok": repair_map.get("ok") is True,
+        "post_check_ok": post_check_map.get("ok") is True,
+        "final_env_check_ok": final_env_check_map.get("ok") is True,
+        "final_missing_required": final_missing_required_list,
+        "final_decision": final_decision_map.get("decision")
+        if isinstance(final_decision_map.get("decision"), str)
+        else "",
     }
 
 
