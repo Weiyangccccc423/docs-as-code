@@ -65,7 +65,7 @@ from scaffold import (
 from state import STATE_REL, StateFileError, load_state, merge_state, utc_now
 from verify_governance import verify
 from workflow_actions import next_actions_payload
-from workflow_plan import build_workflow_plan
+from workflow_plan import build_work_package, build_workflow_plan
 
 
 def _print_json(payload: dict[str, object]) -> None:
@@ -293,6 +293,27 @@ def _cmd_workflow_plan(args: argparse.Namespace) -> int:
     print(f"Workflow plan: {payload['phase']}")
     for queue in payload["queues"]:
         print(f"- {queue['id']}: {queue['status']}")
+    return 0
+
+
+def _cmd_work_package(args: argparse.Namespace) -> int:
+    payload = build_work_package(Path(args.target), skill_roots=list(args.skill_root))
+    if args.json:
+        _print_json(payload)
+        return 0 if payload["ok"] else 1
+    if not payload["ok"]:
+        print("Workflow work package failed:")
+        for error in payload["errors"]:
+            print(f"- ERROR: {error}")
+        return 1
+    print(f"Workflow work package: {payload['phase']}")
+    print(f"- status: {payload['status']}")
+    print(f"- package_available: {payload['package_available']}")
+    print(f"- can_start: {payload['can_start']}")
+    package = payload.get("work_package")
+    if isinstance(package, dict) and package:
+        print(f"- queue: {package.get('queue_id', '')}")
+        print(f"- work: {package.get('work_id', '')}")
     return 0
 
 
@@ -942,6 +963,20 @@ def build_parser() -> argparse.ArgumentParser:
     workflow_plan.add_argument("target", nargs="?", default=".")
     workflow_plan.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     workflow_plan.set_defaults(func=_cmd_workflow_plan)
+    workflow_work_package = workflow_sub.add_parser(
+        "work-package",
+        help="Build one evidence-selected agent work package with skill readiness and continuation commands.",
+    )
+    workflow_work_package.add_argument("target", nargs="?", default=".")
+    workflow_work_package.add_argument(
+        "--skill-root",
+        action="append",
+        type=Path,
+        default=[],
+        help="Additional agent skill root to scan. Repeat for multiple roots.",
+    )
+    workflow_work_package.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    workflow_work_package.set_defaults(func=_cmd_work_package)
 
     env = sub.add_parser("env", help="Check local workflow environment.")
     env.add_argument(

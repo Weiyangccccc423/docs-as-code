@@ -58,6 +58,7 @@ Create the minimum structure needed for reliable docs-as-code work.
    make verify-check
    make governance-status
    make workflow-plan
+   make work-package
    make product-plan
    make design-plan
    make implementation-plan

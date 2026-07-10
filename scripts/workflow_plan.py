@@ -4,7 +4,8 @@ from pathlib import Path
 from typing import Any, Callable
 
 try:
-    from .bootstrap_tree import target_local_commands_payload
+    from .authority_skills import build_authority_skill_inventory
+    from .bootstrap_tree import WORKFLOW_PACK_SNAPSHOT_ROOT, target_local_commands_payload
     from .design_plan import (
         build_api_authoring,
         build_api_candidates,
@@ -23,7 +24,8 @@ try:
     from .state import load_state
     from .workflow_actions import next_actions_payload
 except ImportError:  # pragma: no cover - direct script execution
-    from bootstrap_tree import target_local_commands_payload
+    from authority_skills import build_authority_skill_inventory
+    from bootstrap_tree import WORKFLOW_PACK_SNAPSHOT_ROOT, target_local_commands_payload
     from design_plan import (
         build_api_authoring,
         build_api_candidates,
@@ -82,6 +84,17 @@ DESIGN_AUTHORING_BUILDERS: tuple[tuple[str, list[str], Callable[[Path], dict[str
         build_architecture_decisions_authoring,
     ),
 )
+DESIGN_WORK_PACKAGE_BUILDERS: dict[str, tuple[str, Callable[[Path], dict[str, object]]]] = {
+    "architecture": ("architecture-authoring", build_architecture_authoring),
+    "ui-interaction": ("ui-interaction-authoring", build_ui_interaction_authoring),
+    "api-contracts": ("api-authoring", build_api_authoring),
+    "backend-modules": ("backend-authoring", build_backend_authoring),
+    "data-model": ("data-model-authoring", build_data_model_authoring),
+    "frontend-modules": ("frontend-authoring", build_frontend_authoring),
+    "test-strategy": ("test-strategy-authoring", build_test_strategy_authoring),
+    "implementation-planning": ("implementation-planning-authoring", build_implementation_planning_authoring),
+    "architecture-decisions": ("architecture-decisions-authoring", build_architecture_decisions_authoring),
+}
 
 
 def build_workflow_plan(root: Path) -> dict[str, object]:
@@ -134,6 +147,462 @@ def build_workflow_plan(root: Path) -> dict[str, object]:
         "next_actions": next_actions_payload(state, cwd=str(root)),
         "errors": [],
     }
+
+
+def build_work_package(
+    root: Path,
+    *,
+    skill_roots: list[Path] | None = None,
+) -> dict[str, object]:
+    root = root.resolve()
+    explicit_skill_roots = list(skill_roots or [])
+    resolved_skill_roots = [root / ".agents/skills", root / ".codex/skills", *explicit_skill_roots]
+    state = load_state(root)
+    if not state:
+        errors = ["No governance state found."]
+        return {
+            "ok": False,
+            "schema_version": 1,
+            "target": str(root),
+            "workflow": "workflow-work-package",
+            "phase": "",
+            "package_available": False,
+            "status": "failed",
+            "blocked": True,
+            "can_start": False,
+            "stop_before_work": True,
+            "stop_reasons": errors,
+            "work_package": {},
+            "skill_readiness": _empty_work_package_skill_readiness(),
+            "next_action": {},
+            "refresh_command": _work_package_refresh_command(root, explicit_skill_roots),
+            "local_commands": [],
+            "next_actions": [],
+            "errors": errors,
+        }
+
+    phase = str(state.get("phase", ""))
+    package: dict[str, object] = {}
+    package_errors: list[str] = []
+    no_package_status = "phase_action_required"
+    if phase == PRODUCT_PHASE:
+        package, package_errors, no_package_status = _product_work_package(root)
+    elif phase == DESIGN_PHASE:
+        package, package_errors, no_package_status = _design_work_package(root)
+    elif phase == IMPLEMENTATION_PHASE:
+        package, package_errors, no_package_status = _implementation_work_package(root)
+
+    package_available = bool(package)
+    status = str(package.get("status", "")) if package_available else no_package_status
+    skill_readiness = _work_package_skill_readiness(
+        package.get("skill_requirements"),
+        skill_roots=resolved_skill_roots,
+    )
+    can_start = package_available and skill_readiness["ready"] is True and status != "complete"
+    stop_reasons = _work_package_stop_reasons(package_available, status, skill_readiness, package_errors)
+    next_actions = next_actions_payload(state, cwd=str(root))
+    next_action = _work_package_next_action(
+        root,
+        package,
+        skill_readiness,
+        list(next_actions) if isinstance(next_actions, list) else [],
+    )
+    errors = package_errors
+    return {
+        "ok": not errors,
+        "schema_version": 1,
+        "target": str(root),
+        "workflow": "workflow-work-package",
+        "phase": phase,
+        "package_available": package_available,
+        "status": status,
+        "blocked": status not in {"ready", "in_progress", "complete"} or skill_readiness["ready"] is not True,
+        "can_start": can_start,
+        "stop_before_work": bool(stop_reasons),
+        "stop_reasons": stop_reasons,
+        "work_package": package,
+        "skill_readiness": skill_readiness,
+        "next_action": next_action,
+        "refresh_command": _work_package_refresh_command(root, explicit_skill_roots),
+        "local_commands": target_local_commands_payload(cwd=str(root)),
+        "next_actions": next_actions,
+        "errors": errors,
+    }
+
+
+def _product_work_package(root: Path) -> tuple[dict[str, object], list[str], str]:
+    payload = build_product_plan(root)
+    if payload.get("ok") is not True:
+        return {}, _string_list(payload.get("errors")), "failed"
+    tasks = _dict_items(payload.get("manual_authoring_tasks"))
+    active_work = _dict_value(payload.get("active_work"))
+    task = _selected_work_item(tasks, str(active_work.get("task_id", "")))
+    if not task:
+        return {}, [], "phase_action_required"
+    primary_path = str(task.get("path", ""))
+    source_documents = _string_list(task.get("source_documents"))
+    references = _target_read_paths(root, ["references/product-requirements-checklist.md"])
+    required_evidence = _dict_items(task.get("required_evidence"))
+    blockers = [item for item in required_evidence if item.get("status") != "satisfied"]
+    return {
+        "package_id": _package_id(PRODUCT_PHASE, "product-plan", str(task.get("task_id", ""))),
+        "kind": "product-authoring",
+        "phase": PRODUCT_PHASE,
+        "queue_id": "product-plan",
+        "work_id": str(task.get("task_id", "")),
+        "status": str(active_work.get("status", task.get("status", "decision_required"))),
+        "title": str(task.get("title", "")),
+        "objective": str(task.get("decision", "")),
+        "decision_policy": str(task.get("decision_policy", "do_not_guess_product_meaning")),
+        "source_documents": source_documents,
+        "references": references,
+        "read_order": _dedupe_strings([*source_documents, *references]),
+        "write_scope": {
+            "mode": "declared_product_document_and_traceability",
+            "primary_paths": [primary_path] if primary_path else [],
+            "supporting_paths": [
+                "docs/product/README.md",
+                "docs/product/core/product-meta.md",
+                "docs/unresolved.md",
+                "docs/glossary.md",
+            ],
+            "requires_codebase_mapping": False,
+        },
+        "required_sections": _string_list(task.get("required_sections")),
+        "required_links": _dict_items(task.get("required_links")),
+        "required_evidence": required_evidence,
+        "open_decisions": _string_list(task.get("open_decisions")),
+        "blockers": blockers,
+        "repair_actions": _dict_items(task.get("evidence_repair_actions")),
+        "action_options": _string_list(task.get("action_options")),
+        "skill_requirements": _dict_items(task.get("skill_requirements")),
+        "authority_skill_requirements": _dict_items(task.get("authority_skill_requirements")),
+        "skill_loading_plan": _dict_value(task.get("skill_loading_plan")),
+        "execution": _dict_value(task.get("execution")),
+        "steps": _dict_items(task.get("steps")),
+        "verify_command": _dict_value(active_work.get("verify_command")),
+        "refresh_command": _dict_value(active_work.get("refresh_command")),
+    }, [], ""
+
+
+def _design_work_package(root: Path) -> tuple[dict[str, object], list[str], str]:
+    design_plan = build_design_plan(root)
+    if design_plan.get("ok") is not True:
+        return {}, _string_list(design_plan.get("errors")), "failed"
+    tracks = _dict_items(design_plan.get("tracks"))
+    track = next((item for item in tracks if item.get("status") != "ready_for_review"), {})
+    if not track:
+        return {}, [], "complete"
+    track_id = str(track.get("id", ""))
+    builder_entry = DESIGN_WORK_PACKAGE_BUILDERS.get(track_id)
+    if builder_entry is None:
+        return {}, [f"No design authoring builder registered for track {track_id or '<missing>'}."], "failed"
+    queue_id, builder = builder_entry
+    authoring_payload = builder(root)
+    if authoring_payload.get("ok") is not True:
+        return {}, _string_list(authoring_payload.get("errors")), "failed"
+    tasks = _dict_items(authoring_payload.get("authoring_tasks"))
+    active_work = _dict_value(authoring_payload.get("active_work"))
+    task = _selected_work_item(tasks, str(active_work.get("task_id", "")))
+    work_id = str(task.get("task_id", track_id))
+    source_documents = _string_list(authoring_payload.get("source_documents"))
+    references = _target_read_paths(root, _string_list(track.get("references")))
+    primary_paths = _string_list(track.get("documents"))
+    return {
+        "package_id": _package_id(DESIGN_PHASE, queue_id, work_id),
+        "kind": "design-authoring",
+        "phase": DESIGN_PHASE,
+        "queue_id": queue_id,
+        "track_id": track_id,
+        "track_sequence": track.get("sequence", 0),
+        "work_id": work_id,
+        "status": str(track.get("status", "authoring_blocked")),
+        "title": str(track.get("title", task.get("title", ""))),
+        "objective": str(track.get("purpose", "")),
+        "procedure": str(track.get("procedure", "")),
+        "decision_policy": str(authoring_payload.get("decision_policy", "")),
+        "acceptance_id": str(task.get("acceptance_id", "")),
+        "source_documents": source_documents,
+        "references": references,
+        "read_order": _dedupe_strings([*source_documents, *references]),
+        "write_scope": {
+            "mode": "declared_design_track_documents",
+            "primary_paths": primary_paths,
+            "supporting_paths": ["docs/unresolved.md"],
+            "requires_codebase_mapping": False,
+        },
+        "documents": _dict_items(task.get("documents")),
+        "required_links": _dict_items(task.get("required_links")),
+        "open_decisions": _string_list(task.get("open_decisions")),
+        "blockers": _dict_items(track.get("blockers")),
+        "repair_actions": _dict_items(task.get("link_repair_actions")),
+        "skill_requirements": _dict_items(track.get("skill_requirements")),
+        "authority_skill_requirements": _dict_items(track.get("authority_skill_requirements")),
+        "skill_loading_plan": _dict_value(track.get("skill_loading_plan")),
+        "execution": _dict_value(task.get("execution")),
+        "steps": _dict_items(task.get("steps")) or _dict_items(track.get("steps")),
+        "verify_command": _dict_value(active_work.get("verify_command")),
+        "refresh_command": _dict_value(active_work.get("refresh_command")),
+    }, [], ""
+
+
+def _implementation_work_package(root: Path) -> tuple[dict[str, object], list[str], str]:
+    payload = build_implementation_plan(root)
+    if payload.get("ok") is not True:
+        return {}, _string_list(payload.get("errors")), "failed"
+    summary = _dict_value(payload.get("implementation_summary"))
+    if summary.get("execution_complete") is True:
+        return {}, [], "complete"
+    tasks = _dict_items(payload.get("tasks"))
+    active_work = _dict_value(payload.get("active_work"))
+    task = _selected_work_item(tasks, str(active_work.get("task_id", "")))
+    if not task:
+        return {}, ["Implementation plan did not expose a selected task."], "failed"
+    blockers = _dict_items(task.get("blockers"))
+    next_repair_action = _dict_value(active_work.get("next_repair_action"))
+    repair_actions = [next_repair_action] if next_repair_action else []
+    references = _target_read_paths(
+        root,
+        [
+            "references/implementation-readiness-checklist.md",
+            "references/implementation-execution-checklist.md",
+        ],
+    )
+    source_documents = _string_list(task.get("read_order"))
+    read_order = _dedupe_strings([*source_documents, *references])
+    return {
+        "package_id": _package_id(IMPLEMENTATION_PHASE, "implementation-plan", str(task.get("task_id", ""))),
+        "kind": "implementation-task",
+        "phase": IMPLEMENTATION_PHASE,
+        "queue_id": "implementation-plan",
+        "work_id": str(task.get("task_id", "")),
+        "status": str(active_work.get("status", task.get("normalized_status", "blocked"))),
+        "title": str(task.get("title", "")),
+        "objective": "Implement exactly one selected task and preserve passing local verification evidence.",
+        "decision_policy": str(payload.get("decision_policy", "execute_exactly_one_ready_task")),
+        "acceptance_id": str(task.get("acceptance_id", "")),
+        "source_documents": source_documents,
+        "references": references,
+        "read_order": read_order,
+        "write_scope": {
+            "mode": "selected_task_code_surface_after_repository_mapping",
+            "primary_paths": [],
+            "supporting_paths": [
+                "docs/development/01-roadmap.md",
+                "docs/development/02-task-board.md",
+                "docs/development/03-verification-log.md",
+                "docs/agent-workflow/task-handoff.md",
+            ],
+            "requires_codebase_mapping": True,
+        },
+        "source_references": _dict_value(task.get("source_references")),
+        "open_decisions": _string_list(task.get("open_decisions")),
+        "blockers": blockers,
+        "repair_actions": repair_actions,
+        "skill_requirements": _dict_items(task.get("skill_requirements")),
+        "authority_skill_requirements": _dict_items(task.get("authority_skill_requirements")),
+        "skill_loading_plan": _dict_value(task.get("skill_loading_plan")),
+        "execution": _dict_value(task.get("execution")),
+        "steps": _dict_items(task.get("steps")),
+        "gate_command": _dict_value(active_work.get("gate_command")),
+        "start_command": _dict_value(active_work.get("start_command")),
+        "verify_command": _dict_value(active_work.get("verify_command")),
+        "closeout_command": _dict_value(active_work.get("closeout_command")),
+        "refresh_command": _dict_value(active_work.get("refresh_command")),
+    }, [], ""
+
+
+def _work_package_skill_readiness(
+    requirements: object,
+    *,
+    skill_roots: list[Path],
+) -> dict[str, object]:
+    requirement_list = _dict_items(requirements)
+    if not requirement_list:
+        return _empty_work_package_skill_readiness()
+    needs_authority_inventory = any(
+        requirement.get("type") != "local-workflow"
+        for requirement in requirement_list
+    )
+    inventory = (
+        build_authority_skill_inventory(skill_roots=skill_roots, strict=False)
+        if needs_authority_inventory
+        else {}
+    )
+    inventory_by_name = {
+        str(skill.get("name", "")): skill
+        for skill in _dict_items(inventory.get("skills"))
+    }
+    resolved: list[dict[str, object]] = []
+    missing_local: list[str] = []
+    missing_authority: list[str] = []
+    for requirement in requirement_list:
+        name = str(requirement.get("name", ""))
+        requirement_type = str(requirement.get("type", ""))
+        item = dict(requirement)
+        if requirement_type == "local-workflow":
+            available = requirement.get("available_in_workflow_pack") is True
+            item["available"] = available
+            item["resolved_path"] = str(requirement.get("path", "")) if available else ""
+            if not available and name:
+                missing_local.append(name)
+        else:
+            installed = inventory_by_name.get(name, {})
+            available = installed.get("available_in_agent_environment") is True
+            item["available"] = available
+            item["available_in_agent_environment"] = available
+            item["resolved_path"] = str(installed.get("skill_path", "")) if available else ""
+            if not available and name:
+                missing_authority.append(name)
+        resolved.append(item)
+    missing_local = _dedupe_strings(missing_local)
+    missing_authority = _dedupe_strings(missing_authority)
+    return {
+        "ready": not missing_local and not missing_authority,
+        "required_skill_count": len(resolved),
+        "available_skill_count": sum(1 for item in resolved if item.get("available") is True),
+        "missing_local_workflow_skills": missing_local,
+        "missing_authority_routing_skills": missing_authority,
+        "authority_skill_roots": _string_list(inventory.get("available_skill_roots")),
+        "resolved_requirements": resolved,
+        "missing_policy": "load_from_agent_environment_or_stop_before_guessing",
+    }
+
+
+def _empty_work_package_skill_readiness() -> dict[str, object]:
+    return {
+        "ready": True,
+        "required_skill_count": 0,
+        "available_skill_count": 0,
+        "missing_local_workflow_skills": [],
+        "missing_authority_routing_skills": [],
+        "authority_skill_roots": [],
+        "resolved_requirements": [],
+        "missing_policy": "load_from_agent_environment_or_stop_before_guessing",
+    }
+
+
+def _work_package_next_action(
+    root: Path,
+    package: dict[str, object],
+    skill_readiness: dict[str, object],
+    workflow_next_actions: list[object],
+) -> dict[str, object]:
+    if not package:
+        return next((dict(action) for action in workflow_next_actions if isinstance(action, dict)), {})
+    missing_local = _string_list(skill_readiness.get("missing_local_workflow_skills"))
+    if missing_local:
+        return {
+            "kind": "repair-workflow-pack",
+            "skills": missing_local,
+            "command": _command(
+                root,
+                "runtime-refresh-check",
+                "Preview target-local workflow runtime repair before loading missing local skills.",
+                ["bin/governance", "runtime", "refresh", ".", "--check", "--json"],
+            ),
+        }
+    missing_authority = _string_list(skill_readiness.get("missing_authority_routing_skills"))
+    if missing_authority:
+        return {
+            "kind": "load-authority-skills",
+            "skills": missing_authority,
+            "approval_required": True,
+            "missing_policy": "load_from_agent_environment_or_stop_before_guessing",
+        }
+    repair_actions = _dict_items(package.get("repair_actions"))
+    if repair_actions:
+        return {"kind": "repair", "source": "repair_actions", "action": repair_actions[0]}
+    blockers = _dict_items(package.get("blockers"))
+    if blockers:
+        return {"kind": "repair", "source": "blockers", "action": blockers[0]}
+    if package.get("kind") == "implementation-task" and package.get("status") == "ready":
+        return {
+            "kind": "claim-implementation-task",
+            "command": _dict_value(package.get("start_command")),
+        }
+    open_decisions = _string_list(package.get("open_decisions"))
+    if open_decisions:
+        return {
+            "kind": "resolve-decision",
+            "decision": open_decisions[0],
+            "decision_policy": str(package.get("decision_policy", "")),
+        }
+    steps = _dict_items(package.get("steps"))
+    return {
+        "kind": "execute-work-package",
+        "step": steps[0] if steps else {},
+    }
+
+
+def _work_package_stop_reasons(
+    package_available: bool,
+    status: str,
+    skill_readiness: dict[str, object],
+    errors: list[str],
+) -> list[str]:
+    reasons = list(errors)
+    if not package_available and status != "complete" and not errors:
+        reasons.append("no_authoring_work_package_for_current_phase")
+    if _string_list(skill_readiness.get("missing_local_workflow_skills")):
+        reasons.append("required_local_workflow_skills_missing")
+    if _string_list(skill_readiness.get("missing_authority_routing_skills")):
+        reasons.append("required_authority_routing_skills_missing")
+    return _dedupe_strings(reasons)
+
+
+def _work_package_refresh_command(root: Path, skill_roots: list[Path]) -> dict[str, object]:
+    argv = ["bin/governance", "workflow", "work-package", "."]
+    for skill_root in skill_roots:
+        argv.extend(["--skill-root", str(skill_root.expanduser().resolve())])
+    argv.append("--json")
+    return _command(
+        root,
+        "refresh-work-package",
+        "Rebuild the single active work package from current repository evidence.",
+        argv,
+    )
+
+
+def _selected_work_item(items: list[dict[str, object]], work_id: str) -> dict[str, object]:
+    if work_id:
+        for item in items:
+            if item.get("task_id") == work_id:
+                return item
+    return items[0] if items else {}
+
+
+def _package_id(phase: str, queue_id: str, work_id: str) -> str:
+    return ":".join(part for part in (phase, queue_id, work_id) if part)
+
+
+def _dict_items(value: object) -> list[dict[str, object]]:
+    return [dict(item) for item in value if isinstance(item, dict)] if isinstance(value, list) else []
+
+
+def _dict_value(value: object) -> dict[str, object]:
+    return dict(value) if isinstance(value, dict) else {}
+
+
+def _string_list(value: object) -> list[str]:
+    return [str(item) for item in value if isinstance(item, str) and item] if isinstance(value, list) else []
+
+
+def _dedupe_strings(values: list[str]) -> list[str]:
+    return list(dict.fromkeys(value for value in values if value))
+
+
+def _target_read_paths(root: Path, values: list[str]) -> list[str]:
+    resolved: list[str] = []
+    snapshot_root = Path(WORKFLOW_PACK_SNAPSHOT_ROOT)
+    for value in values:
+        rel = Path(value)
+        if not rel.is_absolute() and not (root / rel).is_file():
+            snapshot_rel = snapshot_root / rel
+            if (root / snapshot_rel).is_file():
+                rel = snapshot_rel
+        resolved.append(rel.as_posix())
+    return _dedupe_strings(resolved)
 
 
 def _product_plan_queue(root: Path) -> dict[str, object]:

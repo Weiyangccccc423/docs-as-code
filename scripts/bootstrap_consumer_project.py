@@ -351,6 +351,8 @@ def run_consumer_bootstrap(
             "auto_repair_env": auto_repair_env,
             "strict_authority_skills": strict_authority_skills,
             "env_auto_repair": env_auto_repair,
+            "work_package_generated": False,
+            "work_package_ok": False,
             "advance_product_structuring_requested": advance_product_structuring,
             "advanced_product_structuring": False,
             "product_scaffold_preview_requested": product_scaffold_preview,
@@ -652,6 +654,16 @@ def run_consumer_bootstrap(
                                                                     ],
                                                                     expected_phase="implementation",
                                                                 )
+        work_package = _run_json(
+            steps,
+            "target_local_work_package",
+            ["make", "work-package"],
+            target,
+        )
+        _require(work_package.get("ok") is True, "target-local work package failed", payload=work_package)
+        payload["work_package_generated"] = True
+        payload["work_package_ok"] = True
+        payload["work_package"] = work_package
         if isinstance(status_payload.get("local_commands"), list):
             payload["local_commands"] = status_payload["local_commands"]
         elif isinstance(init_payload.get("local_commands"), list):
@@ -704,6 +716,8 @@ def run_consumer_bootstrap(
             "auto_repair_env": auto_repair_env,
             "strict_authority_skills": strict_authority_skills,
             "env_auto_repair": env_auto_repair,
+            "work_package_generated": False,
+            "work_package_ok": False,
             "authority_skill_inventory": error.payload
             if error.message == "authority skill inventory failed" and error.payload is not None
             else {},

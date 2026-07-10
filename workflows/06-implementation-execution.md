@@ -24,6 +24,7 @@ Load:
    ```bash
    bin/governance gate implementation <target> --json
    bin/governance verify <target> --check --json
+   bin/governance workflow work-package <target> --json
    bin/governance implementation plan <target> --json
    ```
 
@@ -34,7 +35,10 @@ Load:
    bin/governance verify . --check --json
    bin/governance implementation plan . --json
    make implementation-plan
+   make work-package
    ```
+
+   The implementation work package must select the same `TASK-NNN`, expose `requires_codebase_mapping: true`, resolve all required local and authority skills, and return `claim-implementation-task` before a Ready task is edited.
 
    Stop on `ok: false`; route repair through `verifying-governance-docs` and the owning design or planning skill before editing code. When these checks come from consumer bootstrap `implementation_readiness_preview`, follow its ordered `blockers[]`, `readiness_summary`, `next_blocker`, and `next_repair_action` instead of independently reordering verify findings, gate requirements, and implementation-plan errors.
 

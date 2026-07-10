@@ -17,9 +17,15 @@ TARGET_LOCAL_MAKE_STEP_IDS = [
     "make_verify_check",
     "make_governance_status",
     "make_workflow_plan_initialized",
+    "make_work_package_initialized",
     "make_workflow_plan_product_structuring",
+    "make_work_package_product_structuring",
     "make_workflow_plan_design_derivation",
+    "make_work_package_design_derivation",
+    "make_work_package_design_complete",
     "make_workflow_plan_implementation",
+    "make_work_package_implementation",
+    "make_work_package_complete_after_runtime_refresh",
     "make_product_plan",
     "make_design_plan",
     "make_implementation_plan",
@@ -170,9 +176,44 @@ def _artifact_smoke_fresh_target_init_ok(payload: dict[str, object] | None) -> b
         and fresh_target_init.get("target_local_verify_ok") is True
         and fresh_target_init.get("target_local_status_ok") is True
         and fresh_target_init.get("target_local_workflow_plan_ok") is True
+        and fresh_target_init.get("target_local_work_package_ok") is True
         and fresh_target_init.get("runtime_manifest") is True
         and fresh_target_init.get("workflow_pack_snapshot") is True
         and fresh_target_init.get("product_source_manifest") is True
+    )
+
+
+def _artifact_smoke_work_package_ok(
+    bootstrap_summary: dict[str, object],
+    *,
+    expected_phase: str,
+    expected_kind: str,
+    expected_queue_id: str,
+) -> bool:
+    work_package = bootstrap_summary.get("work_package")
+    if not isinstance(work_package, dict):
+        return False
+    can_start = work_package.get("can_start")
+    stop_before_work = work_package.get("stop_before_work")
+    skill_ready = work_package.get("skill_ready")
+    return (
+        work_package.get("ok") is True
+        and work_package.get("phase") == expected_phase
+        and work_package.get("kind") == expected_kind
+        and work_package.get("queue_id") == expected_queue_id
+        and isinstance(work_package.get("work_id"), str)
+        and bool(work_package.get("work_id"))
+        and isinstance(work_package.get("status"), str)
+        and bool(work_package.get("status"))
+        and isinstance(work_package.get("next_action_kind"), str)
+        and bool(work_package.get("next_action_kind"))
+        and isinstance(can_start, bool)
+        and isinstance(stop_before_work, bool)
+        and isinstance(skill_ready, bool)
+        and can_start is skill_ready
+        and stop_before_work is (not skill_ready)
+        and isinstance(work_package.get("missing_local_workflow_skills"), list)
+        and isinstance(work_package.get("missing_authority_routing_skills"), list)
     )
 
 
@@ -188,6 +229,12 @@ def _artifact_smoke_consumer_bootstrap_ok(payload: dict[str, object] | None) -> 
         and consumer_bootstrap.get("workflow_preset") == "product-structure"
         and _artifact_smoke_bootstrap_authority_inventory_ok(consumer_bootstrap)
         and _artifact_smoke_bootstrap_env_auto_repair_ok(consumer_bootstrap)
+        and _artifact_smoke_work_package_ok(
+            consumer_bootstrap,
+            expected_phase="product-structuring",
+            expected_kind="product-authoring",
+            expected_queue_id="product-plan",
+        )
         and consumer_bootstrap.get("auto_repair_env") is True
         and consumer_bootstrap.get("product_structure_apply_ok") is True
         and consumer_bootstrap.get("goals_chapter") is True
@@ -209,6 +256,12 @@ def _artifact_smoke_consumer_design_scaffold_ok(payload: dict[str, object] | Non
         and design_scaffold.get("workflow_preset") == "design-scaffold"
         and _artifact_smoke_bootstrap_authority_inventory_ok(design_scaffold)
         and _artifact_smoke_bootstrap_env_auto_repair_ok(design_scaffold)
+        and _artifact_smoke_work_package_ok(
+            design_scaffold,
+            expected_phase="design-derivation",
+            expected_kind="design-authoring",
+            expected_queue_id="architecture-authoring",
+        )
         and design_scaffold.get("auto_repair_env") is True
         and design_scaffold.get("product_structure_apply_ok") is True
         and design_scaffold.get("advanced_design_derivation") is True
@@ -233,6 +286,12 @@ def _artifact_smoke_consumer_design_routing_ok(payload: dict[str, object] | None
         and design_routing.get("workflow_preset") == "design-routing"
         and _artifact_smoke_bootstrap_authority_inventory_ok(design_routing)
         and _artifact_smoke_bootstrap_env_auto_repair_ok(design_routing)
+        and _artifact_smoke_work_package_ok(
+            design_routing,
+            expected_phase="design-derivation",
+            expected_kind="design-authoring",
+            expected_queue_id="architecture-authoring",
+        )
         and design_routing.get("design_scaffold_apply_ok") is True
         and design_routing.get("design_authoring_preview_ok") is True
         and design_routing.get("queue_count") == 9
@@ -329,6 +388,12 @@ def _artifact_smoke_consumer_implementation_routing_ok(payload: dict[str, object
         and implementation_routing.get("workflow_preset") == "implementation-routing"
         and _artifact_smoke_bootstrap_authority_inventory_ok(implementation_routing)
         and _artifact_smoke_bootstrap_env_auto_repair_ok(implementation_routing)
+        and _artifact_smoke_work_package_ok(
+            implementation_routing,
+            expected_phase="design-derivation",
+            expected_kind="design-authoring",
+            expected_queue_id="architecture-authoring",
+        )
         and implementation_routing.get("design_authoring_preview_ok") is True
         and implementation_routing.get("implementation_readiness_preview_ok") is True
         and implementation_routing.get("readiness_previewed") is True

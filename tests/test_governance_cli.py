@@ -1736,7 +1736,7 @@ class GovernanceCliTest(unittest.TestCase):
                 payload["next_actions"],
             )
             runtime_local_commands = {command["make_target"]: command for command in payload["local_commands"]}
-            for make_target in ("verify-check", "workflow-plan"):
+            for make_target in ("verify-check", "workflow-plan", "work-package"):
                 command = runtime_local_commands[make_target]
                 self.assertFalse(command["writes_state"])
                 self.assertFalse(command["approval_required"])
@@ -1757,6 +1757,14 @@ class GovernanceCliTest(unittest.TestCase):
                 if make_target == "workflow-plan":
                     self.assertEqual("initialized", command_payload["phase"])
                     self.assertEqual("advance-product-structuring-check", command_payload["next_actions"][0]["id"])
+                if make_target == "work-package":
+                    self.assertEqual("workflow-work-package", command_payload["workflow"])
+                    self.assertEqual("initialized", command_payload["phase"])
+                    self.assertFalse(command_payload["package_available"])
+                    self.assertEqual("phase_action_required", command_payload["status"])
+                    self.assertEqual("advance-product-structuring-check", command_payload["next_action"]["id"])
+
+            self.assertTrue((target / "scripts/authority_skills.py").is_file())
 
             runtime_preflight = next(
                 action for action in payload["next_actions"] if action["id"] == "advance-product-structuring-check"
@@ -2700,6 +2708,78 @@ class GovernanceCliTest(unittest.TestCase):
                 product_queue["summary"]["active_work"]["refresh_command"]["argv"],
             )
 
+            work_package_result = subprocess.run(
+                ["bin/governance", "workflow", "work-package", ".", "--json"],
+                cwd=target,
+                env=_agent_env(),
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, work_package_result.returncode, work_package_result.stderr)
+            work_package_payload = json.loads(work_package_result.stdout)
+            self.assertTrue(work_package_payload["ok"])
+            self.assertTrue(work_package_payload["package_available"])
+            self.assertEqual("product-structuring", work_package_payload["phase"])
+            self.assertEqual("decision_required", work_package_payload["status"])
+            self.assertTrue(work_package_payload["can_start"])
+            package = work_package_payload["work_package"]
+            self.assertEqual("product-authoring", package["kind"])
+            self.assertEqual("product-plan", package["queue_id"])
+            self.assertEqual("PRODUCT-AUTHOR-001", package["work_id"])
+            self.assertEqual("do_not_guess_product_meaning", package["decision_policy"])
+            self.assertEqual(
+                ["docs/product/01-background-and-problems.md"],
+                package["write_scope"]["primary_paths"],
+            )
+            self.assertIn("docs/product/core/PRD.md", package["read_order"])
+            self.assertIn(
+                "docs/agent-workflow/workflow-pack/references/product-requirements-checklist.md",
+                package["read_order"],
+            )
+            self.assertTrue(all((target / path).is_file() for path in package["read_order"]))
+            self.assertEqual([], work_package_payload["skill_readiness"]["missing_authority_routing_skills"])
+            local_requirements = [
+                requirement
+                for requirement in work_package_payload["skill_readiness"]["resolved_requirements"]
+                if requirement["type"] == "local-workflow"
+            ]
+            self.assertTrue(local_requirements)
+            self.assertTrue(
+                all(
+                    requirement["resolved_path"].startswith(
+                        "docs/agent-workflow/workflow-pack/skills/"
+                    )
+                    and (target / requirement["resolved_path"]).is_file()
+                    for requirement in local_requirements
+                )
+            )
+            self.assertEqual("repair", work_package_payload["next_action"]["kind"])
+            self.assertEqual(
+                "repair-required-evidence-prd-source-evidence",
+                work_package_payload["next_action"]["action"]["id"],
+            )
+
+            missing_skill = target / local_requirements[0]["resolved_path"]
+            missing_skill.unlink()
+            missing_skill_result = subprocess.run(
+                ["bin/governance", "workflow", "work-package", ".", "--json"],
+                cwd=target,
+                env=_agent_env(),
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, missing_skill_result.returncode, missing_skill_result.stderr)
+            missing_skill_payload = json.loads(missing_skill_result.stdout)
+            self.assertFalse(missing_skill_payload["can_start"])
+            self.assertTrue(missing_skill_payload["stop_before_work"])
+            self.assertIn(
+                local_requirements[0]["name"],
+                missing_skill_payload["skill_readiness"]["missing_local_workflow_skills"],
+            )
+            self.assertEqual("repair-workflow-pack", missing_skill_payload["next_action"]["kind"])
+
     def test_workflow_plan_reports_design_authoring_summaries(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "target"
@@ -2898,6 +2978,68 @@ class GovernanceCliTest(unittest.TestCase):
             )
             self.assertFalse(commands["ui-interaction-authoring"]["writes_state"])
 
+            isolated_env = _agent_env()
+            isolated_env["HOME"] = str(Path(tmp) / "isolated-home")
+            isolated_env["CODEX_HOME"] = str(Path(tmp) / "isolated-codex")
+            work_package_result = subprocess.run(
+                [sys.executable, str(CLI), "workflow", "work-package", str(target), "--json"],
+                env=isolated_env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, work_package_result.returncode, work_package_result.stderr)
+            work_package_payload = json.loads(work_package_result.stdout)
+            self.assertTrue(work_package_payload["ok"])
+            self.assertTrue(work_package_payload["package_available"])
+            self.assertEqual("design-derivation", work_package_payload["phase"])
+            self.assertEqual("authoring_blocked", work_package_payload["status"])
+            self.assertFalse(work_package_payload["can_start"])
+            self.assertTrue(work_package_payload["stop_before_work"])
+            package = work_package_payload["work_package"]
+            self.assertEqual("design-authoring", package["kind"])
+            self.assertEqual("architecture-authoring", package["queue_id"])
+            self.assertEqual("architecture", package["track_id"])
+            self.assertEqual("ARCHITECTURE-AUTHOR-001", package["work_id"])
+            self.assertEqual(
+                [
+                    "docs/architecture/01-system-context.md",
+                    "docs/architecture/02-containers.md",
+                    "docs/architecture/03-quality-attributes.md",
+                ],
+                package["write_scope"]["primary_paths"],
+            )
+            self.assertIn(
+                "docs/agent-workflow/workflow-pack/references/architecture-methods.md",
+                package["read_order"],
+            )
+            self.assertTrue(all((target / path).is_file() for path in package["read_order"]))
+            self.assertIn("senior-architect", work_package_payload["skill_readiness"]["missing_authority_routing_skills"])
+            self.assertEqual("load-authority-skills", work_package_payload["next_action"]["kind"])
+            self.assertIn("senior-architect", work_package_payload["next_action"]["skills"])
+
+            for requirement in package["authority_skill_requirements"]:
+                skill = str(requirement["name"])
+                skill_file = target / ".agents/skills" / skill / "SKILL.md"
+                skill_file.parent.mkdir(parents=True, exist_ok=True)
+                skill_file.write_text(f"---\nname: {skill}\n---\n\n# {skill}\n", encoding="utf-8")
+            local_skill_result = subprocess.run(
+                [sys.executable, str(CLI), "workflow", "work-package", str(target), "--json"],
+                env=isolated_env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, local_skill_result.returncode, local_skill_result.stderr)
+            local_skill_payload = json.loads(local_skill_result.stdout)
+            self.assertTrue(local_skill_payload["can_start"])
+            self.assertFalse(local_skill_payload["stop_before_work"])
+            self.assertEqual([], local_skill_payload["skill_readiness"]["missing_authority_routing_skills"])
+            resolved_requirements = _requirements_by_name(
+                local_skill_payload["skill_readiness"]["resolved_requirements"]
+            )
+            self.assertIn(".agents/skills/senior-architect/SKILL.md", resolved_requirements["senior-architect"]["resolved_path"])
+
     def test_implementation_plan_reports_ready_task_execution_plan(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = _implementation_ready_target(self, tmp)
@@ -3013,6 +3155,47 @@ class GovernanceCliTest(unittest.TestCase):
                     "refresh-implementation-plan",
                 ],
                 [step["id"] for step in task["steps"]],
+            )
+
+            isolated_home = Path(tmp) / "agent-home"
+            for requirement in payload["authority_skill_requirements"]:
+                skill = str(requirement["name"])
+                skill_file = isolated_home / ".codex/skills" / skill / "SKILL.md"
+                skill_file.parent.mkdir(parents=True, exist_ok=True)
+                skill_file.write_text(f"---\nname: {skill}\n---\n\n# {skill}\n", encoding="utf-8")
+            isolated_env = _agent_env()
+            isolated_env["HOME"] = str(isolated_home)
+            isolated_env["CODEX_HOME"] = str(isolated_home / ".codex")
+            work_package_result = subprocess.run(
+                [sys.executable, str(CLI), "workflow", "work-package", str(target), "--json"],
+                env=isolated_env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, work_package_result.returncode, work_package_result.stderr)
+            work_package_payload = json.loads(work_package_result.stdout)
+            self.assertTrue(work_package_payload["ok"])
+            self.assertTrue(work_package_payload["package_available"])
+            self.assertEqual("implementation", work_package_payload["phase"])
+            self.assertEqual("ready", work_package_payload["status"])
+            self.assertTrue(work_package_payload["can_start"])
+            self.assertFalse(work_package_payload["stop_before_work"])
+            package = work_package_payload["work_package"]
+            self.assertEqual("implementation-task", package["kind"])
+            self.assertEqual("implementation-plan", package["queue_id"])
+            self.assertEqual("TASK-001", package["work_id"])
+            self.assertTrue(package["write_scope"]["requires_codebase_mapping"])
+            self.assertIn(
+                "docs/agent-workflow/workflow-pack/references/implementation-execution-checklist.md",
+                package["read_order"],
+            )
+            self.assertTrue(all((target / path).is_file() for path in package["read_order"]))
+            self.assertEqual([], work_package_payload["skill_readiness"]["missing_authority_routing_skills"])
+            self.assertEqual("claim-implementation-task", work_package_payload["next_action"]["kind"])
+            self.assertEqual(
+                ["bin/governance", "implementation", "start", ".", "--task", "TASK-001", "--json"],
+                work_package_payload["next_action"]["command"]["argv"],
             )
 
     def test_implementation_start_reports_in_progress_status_sync_plan(self) -> None:

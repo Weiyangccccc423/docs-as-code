@@ -145,6 +145,11 @@ class ConsumerBootstrapTest(unittest.TestCase):
             self.assertTrue(payload["target_local"]["status_ok"])
             self.assertTrue(payload["target_local"]["workflow_plan_ok"])
             self.assertEqual("initialized", payload["target_local"]["phase"])
+            self.assertTrue(payload["work_package_ok"])
+            self.assertEqual("workflow-work-package", payload["work_package"]["workflow"])
+            self.assertEqual("initialized", payload["work_package"]["phase"])
+            self.assertFalse(payload["work_package"]["package_available"])
+            self.assertEqual("phase_action_required", payload["work_package"]["status"])
             self.assertEqual("explicit", payload["target_local"]["product_selection"])
             self.assertTrue((target / "bin/governance").is_file())
             self.assertTrue((target / "scripts/governance_cli.py").is_file())
@@ -159,6 +164,7 @@ class ConsumerBootstrapTest(unittest.TestCase):
             self.assertIn("target_local_verify_check", step_ids)
             self.assertIn("target_local_governance_status", step_ids)
             self.assertIn("target_local_workflow_plan", step_ids)
+            self.assertIn("target_local_work_package", step_ids)
 
     def test_strict_authority_skills_blocks_bootstrap_when_agent_skills_are_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1186,6 +1192,14 @@ class ConsumerBootstrapTest(unittest.TestCase):
             self.assertEqual(first_active_queue["queue_id"], preview["active_work"]["queue_id"])
             self.assertEqual(first_active_queue["sequence"], preview["active_work"]["queue_sequence"])
             self.assertEqual(first_active_queue["status"], preview["active_work"]["status"])
+            self.assertTrue(payload["work_package_ok"])
+            self.assertEqual("design-derivation", payload["work_package"]["phase"])
+            self.assertTrue(payload["work_package"]["package_available"])
+            self.assertEqual("design-authoring", payload["work_package"]["work_package"]["kind"])
+            self.assertEqual(
+                "architecture-authoring",
+                payload["work_package"]["work_package"]["queue_id"],
+            )
             architecture = preview["queues"]["architecture-authoring"]
             self.assertTrue(architecture["ok"])
             self.assertEqual("do_not_guess_architecture_boundaries", architecture["decision_policy"])

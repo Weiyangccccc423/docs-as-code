@@ -713,10 +713,17 @@ DRY_RUN_WORKFLOW_REQUIRED_PHRASES = (
     "make_verify_check",
     "make_governance_status",
     "make_workflow_plan_initialized",
+    "make_work_package_initialized",
     "make_workflow_plan_product_structuring",
+    "make_work_package_product_structuring",
     "make_workflow_plan_design_derivation",
+    "make_work_package_design_derivation",
+    "make_work_package_design_complete",
     "make_workflow_plan_implementation",
+    "make_work_package_implementation",
+    "make_work_package_complete_after_runtime_refresh",
     '["make", "workflow-plan"]',
+    '["make", "work-package"]',
     '"scaffold"',
     '"product"',
     "product_plan",
@@ -928,6 +935,7 @@ CONSUMER_BOOTSTRAP_REQUIRED_PHRASES = (
     '"target_local_verify_check",',
     '"target_local_governance_status",',
     '"target_local_workflow_plan",',
+    '"target_local_work_package",',
     "advance_product_structuring_check",
     "advance_product_structuring",
     "target_local_product_plan",
@@ -1069,6 +1077,9 @@ CONSUMER_BOOTSTRAP_REQUIRED_PHRASES = (
     "design_authoring_preview_requested",
     "design_authoring_previewed",
     "design_authoring_preview_ok",
+    "work_package_generated",
+    "work_package_ok",
+    "work_package",
     "implementation_readiness_preview_requested",
     "implementation_readiness_previewed",
     "implementation_readiness_preview_ok",
@@ -1437,6 +1448,7 @@ ARTIFACT_SMOKE_REQUIRED_PHRASES = (
     "fresh_target_verify_check",
     "fresh_target_governance_status",
     "fresh_target_workflow_plan",
+    "fresh_target_work_package",
     "unpacked_consumer_bootstrap_product_structure",
     "unpacked_consumer_bootstrap_design_scaffold",
     "unpacked_consumer_bootstrap_design_routing",
@@ -1461,6 +1473,7 @@ ARTIFACT_SMOKE_REQUIRED_PHRASES = (
     "final_env_check_ok",
     "final_missing_required",
     "_consumer_bootstrap_details",
+    "_consumer_work_package_details",
     "_consumer_bootstrap_design_scaffold_details",
     "_consumer_bootstrap_design_routing_details",
     "_design_authoring_summary_ok",
@@ -1478,6 +1491,14 @@ ARTIFACT_SMOKE_REQUIRED_PHRASES = (
     "target_local_verify_ok",
     "target_local_status_ok",
     "target_local_workflow_plan_ok",
+    "target_local_work_package_ok",
+    "work_package_generated",
+    "work_package_ok",
+    "work_package",
+    "workflow-work-package",
+    "skill_readiness",
+    "next_action",
+    "refresh_command",
     "runtime_manifest",
     "workflow_pack_snapshot",
     "product_source_manifest",
@@ -1558,9 +1579,15 @@ ARTIFACT_SMOKE_REQUIRED_PHRASES = (
     "make_verify_check",
     "make_governance_status",
     "make_workflow_plan_initialized",
+    "make_work_package_initialized",
     "make_workflow_plan_product_structuring",
+    "make_work_package_product_structuring",
     "make_workflow_plan_design_derivation",
+    "make_work_package_design_derivation",
+    "make_work_package_design_complete",
     "make_workflow_plan_implementation",
+    "make_work_package_implementation",
+    "make_work_package_complete_after_runtime_refresh",
     "make_product_plan",
     "make_design_plan",
     "make_implementation_plan",
@@ -1630,6 +1657,7 @@ RELEASE_READINESS_REQUIRED_PHRASES = (
     "_dry_run_target_local_make_coverage_ok",
     "_artifact_smoke_fresh_target_init_ok",
     "_artifact_smoke_consumer_bootstrap_ok",
+    "_artifact_smoke_work_package_ok",
     "_artifact_smoke_consumer_design_scaffold_ok",
     "_artifact_smoke_consumer_design_routing_ok",
     "_artifact_smoke_design_authoring_summary_ok",
@@ -1642,6 +1670,12 @@ RELEASE_READINESS_REQUIRED_PHRASES = (
     "target_local_verify_ok",
     "target_local_status_ok",
     "target_local_workflow_plan_ok",
+    "target_local_work_package_ok",
+    "work_package",
+    "skill_ready",
+    "missing_local_workflow_skills",
+    "missing_authority_routing_skills",
+    "next_action_kind",
     "runtime_manifest",
     "workflow_pack_snapshot",
     "product_source_manifest",
@@ -1694,9 +1728,15 @@ RELEASE_READINESS_REQUIRED_PHRASES = (
     "make_verify_check",
     "make_governance_status",
     "make_workflow_plan_initialized",
+    "make_work_package_initialized",
     "make_workflow_plan_product_structuring",
+    "make_work_package_product_structuring",
     "make_workflow_plan_design_derivation",
+    "make_work_package_design_derivation",
+    "make_work_package_design_complete",
     "make_workflow_plan_implementation",
+    "make_work_package_implementation",
+    "make_work_package_complete_after_runtime_refresh",
     "make_product_plan",
     "make_design_plan",
     "make_implementation_plan",
@@ -2047,6 +2087,115 @@ DESIGN_PLAN_SOURCE_REQUIRED_PHRASES = (
     "tech-stack-evaluator",
     "slo-architect",
 )
+WORK_PACKAGE_SOURCE_PATH = "scripts/workflow_plan.py"
+WORK_PACKAGE_SOURCE_REQUIRED_PHRASES = (
+    "build_work_package",
+    "DESIGN_WORK_PACKAGE_BUILDERS",
+    "build_authority_skill_inventory",
+    "WORKFLOW_PACK_SNAPSHOT_ROOT",
+    "_target_read_paths",
+    "--skill-root",
+    ".agents/skills",
+    ".codex/skills",
+    "workflow-work-package",
+    "package_available",
+    "can_start",
+    "stop_before_work",
+    "work_package",
+    "skill_readiness",
+    "resolved_requirements",
+    "read_order",
+    "write_scope",
+    "next_action",
+    "refresh_command",
+    "load-authority-skills",
+    "claim-implementation-task",
+    "ready_for_review",
+)
+WORK_PACKAGE_DOC_REQUIREMENTS = {
+    "README.md": (
+        "workflow work-package",
+        "make work-package",
+        "--skill-root",
+        ".agents/skills",
+        ".codex/skills",
+        "package_available",
+        "can_start",
+        "skill_readiness",
+        "read_order",
+        "write_scope",
+        "next_action",
+        "refresh_command",
+        "docs/agent-workflow/workflow-pack/references/",
+    ),
+    "workflows/00-overview.md": (
+        "workflow work-package",
+        "make work-package",
+        "--skill-root",
+        ".agents/skills",
+        ".codex/skills",
+        "package_available",
+        "can_start",
+        "skill_readiness",
+        "read_order",
+        "write_scope",
+        "next_action",
+        "refresh_command",
+        "ready_for_review",
+        "docs/agent-workflow/workflow-pack/references/",
+    ),
+    "skills/using-governance-workflow/SKILL.md": (
+        "workflow work-package",
+        "make work-package",
+        "--skill-root",
+        ".agents/skills",
+        ".codex/skills",
+        "package_available",
+        "can_start",
+        "skill_readiness.resolved_requirements",
+        "work_package.read_order",
+        "work_package.write_scope",
+        "next_action",
+        "refresh_command",
+        "docs/agent-workflow/workflow-pack/references/",
+    ),
+    "skills/verifying-governance-docs/SKILL.md": (
+        "workflow work-package",
+        "make work-package",
+        "package_id",
+        "read_order",
+        "write_scope",
+        "skill_readiness.resolved_requirements",
+        "next_action",
+        "refresh_command",
+        "can_start: true",
+        "package_available: false",
+    ),
+    "workflows/03-product-structuring.md": (
+        "workflow work-package",
+        "PRODUCT-AUTHOR-NNN",
+        "read_order",
+        "write_scope",
+        "required_evidence",
+        "next_action",
+        "skill_readiness",
+    ),
+    "workflows/04-design-derivation.md": (
+        "workflow work-package",
+        "make work-package",
+        "ready_for_review",
+        "work_id",
+        "read_order",
+        "write_scope",
+        "next_action",
+    ),
+    "workflows/06-implementation-execution.md": (
+        "workflow work-package",
+        "make work-package",
+        "requires_codebase_mapping: true",
+        "claim-implementation-task",
+    ),
+}
 API_CANDIDATES_DOC_PATHS = (
     "README.md",
     "workflows/00-overview.md",
@@ -3660,7 +3809,7 @@ GOVERNANCE_CLI_REQUIRED_COMMANDS = (
 )
 GOVERNANCE_CLI_REQUIRED_SUBCOMMANDS = {
     "runtime": ("refresh",),
-    "workflow": ("plan",),
+    "workflow": ("plan", "work-package"),
     "product": ("mark-ready", "plan", "structure"),
     "design": (
         "plan",
@@ -4024,6 +4173,8 @@ def verify_pack(root: Path) -> PackReport:
     _check_design_scaffold_docs(root, findings)
     _check_design_plan_source(root, findings)
     _check_design_plan_docs(root, findings)
+    _check_work_package_source(root, findings)
+    _check_work_package_docs(root, findings)
     _check_api_candidates_docs(root, findings)
     _check_architecture_authoring_docs(root, findings)
     _check_api_authoring_docs(root, findings)
@@ -5871,6 +6022,52 @@ def _check_design_plan_source(root: Path, findings: list[PackFinding]) -> None:
             DESIGN_PLAN_SOURCE_PATH,
         )
     )
+
+
+def _check_work_package_source(root: Path, findings: list[PackFinding]) -> None:
+    path = root / WORK_PACKAGE_SOURCE_PATH
+    if not path.is_file():
+        findings.append(
+            PackFinding(
+                "pack_work_package_source_missing",
+                f"missing workflow work-package source script: {WORK_PACKAGE_SOURCE_PATH}",
+                WORK_PACKAGE_SOURCE_PATH,
+            )
+        )
+        return
+    text = _read_utf8_text_or_none(path)
+    if text is None:
+        return
+    missing = [phrase for phrase in WORK_PACKAGE_SOURCE_REQUIRED_PHRASES if phrase not in text]
+    if not missing:
+        return
+    findings.append(
+        PackFinding(
+            "pack_work_package_source_incomplete",
+            (
+                f"{WORK_PACKAGE_SOURCE_PATH} must preserve single-work-package routing, skill readiness, "
+                f"scope, and continuation contracts; missing phrase(s): {', '.join(missing)}"
+            ),
+            WORK_PACKAGE_SOURCE_PATH,
+        )
+    )
+
+
+def _check_work_package_docs(root: Path, findings: list[PackFinding]) -> None:
+    for rel, required_phrases in WORK_PACKAGE_DOC_REQUIREMENTS.items():
+        text = _read_utf8_text_or_none(root / rel)
+        if text is None:
+            continue
+        missing = [phrase for phrase in required_phrases if phrase not in text]
+        if not missing:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_work_package_doc_missing",
+                f"{rel} must document workflow work-package phrase(s): {', '.join(missing)}",
+                rel,
+            )
+        )
 
 
 def _check_api_candidates_docs(root: Path, findings: list[PackFinding]) -> None:

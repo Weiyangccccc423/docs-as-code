@@ -39,6 +39,7 @@ RUNTIME_BIN_FILES = [
 
 RUNTIME_SCRIPT_FILES = [
     "__init__.py",
+    "authority_skills.py",
     "bootstrap_tree.py",
     "check_env.py",
     "design_plan.py",
@@ -111,6 +112,12 @@ TARGET_LOCAL_COMMANDS = (
         "workflow-plan",
         "bin/governance workflow plan . --json",
         "print current workflow route plus active queue and skill summaries as JSON",
+        False,
+    ),
+    (
+        "work-package",
+        "bin/governance workflow work-package . --json",
+        "print one evidence-selected agent work package with skill readiness as JSON",
         False,
     ),
     (

@@ -38,6 +38,7 @@ Load according to the design track:
    ```bash
    bin/governance scaffold design <target> --check --json
    bin/governance scaffold design <target> --json
+   bin/governance workflow work-package <target> --json
    bin/governance design plan <target> --json
    bin/governance design api-candidates <target> --json
    bin/governance design architecture-authoring <target> --json
@@ -56,6 +57,8 @@ Load according to the design track:
    If `scaffold_phase.matches` is false, use returned `next_actions` to advance recorded phases in order before treating the scaffold as current phase work. Keep the next actions for later, and do not run downstream phase actions until every blocker listed in `next_actions_blocked_by` is resolved.
 
    After the recorded phase is `design-derivation`, `workflow plan --json` exposes top-level and per-queue `active_work`, `skill_summary`, and `skill_loading_plan` objects. Use `design plan --json` to inspect `source_documents`, ordered tracks, `available_in_workflow_pack` skill requirements, and track `blockers` before replacing placeholders. Use `active_work` to resume the first blocked queue, then load local workflow skills first and authority-routing skills such as `senior-architect`, `api-design-reviewer`, `senior-backend`, database design skills, `observability-designer`, and `senior-security` before resolving architecture, API, backend, or data decisions.
+
+   Prefer `workflow work-package --json` or `make work-package` for repeated agent sessions. It chooses the first track whose verification status is not `ready_for_review`, resolves the matching authoring queue, checks required authority skills in the current agent environment, and returns one `work_id`, `read_order`, `write_scope`, blocker/decision set, `next_action`, and verify/refresh contract.
 
    When consumer bootstrap returns `design_authoring_preview`, inspect ordered `queue_summaries[]` and aggregate `authoring_summary` first. Use `queue_status_counts`, total task/decision/link-repair counts, `next_queue_id`, `next_active_work`, and top-level `active_work.queue_id` to choose the first non-ready queue; only then open that queue's full payload under `queues` and follow its verify/refresh commands.
 

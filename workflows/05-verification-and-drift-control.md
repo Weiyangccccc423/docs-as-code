@@ -53,6 +53,7 @@ make verify-governance
 make verify-check
 make governance-status
 make workflow-plan
+make work-package
 make product-plan
 make design-plan
 make implementation-plan

@@ -163,6 +163,7 @@ RUNTIME_REQUIRED_BIN_FILES = (
 )
 RUNTIME_REQUIRED_SCRIPT_FILES = (
     "__init__.py",
+    "authority_skills.py",
     "bootstrap_tree.py",
     "check_env.py",
     "design_plan.py",

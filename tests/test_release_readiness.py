@@ -4,7 +4,10 @@ import sys
 import unittest
 from pathlib import Path
 
-from scripts.release_readiness import _artifact_smoke_design_authoring_summary_ok
+from scripts.release_readiness import (
+    _artifact_smoke_design_authoring_summary_ok,
+    _artifact_smoke_work_package_ok,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -12,6 +15,49 @@ RELEASE = ROOT / "scripts" / "release_readiness.py"
 
 
 class ReleaseReadinessTest(unittest.TestCase):
+    def test_artifact_smoke_work_package_check_requires_expected_identity(self) -> None:
+        summary = {
+            "work_package": {
+                "ok": True,
+                "phase": "design-derivation",
+                "status": "blocked",
+                "kind": "design-authoring",
+                "queue_id": "architecture-authoring",
+                "work_id": "DESIGN-AUTHOR-001",
+                "can_start": True,
+                "stop_before_work": False,
+                "skill_ready": True,
+                "missing_local_workflow_skills": [],
+                "missing_authority_routing_skills": [],
+                "next_action_kind": "repair",
+            }
+        }
+
+        self.assertTrue(
+            _artifact_smoke_work_package_ok(
+                summary,
+                expected_phase="design-derivation",
+                expected_kind="design-authoring",
+                expected_queue_id="architecture-authoring",
+            )
+        )
+        self.assertFalse(
+            _artifact_smoke_work_package_ok(
+                {},
+                expected_phase="design-derivation",
+                expected_kind="design-authoring",
+                expected_queue_id="architecture-authoring",
+            )
+        )
+        self.assertFalse(
+            _artifact_smoke_work_package_ok(
+                summary,
+                expected_phase="design-derivation",
+                expected_kind="design-authoring",
+                expected_queue_id="api-authoring",
+            )
+        )
+
     def test_design_authoring_summary_check_rejects_non_numeric_category_counts(self) -> None:
         queue_ids = [
             "architecture-authoring",
@@ -125,7 +171,16 @@ class ReleaseReadinessTest(unittest.TestCase):
             criteria["release-artifact-smoke"]["details"]["fresh_target_init"]["target_local_workflow_plan_ok"]
         )
         self.assertTrue(
+            criteria["release-artifact-smoke"]["details"]["fresh_target_init"]["target_local_work_package_ok"]
+        )
+        self.assertTrue(
             criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_product_structure"]["ok"]
+        )
+        self.assertEqual(
+            "product-plan",
+            criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_product_structure"]["work_package"][
+                "queue_id"
+            ],
         )
         self.assertTrue(
             criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_product_structure"]["env_auto_repair"][
@@ -291,6 +346,27 @@ class ReleaseReadinessTest(unittest.TestCase):
             criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_design_routing"][
                 "design_authoring_preview_ok"
             ]
+        )
+        self.assertTrue(
+            criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_design_routing"]["work_package"]["ok"]
+        )
+        self.assertEqual(
+            "architecture-authoring",
+            criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_design_routing"]["work_package"][
+                "queue_id"
+            ],
+        )
+        self.assertEqual(
+            "architecture-authoring",
+            criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_design_scaffold"]["work_package"][
+                "queue_id"
+            ],
+        )
+        self.assertEqual(
+            "architecture-authoring",
+            criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_implementation_routing"][
+                "work_package"
+            ]["queue_id"],
         )
         self.assertEqual(9, criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_design_routing"]["queue_count"])
         self.assertEqual([], criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_design_routing"]["missing_queue_ids"])
