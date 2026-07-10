@@ -253,6 +253,16 @@ def _artifact_smoke_consumer_implementation_routing_ok(payload: dict[str, object
         and implementation_routing.get("readiness_previewed") is True
         and implementation_routing.get("readiness_ok") is False
         and implementation_routing.get("implementation_ready") is False
+        and isinstance(implementation_routing.get("readiness_blocker_count"), int)
+        and implementation_routing["readiness_blocker_count"] > 0
+        and isinstance(implementation_routing.get("readiness_blocker_codes"), list)
+        and "governance_scaffold_placeholder" in implementation_routing["readiness_blocker_codes"]
+        and isinstance(implementation_routing.get("readiness_next_blocker"), dict)
+        and isinstance(implementation_routing["readiness_next_blocker"].get("code"), str)
+        and implementation_routing["readiness_next_blocker"]["code"]
+        in implementation_routing["readiness_blocker_codes"]
+        and isinstance(implementation_routing.get("readiness_next_repair_action"), dict)
+        and bool(implementation_routing["readiness_next_repair_action"])
         and implementation_routing.get("advance_previewed") is True
         and implementation_routing.get("advance_ready") is False
         and implementation_routing.get("advance_apply_skipped") is True

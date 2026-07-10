@@ -1169,6 +1169,29 @@ class ConsumerBootstrapTest(unittest.TestCase):
             self.assertFalse(preview["verify_ok"])
             self.assertFalse(preview["gate_ok"])
             self.assertFalse(preview["implementation_plan_ok"])
+            readiness_summary = preview["readiness_summary"]
+            blockers = preview["blockers"]
+            self.assertTrue(readiness_summary["blocked"])
+            self.assertEqual(len(blockers), readiness_summary["blocker_count"])
+            self.assertGreater(readiness_summary["blocker_count"], 0)
+            self.assertGreater(readiness_summary["source_counts"]["verify_check"], 0)
+            self.assertGreater(readiness_summary["source_counts"]["implementation_gate"], 0)
+            self.assertGreater(readiness_summary["source_counts"]["implementation_plan"], 0)
+            self.assertIn("governance_scaffold_placeholder", readiness_summary["blocker_codes"])
+            self.assertIn("implementation_plan_error", readiness_summary["blocker_codes"])
+            self.assertEqual(blockers[0], readiness_summary["next_blocker"])
+            self.assertEqual(blockers[0], preview["next_blocker"])
+            self.assertIsInstance(preview["next_repair_action"], dict)
+            self.assertTrue(preview["next_repair_action"])
+            self.assertEqual(
+                list(range(1, len(blockers) + 1)),
+                [blocker["sequence"] for blocker in blockers],
+            )
+            for blocker in blockers:
+                self.assertIn(blocker["source"], {"verify_check", "implementation_gate", "implementation_plan"})
+                self.assertTrue(blocker["code"])
+                self.assertTrue(blocker["detail"])
+                self.assertTrue(blocker["repair_strategy"])
             self.assertFalse(preview["verify_check"]["ok"])
             self.assertFalse(preview["gate"]["ok"])
             self.assertFalse(preview["implementation_plan"]["ok"])

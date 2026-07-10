@@ -256,6 +256,13 @@ class ReleaseReadinessTest(unittest.TestCase):
         self.assertTrue(implementation_routing["readiness_previewed"])
         self.assertFalse(implementation_routing["readiness_ok"])
         self.assertFalse(implementation_routing["implementation_ready"])
+        self.assertGreater(implementation_routing["readiness_blocker_count"], 0)
+        self.assertIn("governance_scaffold_placeholder", implementation_routing["readiness_blocker_codes"])
+        self.assertIn(
+            implementation_routing["readiness_next_blocker"]["code"],
+            implementation_routing["readiness_blocker_codes"],
+        )
+        self.assertTrue(implementation_routing["readiness_next_repair_action"])
         self.assertTrue(implementation_routing["advance_previewed"])
         self.assertFalse(implementation_routing["advance_ready"])
         self.assertTrue(implementation_routing["advance_apply_skipped"])

@@ -140,6 +140,16 @@ class ArtifactSmokeTest(unittest.TestCase):
         self.assertTrue(payload["consumer_bootstrap_implementation_routing"]["readiness_previewed"])
         self.assertFalse(payload["consumer_bootstrap_implementation_routing"]["readiness_ok"])
         self.assertFalse(payload["consumer_bootstrap_implementation_routing"]["implementation_ready"])
+        self.assertGreater(payload["consumer_bootstrap_implementation_routing"]["readiness_blocker_count"], 0)
+        self.assertIn(
+            "governance_scaffold_placeholder",
+            payload["consumer_bootstrap_implementation_routing"]["readiness_blocker_codes"],
+        )
+        self.assertIn(
+            payload["consumer_bootstrap_implementation_routing"]["readiness_next_blocker"]["code"],
+            payload["consumer_bootstrap_implementation_routing"]["readiness_blocker_codes"],
+        )
+        self.assertTrue(payload["consumer_bootstrap_implementation_routing"]["readiness_next_repair_action"])
         self.assertTrue(payload["consumer_bootstrap_implementation_routing"]["advance_previewed"])
         self.assertFalse(payload["consumer_bootstrap_implementation_routing"]["advance_ready"])
         self.assertTrue(payload["consumer_bootstrap_implementation_routing"]["advance_apply_skipped"])

@@ -1610,6 +1610,20 @@ def _preview_implementation_readiness(steps: list[dict[str, object]], target: Pa
         and implementation_plan.get("ok") is True
         and implementation_plan.get("gate_ok") is True
     )
+    blockers = _implementation_readiness_blockers(verify_check, gate, implementation_plan)
+    source_counts = {
+        source: sum(1 for blocker in blockers if blocker.get("source") == source)
+        for source in ("verify_check", "implementation_gate", "implementation_plan")
+    }
+    blocker_codes = list(dict.fromkeys(str(blocker.get("code", "")) for blocker in blockers if blocker.get("code")))
+    next_blocker = dict(blockers[0]) if blockers else {}
+    readiness_summary = {
+        "blocked": not readiness_ok,
+        "blocker_count": len(blockers),
+        "blocker_codes": blocker_codes,
+        "source_counts": source_counts,
+        "next_blocker": next_blocker,
+    }
     status_state = gate.get("state")
     phase = status_state.get("phase") if isinstance(status_state, dict) else str(implementation_plan.get("phase", ""))
     return {
@@ -1623,10 +1637,134 @@ def _preview_implementation_readiness(steps: list[dict[str, object]], target: Pa
         "verify_ok": verify_check.get("ok") is True,
         "gate_ok": gate.get("ok") is True,
         "implementation_plan_ok": implementation_plan.get("ok") is True,
+        "readiness_summary": readiness_summary,
+        "blockers": blockers,
+        "next_blocker": next_blocker,
+        "next_repair_action": dict(next_blocker),
         "verify_check": verify_check,
         "gate": gate,
         "implementation_plan": implementation_plan,
     }
+
+
+def _implementation_readiness_blockers(
+    verify_check: dict[str, object],
+    gate: dict[str, object],
+    implementation_plan: dict[str, object],
+) -> list[dict[str, object]]:
+    blockers: list[dict[str, object]] = []
+    seen: set[tuple[str, str, str]] = set()
+
+    def append(
+        source: str,
+        code: str,
+        path: str,
+        detail: str,
+        repair_strategy: str,
+    ) -> None:
+        normalized_code = code.strip()
+        normalized_path = path.strip()
+        normalized_detail = detail.strip()
+        if not normalized_code or not normalized_detail:
+            return
+        identity = (normalized_code, normalized_path, normalized_detail)
+        if identity in seen:
+            return
+        seen.add(identity)
+        blockers.append(
+            {
+                "sequence": len(blockers) + 1,
+                "source": source,
+                "code": normalized_code,
+                "path": normalized_path,
+                "detail": normalized_detail,
+                "repair_strategy": repair_strategy,
+            }
+        )
+
+    findings = verify_check.get("findings")
+    if isinstance(findings, list):
+        for finding in findings:
+            if not isinstance(finding, dict):
+                continue
+            append(
+                "verify_check",
+                _string_value(finding.get("code")) or "governance_verification_finding",
+                _string_value(finding.get("path")),
+                _string_value(finding.get("message")) or _string_value(finding.get("detail")),
+                _string_value(finding.get("repair_strategy"))
+                or "repair_governance_verification_finding_before_implementation",
+            )
+    if verify_check.get("ok") is not True and not any(
+        blocker.get("source") == "verify_check" for blocker in blockers
+    ):
+        append(
+            "verify_check",
+            "governance_verification_failed",
+            "",
+            "governance verification did not pass before implementation",
+            "inspect_verify_check_findings_and_repair_before_implementation",
+        )
+
+    requirements = gate.get("requirements")
+    if isinstance(requirements, list):
+        for requirement in requirements:
+            if not isinstance(requirement, dict) or requirement.get("ok") is True:
+                continue
+            append(
+                "implementation_gate",
+                _string_value(requirement.get("code")) or "implementation_gate_requirement_failed",
+                _string_value(requirement.get("path")),
+                _string_value(requirement.get("message")) or "implementation gate requirement failed",
+                _string_value(requirement.get("repair_strategy"))
+                or "repair_failed_implementation_gate_requirement_before_implementation",
+            )
+    if gate.get("ok") is not True and not any(
+        blocker.get("source") == "implementation_gate" for blocker in blockers
+    ):
+        append(
+            "implementation_gate",
+            "implementation_gate_failed",
+            "",
+            "implementation gate did not pass",
+            "inspect_gate_requirements_and_repair_before_implementation",
+        )
+
+    active_work = implementation_plan.get("active_work")
+    next_repair_action = active_work.get("next_repair_action") if isinstance(active_work, dict) else {}
+    if isinstance(next_repair_action, dict) and next_repair_action:
+        append(
+            "implementation_plan",
+            _string_value(next_repair_action.get("code")) or "implementation_plan_repair_required",
+            _string_value(next_repair_action.get("path")),
+            _string_value(next_repair_action.get("detail"))
+            or _string_value(next_repair_action.get("message"))
+            or "implementation plan requires repair before execution",
+            _string_value(next_repair_action.get("repair_strategy"))
+            or "follow_implementation_plan_next_repair_action",
+        )
+    errors = implementation_plan.get("errors")
+    if isinstance(errors, list):
+        for error in errors:
+            if isinstance(error, str) and error.strip():
+                append(
+                    "implementation_plan",
+                    "implementation_plan_error",
+                    "",
+                    error,
+                    "repair_implementation_plan_precondition_before_execution",
+                )
+    if implementation_plan.get("ok") is not True and not any(
+        blocker.get("source") == "implementation_plan" for blocker in blockers
+    ):
+        append(
+            "implementation_plan",
+            "implementation_plan_failed",
+            "",
+            "implementation plan did not pass",
+            "inspect_implementation_plan_errors_and_active_work_before_execution",
+        )
+    return blockers
 
 
 def _preview_implementation_advance(steps: list[dict[str, object]], target: Path) -> dict[str, object]:

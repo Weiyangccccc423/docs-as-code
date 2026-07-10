@@ -772,6 +772,22 @@ def _consumer_bootstrap_implementation_routing_details(
     closeout_preview = bootstrap_payload.get("implementation_closeout_preview")
     closeout_apply = bootstrap_payload.get("implementation_closeout_apply")
     readiness_preview_map = readiness_preview if isinstance(readiness_preview, dict) else {}
+    readiness_summary = readiness_preview_map.get("readiness_summary")
+    readiness_summary_map = readiness_summary if isinstance(readiness_summary, dict) else {}
+    readiness_blocker_codes = readiness_summary_map.get("blocker_codes")
+    readiness_blocker_codes_list = (
+        [code for code in readiness_blocker_codes if isinstance(code, str)]
+        if isinstance(readiness_blocker_codes, list)
+        else []
+    )
+    readiness_next_blocker = readiness_summary_map.get("next_blocker")
+    readiness_next_blocker_map = readiness_next_blocker if isinstance(readiness_next_blocker, dict) else {}
+    readiness_next_repair_action = readiness_preview_map.get("next_repair_action")
+    readiness_next_repair_action_map = (
+        readiness_next_repair_action if isinstance(readiness_next_repair_action, dict) else {}
+    )
+    readiness_blocker_count_value = readiness_summary_map.get("blocker_count")
+    readiness_blocker_count = readiness_blocker_count_value if isinstance(readiness_blocker_count_value, int) else 0
     advance_preview_map = advance_preview if isinstance(advance_preview, dict) else {}
     advance_apply_map = advance_apply if isinstance(advance_apply, dict) else {}
     start_preview_map = start_preview if isinstance(start_preview, dict) else {}
@@ -816,6 +832,11 @@ def _consumer_bootstrap_implementation_routing_details(
             and "implementation_closeout_apply" in expanded_flags
             and readiness_ok is False
             and implementation_ready is False
+            and readiness_blocker_count > 0
+            and "governance_scaffold_placeholder" in readiness_blocker_codes_list
+            and isinstance(readiness_next_blocker_map.get("code"), str)
+            and readiness_next_blocker_map.get("code") in readiness_blocker_codes_list
+            and bool(readiness_next_repair_action_map)
             and advance_ready is False
             and advance_apply_skipped
             and start_preview_skipped
@@ -840,6 +861,10 @@ def _consumer_bootstrap_implementation_routing_details(
         "readiness_previewed": bootstrap_payload.get("implementation_readiness_previewed") is True,
         "readiness_ok": readiness_ok,
         "implementation_ready": implementation_ready,
+        "readiness_blocker_count": readiness_blocker_count,
+        "readiness_blocker_codes": readiness_blocker_codes_list,
+        "readiness_next_blocker": dict(readiness_next_blocker_map),
+        "readiness_next_repair_action": dict(readiness_next_repair_action_map),
         "verify_ok": readiness_preview_map.get("verify_ok") is True,
         "gate_ok": readiness_preview_map.get("gate_ok") is True,
         "implementation_plan_ok": readiness_preview_map.get("implementation_plan_ok") is True,

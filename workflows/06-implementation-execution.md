@@ -36,7 +36,7 @@ Load:
    make implementation-plan
    ```
 
-   Stop on `ok: false`; route repair through `verifying-governance-docs` and the owning design or planning skill before editing code.
+   Stop on `ok: false`; route repair through `verifying-governance-docs` and the owning design or planning skill before editing code. When these checks come from consumer bootstrap `implementation_readiness_preview`, follow its ordered `blockers[]`, `readiness_summary`, `next_blocker`, and `next_repair_action` instead of independently reordering verify findings, gate requirements, and implementation-plan errors.
 
 3. Use `implementation plan --json` before editing code. Its `decision_policy` is `execute_exactly_one_ready_task`; inspect `implementation_summary`, `gate_ok`, `active_work`, `tasks[]`, `source_references`, `read_order`, `skill_requirements`, `authority_skill_requirements`, `skill_loading_plan`, and embedded `gate_command`, `start_command`, `verify_command`, `closeout_command`, and `refresh_command`. Stop successfully when `active_work.status` is `complete`. Stop for repair when `active_work.status` is not `ready`, `in_progress`, or `complete`, when `active_work.next_repair_action` is non-empty, or when a required authority-routing skill cannot be loaded from the agent environment.
 
