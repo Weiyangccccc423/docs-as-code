@@ -4,12 +4,64 @@ import sys
 import unittest
 from pathlib import Path
 
+from scripts.release_readiness import _artifact_smoke_design_authoring_summary_ok
+
 
 ROOT = Path(__file__).resolve().parents[1]
 RELEASE = ROOT / "scripts" / "release_readiness.py"
 
 
 class ReleaseReadinessTest(unittest.TestCase):
+    def test_design_authoring_summary_check_rejects_non_numeric_category_counts(self) -> None:
+        queue_ids = [
+            "architecture-authoring",
+            "api-authoring",
+            "backend-authoring",
+            "data-model-authoring",
+            "ui-interaction-authoring",
+            "frontend-authoring",
+            "test-strategy-authoring",
+            "implementation-planning-authoring",
+            "architecture-decisions-authoring",
+        ]
+        queue_summaries = [
+            {
+                "sequence": sequence,
+                "queue_id": queue_id,
+                "status": "blocked",
+                "task_count": 1,
+                "open_decision_count": 0,
+                "non_satisfied_required_link_count": 1,
+                "link_repair_action_count": 1,
+            }
+            for sequence, queue_id in enumerate(queue_ids, start=1)
+        ]
+        active_work = {
+            "status": "blocked",
+            "queue_id": queue_ids[0],
+            "queue_sequence": 1,
+        }
+        design_routing = {
+            "authoring_summary_ok": True,
+            "queue_summaries": queue_summaries,
+            "active_work": active_work,
+            "authoring_summary": {
+                "queue_count": 9,
+                "blocked_queue_count": "9",
+                "decision_required_queue_count": 0,
+                "ready_queue_count": 0,
+                "queue_status_counts": {"blocked": 9},
+                "total_task_count": 9,
+                "total_open_decision_count": 0,
+                "total_non_satisfied_required_link_count": 9,
+                "total_link_repair_action_count": 9,
+                "next_queue_id": queue_ids[0],
+                "next_active_work": active_work,
+            },
+        }
+
+        self.assertFalse(_artifact_smoke_design_authoring_summary_ok(design_routing))
+
     def test_release_readiness_fast_mode_runs_hard_checks_without_claiming_release_ready(self) -> None:
         result = subprocess.run(
             [
@@ -242,6 +294,20 @@ class ReleaseReadinessTest(unittest.TestCase):
         )
         self.assertEqual(9, criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_design_routing"]["queue_count"])
         self.assertEqual([], criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_design_routing"]["missing_queue_ids"])
+        design_routing = criteria["release-artifact-smoke"]["details"]["consumer_bootstrap_design_routing"]
+        self.assertEqual(9, len(design_routing["queue_summaries"]))
+        self.assertEqual(9, design_routing["authoring_summary"]["queue_count"])
+        self.assertGreater(design_routing["authoring_summary"]["blocked_queue_count"], 0)
+        self.assertGreater(design_routing["authoring_summary"]["total_task_count"], 0)
+        self.assertGreater(
+            design_routing["authoring_summary"]["total_non_satisfied_required_link_count"],
+            0,
+        )
+        self.assertEqual(
+            design_routing["authoring_summary"]["next_queue_id"],
+            design_routing["active_work"]["queue_id"],
+        )
+        self.assertEqual(design_routing["authoring_summary"]["next_active_work"], design_routing["active_work"])
         implementation_routing = criteria["release-artifact-smoke"]["details"][
             "consumer_bootstrap_implementation_routing"
         ]

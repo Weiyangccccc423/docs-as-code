@@ -1571,6 +1571,7 @@ def _preview_design_authoring(steps: list[dict[str, object]], target: Path) -> d
         )
         queues[queue_id] = payload
         ok = ok and payload.get("ok") is True
+    queue_summaries, authoring_summary, active_work = _summarize_design_authoring(queues)
     return {
         "ok": ok,
         "target": str(target),
@@ -1578,8 +1579,113 @@ def _preview_design_authoring(steps: list[dict[str, object]], target: Path) -> d
         "writes_state": False,
         "phase": "design-derivation",
         "queue_order": [queue_id for queue_id, _step_id in DESIGN_AUTHORING_QUEUE_IDS],
+        "queue_summaries": queue_summaries,
+        "authoring_summary": authoring_summary,
+        "active_work": active_work,
         "queues": queues,
     }
+
+
+def _summarize_design_authoring(
+    queues: dict[str, object],
+) -> tuple[list[dict[str, object]], dict[str, object], dict[str, object]]:
+    queue_summaries: list[dict[str, object]] = []
+    status_counts: dict[str, int] = {}
+    for sequence, (queue_id, _step_id) in enumerate(DESIGN_AUTHORING_QUEUE_IDS, start=1):
+        queue = queues.get(queue_id)
+        queue_payload = queue if isinstance(queue, dict) else {}
+        summary = queue_payload.get("authoring_summary")
+        summary_payload = summary if isinstance(summary, dict) else {}
+        active = queue_payload.get("active_work")
+        active_payload = active if isinstance(active, dict) else {}
+        queue_ok = queue_payload.get("ok") is True
+        if not queue_ok:
+            status = "error"
+        elif active_payload:
+            status = str(active_payload.get("status", "unknown") or "unknown")
+        else:
+            status = "unknown"
+        status_counts[status] = status_counts.get(status, 0) + 1
+        queue_summaries.append(
+            {
+                "sequence": sequence,
+                "queue_id": queue_id,
+                "ok": queue_ok,
+                "status": status,
+                "task_count": _non_negative_int(summary_payload.get("task_count")),
+                "open_decision_count": _non_negative_int(summary_payload.get("open_decision_count")),
+                "non_satisfied_required_link_count": _non_negative_int(
+                    summary_payload.get("non_satisfied_required_link_count")
+                ),
+                "link_repair_action_count": _non_negative_int(
+                    summary_payload.get("link_repair_action_count")
+                ),
+                "primary_skill": str(active_payload.get("primary_skill", "")),
+                "primary_specialist_skill": str(active_payload.get("primary_specialist_skill", "")),
+                "active_work": active_payload,
+            }
+        )
+
+    next_queue = next(
+        (summary for summary in queue_summaries if summary["status"] not in {"ready", "complete"}),
+        None,
+    )
+    if next_queue is None:
+        active_work: dict[str, object] = {
+            "kind": "design-authoring-queue",
+            "status": "complete",
+            "queue_id": "",
+            "queue_sequence": 0,
+            "blocker_count": 0,
+            "open_decision_count": 0,
+            "next_repair_action": {},
+        }
+        next_queue_id = ""
+    else:
+        queue_active = next_queue.get("active_work")
+        active_work = dict(queue_active) if isinstance(queue_active, dict) else {}
+        active_work.update(
+            {
+                "status": next_queue["status"],
+                "queue_id": next_queue["queue_id"],
+                "queue_sequence": next_queue["sequence"],
+                "queue_ok": next_queue["ok"],
+            }
+        )
+        next_queue_id = str(next_queue["queue_id"])
+
+    authoring_summary: dict[str, object] = {
+        "queue_count": len(queue_summaries),
+        "blocked_queue_count": sum(
+            1
+            for summary in queue_summaries
+            if summary["status"] not in {"ready", "complete", "decision_required"}
+        ),
+        "decision_required_queue_count": sum(
+            1 for summary in queue_summaries if summary["status"] == "decision_required"
+        ),
+        "ready_queue_count": sum(
+            1 for summary in queue_summaries if summary["status"] in {"ready", "complete"}
+        ),
+        "queue_status_counts": dict(sorted(status_counts.items())),
+        "total_task_count": sum(int(summary["task_count"]) for summary in queue_summaries),
+        "total_open_decision_count": sum(
+            int(summary["open_decision_count"]) for summary in queue_summaries
+        ),
+        "total_non_satisfied_required_link_count": sum(
+            int(summary["non_satisfied_required_link_count"]) for summary in queue_summaries
+        ),
+        "total_link_repair_action_count": sum(
+            int(summary["link_repair_action_count"]) for summary in queue_summaries
+        ),
+        "next_queue_id": next_queue_id,
+        "next_active_work": active_work,
+    }
+    return queue_summaries, authoring_summary, active_work
+
+
+def _non_negative_int(value: object) -> int:
+    return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else 0
 
 
 def _preview_implementation_readiness(steps: list[dict[str, object]], target: Path) -> dict[str, object]:

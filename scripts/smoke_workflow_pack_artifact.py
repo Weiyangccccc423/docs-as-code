@@ -720,8 +720,18 @@ def _consumer_bootstrap_design_routing_details(
     design_authoring_preview = bootstrap_payload.get("design_authoring_preview")
     queue_order = design_authoring_preview.get("queue_order") if isinstance(design_authoring_preview, dict) else []
     queues = design_authoring_preview.get("queues") if isinstance(design_authoring_preview, dict) else {}
+    queue_summaries = (
+        design_authoring_preview.get("queue_summaries") if isinstance(design_authoring_preview, dict) else []
+    )
+    authoring_summary = (
+        design_authoring_preview.get("authoring_summary") if isinstance(design_authoring_preview, dict) else {}
+    )
+    active_work = design_authoring_preview.get("active_work") if isinstance(design_authoring_preview, dict) else {}
     queue_ids = [str(queue_id) for queue_id in queue_order] if isinstance(queue_order, list) else []
     queue_map = queues if isinstance(queues, dict) else {}
+    queue_summary_list = queue_summaries if isinstance(queue_summaries, list) else []
+    authoring_summary_map = authoring_summary if isinstance(authoring_summary, dict) else {}
+    active_work_map = active_work if isinstance(active_work, dict) else {}
     missing_queue_ids = [
         queue_id
         for queue_id in DESIGN_AUTHORING_QUEUE_IDS
@@ -732,6 +742,11 @@ def _consumer_bootstrap_design_routing_details(
         for queue_id in DESIGN_AUTHORING_QUEUE_IDS
         if isinstance(queue_map.get(queue_id), dict) and queue_map[queue_id].get("ok") is not True
     ]
+    authoring_summary_ok = _design_authoring_summary_ok(
+        queue_summaries=queue_summary_list,
+        authoring_summary=authoring_summary_map,
+        active_work=active_work_map,
+    )
     return {
         **base,
         "ok": (
@@ -742,6 +757,7 @@ def _consumer_bootstrap_design_routing_details(
             and "design_authoring_preview" in expanded_flags
             and missing_queue_ids == []
             and failed_queue_ids == []
+            and authoring_summary_ok
         ),
         "workflow_preset": workflow_preset if isinstance(workflow_preset, str) else "",
         "design_authoring_preview_ok": bootstrap_payload.get("design_authoring_preview_ok") is True,
@@ -749,7 +765,58 @@ def _consumer_bootstrap_design_routing_details(
         "required_queue_ids": DESIGN_AUTHORING_QUEUE_IDS,
         "missing_queue_ids": missing_queue_ids,
         "failed_queue_ids": failed_queue_ids,
+        "queue_summaries": queue_summary_list,
+        "authoring_summary": authoring_summary_map,
+        "active_work": active_work_map,
+        "authoring_summary_ok": authoring_summary_ok,
     }
+
+
+def _design_authoring_summary_ok(
+    *,
+    queue_summaries: list[object],
+    authoring_summary: dict[str, object],
+    active_work: dict[str, object],
+) -> bool:
+    normalized_queues = [summary for summary in queue_summaries if isinstance(summary, dict)]
+    summary_queue_ids = [str(summary.get("queue_id", "")) for summary in normalized_queues]
+    status_counts = authoring_summary.get("queue_status_counts")
+    next_active_work = authoring_summary.get("next_active_work")
+    category_counts = [
+        authoring_summary.get("blocked_queue_count"),
+        authoring_summary.get("decision_required_queue_count"),
+        authoring_summary.get("ready_queue_count"),
+    ]
+    total_counts = [
+        authoring_summary.get("total_task_count"),
+        authoring_summary.get("total_open_decision_count"),
+        authoring_summary.get("total_non_satisfied_required_link_count"),
+        authoring_summary.get("total_link_repair_action_count"),
+    ]
+    return (
+        len(normalized_queues) == len(DESIGN_AUTHORING_QUEUE_IDS)
+        and summary_queue_ids == DESIGN_AUTHORING_QUEUE_IDS
+        and [summary.get("sequence") for summary in normalized_queues]
+        == list(range(1, len(DESIGN_AUTHORING_QUEUE_IDS) + 1))
+        and all(summary.get("ok") is True for summary in normalized_queues)
+        and authoring_summary.get("queue_count") == len(DESIGN_AUTHORING_QUEUE_IDS)
+        and all(isinstance(count, int) and not isinstance(count, bool) and count >= 0 for count in category_counts)
+        and sum(category_counts) == len(DESIGN_AUTHORING_QUEUE_IDS)
+        and isinstance(status_counts, dict)
+        and all(isinstance(count, int) and not isinstance(count, bool) and count >= 0 for count in status_counts.values())
+        and sum(status_counts.values()) == len(DESIGN_AUTHORING_QUEUE_IDS)
+        and all(isinstance(count, int) and not isinstance(count, bool) and count >= 0 for count in total_counts)
+        and authoring_summary.get("total_task_count", 0) > 0
+        and authoring_summary.get("total_non_satisfied_required_link_count", 0) > 0
+        and isinstance(authoring_summary.get("next_queue_id"), str)
+        and authoring_summary.get("next_queue_id") in DESIGN_AUTHORING_QUEUE_IDS
+        and isinstance(next_active_work, dict)
+        and next_active_work == active_work
+        and active_work.get("queue_id") == authoring_summary.get("next_queue_id")
+        and active_work.get("queue_sequence")
+        == DESIGN_AUTHORING_QUEUE_IDS.index(str(active_work.get("queue_id"))) + 1
+        and active_work.get("status") not in {"ready", "complete"}
+    )
 
 
 def _consumer_bootstrap_implementation_routing_details(

@@ -26,6 +26,17 @@ TARGET_LOCAL_MAKE_STEP_IDS = [
     "make_check_env",
     "make_repair_env_check",
 ]
+DESIGN_AUTHORING_QUEUE_IDS = [
+    "architecture-authoring",
+    "api-authoring",
+    "backend-authoring",
+    "data-model-authoring",
+    "ui-interaction-authoring",
+    "frontend-authoring",
+    "test-strategy-authoring",
+    "implementation-planning-authoring",
+    "architecture-decisions-authoring",
+]
 
 
 def _agent_env() -> dict[str, str]:
@@ -227,8 +238,78 @@ def _artifact_smoke_consumer_design_routing_ok(payload: dict[str, object] | None
         and design_routing.get("queue_count") == 9
         and design_routing.get("missing_queue_ids") == []
         and design_routing.get("failed_queue_ids") == []
+        and _artifact_smoke_design_authoring_summary_ok(design_routing)
         and isinstance(expanded_flags, list)
         and "design_authoring_preview" in expanded_flags
+    )
+
+
+def _artifact_smoke_design_authoring_summary_ok(design_routing: dict[str, object]) -> bool:
+    queue_summaries = design_routing.get("queue_summaries")
+    authoring_summary = design_routing.get("authoring_summary")
+    active_work = design_routing.get("active_work")
+    if (
+        design_routing.get("authoring_summary_ok") is not True
+        or not isinstance(queue_summaries, list)
+        or not isinstance(authoring_summary, dict)
+        or not isinstance(active_work, dict)
+    ):
+        return False
+    normalized_queues = [summary for summary in queue_summaries if isinstance(summary, dict)]
+    if len(normalized_queues) != len(DESIGN_AUTHORING_QUEUE_IDS):
+        return False
+    if [summary.get("queue_id") for summary in normalized_queues] != DESIGN_AUTHORING_QUEUE_IDS:
+        return False
+    if [summary.get("sequence") for summary in normalized_queues] != list(
+        range(1, len(DESIGN_AUTHORING_QUEUE_IDS) + 1)
+    ):
+        return False
+    category_counts = [
+        authoring_summary.get("blocked_queue_count"),
+        authoring_summary.get("decision_required_queue_count"),
+        authoring_summary.get("ready_queue_count"),
+    ]
+    if not all(
+        isinstance(count, int) and not isinstance(count, bool) and count >= 0
+        for count in category_counts
+    ):
+        return False
+    if sum(category_counts) != len(DESIGN_AUTHORING_QUEUE_IDS):
+        return False
+    status_counts: dict[str, int] = {}
+    for summary in normalized_queues:
+        status = summary.get("status")
+        if not isinstance(status, str) or not status:
+            return False
+        status_counts[status] = status_counts.get(status, 0) + 1
+    total_fields = {
+        "total_task_count": "task_count",
+        "total_open_decision_count": "open_decision_count",
+        "total_non_satisfied_required_link_count": "non_satisfied_required_link_count",
+        "total_link_repair_action_count": "link_repair_action_count",
+    }
+    for total_field, queue_field in total_fields.items():
+        values = [summary.get(queue_field) for summary in normalized_queues]
+        if not all(isinstance(value, int) and not isinstance(value, bool) and value >= 0 for value in values):
+            return False
+        if authoring_summary.get(total_field) != sum(values):
+            return False
+    next_queue = next(
+        (summary for summary in normalized_queues if summary.get("status") not in {"ready", "complete"}),
+        None,
+    )
+    return (
+        next_queue is not None
+        and authoring_summary.get("queue_count") == len(DESIGN_AUTHORING_QUEUE_IDS)
+        and authoring_summary.get("queue_status_counts") == dict(sorted(status_counts.items()))
+        and authoring_summary.get("next_queue_id") == next_queue.get("queue_id")
+        and authoring_summary.get("next_active_work") == active_work
+        and active_work.get("queue_id") == next_queue.get("queue_id")
+        and active_work.get("queue_sequence") == next_queue.get("sequence")
+        and active_work.get("status") == next_queue.get("status")
+        and category_counts[0] > 0
+        and authoring_summary.get("total_task_count", 0) > 0
+        and authoring_summary.get("total_non_satisfied_required_link_count", 0) > 0
     )
 
 

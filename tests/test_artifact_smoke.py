@@ -119,6 +119,23 @@ class ArtifactSmokeTest(unittest.TestCase):
         self.assertTrue(payload["consumer_bootstrap_design_routing"]["authority_skill_inventory"]["ok"])
         self.assertEqual(9, payload["consumer_bootstrap_design_routing"]["queue_count"])
         self.assertEqual([], payload["consumer_bootstrap_design_routing"]["missing_queue_ids"])
+        design_routing = payload["consumer_bootstrap_design_routing"]
+        self.assertEqual(9, len(design_routing["queue_summaries"]))
+        self.assertEqual(9, design_routing["authoring_summary"]["queue_count"])
+        self.assertGreater(design_routing["authoring_summary"]["blocked_queue_count"], 0)
+        self.assertGreater(design_routing["authoring_summary"]["total_task_count"], 0)
+        self.assertGreater(
+            design_routing["authoring_summary"]["total_non_satisfied_required_link_count"],
+            0,
+        )
+        self.assertEqual(
+            design_routing["authoring_summary"]["next_queue_id"],
+            design_routing["active_work"]["queue_id"],
+        )
+        self.assertEqual(
+            design_routing["authoring_summary"]["next_active_work"],
+            design_routing["active_work"],
+        )
         self.assertIn(
             "design_authoring_preview",
             payload["consumer_bootstrap_design_routing"]["workflow_preset_expanded_flags"],

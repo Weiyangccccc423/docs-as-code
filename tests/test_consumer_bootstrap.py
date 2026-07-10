@@ -7,9 +7,11 @@ import unittest
 from pathlib import Path
 
 from scripts.bootstrap_consumer_project import (
+    DESIGN_AUTHORING_QUEUE_IDS,
     _apply_implementation_closeout,
     _maybe_auto_repair_env,
     _preview_implementation_closeout,
+    _summarize_design_authoring,
 )
 
 
@@ -18,6 +20,37 @@ EXPORT = ROOT / "scripts" / "export_workflow_pack.py"
 
 
 class ConsumerBootstrapTest(unittest.TestCase):
+    def test_design_authoring_summary_reports_complete_when_all_queues_are_ready(self) -> None:
+        queues = {
+            queue_id: {
+                "ok": True,
+                "authoring_summary": {
+                    "task_count": 1,
+                    "open_decision_count": 0,
+                    "non_satisfied_required_link_count": 0,
+                    "link_repair_action_count": 0,
+                },
+                "active_work": {
+                    "status": "ready",
+                    "primary_skill": "designing-system-architecture",
+                    "primary_specialist_skill": "senior-architect",
+                },
+            }
+            for queue_id, _step_id in DESIGN_AUTHORING_QUEUE_IDS
+        }
+
+        queue_summaries, authoring_summary, active_work = _summarize_design_authoring(queues)
+
+        self.assertEqual(9, len(queue_summaries))
+        self.assertEqual(0, authoring_summary["blocked_queue_count"])
+        self.assertEqual(0, authoring_summary["decision_required_queue_count"])
+        self.assertEqual(9, authoring_summary["ready_queue_count"])
+        self.assertEqual({"ready": 9}, authoring_summary["queue_status_counts"])
+        self.assertEqual("", authoring_summary["next_queue_id"])
+        self.assertEqual("complete", active_work["status"])
+        self.assertEqual("", active_work["queue_id"])
+        self.assertEqual(active_work, authoring_summary["next_active_work"])
+
     def test_exported_pack_bootstraps_consumer_target(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
@@ -1089,6 +1122,70 @@ class ConsumerBootstrapTest(unittest.TestCase):
             ]
             self.assertEqual(expected_queues, preview["queue_order"])
             self.assertEqual(set(expected_queues), set(preview["queues"].keys()))
+            queue_summaries = preview["queue_summaries"]
+            self.assertEqual(expected_queues, [summary["queue_id"] for summary in queue_summaries])
+            self.assertEqual(list(range(1, 10)), [summary["sequence"] for summary in queue_summaries])
+            for summary in queue_summaries:
+                queue = preview["queues"][summary["queue_id"]]
+                queue_authoring_summary = queue["authoring_summary"]
+                queue_active_work = queue["active_work"]
+                self.assertTrue(summary["ok"])
+                self.assertEqual(queue_active_work["status"], summary["status"])
+                self.assertEqual(queue_authoring_summary["task_count"], summary["task_count"])
+                self.assertEqual(
+                    queue_authoring_summary["open_decision_count"],
+                    summary["open_decision_count"],
+                )
+                self.assertEqual(
+                    queue_authoring_summary["non_satisfied_required_link_count"],
+                    summary["non_satisfied_required_link_count"],
+                )
+                self.assertEqual(
+                    queue_authoring_summary["link_repair_action_count"],
+                    summary["link_repair_action_count"],
+                )
+                self.assertEqual(queue_active_work["primary_skill"], summary["primary_skill"])
+                self.assertEqual(
+                    queue_active_work["primary_specialist_skill"],
+                    summary["primary_specialist_skill"],
+                )
+                self.assertEqual(queue_active_work, summary["active_work"])
+            authoring_summary = preview["authoring_summary"]
+            self.assertEqual(9, authoring_summary["queue_count"])
+            self.assertEqual(
+                9,
+                authoring_summary["blocked_queue_count"]
+                + authoring_summary["decision_required_queue_count"]
+                + authoring_summary["ready_queue_count"],
+            )
+            self.assertEqual(
+                9,
+                sum(authoring_summary["queue_status_counts"].values()),
+            )
+            self.assertEqual(
+                sum(summary["task_count"] for summary in queue_summaries),
+                authoring_summary["total_task_count"],
+            )
+            self.assertEqual(
+                sum(summary["open_decision_count"] for summary in queue_summaries),
+                authoring_summary["total_open_decision_count"],
+            )
+            self.assertEqual(
+                sum(summary["non_satisfied_required_link_count"] for summary in queue_summaries),
+                authoring_summary["total_non_satisfied_required_link_count"],
+            )
+            self.assertEqual(
+                sum(summary["link_repair_action_count"] for summary in queue_summaries),
+                authoring_summary["total_link_repair_action_count"],
+            )
+            first_active_queue = next(
+                summary for summary in queue_summaries if summary["status"] not in {"ready", "complete"}
+            )
+            self.assertEqual(first_active_queue["queue_id"], authoring_summary["next_queue_id"])
+            self.assertEqual(authoring_summary["next_active_work"], preview["active_work"])
+            self.assertEqual(first_active_queue["queue_id"], preview["active_work"]["queue_id"])
+            self.assertEqual(first_active_queue["sequence"], preview["active_work"]["queue_sequence"])
+            self.assertEqual(first_active_queue["status"], preview["active_work"]["status"])
             architecture = preview["queues"]["architecture-authoring"]
             self.assertTrue(architecture["ok"])
             self.assertEqual("do_not_guess_architecture_boundaries", architecture["decision_policy"])
