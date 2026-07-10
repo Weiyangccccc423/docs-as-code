@@ -453,6 +453,12 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
             "unpacked artifact dry-run did not prove target-local Make command coverage",
             payload=dry_run_payload,
         )
+        product_dispositions = _dry_run_product_disposition_details(dry_run_payload)
+        _require(
+            product_dispositions.get("ok") is True,
+            "unpacked artifact dry-run did not prove source-bound product chapter dispositions",
+            payload=dry_run_payload,
+        )
 
         payload = {
             "ok": True,
@@ -464,6 +470,7 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
             "archive_sha256": archive_sha256,
             "manifest_sha256": manifest_sha256,
             "target_local_make_coverage": target_local_make_coverage,
+            "product_dispositions": product_dispositions,
             "fresh_target_init": fresh_target_init,
             "consumer_bootstrap_product_structure": consumer_bootstrap_product_structure,
             "consumer_bootstrap_design_scaffold": consumer_bootstrap_design_scaffold,
@@ -544,6 +551,29 @@ def _dry_run_target_local_make_details(payload: dict[str, object]) -> dict[str, 
     return {
         "required_step_ids": TARGET_LOCAL_MAKE_STEP_IDS,
         "missing_step_ids": [step_id for step_id in TARGET_LOCAL_MAKE_STEP_IDS if step_id not in step_ids],
+    }
+
+
+def _dry_run_product_disposition_details(payload: dict[str, object]) -> dict[str, object]:
+    dispositions = payload.get("product_dispositions")
+    disposition_map = dispositions if isinstance(dispositions, dict) else {}
+    recorded_count = disposition_map.get("recorded_count")
+    omitted_count = disposition_map.get("omit_unsupported_count")
+    unresolved_count = disposition_map.get("unresolved_decision_count")
+    routed = disposition_map.get("work_package_routed_to_phase_action") is True
+    return {
+        "ok": (
+            isinstance(recorded_count, int)
+            and not isinstance(recorded_count, bool)
+            and recorded_count > 0
+            and omitted_count == recorded_count
+            and unresolved_count == 0
+            and routed
+        ),
+        "recorded_count": recorded_count if isinstance(recorded_count, int) else 0,
+        "omit_unsupported_count": omitted_count if isinstance(omitted_count, int) else 0,
+        "unresolved_decision_count": unresolved_count if isinstance(unresolved_count, int) else 0,
+        "work_package_routed_to_phase_action": routed,
     }
 
 

@@ -47,6 +47,7 @@ RUNTIME_SCRIPT_FILES = [
     "governance_cli.py",
     "implementation_plan.py",
     "phases.py",
+    "product_dispositions.py",
     "product_import.py",
     "product_structure.py",
     "scaffold.py",

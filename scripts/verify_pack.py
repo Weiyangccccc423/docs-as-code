@@ -730,6 +730,15 @@ DRY_RUN_WORKFLOW_REQUIRED_PHRASES = (
     "make_product_plan",
     '["make", "product-plan"]',
     "suggested_mappings",
+    "OPTIONAL_PRODUCT_CHAPTERS",
+    "_record_optional_product_dispositions",
+    "product_disposition_{step_slug}_check",
+    "product_disposition_{step_slug}_apply",
+    "product_plan_after_dispositions",
+    "work_package_after_product_dispositions",
+    "product_dispositions_verify_check",
+    "chapter-dispositions.json",
+    "product_dispositions",
     '"structure"',
     "goals-and-requirements=Goals and Requirements",
     "acceptance-criteria=Acceptance Criteria",
@@ -1574,7 +1583,13 @@ ARTIFACT_SMOKE_REQUIRED_PHRASES = (
     "blocked_without_evidence",
     "ready_with_evidence",
     "_dry_run_target_local_make_details",
+    "_dry_run_product_disposition_details",
     "target_local_make_coverage",
+    "product_dispositions",
+    "recorded_count",
+    "omit_unsupported_count",
+    "unresolved_decision_count",
+    "work_package_routed_to_phase_action",
     "make_verify_governance",
     "make_verify_check",
     "make_governance_status",
@@ -1654,8 +1669,10 @@ RELEASE_READINESS_REQUIRED_PHRASES = (
     "continue_workflow",
     "stop_before_workflow",
     "_dry_run_closeout_evidence_ok",
+    "_dry_run_product_dispositions_ok",
     "_dry_run_target_local_make_coverage_ok",
     "_artifact_smoke_fresh_target_init_ok",
+    "_artifact_smoke_product_dispositions_ok",
     "_artifact_smoke_consumer_bootstrap_ok",
     "_artifact_smoke_work_package_ok",
     "_artifact_smoke_consumer_design_scaffold_ok",
@@ -1962,6 +1979,9 @@ PRODUCT_STRUCTURE_REQUIRED_PHRASES = (
     "prd_headings",
     "suggested_mappings",
     "required_decisions",
+    "chapter_dispositions",
+    "stale_chapter_dispositions",
+    "disposition_summary",
     "manual_authoring_tasks",
     "manual_authoring_summary",
     "status: decision_required",
@@ -1991,6 +2011,11 @@ PRODUCT_STRUCTURE_REQUIRED_PHRASES = (
     "would_skip",
     "would_index",
     "product structure",
+    "product disposition",
+    "author-required",
+    "omit-unsupported",
+    "chapter-dispositions.json",
+    "PRD SHA-256",
     "key=PRD Heading",
     "would_update",
     "governance:scaffold-placeholder",
@@ -2006,6 +2031,81 @@ PRODUCT_STRUCTURE_REQUIRED_PHRASES = (
     "local_commands",
     "next_actions",
 )
+PRODUCT_DISPOSITION_SOURCE_PATH = "scripts/product_dispositions.py"
+PRODUCT_DISPOSITION_SOURCE_REQUIRED_PHRASES = (
+    "ProductDispositionResult",
+    "check_product_disposition",
+    "record_product_disposition",
+    "build_product_disposition_inventory",
+    "PRODUCT_DISPOSITION_SCHEMA_VERSION",
+    "PRODUCT_DISPOSITION_DECISION_POLICY",
+    "PRODUCT_DISPOSITION_REVIEW_SCOPE",
+    "author-required",
+    "omit-unsupported",
+    "NON_OMITTABLE_PRODUCT_CHAPTERS",
+    "prd_sha256",
+    "review_scope",
+    "_write_atomic_bytes",
+)
+PRODUCT_DISPOSITION_DOC_REQUIREMENTS = {
+    "README.md": (
+        "product disposition",
+        "author-required",
+        "omit-unsupported",
+        "docs/product/core/chapter-dispositions.json",
+        "PRD SHA-256",
+        "review scope",
+    ),
+    "workflows/00-overview.md": (
+        "product disposition",
+        "author-required",
+        "omit-unsupported",
+        "docs/product/core/chapter-dispositions.json",
+        "PRD SHA-256",
+        "review_scope",
+    ),
+    "workflows/03-product-structuring.md": (
+        "next_action.kind",
+        "decide-product-chapter",
+        "product disposition",
+        "author-required",
+        "omit-unsupported",
+        "chapter-dispositions.json",
+        "SHA-256",
+        "stale",
+    ),
+    "skills/structuring-product-requirements/SKILL.md": (
+        "next_action.kind: decide-product-chapter",
+        "product disposition",
+        "author-required",
+        "omit-unsupported",
+        "chapter-dispositions.json",
+        "PRD SHA-256",
+        "review_scope",
+    ),
+    "skills/using-governance-workflow/SKILL.md": (
+        "decide-product-chapter",
+        "product disposition",
+        "author-required",
+        "omit-unsupported",
+        "stale dispositions",
+    ),
+    "skills/verifying-governance-docs/SKILL.md": (
+        "product_chapter_disposition_invalid",
+        "product_chapter_disposition_stale",
+        "product disposition --check",
+        "chapter-dispositions.json",
+    ),
+    "references/product-requirements-checklist.md": (
+        "Chapter Dispositions",
+        "product disposition --check",
+        "author-required",
+        "omit-unsupported",
+        "chapter-dispositions.json",
+        "canonical PRD SHA-256",
+        "review_scope",
+    ),
+}
 DESIGN_SCAFFOLD_DOC_PATHS = (
     "README.md",
     "workflows/00-overview.md",
@@ -3810,7 +3910,7 @@ GOVERNANCE_CLI_REQUIRED_COMMANDS = (
 GOVERNANCE_CLI_REQUIRED_SUBCOMMANDS = {
     "runtime": ("refresh",),
     "workflow": ("plan", "work-package"),
-    "product": ("mark-ready", "plan", "structure"),
+    "product": ("mark-ready", "plan", "disposition", "structure"),
     "design": (
         "plan",
         "api-candidates",
@@ -4170,6 +4270,8 @@ def verify_pack(root: Path) -> PackReport:
     _check_runtime_refresh_docs(root, findings)
     _check_product_archive_docs(root, findings)
     _check_product_structure_docs(root, findings)
+    _check_product_disposition_source(root, findings)
+    _check_product_disposition_docs(root, findings)
     _check_design_scaffold_docs(root, findings)
     _check_design_plan_source(root, findings)
     _check_design_plan_docs(root, findings)
@@ -5959,6 +6061,50 @@ def _check_product_structure_docs(root: Path, findings: list[PackFinding]) -> No
                 rel,
             )
         )
+
+
+def _check_product_disposition_source(root: Path, findings: list[PackFinding]) -> None:
+    path = root / PRODUCT_DISPOSITION_SOURCE_PATH
+    if not path.is_file():
+        findings.append(
+            PackFinding(
+                "pack_product_disposition_source_missing",
+                f"missing product disposition source script: {PRODUCT_DISPOSITION_SOURCE_PATH}",
+                PRODUCT_DISPOSITION_SOURCE_PATH,
+            )
+        )
+        return
+    text = _read_utf8_text_or_none(path)
+    if text is None:
+        return
+    missing = [phrase for phrase in PRODUCT_DISPOSITION_SOURCE_REQUIRED_PHRASES if phrase not in text]
+    if missing:
+        findings.append(
+            PackFinding(
+                "pack_product_disposition_source_incomplete",
+                (
+                    f"{PRODUCT_DISPOSITION_SOURCE_PATH} must preserve reviewed source-bound product decisions; "
+                    f"missing phrase(s): {', '.join(missing)}"
+                ),
+                PRODUCT_DISPOSITION_SOURCE_PATH,
+            )
+        )
+
+
+def _check_product_disposition_docs(root: Path, findings: list[PackFinding]) -> None:
+    for rel, phrases in PRODUCT_DISPOSITION_DOC_REQUIREMENTS.items():
+        text = _read_utf8_text_or_none(root / rel)
+        if text is None:
+            continue
+        missing = [phrase for phrase in phrases if phrase not in text]
+        if missing:
+            findings.append(
+                PackFinding(
+                    "pack_product_disposition_doc_missing",
+                    f"{rel} must document product disposition phrase(s): {', '.join(missing)}",
+                    rel,
+                )
+            )
 
 
 def _check_design_scaffold_docs(root: Path, findings: list[PackFinding]) -> None:

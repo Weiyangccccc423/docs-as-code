@@ -236,11 +236,13 @@ def _product_work_package(root: Path) -> tuple[dict[str, object], list[str], str
         return {}, _string_list(payload.get("errors")), "failed"
     tasks = _dict_items(payload.get("manual_authoring_tasks"))
     active_work = _dict_value(payload.get("active_work"))
+    if active_work.get("status") in {"ready", "complete"} and not active_work.get("task_id"):
+        return {}, [], "phase_action_required"
     task = _selected_work_item(tasks, str(active_work.get("task_id", "")))
     if not task:
         return {}, [], "phase_action_required"
     primary_path = str(task.get("path", ""))
-    source_documents = _string_list(task.get("source_documents"))
+    source_documents = _string_list(payload.get("source_documents"))
     references = _target_read_paths(root, ["references/product-requirements-checklist.md"])
     required_evidence = _dict_items(task.get("required_evidence"))
     blockers = [item for item in required_evidence if item.get("status") != "satisfied"]
@@ -250,6 +252,7 @@ def _product_work_package(root: Path) -> tuple[dict[str, object], list[str], str
         "phase": PRODUCT_PHASE,
         "queue_id": "product-plan",
         "work_id": str(task.get("task_id", "")),
+        "chapter": str(task.get("chapter", "")),
         "status": str(active_work.get("status", task.get("status", "decision_required"))),
         "title": str(task.get("title", "")),
         "objective": str(task.get("decision", "")),
@@ -263,6 +266,7 @@ def _product_work_package(root: Path) -> tuple[dict[str, object], list[str], str
             "supporting_paths": [
                 "docs/product/README.md",
                 "docs/product/core/product-meta.md",
+                "docs/product/core/chapter-dispositions.json",
                 "docs/unresolved.md",
                 "docs/glossary.md",
             ],
@@ -275,6 +279,7 @@ def _product_work_package(root: Path) -> tuple[dict[str, object], list[str], str
         "blockers": blockers,
         "repair_actions": _dict_items(task.get("evidence_repair_actions")),
         "action_options": _string_list(task.get("action_options")),
+        "disposition": _dict_value(task.get("disposition")),
         "skill_requirements": _dict_items(task.get("skill_requirements")),
         "authority_skill_requirements": _dict_items(task.get("authority_skill_requirements")),
         "skill_loading_plan": _dict_value(task.get("skill_loading_plan")),
@@ -509,6 +514,29 @@ def _work_package_next_action(
             "skills": missing_authority,
             "approval_required": True,
             "missing_policy": "load_from_agent_environment_or_stop_before_guessing",
+        }
+    if package.get("kind") == "product-authoring" and not _dict_value(package.get("disposition")):
+        chapter = str(package.get("chapter", ""))
+        return {
+            "kind": "decide-product-chapter",
+            "chapter": chapter,
+            "decision_policy": str(package.get("decision_policy", "")),
+            "options": ["author-required", "omit-unsupported"],
+            "command_contract": {
+                "cwd": str(root),
+                "argv_prefix": [
+                    "bin/governance",
+                    "product",
+                    "disposition",
+                    ".",
+                    "--chapter",
+                    chapter,
+                ],
+                "required_arguments": ["--decision", "--reason", "--reviewed"],
+                "preflight_argument": "--check",
+                "writes_state": True,
+                "approval_required": False,
+            },
         }
     repair_actions = _dict_items(package.get("repair_actions"))
     if repair_actions:

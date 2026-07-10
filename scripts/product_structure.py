@@ -10,11 +10,21 @@ from typing import Any
 
 try:
     from .bootstrap_tree import target_local_commands_payload
+    from .product_dispositions import (
+        PRODUCT_CHAPTER_KEYS,
+        PRODUCT_DISPOSITIONS_REL,
+        build_product_disposition_inventory,
+    )
     from .scaffold import PRODUCT_SCAFFOLD_BY_KEY
     from .state import StateFileError, load_state
     from .workflow_actions import next_actions_payload
 except ImportError:  # pragma: no cover - direct script execution
     from bootstrap_tree import target_local_commands_payload
+    from product_dispositions import (
+        PRODUCT_CHAPTER_KEYS,
+        PRODUCT_DISPOSITIONS_REL,
+        build_product_disposition_inventory,
+    )
     from scaffold import PRODUCT_SCAFFOLD_BY_KEY
     from state import StateFileError, load_state
     from workflow_actions import next_actions_payload
@@ -246,6 +256,8 @@ def build_product_plan(root: Path) -> dict[str, object]:
         errors.append("No governance state found.")
     elif phase != PRODUCT_PHASE:
         errors.append(f"product plan requires recorded phase {PRODUCT_PHASE}")
+    if tuple(PRODUCT_SCAFFOLD_BY_KEY) != PRODUCT_CHAPTER_KEYS:
+        errors.append("product disposition chapter registry does not match product scaffold registry")
     prd_path = root / PRD_REL
     prd_text = ""
     if not prd_path.exists():
@@ -262,10 +274,50 @@ def build_product_plan(root: Path) -> dict[str, object]:
     prd_headings = _markdown_heading_payloads(prd_text)
     available_chapters = _available_chapter_payloads()
     suggested_mappings = _suggest_chapter_mappings(prd_headings)
-    required_decisions = _required_product_decisions(suggested_mappings)
-    manual_authoring_tasks = _manual_authoring_tasks(root, required_decisions)
+    all_required_decisions = _required_product_decisions(suggested_mappings)
+    disposition_inventory = build_product_disposition_inventory(root)
+    errors.extend(_string_items(disposition_inventory.get("errors")))
+    active_dispositions = _dict_items(disposition_inventory.get("active"))
+    stale_dispositions = _dict_items(disposition_inventory.get("stale"))
+    active_dispositions_by_chapter = {
+        str(item.get("chapter", "")): item
+        for item in active_dispositions
+        if isinstance(item.get("chapter"), str)
+    }
+    required_decisions = [
+        decision
+        for decision in all_required_decisions
+        if decision.get("chapter") not in active_dispositions_by_chapter
+    ]
+    manual_authoring_tasks = _manual_authoring_tasks(
+        root,
+        all_required_decisions,
+        active_dispositions_by_chapter,
+    )
     manual_authoring_summary = _manual_authoring_summary(manual_authoring_tasks)
     steps = _product_plan_steps(root, suggested_mappings, required_decisions)
+    source_documents = list(PRODUCT_SOURCE_DOCUMENTS)
+    if disposition_inventory.get("exists") is True:
+        source_documents.append(PRODUCT_DISPOSITIONS_REL.as_posix())
+    applicable_active_chapters = {
+        str(decision.get("chapter", ""))
+        for decision in all_required_decisions
+        if decision.get("chapter") in active_dispositions_by_chapter
+    }
+    applicable_active_dispositions = [
+        item for item in active_dispositions if item.get("chapter") in applicable_active_chapters
+    ]
+    disposition_summary = {
+        "active_count": len(applicable_active_dispositions),
+        "author_required_count": sum(
+            1 for item in applicable_active_dispositions if item.get("decision") == "author-required"
+        ),
+        "omit_unsupported_count": sum(
+            1 for item in applicable_active_dispositions if item.get("decision") == "omit-unsupported"
+        ),
+        "stale_count": len(stale_dispositions),
+        "undecided_count": len(required_decisions),
+    }
     payload: dict[str, object] = {
         "ok": not errors,
         "target": str(root),
@@ -276,11 +328,14 @@ def build_product_plan(root: Path) -> dict[str, object]:
         "skills": list(PRODUCT_STRUCTURING_SKILLS),
         "skill_requirements": _product_skill_requirements(root),
         "authority_skill_requirements": [],
-        "source_documents": list(PRODUCT_SOURCE_DOCUMENTS),
+        "source_documents": source_documents,
         "available_chapters": available_chapters,
         "prd_headings": prd_headings,
         "suggested_mappings": suggested_mappings,
         "required_decisions": required_decisions,
+        "chapter_dispositions": active_dispositions,
+        "stale_chapter_dispositions": stale_dispositions,
+        "disposition_summary": disposition_summary,
         "manual_authoring_tasks": manual_authoring_tasks,
         "manual_authoring_summary": manual_authoring_summary,
         "active_work": _active_manual_authoring_work(root, manual_authoring_tasks),
@@ -459,11 +514,56 @@ def _required_product_decisions(suggested_mappings: list[dict[str, object]]) -> 
     return decisions
 
 
-def _manual_authoring_tasks(root: Path, required_decisions: list[dict[str, str]]) -> list[dict[str, object]]:
-    return [
-        _manual_authoring_task(root, decision, index)
-        for index, decision in enumerate(required_decisions, start=1)
-    ]
+def _manual_authoring_tasks(
+    root: Path,
+    required_decisions: list[dict[str, str]],
+    dispositions_by_chapter: dict[str, dict[str, object]] | None = None,
+) -> list[dict[str, object]]:
+    dispositions = dispositions_by_chapter or {}
+    tasks: list[dict[str, object]] = []
+    for index, decision in enumerate(required_decisions, start=1):
+        chapter = str(decision.get("chapter", ""))
+        disposition = dispositions.get(chapter, {})
+        if disposition.get("decision") == "omit-unsupported":
+            continue
+        task = _manual_authoring_task(root, decision, index)
+        if disposition:
+            task["disposition"] = copy.deepcopy(disposition)
+            task["source_documents"] = [*PRODUCT_SOURCE_DOCUMENTS, PRODUCT_DISPOSITIONS_REL.as_posix()]
+        if disposition.get("decision") == "author-required":
+            task["status"] = "authoring_required"
+            task["resolved_decisions"] = list(task.get("open_decisions", []))
+            task["open_decisions"] = []
+            _apply_reviewed_disposition_evidence(root, task, disposition)
+        tasks.append(task)
+    return tasks
+
+
+def _apply_reviewed_disposition_evidence(
+    root: Path,
+    task: dict[str, object],
+    disposition: dict[str, object],
+) -> None:
+    required_evidence = task.get("required_evidence")
+    if not isinstance(required_evidence, list) or disposition.get("reviewed") is not True:
+        return
+    reviewed_evidence_ids = {"prd-source-evidence", "unresolved-reviewed", "glossary-reviewed"}
+    for evidence in required_evidence:
+        if (
+            not isinstance(evidence, dict)
+            or evidence.get("id") not in reviewed_evidence_ids
+            or evidence.get("status") != "pending_review"
+        ):
+            continue
+        evidence["status"] = "satisfied"
+        evidence["reviewed_by_disposition"] = True
+        evidence["disposition_decision"] = "author-required"
+        evidence["disposition_recorded_at"] = str(disposition.get("recorded_at", ""))
+        evidence["details"] = "manual review acknowledged by the current PRD-bound author-required disposition"
+    task["evidence_repair_actions"] = _evidence_repair_actions(
+        root,
+        [item for item in required_evidence if isinstance(item, dict)],
+    )
 
 
 def _manual_authoring_summary(tasks: list[dict[str, object]]) -> dict[str, object]:
@@ -508,6 +608,14 @@ def _active_manual_authoring_work(root: Path, tasks: list[dict[str, object]]) ->
         }
 
     task = _first_blocked_task(tasks, item_key="required_evidence")
+    if not task:
+        return {
+            "kind": "product-manual-authoring-task",
+            "status": "ready",
+            "blocker_count": 0,
+            "open_decision_count": 0,
+            "next_repair_action": {},
+        }
     evidence = _first_non_satisfied_item(task.get("required_evidence"))
     repair_action = _first_dict(task.get("evidence_repair_actions"))
     execution = task.get("execution") if isinstance(task.get("execution"), dict) else {}
@@ -549,9 +657,9 @@ def _active_manual_authoring_work(root: Path, tasks: list[dict[str, object]]) ->
 
 def _first_blocked_task(tasks: list[dict[str, object]], *, item_key: str) -> dict[str, object]:
     for task in tasks:
-        if _non_satisfied_item_count(task.get(item_key)) > 0 or _list_count(task.get("open_decisions")) > 0:
+        if _non_satisfied_item_count(task.get(item_key)) > 0:
             return task
-    return tasks[0]
+    return {}
 
 
 def _first_non_satisfied_item(items: object) -> dict[str, object]:
@@ -580,6 +688,14 @@ def _non_satisfied_item_count(items: object) -> int:
 
 def _list_count(value: object) -> int:
     return len(value) if isinstance(value, list) else 0
+
+
+def _dict_items(value: object) -> list[dict[str, object]]:
+    return [copy.deepcopy(item) for item in value if isinstance(item, dict)] if isinstance(value, list) else []
+
+
+def _string_items(value: object) -> list[str]:
+    return [str(item) for item in value if isinstance(item, str) and item] if isinstance(value, list) else []
 
 
 def _manual_authoring_task(root: Path, decision: dict[str, str], index: int) -> dict[str, object]:
@@ -921,7 +1037,7 @@ def _measurement_source_status(root: Path, target: str) -> tuple[str, str]:
     lowered = text.casefold()
     required_terms = ("source", "target")
     if all(term in lowered for term in required_terms):
-        return "pending_review", "chapter mentions source and target; measurement assumptions still require manual review"
+        return "satisfied", "chapter records measurement source and target for verification"
     return "needs_manual_review", "success metrics chapter must state measurement source and target"
 
 

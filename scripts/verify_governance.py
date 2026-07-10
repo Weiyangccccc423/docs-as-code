@@ -13,10 +13,12 @@ from typing import Callable
 
 try:
     from .bootstrap_tree import TARGET_LOCAL_COMMANDS, target_local_commands_payload
+    from .product_dispositions import PRODUCT_DISPOSITIONS_REL, build_product_disposition_inventory
     from .state import StateFileError, load_state
     from .workflow_actions import next_actions_payload
 except ImportError:  # pragma: no cover - direct script execution
     from bootstrap_tree import TARGET_LOCAL_COMMANDS, target_local_commands_payload
+    from product_dispositions import PRODUCT_DISPOSITIONS_REL, build_product_disposition_inventory
     from state import StateFileError, load_state
     from workflow_actions import next_actions_payload
 
@@ -171,6 +173,7 @@ RUNTIME_REQUIRED_SCRIPT_FILES = (
     "governance_cli.py",
     "implementation_plan.py",
     "phases.py",
+    "product_dispositions.py",
     "product_import.py",
     "product_structure.py",
     "scaffold.py",
@@ -715,6 +718,7 @@ def verify(root: Path) -> VerificationReport:
     _check_docs_agents_guardrails(root, report)
     _check_domain_agents_guardrails(root, report)
     _check_product_source_manifest(root, report)
+    _check_product_chapter_dispositions(root, report)
     _check_product_chapter_links(root, report)
     _check_api_conventions(root, report)
     _check_api_error_codes(root, report)
@@ -748,6 +752,31 @@ def verify(root: Path) -> VerificationReport:
     _check_task_board_acceptance_matrix_alignment(root, report)
 
     return report
+
+
+def _check_product_chapter_dispositions(root: Path, report: VerificationReport) -> None:
+    inventory = build_product_disposition_inventory(root)
+    if inventory.get("exists") is not True:
+        return
+    rel = PRODUCT_DISPOSITIONS_REL.as_posix()
+    errors = inventory.get("errors")
+    if isinstance(errors, list) and errors:
+        for error in errors:
+            if isinstance(error, str):
+                report.add_error("product_chapter_disposition_invalid", error, rel)
+        return
+    stale = inventory.get("stale")
+    if not isinstance(stale, list):
+        return
+    for disposition in stale:
+        if not isinstance(disposition, dict):
+            continue
+        chapter = str(disposition.get("chapter", "<unknown>"))
+        report.add_error(
+            "product_chapter_disposition_stale",
+            f"product chapter disposition for {chapter} was reviewed against a different PRD hash",
+            rel,
+        )
 
 
 def _is_effectively_empty(path: Path) -> bool:

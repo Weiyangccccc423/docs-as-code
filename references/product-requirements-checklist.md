@@ -4,6 +4,15 @@ Use this checklist before product chapters, acceptance criteria, glossary terms,
 
 Calibrate against ISO/IEC/IEEE 29148 requirements engineering, INVEST story quality, and Gherkin-style scenario phrasing without making any one format mandatory. Markdown product documents remain the human review layer.
 
+## Chapter Dispositions
+
+- Is every unsupported optional chapter resolved with a reviewed `author-required` or `omit-unsupported` decision rather than silently skipped?
+- Was `product disposition --check` run before writing `docs/product/core/chapter-dispositions.json`?
+- Does each disposition bind to the current canonical PRD SHA-256 with a concrete source-review reason?
+- Does `review_scope` cover chapter source, unresolved items, and glossary implications without replacing objective file or traceability evidence?
+- Are stale dispositions rejected after the PRD changes?
+- Are `goals-and-requirements` and `acceptance-criteria` protected from omission?
+
 ## Source Fidelity
 
 - Does every derived product chapter link back to `docs/product/core/PRD.md` or a specific local source section?

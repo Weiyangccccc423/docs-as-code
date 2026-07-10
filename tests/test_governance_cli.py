@@ -2754,10 +2754,22 @@ class GovernanceCliTest(unittest.TestCase):
                     for requirement in local_requirements
                 )
             )
-            self.assertEqual("repair", work_package_payload["next_action"]["kind"])
+            self.assertEqual("decide-product-chapter", work_package_payload["next_action"]["kind"])
+            self.assertEqual("background-and-problems", work_package_payload["next_action"]["chapter"])
             self.assertEqual(
-                "repair-required-evidence-prd-source-evidence",
-                work_package_payload["next_action"]["action"]["id"],
+                ["author-required", "omit-unsupported"],
+                work_package_payload["next_action"]["options"],
+            )
+            self.assertEqual(
+                [
+                    "bin/governance",
+                    "product",
+                    "disposition",
+                    ".",
+                    "--chapter",
+                    "background-and-problems",
+                ],
+                work_package_payload["next_action"]["command_contract"]["argv_prefix"],
             )
 
             missing_skill = target / local_requirements[0]["resolved_path"]
@@ -6205,6 +6217,404 @@ class GovernanceCliTest(unittest.TestCase):
                     "--json",
                 ],
                 structure_check["argv"],
+            )
+
+    def test_product_disposition_records_reviewed_decisions_and_advances_work_package(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text(
+                "# Product\n\n"
+                "## Goals and Requirements\n\n"
+                "- Ship a governed project from one product document.\n\n"
+                "## Acceptance Criteria\n\n"
+                "- The initialized repository exposes local governance checks.\n",
+                encoding="utf-8",
+            )
+            _run_governance_json(self, ["init", "--target", str(target), "--product", str(product)])
+            _run_governance_json(self, ["advance", "product-structuring", str(target)])
+
+            initial_package = _run_governance_json(
+                self,
+                ["workflow", "work-package", str(target)],
+            )
+            self.assertEqual("PRODUCT-AUTHOR-001", initial_package["work_package"]["work_id"])
+            self.assertEqual("background-and-problems", initial_package["work_package"]["chapter"])
+            self.assertEqual("decide-product-chapter", initial_package["next_action"]["kind"])
+
+            disposition_rel = "docs/product/core/chapter-dispositions.json"
+            disposition_path = target / disposition_rel
+            reason = "Source review confirms the PRD contains no background or problem statement."
+            preview = _run_governance_json(
+                self,
+                [
+                    "product",
+                    "disposition",
+                    str(target),
+                    "--chapter",
+                    "background-and-problems",
+                    "--decision",
+                    "omit-unsupported",
+                    "--reason",
+                    reason,
+                    "--reviewed",
+                    "--check",
+                ],
+            )
+            self.assertTrue(preview["ok"])
+            self.assertTrue(preview["check"])
+            self.assertFalse(preview["apply_requested"])
+            self.assertFalse(preview["applied"])
+            self.assertEqual([disposition_rel], preview["would_update"])
+            self.assertEqual([], preview["updated"])
+            self.assertFalse(disposition_path.exists())
+            self.assertEqual("omit-unsupported", preview["disposition"]["decision"])
+            self.assertEqual(reason, preview["disposition"]["reason"])
+            self.assertTrue(preview["disposition"]["reviewed"])
+            self.assertEqual(
+                ["chapter-source", "unresolved-items", "glossary-terms"],
+                preview["disposition"]["review_scope"],
+            )
+            self.assertEqual("docs/product/core/PRD.md", preview["disposition"]["source_path"])
+            self.assertRegex(preview["disposition"]["prd_sha256"], r"^[0-9a-f]{64}$")
+
+            applied = _run_governance_json(
+                self,
+                [
+                    "product",
+                    "disposition",
+                    str(target),
+                    "--chapter",
+                    "background-and-problems",
+                    "--decision",
+                    "omit-unsupported",
+                    "--reason",
+                    reason,
+                    "--reviewed",
+                ],
+            )
+            self.assertTrue(applied["apply_requested"])
+            self.assertTrue(applied["applied"])
+            self.assertEqual([disposition_rel], applied["updated"])
+            self.assertEqual([], applied["would_update"])
+            self.assertTrue(disposition_path.is_file())
+            disposition_document = json.loads(disposition_path.read_text(encoding="utf-8"))
+            self.assertEqual(1, disposition_document["schema_version"])
+            self.assertEqual(1, len(disposition_document["dispositions"]))
+            self.assertEqual("background-and-problems", disposition_document["dispositions"][0]["chapter"])
+            disposition_bytes = disposition_path.read_bytes()
+            repeated = _run_governance_json(
+                self,
+                [
+                    "product",
+                    "disposition",
+                    str(target),
+                    "--chapter",
+                    "background-and-problems",
+                    "--decision",
+                    "omit-unsupported",
+                    "--reason",
+                    reason,
+                    "--reviewed",
+                ],
+            )
+            self.assertFalse(repeated["applied"])
+            self.assertEqual([], repeated["updated"])
+            self.assertEqual(disposition_bytes, disposition_path.read_bytes())
+
+            plan = _run_governance_json(self, ["product", "plan", str(target)])
+            self.assertIn(disposition_rel, plan["source_documents"])
+            self.assertNotIn(
+                "background-and-problems",
+                {decision["chapter"] for decision in plan["required_decisions"]},
+            )
+            self.assertNotIn(
+                "background-and-problems",
+                {task["chapter"] for task in plan["manual_authoring_tasks"]},
+            )
+            self.assertEqual(
+                {
+                    "active_count": 1,
+                    "author_required_count": 0,
+                    "omit_unsupported_count": 1,
+                    "stale_count": 0,
+                    "undecided_count": 3,
+                },
+                plan["disposition_summary"],
+            )
+            next_package = _run_governance_json(
+                self,
+                ["workflow", "work-package", str(target)],
+            )
+            self.assertEqual("PRODUCT-AUTHOR-002", next_package["work_package"]["work_id"])
+            self.assertEqual("change-log", next_package["work_package"]["chapter"])
+
+            author_reason = "The chapter must be authored manually from source evidence after review."
+            _run_governance_json(
+                self,
+                [
+                    "product",
+                    "disposition",
+                    str(target),
+                    "--chapter",
+                    "background-and-problems",
+                    "--decision",
+                    "author-required",
+                    "--reason",
+                    author_reason,
+                    "--reviewed",
+                ],
+            )
+            author_plan = _run_governance_json(self, ["product", "plan", str(target)])
+            author_tasks = {task["chapter"]: task for task in author_plan["manual_authoring_tasks"]}
+            self.assertEqual("authoring_required", author_tasks["background-and-problems"]["status"])
+            self.assertEqual("author-required", author_tasks["background-and-problems"]["disposition"]["decision"])
+            author_package = _run_governance_json(
+                self,
+                ["workflow", "work-package", str(target)],
+            )
+            self.assertEqual("PRODUCT-AUTHOR-001", author_package["work_package"]["work_id"])
+            self.assertEqual("repair", author_package["next_action"]["kind"])
+
+            background_path = target / "docs/product/01-background-and-problems.md"
+            background_path.write_text(
+                "# Background and Problems\n\n"
+                "Source: [PRD](core/PRD.md).\n\n"
+                "## Background\n\n"
+                "- The reviewed source establishes the governed workspace context.\n",
+                encoding="utf-8",
+            )
+            _append_index(target / "docs/product/README.md", background_path.name)
+            _append_product_meta_chapter(target, background_path.name)
+            authored_plan = _run_governance_json(self, ["product", "plan", str(target)])
+            authored_tasks = {task["chapter"]: task for task in authored_plan["manual_authoring_tasks"]}
+            self.assertTrue(
+                all(item["status"] == "satisfied" for item in authored_tasks["background-and-problems"]["required_evidence"])
+            )
+            self.assertEqual("change-log", authored_plan["active_work"]["chapter"])
+            authored_package = _run_governance_json(
+                self,
+                ["workflow", "work-package", str(target)],
+            )
+            self.assertEqual("PRODUCT-AUTHOR-002", authored_package["work_package"]["work_id"])
+            self.assertEqual("change-log", authored_package["work_package"]["chapter"])
+
+            omissions = {
+                "background-and-problems": reason,
+                "change-log": "Source review confirms the PRD contains no document revision history.",
+                "functional-spec": "Source review confirms the PRD contains no separate functional specification.",
+                "success-metrics": "Source review confirms the PRD contains no measurable success metrics.",
+            }
+            for chapter, omission_reason in omissions.items():
+                _run_governance_json(
+                    self,
+                    [
+                        "product",
+                        "disposition",
+                        str(target),
+                        "--chapter",
+                        chapter,
+                        "--decision",
+                        "omit-unsupported",
+                        "--reason",
+                        omission_reason,
+                        "--reviewed",
+                    ],
+                )
+
+            complete_plan = _run_governance_json(self, ["product", "plan", str(target)])
+            self.assertEqual([], complete_plan["required_decisions"])
+            self.assertEqual([], complete_plan["manual_authoring_tasks"])
+            self.assertEqual("ready", complete_plan["active_work"]["status"])
+            self.assertEqual(4, complete_plan["disposition_summary"]["omit_unsupported_count"])
+            complete_package = _run_governance_json(
+                self,
+                ["workflow", "work-package", str(target)],
+            )
+            self.assertFalse(complete_package["package_available"])
+            self.assertEqual("phase_action_required", complete_package["status"])
+            self.assertEqual("advance-design-derivation-check", complete_package["next_action"]["id"])
+
+    def test_product_disposition_rejects_unreviewed_unsafe_or_required_omissions(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text(
+                "# Product\n\n## Goals and Requirements\n\n- Build the governed workspace.\n",
+                encoding="utf-8",
+            )
+            _run_governance_json(self, ["init", "--target", str(target), "--product", str(product)])
+            _run_governance_json(self, ["advance", "product-structuring", str(target)])
+
+            unreviewed = _run_governance_json(
+                self,
+                [
+                    "product",
+                    "disposition",
+                    str(target),
+                    "--chapter",
+                    "background-and-problems",
+                    "--decision",
+                    "omit-unsupported",
+                    "--reason",
+                    "The source was checked and has no background section.",
+                    "--check",
+                ],
+                expected_returncode=1,
+            )
+            self.assertIn("--reviewed is required", unreviewed["errors"])
+
+            placeholder_reason = _run_governance_json(
+                self,
+                [
+                    "product",
+                    "disposition",
+                    str(target),
+                    "--chapter",
+                    "background-and-problems",
+                    "--decision",
+                    "omit-unsupported",
+                    "--reason",
+                    "TODO",
+                    "--reviewed",
+                    "--check",
+                ],
+                expected_returncode=1,
+            )
+            self.assertIn("reason must be a concrete source-review explanation", placeholder_reason["errors"])
+
+            for chapter in ("goals-and-requirements", "acceptance-criteria"):
+                protected = _run_governance_json(
+                    self,
+                    [
+                        "product",
+                        "disposition",
+                        str(target),
+                        "--chapter",
+                        chapter,
+                        "--decision",
+                        "omit-unsupported",
+                        "--reason",
+                        "The source review did not find a dedicated section for this chapter.",
+                        "--reviewed",
+                        "--check",
+                    ],
+                    expected_returncode=1,
+                )
+                self.assertIn(f"required product chapter cannot be omitted: {chapter}", protected["errors"])
+
+            self.assertFalse((target / "docs/product/core/chapter-dispositions.json").exists())
+            outside = Path(tmp) / "outside.txt"
+            outside.write_text("do not overwrite\n", encoding="utf-8")
+            disposition_temp = target / "docs/product/core/.chapter-dispositions.json.tmp"
+            disposition_temp.symlink_to(outside)
+            disposition_args = [
+                "product",
+                "disposition",
+                str(target),
+                "--chapter",
+                "background-and-problems",
+                "--decision",
+                "omit-unsupported",
+                "--reason",
+                "Source review confirms the PRD contains no background section.",
+                "--reviewed",
+            ]
+            unsafe_temp_check = _run_governance_json(
+                self,
+                [*disposition_args, "--check"],
+                expected_returncode=1,
+            )
+            self.assertIn("temporary path already exists", "\n".join(unsafe_temp_check["errors"]))
+            unsafe_temp = _run_governance_json(self, disposition_args, expected_returncode=1)
+            self.assertIn("temporary path already exists", "\n".join(unsafe_temp["errors"]))
+            self.assertEqual("do not overwrite\n", outside.read_text(encoding="utf-8"))
+            self.assertTrue(disposition_temp.is_symlink())
+            self.assertFalse((target / "docs/product/core/chapter-dispositions.json").exists())
+
+            disposition_temp.unlink()
+            product_core = target / "docs/product/core"
+            outside_core = Path(tmp) / "outside-core"
+            product_core.rename(outside_core)
+            product_core.symlink_to(outside_core, target_is_directory=True)
+            unsafe_parent = _run_governance_json(
+                self,
+                [*disposition_args, "--check"],
+                expected_returncode=1,
+            )
+            self.assertIn("output parent resolves outside target", "\n".join(unsafe_parent["errors"]))
+            self.assertFalse((outside_core / "chapter-dispositions.json").exists())
+
+    def test_product_disposition_becomes_stale_when_prd_changes_and_invalid_documents_fail_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text(
+                "# Product\n\n"
+                "## Goals and Requirements\n\n- Build the governed workspace.\n\n"
+                "## Acceptance Criteria\n\n- The workspace verifies locally.\n",
+                encoding="utf-8",
+            )
+            _run_governance_json(self, ["init", "--target", str(target), "--product", str(product)])
+            _run_governance_json(self, ["advance", "product-structuring", str(target)])
+            _run_governance_json(
+                self,
+                [
+                    "product",
+                    "disposition",
+                    str(target),
+                    "--chapter",
+                    "background-and-problems",
+                    "--decision",
+                    "omit-unsupported",
+                    "--reason",
+                    "Source review confirms the PRD contains no background or problem statement.",
+                    "--reviewed",
+                ],
+            )
+
+            prd_path = target / "docs/product/core/PRD.md"
+            prd_path.write_text(
+                prd_path.read_text(encoding="utf-8") + "\n## New Product Context\n\n- A new source-backed context.\n",
+                encoding="utf-8",
+            )
+            stale_plan = _run_governance_json(self, ["product", "plan", str(target)])
+            self.assertEqual(0, stale_plan["disposition_summary"]["active_count"])
+            self.assertEqual(1, stale_plan["disposition_summary"]["stale_count"])
+            self.assertIn(
+                "background-and-problems",
+                {decision["chapter"] for decision in stale_plan["required_decisions"]},
+            )
+            self.assertEqual(
+                "background-and-problems",
+                stale_plan["stale_chapter_dispositions"][0]["chapter"],
+            )
+            verify_stale = _run_governance_json(
+                self,
+                ["verify", str(target), "--check"],
+                expected_returncode=1,
+            )
+            self.assertIn(
+                "product_chapter_disposition_stale",
+                {finding["code"] for finding in verify_stale["findings"]},
+            )
+
+            disposition_path = target / "docs/product/core/chapter-dispositions.json"
+            disposition_path.write_text('{"schema_version": 1, "dispositions": "invalid"}\n', encoding="utf-8")
+            invalid_plan = _run_governance_json(
+                self,
+                ["product", "plan", str(target)],
+                expected_returncode=1,
+            )
+            self.assertIn("product chapter disposition document dispositions must be a list", invalid_plan["errors"])
+            verify_invalid = _run_governance_json(
+                self,
+                ["verify", str(target), "--check"],
+                expected_returncode=1,
+            )
+            self.assertIn(
+                "product_chapter_disposition_invalid",
+                {finding["code"] for finding in verify_invalid["findings"]},
             )
 
     def test_product_plan_evidence_status_tracks_scaffolded_manual_chapter(self) -> None:

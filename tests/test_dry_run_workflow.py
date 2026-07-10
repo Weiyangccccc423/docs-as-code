@@ -227,6 +227,10 @@ class DryRunWorkflowTest(unittest.TestCase):
                 payload["implementation_closeout"]["blocking_codes_without_evidence"],
             )
             self.assertEqual([], payload["target_local_make_coverage"]["missing_step_ids"])
+            self.assertEqual(4, payload["product_dispositions"]["recorded_count"])
+            self.assertEqual(4, payload["product_dispositions"]["omit_unsupported_count"])
+            self.assertEqual(0, payload["product_dispositions"]["unresolved_decision_count"])
+            self.assertTrue(payload["product_dispositions"]["work_package_routed_to_phase_action"])
             step_ids = {step["id"] for step in payload["steps"]}
             self.assertIn("make_verify_governance", step_ids)
             self.assertIn("make_verify_check", step_ids)
@@ -239,6 +243,11 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertIn("make_workflow_plan_product_structuring", step_ids)
             self.assertIn("make_work_package_product_structuring", step_ids)
             self.assertIn("product_structure", step_ids)
+            self.assertIn("product_disposition_background_and_problems_check", step_ids)
+            self.assertIn("product_disposition_background_and_problems_apply", step_ids)
+            self.assertIn("product_plan_after_dispositions", step_ids)
+            self.assertIn("work_package_after_product_dispositions", step_ids)
+            self.assertIn("product_dispositions_verify_check", step_ids)
             self.assertIn("design_plan", step_ids)
             self.assertIn("make_design_plan", step_ids)
             self.assertIn("workflow_plan_design_derivation", step_ids)
@@ -266,6 +275,7 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertIn("make_workflow_plan_after_runtime_refresh", step_ids)
             self.assertIn("make_work_package_complete_after_runtime_refresh", step_ids)
             self.assertTrue((target / "bin/governance").is_file())
+            self.assertTrue((target / "docs/product/core/chapter-dispositions.json").is_file())
             self.assertTrue((target / "docs/api/endpoints/01-endpoint-contract.md").is_file())
 
     def test_dry_run_handles_realistic_multi_acceptance_product_fixture(self) -> None:

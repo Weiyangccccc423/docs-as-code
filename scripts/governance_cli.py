@@ -51,6 +51,11 @@ from implementation_plan import (
     build_implementation_start,
 )
 from phases import PHASE_NAMES, advance_phase, check_advance_phase
+from product_dispositions import (
+    PRODUCT_DISPOSITION_DECISIONS,
+    check_product_disposition,
+    record_product_disposition,
+)
 from product_import import check_product_import_ready, mark_product_import_ready
 from product_structure import build_product_plan, check_structure_product, structure_product
 from scaffold import (
@@ -685,6 +690,73 @@ def _cmd_product_plan(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_product_disposition(args: argparse.Namespace) -> int:
+    target = Path(args.target)
+    kwargs = {
+        "chapter": args.chapter,
+        "decision": args.decision,
+        "reason": args.reason,
+        "reviewed": args.reviewed,
+    }
+    result = (
+        check_product_disposition(target, **kwargs)
+        if args.check
+        else record_product_disposition(target, **kwargs)
+    )
+    payload = result.to_dict()
+    if result.ok:
+        cwd = result.target
+        payload["refresh_command"] = _continuation_command(
+            cwd,
+            "refresh-product-plan",
+            ["bin/governance", "product", "plan", ".", "--json"],
+            "Refresh product decisions and manual authoring work after recording the disposition.",
+        )
+        payload["work_package_command"] = _continuation_command(
+            cwd,
+            "refresh-work-package",
+            ["bin/governance", "workflow", "work-package", ".", "--json"],
+            "Select the next product authoring package after recording the disposition.",
+        )
+        if not args.check:
+            payload["local_commands"] = target_local_commands_payload(cwd=cwd)
+            payload["next_actions"] = next_actions_payload(result.state, cwd=cwd)
+    if args.json:
+        _print_json(payload)
+        return 0 if result.ok else 1
+    if not result.ok:
+        print("Product chapter disposition failed:")
+        for error in result.errors:
+            print(f"- ERROR: {error}")
+        return 1
+    if args.check:
+        print("Product chapter disposition preflight passed.")
+        for path in result.would_update:
+            print(f"- WOULD UPDATE: {path}")
+        return 0
+    print("Product chapter disposition recorded.")
+    for path in result.updated:
+        print(f"- UPDATED: {path}")
+    return 0
+
+
+def _continuation_command(
+    cwd: str,
+    command_id: str,
+    argv: list[str],
+    description: str,
+) -> dict[str, object]:
+    return {
+        "id": command_id,
+        "cwd": cwd,
+        "command": " ".join(argv),
+        "argv": argv,
+        "writes_state": False,
+        "approval_required": False,
+        "description": description,
+    }
+
+
 def _cmd_design_plan(args: argparse.Namespace) -> int:
     target = Path(args.target)
     payload = build_design_plan(target)
@@ -1048,6 +1120,22 @@ def build_parser() -> argparse.ArgumentParser:
     product_plan.add_argument("target", nargs="?", default=".")
     product_plan.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     product_plan.set_defaults(func=_cmd_product_plan)
+    product_disposition = product_sub.add_parser(
+        "disposition",
+        help="Record a reviewed source-bound decision to author or omit one unsupported product chapter.",
+    )
+    product_disposition.add_argument("target", nargs="?", default=".")
+    product_disposition.add_argument("--chapter", choices=PRODUCT_CHAPTER_CHOICES, required=True)
+    product_disposition.add_argument("--decision", choices=PRODUCT_DISPOSITION_DECISIONS, required=True)
+    product_disposition.add_argument("--reason", required=True, help="Concrete source-review explanation.")
+    product_disposition.add_argument(
+        "--reviewed",
+        action="store_true",
+        help="Confirm the canonical PRD plus unresolved-item and glossary implications were reviewed.",
+    )
+    product_disposition.add_argument("--check", action="store_true", help="Preview without writing files.")
+    product_disposition.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    product_disposition.set_defaults(func=_cmd_product_disposition)
     structure = product_sub.add_parser("structure", help="Fill scaffolded product chapters from explicit PRD sections.")
     structure.add_argument("target", nargs="?", default=".")
     structure.add_argument(

@@ -52,6 +52,12 @@ AUTHORING_COMMANDS = [
 ]
 ACCEPTANCE_ID_HEADING_RE = re.compile(r"^##[ \t]+(?P<id>A-[0-9]{3})\b", re.MULTILINE)
 IMPLEMENTATION_TASK_ID = "TASK-001"
+OPTIONAL_PRODUCT_CHAPTERS = {
+    "background-and-problems",
+    "change-log",
+    "functional-spec",
+    "success-metrics",
+}
 TARGET_LOCAL_MAKE_STEP_IDS = [
     "make_verify_governance",
     "make_verify_check",
@@ -685,6 +691,60 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
     _require(clean_verify.get("ok") is True, "verification failed after product structuring", payload=clean_verify)
     _require(clean_verify.get("findings") == [], "verification returned findings after product structuring", payload=clean_verify)
 
+    product_disposition_applies = _record_optional_product_dispositions(
+        target,
+        product_plan,
+        steps,
+    )
+    product_plan_after_dispositions = _run_json(
+        steps,
+        "product_plan_after_dispositions",
+        ["bin/governance", "product", "plan", ".", "--json"],
+        target,
+    )
+    _require(
+        product_plan_after_dispositions.get("ok") is True,
+        "product plan failed after chapter dispositions",
+        payload=product_plan_after_dispositions,
+    )
+    _require(
+        product_plan_after_dispositions.get("required_decisions") == [],
+        "product chapter dispositions did not resolve every unsupported optional chapter",
+        payload=product_plan_after_dispositions,
+    )
+    disposition_summary = product_plan_after_dispositions.get("disposition_summary")
+    _require(
+        isinstance(disposition_summary, dict)
+        and disposition_summary.get("active_count") == len(product_disposition_applies)
+        and disposition_summary.get("omit_unsupported_count") == len(product_disposition_applies)
+        and disposition_summary.get("stale_count") == 0,
+        "product disposition summary did not match recorded decisions",
+        payload=product_plan_after_dispositions,
+    )
+    work_package_after_product_dispositions = _run_json(
+        steps,
+        "work_package_after_product_dispositions",
+        ["make", "work-package"],
+        target,
+    )
+    _require_phase_action_work_package(
+        work_package_after_product_dispositions,
+        "product-structuring",
+        "advance-design-derivation-check",
+    )
+    product_dispositions_verify = _run_json(
+        steps,
+        "product_dispositions_verify_check",
+        ["bin/governance", "verify", ".", "--check", "--json"],
+        target,
+    )
+    _require(
+        product_dispositions_verify.get("ok") is True
+        and product_dispositions_verify.get("findings") == [],
+        "verification failed after product chapter dispositions",
+        payload=product_dispositions_verify,
+    )
+
     design_advanced = _run_json(
         steps,
         "advance_design_derivation",
@@ -1118,6 +1178,15 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         "acceptance_id_count": len(acceptance_ids),
         "api_candidate_count": len(api_candidates.get("candidates", [])),
         "authoring_task_counts": authoring_task_counts,
+        "product_dispositions": {
+            "recorded_count": len(product_disposition_applies),
+            "omit_unsupported_count": disposition_summary.get("omit_unsupported_count", 0),
+            "unresolved_decision_count": len(product_plan_after_dispositions.get("required_decisions", [])),
+            "work_package_routed_to_phase_action": (
+                work_package_after_product_dispositions.get("package_available") is False
+                and work_package_after_product_dispositions.get("status") == "phase_action_required"
+            ),
+        },
         "target_local_make_coverage": _target_local_make_coverage_details(steps),
         "implementation_gate": {
             "placeholder_blocked_ok": implementation_preflight.get("ok"),
@@ -1608,6 +1677,74 @@ def _require_initialized_workflow_plan(payload: dict[str, object], label: str) -
         f"{label} did not expose product-structuring continuation",
         payload=payload,
     )
+
+
+def _record_optional_product_dispositions(
+    target: Path,
+    product_plan: dict[str, object],
+    steps: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    required_decisions = product_plan.get("required_decisions")
+    _require(
+        isinstance(required_decisions, list),
+        "product plan did not expose required decisions for disposition recording",
+        payload=product_plan,
+    )
+    applied: list[dict[str, object]] = []
+    for decision in required_decisions:
+        if not isinstance(decision, dict):
+            continue
+        chapter = str(decision.get("chapter", ""))
+        _require(
+            chapter in OPTIONAL_PRODUCT_CHAPTERS,
+            f"dry-run refuses to omit required or unknown product chapter: {chapter or '<missing>'}",
+            payload=product_plan,
+        )
+        step_slug = chapter.replace("-", "_")
+        reason = (
+            f"Golden dry-run source review confirms {chapter} has no conservatively mapped PRD heading."
+        )
+        argv = [
+            "bin/governance",
+            "product",
+            "disposition",
+            ".",
+            "--chapter",
+            chapter,
+            "--decision",
+            "omit-unsupported",
+            "--reason",
+            reason,
+            "--reviewed",
+        ]
+        preview = _run_json(
+            steps,
+            f"product_disposition_{step_slug}_check",
+            [*argv, "--check", "--json"],
+            target,
+        )
+        _require(
+            preview.get("ok") is True
+            and preview.get("check") is True
+            and preview.get("would_update") == ["docs/product/core/chapter-dispositions.json"],
+            f"product disposition preflight failed for {chapter}",
+            payload=preview,
+        )
+        result = _run_json(
+            steps,
+            f"product_disposition_{step_slug}_apply",
+            [*argv, "--json"],
+            target,
+        )
+        _require(
+            result.get("ok") is True
+            and result.get("applied") is True
+            and result.get("updated") == ["docs/product/core/chapter-dispositions.json"],
+            f"product disposition apply failed for {chapter}",
+            payload=result,
+        )
+        applied.append(result)
+    return applied
 
 
 def _require_phase_action_work_package(payload: dict[str, object], phase: str, next_action_id: str) -> None:

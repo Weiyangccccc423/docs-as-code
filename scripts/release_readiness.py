@@ -157,6 +157,23 @@ def _dry_run_target_local_make_coverage_ok(payload: dict[str, object] | None) ->
     return required <= step_ids
 
 
+def _dry_run_product_dispositions_ok(payload: dict[str, object] | None) -> bool:
+    if payload is None:
+        return False
+    dispositions = payload.get("product_dispositions")
+    if not isinstance(dispositions, dict):
+        return False
+    recorded_count = dispositions.get("recorded_count")
+    return (
+        isinstance(recorded_count, int)
+        and not isinstance(recorded_count, bool)
+        and recorded_count > 0
+        and dispositions.get("omit_unsupported_count") == recorded_count
+        and dispositions.get("unresolved_decision_count") == 0
+        and dispositions.get("work_package_routed_to_phase_action") is True
+    )
+
+
 def _dry_run_target_local_make_details(payload: dict[str, object] | None) -> dict[str, object]:
     steps = payload.get("steps") if payload else []
     step_ids = {str(step.get("id")) for step in steps if isinstance(step, dict)} if isinstance(steps, list) else set()
@@ -180,6 +197,21 @@ def _artifact_smoke_fresh_target_init_ok(payload: dict[str, object] | None) -> b
         and fresh_target_init.get("runtime_manifest") is True
         and fresh_target_init.get("workflow_pack_snapshot") is True
         and fresh_target_init.get("product_source_manifest") is True
+    )
+
+
+def _artifact_smoke_product_dispositions_ok(payload: dict[str, object] | None) -> bool:
+    if payload is None:
+        return False
+    dispositions = payload.get("product_dispositions")
+    return (
+        isinstance(dispositions, dict)
+        and dispositions.get("ok") is True
+        and isinstance(dispositions.get("recorded_count"), int)
+        and dispositions.get("recorded_count", 0) > 0
+        and dispositions.get("omit_unsupported_count") == dispositions.get("recorded_count")
+        and dispositions.get("unresolved_decision_count") == 0
+        and dispositions.get("work_package_routed_to_phase_action") is True
     )
 
 
@@ -613,12 +645,14 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
         and bool(dry_run_payload and dry_run_payload.get("ok") is True)
         and dry_run_payload.get("final_phase") == "implementation"
         and _dry_run_closeout_evidence_ok(dry_run_payload)
+        and _dry_run_product_dispositions_ok(dry_run_payload)
         and _dry_run_target_local_make_coverage_ok(dry_run_payload),
         evidence="python3 scripts/dry_run_workflow.py --json",
         details={
             "final_phase": dry_run_payload.get("final_phase") if dry_run_payload else "",
             "api_candidate_count": dry_run_payload.get("api_candidate_count") if dry_run_payload else 0,
             "implementation_closeout": dry_run_payload.get("implementation_closeout") if dry_run_payload else {},
+            "product_dispositions": dry_run_payload.get("product_dispositions") if dry_run_payload else {},
             "target_local_make_coverage": _dry_run_target_local_make_details(dry_run_payload),
         },
     )
@@ -643,6 +677,7 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
         and bool(multi_acceptance_payload and multi_acceptance_payload.get("ok") is True)
         and multi_acceptance_payload.get("final_phase") == "implementation"
         and _dry_run_closeout_evidence_ok(multi_acceptance_payload)
+        and _dry_run_product_dispositions_ok(multi_acceptance_payload)
         and multi_acceptance_payload.get("acceptance_id_count") == 4
         and multi_acceptance_payload.get("api_candidate_count") == 4
         and isinstance(authoring_counts, dict)
@@ -657,6 +692,9 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
             "api_candidate_count": multi_acceptance_payload.get("api_candidate_count") if multi_acceptance_payload else 0,
             "authoring_task_counts": authoring_counts,
             "implementation_closeout": multi_acceptance_payload.get("implementation_closeout")
+            if multi_acceptance_payload
+            else {},
+            "product_dispositions": multi_acceptance_payload.get("product_dispositions")
             if multi_acceptance_payload
             else {},
             "target_local_make_coverage": _dry_run_target_local_make_details(multi_acceptance_payload),
@@ -787,6 +825,7 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
         and artifact_smoke_payload.get("archive_sha256") == export_payload.get("archive_sha256")
         and artifact_smoke_payload.get("manifest_sha256") == export_payload.get("manifest_sha256")
         and _artifact_smoke_fresh_target_init_ok(artifact_smoke_payload)
+        and _artifact_smoke_product_dispositions_ok(artifact_smoke_payload)
         and _artifact_smoke_consumer_bootstrap_ok(artifact_smoke_payload)
         and _artifact_smoke_consumer_design_scaffold_ok(artifact_smoke_payload)
         and _artifact_smoke_consumer_design_routing_ok(artifact_smoke_payload)
@@ -800,6 +839,9 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
             "manifest_sha256": artifact_smoke_payload.get("manifest_sha256") if artifact_smoke_payload else "",
             "export_manifest_sha256": export_payload.get("manifest_sha256") if export_payload else "",
             "fresh_target_init": artifact_smoke_payload.get("fresh_target_init", {})
+            if artifact_smoke_payload
+            else {},
+            "product_dispositions": artifact_smoke_payload.get("product_dispositions", {})
             if artifact_smoke_payload
             else {},
             "consumer_bootstrap_product_structure": artifact_smoke_payload.get(
