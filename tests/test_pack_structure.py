@@ -188,6 +188,84 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+            result = subprocess.run(
+                [sys.executable, str(target / "scripts/verify_pack.py"), str(target), "--json"],
+                cwd=target,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+            self.assertEqual("", result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertTrue(
+                any(finding["code"] == "pack_authority_skill_inventory_missing" for finding in payload["findings"])
+            )
+
+    def test_verify_pack_reports_missing_authority_skill_lock(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            (target / "references/authority-skills.lock.json").unlink()
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_authority_skill_lock_missing"
+                    and finding.path == "references/authority-skills.lock.json"
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_invalid_authority_skill_lock(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            lock = target / "references/authority-skills.lock.json"
+            payload = json.loads(lock.read_text(encoding="utf-8"))
+            payload["skills"][0]["source"] = {
+                "kind": "github",
+                "repo": "example/skills",
+                "path": "skills/a11y-audit",
+                "ref": "main",
+            }
+            payload["skills"][0]["integrity"] = {
+                "algorithm": "sha256",
+                "scope": "skill-tree",
+                "digest": "a" * 64,
+            }
+            payload["skills"][0]["trust"] = {
+                "status": "approved",
+                "approved_by": "test",
+                "approved_at": "2026-07-13",
+                "license": "MIT",
+                "review_evidence": "https://example.invalid/review",
+            }
+            lock.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_authority_skill_lock_invalid"
+                    and finding.path == "references/authority-skills.lock.json"
+                    and "immutable 40-character commit" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_incomplete_authority_skill_inventory(self) -> None:
         cases = (
             ("DESIGN_TRACKS", "DESIGN_ROUTE_TABLE"),

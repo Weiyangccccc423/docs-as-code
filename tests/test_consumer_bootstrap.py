@@ -106,6 +106,10 @@ class ConsumerBootstrapTest(unittest.TestCase):
             self.assertEqual("explicit", check_payload["init_check"]["product"]["selection"])
             self.assertTrue(check_payload["authority_skill_inventory"]["ok"])
             self.assertFalse(check_payload["authority_skill_inventory"]["strict"])
+            self.assertTrue(check_payload["authority_skill_inventory"]["repair_plan"]["requested"])
+            self.assertTrue(check_payload["authority_skill_inventory"]["repair_plan"]["check"])
+            self.assertFalse(check_payload["authority_skill_inventory"]["repair_plan"]["writes_state"])
+            self.assertTrue(check_payload["authority_skill_inventory"]["manifest"]["ok"])
             self.assertGreaterEqual(check_payload["authority_skill_inventory"]["required_skill_count"], 19)
             self.assertEqual(
                 {
@@ -221,6 +225,47 @@ class ConsumerBootstrapTest(unittest.TestCase):
             self.assertFalse(payload["failed_payload"]["ok"])
             self.assertTrue(payload["failed_payload"]["strict"])
             self.assertIn("senior-architect", payload["failed_payload"]["missing_skills"])
+            self.assertFalse(target.exists())
+
+    def test_strict_authority_provenance_blocks_bootstrap_before_target_writes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            pack = base / "docs-as-code-workflow-pack"
+            product = base / "product.md"
+            target = base / "consumer-target"
+            product.write_text("# Product\n\n## Acceptance Criteria\n\n- Provenance is checked.\n", encoding="utf-8")
+            export = subprocess.run(
+                [
+                    sys.executable,
+                    str(EXPORT),
+                    "--output",
+                    str(pack),
+                    "--no-archive",
+                    "--force",
+                    "--json",
+                ],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, export.returncode, export.stdout + export.stderr)
+
+            payload = _run_bootstrap(
+                self,
+                pack,
+                target=target,
+                product=product,
+                check=True,
+                strict_authority_provenance=True,
+                expected_returncode=1,
+            )
+
+            self.assertFalse(payload["ok"])
+            self.assertTrue(payload["strict_authority_provenance"])
+            self.assertEqual("authority skill inventory failed", payload["error"])
+            self.assertTrue(payload["failed_payload"]["strict_provenance"])
+            self.assertGreater(payload["failed_payload"]["provenance_issue_count"], 0)
             self.assertFalse(target.exists())
 
     def test_auto_repair_env_runs_write_mode_repair_then_rechecks_when_safe(self) -> None:
@@ -1805,6 +1850,7 @@ def _run_bootstrap(
     workflow_preset: str = "",
     auto_repair_env: bool = False,
     strict_authority_skills: bool = False,
+    strict_authority_provenance: bool = False,
     expected_returncode: int = 0,
     env: dict[str, str] | None = None,
 ) -> dict[str, object]:
@@ -1860,6 +1906,8 @@ def _run_bootstrap(
         argv.insert(-1, "--auto-repair-env")
     if strict_authority_skills:
         argv.insert(-1, "--strict-authority-skills")
+    if strict_authority_provenance:
+        argv.insert(-1, "--strict-authority-provenance")
     run_env = None
     if env is not None:
         run_env = {**os.environ, **env}

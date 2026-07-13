@@ -156,6 +156,12 @@ class ReleaseReadinessTest(unittest.TestCase):
             "load_from_agent_environment_or_stop_before_guessing",
             criteria["authority-skill-inventory"]["details"]["missing_policy"],
         )
+        self.assertTrue(criteria["authority-skill-inventory"]["details"]["manifest_ok"])
+        self.assertTrue(criteria["authority-skill-inventory"]["details"]["manifest_aligned_with_routing"])
+        self.assertEqual(19, sum(criteria["authority-skill-inventory"]["details"]["status_counts"].values()))
+        self.assertTrue(criteria["authority-skill-inventory"]["details"]["repair_plan"]["requested"])
+        self.assertTrue(criteria["authority-skill-inventory"]["details"]["repair_plan"]["check"])
+        self.assertFalse(criteria["authority-skill-inventory"]["details"]["repair_plan"]["writes_state"])
         self.assertGreater(criteria["source-pack-export-check"]["details"]["would_write_count"], 0)
         self.assertTrue(criteria["source-pack-export-check"]["details"]["would_archive"])
         self.assertEqual(

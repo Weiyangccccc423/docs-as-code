@@ -155,6 +155,7 @@ def run_consumer_bootstrap(
     workflow_preset: str = "",
     auto_repair_env: bool = False,
     strict_authority_skills: bool = False,
+    strict_authority_provenance: bool = False,
     pack_root: Path = ROOT,
 ) -> dict[str, object]:
     pack_root = pack_root.resolve()
@@ -209,7 +210,10 @@ def run_consumer_bootstrap(
         authority_skill_inventory = _run_json(
             steps,
             "authority_skill_inventory",
-            _authority_skill_argv(strict=strict_authority_skills),
+            _authority_skill_argv(
+                strict=strict_authority_skills,
+                strict_provenance=strict_authority_provenance,
+            ),
             pack_root,
             allowed_returncodes=(0, 1),
         )
@@ -350,6 +354,7 @@ def run_consumer_bootstrap(
             "workflow_preset_expanded_flags": list(expanded_flags),
             "auto_repair_env": auto_repair_env,
             "strict_authority_skills": strict_authority_skills,
+            "strict_authority_provenance": strict_authority_provenance,
             "env_auto_repair": env_auto_repair,
             "work_package_generated": False,
             "work_package_ok": False,
@@ -715,6 +720,7 @@ def run_consumer_bootstrap(
             "workflow_preset_expanded_flags": list(expanded_flags),
             "auto_repair_env": auto_repair_env,
             "strict_authority_skills": strict_authority_skills,
+            "strict_authority_provenance": strict_authority_provenance,
             "env_auto_repair": env_auto_repair,
             "work_package_generated": False,
             "work_package_ok": False,
@@ -784,6 +790,7 @@ def run_consumer_bootstrap(
             "workflow_preset_expanded_flags": list(expanded_flags),
             "auto_repair_env": auto_repair_env,
             "strict_authority_skills": strict_authority_skills,
+            "strict_authority_provenance": strict_authority_provenance,
             "env_auto_repair": env_auto_repair,
             "advance_product_structuring_requested": advance_product_structuring,
             "advanced_product_structuring": False,
@@ -862,10 +869,18 @@ def _init_argv(
     return argv
 
 
-def _authority_skill_argv(*, strict: bool) -> list[str | Path]:
-    argv: list[str | Path] = [sys.executable, "scripts/authority_skills.py", "--json"]
+def _authority_skill_argv(*, strict: bool, strict_provenance: bool) -> list[str | Path]:
+    argv: list[str | Path] = [
+        sys.executable,
+        "scripts/authority_skills.py",
+        "--repair",
+        "--check",
+        "--json",
+    ]
     if strict:
         argv.append("--strict")
+    if strict_provenance:
+        argv.append("--strict-provenance")
     return argv
 
 
@@ -2393,6 +2408,14 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--strict-authority-provenance",
+        action="store_true",
+        help=(
+            "Require every authority-routing skill to match an approved immutable source lock before environment "
+            "and target initialization checks."
+        ),
+    )
+    parser.add_argument(
         "--advance-product-structuring",
         action="store_true",
         help="After initialization, run target-local product-structuring advance and product-plan commands.",
@@ -2548,6 +2571,7 @@ def main() -> int:
         workflow_preset=args.workflow_preset,
         auto_repair_env=args.auto_repair_env,
         strict_authority_skills=args.strict_authority_skills,
+        strict_authority_provenance=args.strict_authority_provenance,
     )
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))

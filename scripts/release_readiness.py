@@ -646,6 +646,11 @@ def _artifact_smoke_bootstrap_authority_inventory_ok(bootstrap_summary: dict[str
     return (
         inventory.get("ok") is True
         and inventory.get("strict") is False
+        and inventory.get("manifest_ok") is True
+        and inventory.get("manifest_aligned_with_routing") is True
+        and inventory.get("repair_requested") is True
+        and inventory.get("repair_check") is True
+        and inventory.get("repair_writes_state") is False
         and inventory.get("required_skill_count", 0) >= 19
         and inventory.get("missing_policy") == "load_from_agent_environment_or_stop_before_guessing"
     )
@@ -706,9 +711,23 @@ def _authority_skill_inventory_ok(payload: dict[str, object] | None) -> bool:
         "senior-security",
         "ci-cd-pipeline-builder",
     }
+    manifest = payload.get("manifest")
+    repair_plan = payload.get("repair_plan")
+    status_counts = payload.get("status_counts")
     return (
         payload.get("ok") is True
         and payload.get("strict") is False
+        and isinstance(manifest, dict)
+        and manifest.get("ok") is True
+        and manifest.get("aligned_with_routing") is True
+        and isinstance(status_counts, dict)
+        and sum(value for value in status_counts.values() if isinstance(value, int) and not isinstance(value, bool))
+        == len(skills)
+        and isinstance(repair_plan, dict)
+        and repair_plan.get("requested") is True
+        and repair_plan.get("check") is True
+        and repair_plan.get("writes_state") is False
+        and repair_plan.get("applied") is False
         and payload.get("missing_policy") == "load_from_agent_environment_or_stop_before_guessing"
         and payload.get("availability_scope") == "agent-environment"
         and required <= skill_names
@@ -789,19 +808,27 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
     authority_payload = _run_step(
         steps,
         "authority_skill_inventory",
-        [sys.executable, "scripts/authority_skills.py", "--json"],
+        [sys.executable, "scripts/authority_skills.py", "--repair", "--check", "--json"],
         parse_json=True,
     )
     _criterion(
         criteria,
         "authority-skill-inventory",
         bool(steps[-1]["ok"]) and _authority_skill_inventory_ok(authority_payload),
-        evidence="python3 scripts/authority_skills.py --json",
+        evidence="python3 scripts/authority_skills.py --repair --check --json",
         details={
             "required_skill_count": authority_payload.get("required_skill_count") if authority_payload else 0,
             "available_skill_count": authority_payload.get("available_skill_count") if authority_payload else 0,
             "missing_skill_count": authority_payload.get("missing_skill_count") if authority_payload else 0,
             "missing_policy": authority_payload.get("missing_policy") if authority_payload else "",
+            "manifest_ok": authority_payload.get("manifest", {}).get("ok")
+            if authority_payload and isinstance(authority_payload.get("manifest"), dict)
+            else False,
+            "manifest_aligned_with_routing": authority_payload.get("manifest", {}).get("aligned_with_routing")
+            if authority_payload and isinstance(authority_payload.get("manifest"), dict)
+            else False,
+            "status_counts": authority_payload.get("status_counts", {}) if authority_payload else {},
+            "repair_plan": authority_payload.get("repair_plan", {}) if authority_payload else {},
         },
     )
 

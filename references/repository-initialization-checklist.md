@@ -23,6 +23,13 @@ Reference: `https://git-scm.com/book/en/v2/Git-Basics-Getting-a-Git-Repository`
 - Can initialization proceed with POSIX shell plus Python standard-library runtime and no project package install?
 - Are target-local continuation commands used from returned `cwd` and `argv` instead of reparsing display text?
 
+## Authority Skill Readiness
+
+- Does `python3 scripts/authority_skills.py --repair --check --json` validate `references/authority-skills.lock.json` without network access or writes?
+- Are `source-unregistered` and `unmanaged` skills routed to source and license review instead of guessed installs?
+- Are exact install argv emitted only for approved GitHub sources pinned to immutable commits and expected digests?
+- Is `--strict-authority-provenance` used before target writes when policy requires every authority skill to be source-approved and current?
+
 ## Governance Entry Points
 
 - Are root `README.md`, `AGENTS.md`, `SPEC.md`, `CONTRIBUTING.md`, `GOVERNANCE.md`, `SECURITY.md`, and `Makefile` generated or intentionally preserved?
@@ -36,6 +43,7 @@ Reference: `https://docs.github.com/en/repositories/managing-your-repositorys-se
 - Are target-local `bin/` and `scripts/` files generated with executable runtime entry points?
 - Does `docs/agent-workflow/runtime-manifest.json` cover target-local runtime files?
 - Does `docs/agent-workflow/workflow-pack/manifest.json` cover the copied workflow-pack snapshot?
+- Does the snapshot contain `references/authority-skills.lock.json` and does its manifest bind the file hash?
 - Are `make verify-governance`, `make verify-check`, `make governance-status`, `make workflow-plan`, `make product-plan`, `make design-plan`, `make check-env`, and `make repair-env-check` available after initialization?
 
 ## Product Seed

@@ -18,7 +18,15 @@ Load:
 
 1. Read `references/repository-initialization-checklist.md` and use it as the rubric for target safety, environment repair, generated entry points, runtime snapshot integrity, product seed, Git readiness, baseline security, tooling consistency, and handoff readiness.
 
-2. Check environment:
+2. From the trusted workflow-pack checkout, inventory authority skills and build the offline repair plan:
+
+   ```bash
+   python3 scripts/authority_skills.py --repair --check --json
+   ```
+
+   Stop on an invalid or routing-misaligned `manifest`. Inspect `status_counts`, `provenance_issue_skills`, and `repair_plan`. Source-unregistered or unmanaged skills require source and license review; do not guess install locations. Base initialization may continue in non-strict mode, but run with `--strict-provenance` before authority-dependent design when approved locked skills are required.
+
+3. Check environment:
 
    ```bash
    bin/governance env --repair --check --target <target> --json
@@ -33,7 +41,7 @@ Load:
    bin/governance env --repair --target <target> --json
    ```
 
-3. Run initialization preflight:
+4. Run initialization preflight:
 
    ```bash
    bin/governance init --check --target <target> --profile <profile> --project-name "<name>" --json
@@ -41,7 +49,7 @@ Load:
 
    Stop when `ok` is false. Existing generated governance files must be reviewed before using `--force`. When `--product` is omitted, inspect `product.selection`: `auto-discovered` means exactly one root candidate was selected, `none` means the placeholder PRD path will be used, and `ambiguous` means multiple candidates were found and the agent must rerun with `--product <product-doc>` instead of guessing.
 
-4. Initialize the target folder:
+5. Initialize the target folder:
 
    ```bash
    bin/governance init --target <target> --profile <profile> --project-name "<name>"
@@ -51,7 +59,7 @@ Load:
 
    When `--json` is used, the success payload includes `local_commands` with target-local `make` entries plus `next_actions` with the next preflight/apply workflow commands. Both payloads include `cwd`, `argv`, `writes_state`, and `approval_required` for direct agent execution. `next_actions` also include `sequence`, `success_condition`, and either `preflight_for` or `requires_action`; run them by ascending `sequence` and run an apply action only after its `requires_action` reports `ok: true`. Follow `next_actions` instead of assuming product structuring is immediately available.
 
-5. Inspect generated root files:
+6. Inspect generated root files:
 
    - `README.md`
    - `AGENTS.md`
@@ -63,8 +71,9 @@ Load:
    - `bin/governance`
    - `scripts/governance_cli.py`
    - `docs/agent-workflow/workflow-pack/manifest.json`
+   - `docs/agent-workflow/workflow-pack/references/authority-skills.lock.json`
 
-6. Inspect generated docs domains:
+7. Inspect generated docs domains:
 
    - `docs/product/`
    - `docs/architecture/`
@@ -77,7 +86,7 @@ Load:
    - `docs/development/`
    - `docs/agent-workflow/`
 
-7. Verify:
+8. Verify:
 
    ```bash
    bin/governance verify <target>
@@ -133,3 +142,4 @@ Target safety, environment repair, generated entry points, runtime snapshot inte
 - Product document path is missing or unreadable.
 - Product document discovery returns multiple candidates and the user has not selected one with `--product`.
 - The target project type is unclear and would change the top-level code layout.
+- Authority skill lock validation fails, or strict provenance is required and any skill is missing, drifted, unmanaged, or source-unregistered.

@@ -8,7 +8,9 @@ Use this checklist before tagging, exporting, or handing off this source workflo
 - Run `make verify-pack`.
 - Run `python3 scripts/verify_pack.py --json` and require `ok: true` with no `findings`.
 - Run `make authority-skills` or `python3 scripts/authority_skills.py --json` and confirm the inventory lists the authority-routing specialist skills required by design and implementation routing.
+- Run `python3 scripts/authority_skills.py --repair --check --json`; require a valid, routing-aligned `references/authority-skills.lock.json`, `writes_state: false`, and no guessed argv for source-unregistered skills.
 - Run `python3 scripts/authority_skills.py --strict --json` only when the current release environment is expected to provide all agent-environment specialist skills; otherwise record missing skills as environment readiness notes, not source-pack failures.
+- Run `python3 scripts/authority_skills.py --strict-provenance --json` only when release policy requires every specialist skill to have approved immutable source and matching integrity evidence; acknowledged unregistered entries remain visible provenance debt in the portable baseline.
 - Confirm source-pack verification covers required files, runtime Python syntax, command surfaces, workflow action schemas, phase-skill alignment, reference routing, template guardrails, local Markdown links, and workflow-pack snapshot coverage.
 
 ## Dry Run Validation
@@ -45,7 +47,7 @@ Use this checklist before tagging, exporting, or handing off this source workflo
 
 - Run `python3 scripts/release_readiness.py --json`.
 - Require `ok: true`, `release_ready: true`, and no skipped criteria.
-- Confirm the `authority-skill-inventory` criterion passes in non-strict mode and records `required_skill_count`, `available_skill_count`, `missing_skill_count`, and `missing_policy`.
+- Confirm the `authority-skill-inventory` criterion passes in non-strict mode and records lock validation, status counts, `required_skill_count`, `available_skill_count`, `missing_skill_count`, and `missing_policy`.
 - Record the command output or summarize the criteria results in the release notes, handoff, or commit message.
 
 ## Stop Conditions

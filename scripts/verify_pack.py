@@ -19,6 +19,19 @@ except ImportError:  # pragma: no cover - direct script execution
     from bootstrap_tree import TARGET_LOCAL_COMMANDS
     from verify_governance import RUNTIME_EXECUTABLE_PATHS, RUNTIME_REQUIRED_PATHS, WORKFLOW_PACK_REQUIRED_PATHS
 
+try:
+    from .authority_skills import validate_authority_skill_lock
+except Exception:  # pragma: no cover - direct execution or damaged source pack
+    try:
+        from authority_skills import validate_authority_skill_lock
+    except Exception as error:  # pragma: no cover - verifier must report damaged optional validator
+        validate_authority_skill_lock = None  # type: ignore[assignment]
+        AUTHORITY_SKILL_LOCK_VALIDATOR_IMPORT_ERROR = str(error)
+    else:
+        AUTHORITY_SKILL_LOCK_VALIDATOR_IMPORT_ERROR = ""
+else:
+    AUTHORITY_SKILL_LOCK_VALIDATOR_IMPORT_ERROR = ""
+
 
 WORKFLOW_PACK_RESOURCE_PATHS = (
     "README.md",
@@ -955,6 +968,8 @@ CONSUMER_BOOTSTRAP_REQUIRED_PHRASES = (
     "_authority_skill_argv",
     "--strict-authority-skills",
     "strict_authority_skills",
+    "--strict-authority-provenance",
+    "strict_authority_provenance",
     "env_repair_check",
     "env_repair_auto_apply",
     "env_repair_check_after_auto_repair",
@@ -1227,6 +1242,8 @@ CONSUMER_BOOTSTRAP_DOC_REQUIREMENTS = {
         "python3 scripts/bootstrap_consumer_project.py --target /path/to/new-project --product /path/to/product.md --profile web-app --project-name \"Project Name\" --advance-product-structuring --product-scaffold-preview --product-structure-preview --product-structure-apply --advance-design-derivation --design-scaffold-preview --design-scaffold-apply --design-authoring-preview --implementation-readiness-preview --implementation-advance-preview --implementation-advance-apply --implementation-start-preview --implementation-start-apply --implementation-closeout-preview --implementation-closeout-apply --json",
         "source-pack manifest verification",
         "target-local verify/status/workflow-plan checks",
+        "--strict-authority-provenance",
+        "authority_skill_inventory.repair_plan",
         "--workflow-preset",
         "--auto-repair-env",
         "env_auto_repair",
@@ -1301,6 +1318,8 @@ CONSUMER_BOOTSTRAP_DOC_REQUIREMENTS = {
         "python3 scripts/bootstrap_consumer_project.py --target /path/to/new-project --product /path/to/product.md --profile web-app --project-name \"Project Name\" --workflow-preset implementation-routing --json",
         "verify_pack_manifest",
         "verify_pack",
+        "--strict-authority-provenance",
+        "authority_skill_inventory.repair_plan",
         "env --repair --check",
         "init --check",
         "--workflow-preset",
@@ -1393,6 +1412,8 @@ CONSUMER_BOOTSTRAP_DOC_REQUIREMENTS = {
     ),
     "skills/verifying-governance-docs/SKILL.md": (
         "python3 scripts/bootstrap_consumer_project.py --target <target> --product <product-doc> --profile <profile> --project-name \"<name>\" --check --json",
+        "--strict-authority-provenance",
+        "authority_skill_inventory.repair_plan",
         "python3 scripts/bootstrap_consumer_project.py --target <target> --product <product-doc> --profile <profile> --project-name \"<name>\" --workflow-preset product-structure --json",
         "--workflow-preset implementation-routing",
         "--auto-repair-env",
@@ -1486,6 +1507,9 @@ ARTIFACT_SMOKE_REQUIRED_PHRASES = (
     "consumer_bootstrap_implementation_routing",
     "authority_skill_inventory",
     "_authority_skill_inventory_details",
+    "manifest_aligned_with_routing",
+    "repair_requested",
+    "repair_writes_state",
     "env_auto_repair",
     "_env_auto_repair_details",
     "stop_before_workflow",
@@ -1695,6 +1719,7 @@ RELEASE_READINESS_REQUIRED_PHRASES = (
     "environment_inventory",
     "authority_skill_inventory",
     "_authority_skill_inventory_ok",
+    '"--repair", "--check"',
     "_env_repair_decision_allows_workflow",
     "repair_decision",
     "continue_workflow",
@@ -4556,6 +4581,7 @@ SOURCE_PACK_REQUIRED_PATHS = tuple(
             "AGENTS.md",
             "Makefile",
             "scripts/authority_skills.py",
+            "references/authority-skills.lock.json",
             "scripts/verify_pack_manifest.py",
             "scripts/verify_pack.py",
             CONSUMER_BOOTSTRAP_PATH,
@@ -4580,6 +4606,7 @@ CI_WORKFLOW_REQUIRED_PHRASES = (
     "python3 scripts/check_env.py --json",
 )
 AUTHORITY_SKILL_INVENTORY_PATH = "scripts/authority_skills.py"
+AUTHORITY_SKILL_LOCK_PATH = "references/authority-skills.lock.json"
 AUTHORITY_SKILL_INVENTORY_REQUIRED_PHRASES = (
     "DESIGN_TRACKS",
     "BASE_SPECIALIST_SKILLS",
@@ -4589,12 +4616,22 @@ AUTHORITY_SKILL_INVENTORY_REQUIRED_PHRASES = (
     "agent-environment",
     "authority-routing",
     "--strict",
+    "--strict-provenance",
+    "--repair",
+    "--check",
+    "authority-skills.lock.json",
+    "skill-tree",
+    "source-unregistered",
+    "drifted",
     "--skill-root",
     "required_by",
     "available_in_agent_environment",
     "missing_skills",
     "_installed_skill_index",
+    "_installed_skill_candidates",
+    "installation_ambiguous",
     "_skill_frontmatter_name",
+    "validate_authority_skill_lock",
     "_task_specialist_skills",
 )
 IGNORED_PACK_FILE_NAMES = {".DS_Store", "manifest.json"}
@@ -4755,6 +4792,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_release_readiness_workflow(root, findings)
     _check_ci_workflow(root, findings)
     _check_authority_skill_inventory(root, findings)
+    _check_authority_skill_lock(root, findings)
     _check_runtime_continuation_calls(root, findings)
     _check_target_local_command_source(root, findings)
     _check_target_local_command_schema(root, findings)
@@ -5165,6 +5203,47 @@ def _check_authority_skill_inventory(root: Path, findings: list[PackFinding]) ->
                 f"from design and implementation routing sources; missing phrase(s): {', '.join(missing)}"
             ),
             AUTHORITY_SKILL_INVENTORY_PATH,
+        )
+    )
+
+
+def _check_authority_skill_lock(root: Path, findings: list[PackFinding]) -> None:
+    path = root / AUTHORITY_SKILL_LOCK_PATH
+    if not path.is_file():
+        findings.append(
+            PackFinding(
+                "pack_authority_skill_lock_missing",
+                f"missing authority-routing skill source lock: {AUTHORITY_SKILL_LOCK_PATH}",
+                AUTHORITY_SKILL_LOCK_PATH,
+            )
+        )
+        return
+    if validate_authority_skill_lock is None:
+        findings.append(
+            PackFinding(
+                "pack_authority_skill_lock_validator_unavailable",
+                "authority skill lock validator is unavailable: "
+                f"{AUTHORITY_SKILL_LOCK_VALIDATOR_IMPORT_ERROR or 'unknown import error'}",
+                AUTHORITY_SKILL_INVENTORY_PATH,
+            )
+        )
+        return
+    validation = validate_authority_skill_lock(path)
+    locked_names = set(validation["skill_names"])
+    missing = sorted(AUTHORITY_ROUTING_SPECIALIST_SKILLS - locked_names)
+    stale = sorted(locked_names - AUTHORITY_ROUTING_SPECIALIST_SKILLS)
+    errors = list(validation["errors"])
+    if missing:
+        errors.append(f"missing authority-routing skill entries: {', '.join(missing)}")
+    if stale:
+        errors.append(f"stale authority-routing skill entries: {', '.join(stale)}")
+    if not errors:
+        return
+    findings.append(
+        PackFinding(
+            "pack_authority_skill_lock_invalid",
+            f"{AUTHORITY_SKILL_LOCK_PATH} is invalid: {'; '.join(errors)}",
+            AUTHORITY_SKILL_LOCK_PATH,
         )
     )
 

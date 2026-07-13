@@ -102,6 +102,19 @@ class ArtifactSmokeTest(unittest.TestCase):
             payload["consumer_bootstrap_product_structure"]["authority_skill_inventory"]["required_skill_count"],
             19,
         )
+        self.assertTrue(payload["consumer_bootstrap_product_structure"]["authority_skill_inventory"]["manifest_ok"])
+        self.assertTrue(
+            payload["consumer_bootstrap_product_structure"]["authority_skill_inventory"][
+                "manifest_aligned_with_routing"
+            ]
+        )
+        self.assertTrue(
+            payload["consumer_bootstrap_product_structure"]["authority_skill_inventory"]["repair_requested"]
+        )
+        self.assertTrue(payload["consumer_bootstrap_product_structure"]["authority_skill_inventory"]["repair_check"])
+        self.assertFalse(
+            payload["consumer_bootstrap_product_structure"]["authority_skill_inventory"]["repair_writes_state"]
+        )
         self.assertTrue(payload["consumer_bootstrap_product_structure"]["product_structure_apply_ok"])
         self.assertTrue(payload["consumer_bootstrap_product_structure"]["work_package"]["ok"])
         self.assertEqual("product-structuring", payload["consumer_bootstrap_product_structure"]["work_package"]["phase"])

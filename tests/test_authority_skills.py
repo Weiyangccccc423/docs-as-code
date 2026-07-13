@@ -1,3 +1,4 @@
+import hashlib
 import json
 import subprocess
 import sys
@@ -10,6 +11,55 @@ from scripts.authority_skills import build_authority_skill_inventory
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts/authority_skills.py"
+DEFAULT_LOCK = ROOT / "references/authority-skills.lock.json"
+
+
+def _tree_digest(skill_dir: Path) -> str:
+    digest = hashlib.sha256()
+    for path in sorted(skill_dir.rglob("*"), key=lambda item: item.relative_to(skill_dir).as_posix()):
+        if not path.is_file():
+            continue
+        rel = path.relative_to(skill_dir).as_posix()
+        file_digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        digest.update(f"{rel}\0{file_digest}\n".encode("utf-8"))
+    return digest.hexdigest()
+
+
+def _lock_payload() -> dict[str, object]:
+    return json.loads(DEFAULT_LOCK.read_text(encoding="utf-8"))
+
+
+def _registered_skill(name: str, digest: str) -> dict[str, object]:
+    return {
+        "name": name,
+        "source": {
+            "kind": "github",
+            "repo": "example/authority-skills",
+            "path": f"skills/{name}",
+            "ref": "0123456789abcdef0123456789abcdef01234567",
+        },
+        "integrity": {
+            "algorithm": "sha256",
+            "scope": "skill-tree",
+            "digest": digest,
+        },
+        "trust": {
+            "status": "approved",
+            "approved_by": "workflow-pack-test",
+            "approved_at": "2026-07-13",
+            "license": "MIT",
+            "review_evidence": "https://example.invalid/authority-skill-review",
+        },
+    }
+
+
+def _write_lock(path: Path, replacement: dict[str, object] | None = None) -> None:
+    payload = _lock_payload()
+    if replacement is not None:
+        skills = payload["skills"]
+        assert isinstance(skills, list)
+        payload["skills"] = [replacement if item.get("name") == replacement["name"] else item for item in skills]
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
 class AuthoritySkillsTest(unittest.TestCase):
@@ -24,6 +74,10 @@ class AuthoritySkillsTest(unittest.TestCase):
         self.assertEqual([], payload["available_skill_roots"])
         self.assertEqual(payload["required_skill_count"], payload["missing_skill_count"])
         self.assertEqual([], payload["available_skills"])
+        self.assertTrue(payload["manifest"]["ok"])
+        self.assertTrue(payload["manifest"]["aligned_with_routing"])
+        self.assertEqual(str(DEFAULT_LOCK.resolve()), payload["manifest"]["path"])
+        self.assertEqual(payload["required_skill_count"], payload["status_counts"]["missing"])
 
         skills = {skill["name"]: skill for skill in payload["skills"]}
         for name in (
@@ -62,6 +116,346 @@ class AuthoritySkillsTest(unittest.TestCase):
             for entry in skills["senior-backend"]["required_by"]
         }
         self.assertIn(("implementation", "conditional", "_task_specialist_skills"), backend_sources)
+
+    def test_registered_skill_tree_is_current_then_drifted_when_bundled_content_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            skill_root = base / "skills"
+            skill_dir = skill_root / "senior-architect"
+            reference = skill_dir / "references" / "architecture.md"
+            reference.parent.mkdir(parents=True)
+            (skill_dir / "SKILL.md").write_text(
+                "---\nname: senior-architect\ndescription: Architecture review\n---\n",
+                encoding="utf-8",
+            )
+            reference.write_text("approved architecture method\n", encoding="utf-8")
+            lock = base / "authority-skills.lock.json"
+            _write_lock(lock, _registered_skill("senior-architect", _tree_digest(skill_dir)))
+
+            current = build_authority_skill_inventory(
+                skill_roots=[skill_root],
+                include_default_skill_roots=False,
+                manifest_path=lock,
+            )
+            reference.write_text("locally modified architecture method\n", encoding="utf-8")
+            drifted = build_authority_skill_inventory(
+                skill_roots=[skill_root],
+                include_default_skill_roots=False,
+                manifest_path=lock,
+            )
+
+        current_skill = {skill["name"]: skill for skill in current["skills"]}["senior-architect"]
+        drifted_skill = {skill["name"]: skill for skill in drifted["skills"]}["senior-architect"]
+        self.assertEqual("current", current_skill["status"])
+        self.assertTrue(current_skill["integrity_matches"])
+        self.assertEqual("skill-tree", current_skill["integrity_scope"])
+        self.assertEqual("drifted", drifted_skill["status"])
+        self.assertFalse(drifted_skill["integrity_matches"])
+        self.assertNotEqual(drifted_skill["expected_sha256"], drifted_skill["observed_sha256"])
+        self.assertIn("senior-architect", drifted["drifted_skills"])
+
+    def test_registered_skill_tree_includes_node_modules_content(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            skill_root = base / "skills"
+            skill_dir = skill_root / "senior-architect"
+            skill_dir.mkdir(parents=True)
+            (skill_dir / "SKILL.md").write_text(
+                "---\nname: senior-architect\ndescription: Architecture review\n---\n",
+                encoding="utf-8",
+            )
+            lock = base / "authority-skills.lock.json"
+            _write_lock(lock, _registered_skill("senior-architect", _tree_digest(skill_dir)))
+            dependency = skill_dir / "node_modules" / "dependency" / "index.js"
+            dependency.parent.mkdir(parents=True)
+            dependency.write_text("module.exports = 'unreviewed';\n", encoding="utf-8")
+
+            payload = build_authority_skill_inventory(
+                skill_roots=[skill_root],
+                include_default_skill_roots=False,
+                manifest_path=lock,
+            )
+
+        skill = {item["name"]: item for item in payload["skills"]}["senior-architect"]
+        self.assertEqual("drifted", skill["status"])
+        self.assertFalse(skill["integrity_matches"])
+
+    def test_installed_skill_without_registered_source_is_source_unregistered(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            skill_root = Path(tmp) / "skills"
+            skill_dir = skill_root / "senior-architect"
+            skill_dir.mkdir(parents=True)
+            (skill_dir / "SKILL.md").write_text(
+                "---\nname: senior-architect\ndescription: Architecture review\n---\n",
+                encoding="utf-8",
+            )
+
+            payload = build_authority_skill_inventory(
+                skill_roots=[skill_root],
+                include_default_skill_roots=False,
+                manifest_path=DEFAULT_LOCK,
+                repair=True,
+                check=True,
+            )
+
+        skill = {item["name"]: item for item in payload["skills"]}["senior-architect"]
+        action = next(
+            item for item in payload["repair_plan"]["actions"] if item["skill"] == "senior-architect"
+        )
+        self.assertTrue(payload["ok"])
+        self.assertEqual("source-unregistered", skill["status"])
+        self.assertFalse(skill["source_registered"])
+        self.assertEqual("register-authority-skill-source", action["kind"])
+        self.assertTrue(action["manual_required"])
+        self.assertEqual([], action["argv"])
+
+    def test_repair_check_plans_exact_registered_install_without_executing_installer(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            skill_root = base / "skills"
+            skill_root.mkdir()
+            lock = base / "authority-skills.lock.json"
+            _write_lock(lock, _registered_skill("senior-architect", "a" * 64))
+            marker = base / "installer-ran"
+            installer = base / "install-skill-from-github.py"
+            installer.write_text(
+                "from pathlib import Path\nPath(%r).write_text('ran', encoding='utf-8')\n" % str(marker),
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT),
+                    "--manifest",
+                    str(lock),
+                    "--skill-installer",
+                    str(installer),
+                    "--skill-root",
+                    str(skill_root),
+                    "--no-default-skill-roots",
+                    "--repair",
+                    "--check",
+                    "--json",
+                ],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertEqual("", result.stderr)
+        self.assertFalse(marker.exists())
+        payload = json.loads(result.stdout)
+        action = next(
+            item for item in payload["repair_plan"]["actions"] if item["skill"] == "senior-architect"
+        )
+        self.assertTrue(payload["repair_plan"]["requested"])
+        self.assertTrue(payload["repair_plan"]["check"])
+        self.assertFalse(payload["repair_plan"]["writes_state"])
+        self.assertFalse(payload["repair_plan"]["applied"])
+        self.assertTrue(action["approval_required"])
+        self.assertTrue(action["network_required"])
+        self.assertTrue(action["writes_outside_repository"])
+        self.assertEqual(
+            [
+                sys.executable,
+                str(installer.resolve()),
+                "--repo",
+                "example/authority-skills",
+                "--path",
+                "skills/senior-architect",
+                "--ref",
+                "0123456789abcdef0123456789abcdef01234567",
+                "--name",
+                "senior-architect",
+            ],
+            action["argv"],
+        )
+
+    def test_repair_check_rejects_symbolic_link_skill_installer(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            skill_root = base / "skills"
+            skill_root.mkdir()
+            lock = base / "authority-skills.lock.json"
+            _write_lock(lock, _registered_skill("senior-architect", "a" * 64))
+            installer = base / "real-installer.py"
+            installer.write_text("raise SystemExit('must not run')\n", encoding="utf-8")
+            installer_link = base / "install-skill-from-github.py"
+            installer_link.symlink_to(installer)
+
+            payload = build_authority_skill_inventory(
+                skill_roots=[skill_root],
+                include_default_skill_roots=False,
+                manifest_path=lock,
+                repair=True,
+                check=True,
+                skill_installer_path=installer_link,
+            )
+
+        action = next(
+            item for item in payload["repair_plan"]["actions"] if item["skill"] == "senior-architect"
+        )
+        self.assertFalse(payload["repair_plan"]["skill_installer_available"])
+        self.assertTrue(action["manual_required"])
+        self.assertEqual([], action["argv"])
+
+    def test_repair_and_check_flags_must_be_paired_in_library_api(self) -> None:
+        with self.assertRaisesRegex(ValueError, "repair and check must be used together"):
+            build_authority_skill_inventory(
+                skill_roots=[],
+                include_default_skill_roots=False,
+                manifest_path=DEFAULT_LOCK,
+                repair=True,
+                check=False,
+            )
+
+    def test_manifest_rejects_mutable_github_ref(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            lock = Path(tmp) / "authority-skills.lock.json"
+            registered = _registered_skill("senior-architect", "a" * 64)
+            registered["source"]["ref"] = "main"
+            _write_lock(lock, registered)
+
+            payload = build_authority_skill_inventory(
+                skill_roots=[],
+                include_default_skill_roots=False,
+                manifest_path=lock,
+            )
+
+        self.assertFalse(payload["ok"])
+        self.assertFalse(payload["manifest"]["ok"])
+        self.assertTrue(any("immutable 40-character commit" in error for error in payload["manifest"]["errors"]))
+
+    def test_manifest_rejects_skill_md_only_integrity_scope(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            lock = Path(tmp) / "authority-skills.lock.json"
+            registered = _registered_skill("senior-architect", "a" * 64)
+            registered["integrity"]["scope"] = "skill-md"
+            _write_lock(lock, registered)
+
+            payload = build_authority_skill_inventory(
+                skill_roots=[],
+                include_default_skill_roots=False,
+                manifest_path=lock,
+            )
+
+        self.assertFalse(payload["ok"])
+        self.assertTrue(any("integrity.scope" in error for error in payload["manifest"]["errors"]))
+
+    def test_manifest_rejects_symbolic_link_lock_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            lock = base / "authority-skills.lock.json"
+            _write_lock(lock)
+            lock_link = base / "linked-lock.json"
+            lock_link.symlink_to(lock)
+
+            payload = build_authority_skill_inventory(
+                skill_roots=[],
+                include_default_skill_roots=False,
+                manifest_path=lock_link,
+            )
+
+        self.assertFalse(payload["ok"])
+        self.assertTrue(any("symbolic link" in error for error in payload["manifest"]["errors"]))
+
+    def test_manifest_rejects_unsafe_source_path_and_impossible_approval_date(self) -> None:
+        cases = (
+            ("source.path", lambda entry: entry["source"].__setitem__("path", "../skills/senior-architect")),
+            ("trust.approved_at", lambda entry: entry["trust"].__setitem__("approved_at", "2026-02-31")),
+        )
+        for expected_error, mutate in cases:
+            with self.subTest(expected_error=expected_error), tempfile.TemporaryDirectory() as tmp:
+                lock = Path(tmp) / "authority-skills.lock.json"
+                registered = _registered_skill("senior-architect", "a" * 64)
+                mutate(registered)
+                _write_lock(lock, registered)
+
+                payload = build_authority_skill_inventory(
+                    skill_roots=[],
+                    include_default_skill_roots=False,
+                    manifest_path=lock,
+                )
+
+            self.assertFalse(payload["ok"])
+            self.assertTrue(any(expected_error in error for error in payload["manifest"]["errors"]))
+
+    def test_registered_skill_tree_with_symbolic_link_is_drifted(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            skill_root = base / "skills"
+            skill_dir = skill_root / "senior-architect"
+            skill_dir.mkdir(parents=True)
+            (skill_dir / "SKILL.md").write_text(
+                "---\nname: senior-architect\ndescription: Architecture review\n---\n",
+                encoding="utf-8",
+            )
+            lock = base / "authority-skills.lock.json"
+            _write_lock(lock, _registered_skill("senior-architect", _tree_digest(skill_dir)))
+            outside = base / "outside.md"
+            outside.write_text("untrusted content\n", encoding="utf-8")
+            (skill_dir / "linked.md").symlink_to(outside)
+
+            payload = build_authority_skill_inventory(
+                skill_roots=[skill_root],
+                include_default_skill_roots=False,
+                manifest_path=lock,
+            )
+
+        skill = {item["name"]: item for item in payload["skills"]}["senior-architect"]
+        self.assertEqual("drifted", skill["status"])
+        self.assertIn("symbolic link", skill["integrity_error"])
+
+    def test_duplicate_registered_skill_installations_are_drifted(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            roots = [base / "skills-one", base / "skills-two"]
+            for root in roots:
+                skill_dir = root / "senior-architect"
+                skill_dir.mkdir(parents=True)
+                (skill_dir / "SKILL.md").write_text(
+                    "---\nname: senior-architect\ndescription: Architecture review\n---\n",
+                    encoding="utf-8",
+                )
+            lock = base / "authority-skills.lock.json"
+            _write_lock(lock, _registered_skill("senior-architect", _tree_digest(roots[0] / "senior-architect")))
+
+            payload = build_authority_skill_inventory(
+                skill_roots=roots,
+                include_default_skill_roots=False,
+                manifest_path=lock,
+            )
+
+        skill = {item["name"]: item for item in payload["skills"]}["senior-architect"]
+        self.assertEqual("drifted", skill["status"])
+        self.assertTrue(skill["installation_ambiguous"])
+        self.assertEqual(2, len(skill["installation_candidates"]))
+        self.assertIn("multiple installations", skill["integrity_error"])
+
+    def test_provenance_strict_fails_for_unregistered_sources_even_when_skill_is_installed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            skill_root = Path(tmp) / "skills"
+            skill_dir = skill_root / "senior-architect"
+            skill_dir.mkdir(parents=True)
+            (skill_dir / "SKILL.md").write_text(
+                "---\nname: senior-architect\ndescription: Architecture review\n---\n",
+                encoding="utf-8",
+            )
+
+            payload = build_authority_skill_inventory(
+                skill_roots=[skill_root],
+                include_default_skill_roots=False,
+                manifest_path=DEFAULT_LOCK,
+                strict_provenance=True,
+            )
+
+        self.assertFalse(payload["ok"])
+        self.assertTrue(payload["strict_provenance"])
+        self.assertIn("senior-architect", payload["source_unregistered_skills"])
+        self.assertTrue(any("provenance is not current" in error for error in payload["errors"]))
 
     def test_inventory_reports_available_skills_from_explicit_skill_root(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

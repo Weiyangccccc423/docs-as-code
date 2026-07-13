@@ -141,6 +141,7 @@ WORKFLOW_PACK_REQUIRED_PATHS = (
     "references/architecture-decision-record-checklist.md",
     "references/architecture-methods.md",
     "references/architecture-quality-checklist.md",
+    "references/authority-skills.lock.json",
     "references/backend-design-checklist.md",
     "references/backend-operability-checklist.md",
     "references/community-practices.md",

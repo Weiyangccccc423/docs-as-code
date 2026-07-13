@@ -1,0 +1,278 @@
+{
+  "policy": {
+    "install_execution": "explicit-approval-required",
+    "integrity": "skill-tree-sha256-v1",
+    "registered_source_kind": "github",
+    "source_ref": "immutable-full-commit-sha",
+    "unregistered_source": "manual-source-registration-required"
+  },
+  "schema_version": 1,
+  "skills": [
+    {
+      "name": "a11y-audit",
+      "source": {
+        "kind": "unregistered",
+        "reason": "Installed provenance is unavailable; register and review an exact source before locking."
+      },
+      "trust": {
+        "approved_at": "",
+        "approved_by": "",
+        "license": "",
+        "review_evidence": "",
+        "status": "pending-source-review"
+      }
+    },
+    {
+      "name": "api-design-reviewer",
+      "source": {
+        "kind": "unregistered",
+        "reason": "Installed provenance is unavailable; register and review an exact source before locking."
+      },
+      "trust": {
+        "approved_at": "",
+        "approved_by": "",
+        "license": "",
+        "review_evidence": "",
+        "status": "pending-source-review"
+      }
+    },
+    {
+      "name": "ci-cd-pipeline-builder",
+      "source": {
+        "kind": "unregistered",
+        "reason": "Installed provenance is unavailable; register and review an exact source before locking."
+      },
+      "trust": {
+        "approved_at": "",
+        "approved_by": "",
+        "license": "",
+        "review_evidence": "",
+        "status": "pending-source-review"
+      }
+    },
+    {
+      "name": "database-designer",
+      "source": {
+        "kind": "unregistered",
+        "reason": "Installed provenance is unavailable; register and review an exact source before locking."
+      },
+      "trust": {
+        "approved_at": "",
+        "approved_by": "",
+        "license": "",
+        "review_evidence": "",
+        "status": "pending-source-review"
+      }
+    },
+    {
+      "name": "database-schema-designer",
+      "source": {
+        "kind": "unregistered",
+        "reason": "Installed provenance is unavailable; register and review an exact source before locking."
+      },
+      "trust": {
+        "approved_at": "",
+        "approved_by": "",
+        "license": "",
+        "review_evidence": "",
+        "status": "pending-source-review"
+      }
+    },
+    {
+      "name": "migration-architect",
+      "source": {
+        "kind": "unregistered",
+        "reason": "Installed provenance is unavailable; register and review an exact source before locking."
+      },
+      "trust": {
+        "approved_at": "",
+        "approved_by": "",
+        "license": "",
+        "review_evidence": "",
+        "status": "pending-source-review"
+      }
+    },
+    {
+      "name": "observability-designer",
+      "source": {
+        "kind": "unregistered",
+        "reason": "Installed provenance is unavailable; register and review an exact source before locking."
+      },
+      "trust": {
+        "approved_at": "",
+        "approved_by": "",
+        "license": "",
+        "review_evidence": "",
+        "status": "pending-source-review"
+      }
+    },
+    {
+      "name": "performance-profiler",
+      "source": {
+        "kind": "unregistered",
+        "reason": "Installed provenance is unavailable; register and review an exact source before locking."
+      },
+      "trust": {
+        "approved_at": "",
+        "approved_by": "",
+        "license": "",
+        "review_evidence": "",
+        "status": "pending-source-review"
+      }
+    },
+    {
+      "name": "playwright-pro",
+      "source": {
+        "kind": "unregistered",
+        "reason": "Installed provenance is unavailable; register and review an exact source before locking."
+      },
+      "trust": {
+        "approved_at": "",
+        "approved_by": "",
+        "license": "",
+        "review_evidence": "",
+        "status": "pending-source-review"
+      }
+    },
+    {
+      "name": "security-pen-testing",
+      "source": {
+        "kind": "unregistered",
+        "reason": "Installed provenance is unavailable; register and review an exact source before locking."
+      },
+      "trust": {
+        "approved_at": "",
+        "approved_by": "",
+        "license": "",
+        "review_evidence": "",
+        "status": "pending-source-review"
+      }
+    },
+    {
+      "name": "senior-architect",
+      "source": {
+        "kind": "unregistered",
+        "reason": "Installed provenance is unavailable; register and review an exact source before locking."
+      },
+      "trust": {
+        "approved_at": "",
+        "approved_by": "",
+        "license": "",
+        "review_evidence": "",
+        "status": "pending-source-review"
+      }
+    },
+    {
+      "name": "senior-backend",
+      "source": {
+        "kind": "unregistered",
+        "reason": "Installed provenance is unavailable; register and review an exact source before locking."
+      },
+      "trust": {
+        "approved_at": "",
+        "approved_by": "",
+        "license": "",
+        "review_evidence": "",
+        "status": "pending-source-review"
+      }
+    },
+    {
+      "name": "senior-frontend",
+      "source": {
+        "kind": "unregistered",
+        "reason": "Installed provenance is unavailable; register and review an exact source before locking."
+      },
+      "trust": {
+        "approved_at": "",
+        "approved_by": "",
+        "license": "",
+        "review_evidence": "",
+        "status": "pending-source-review"
+      }
+    },
+    {
+      "name": "senior-fullstack",
+      "source": {
+        "kind": "unregistered",
+        "reason": "Installed provenance is unavailable; register and review an exact source before locking."
+      },
+      "trust": {
+        "approved_at": "",
+        "approved_by": "",
+        "license": "",
+        "review_evidence": "",
+        "status": "pending-source-review"
+      }
+    },
+    {
+      "name": "senior-qa",
+      "source": {
+        "kind": "unregistered",
+        "reason": "Installed provenance is unavailable; register and review an exact source before locking."
+      },
+      "trust": {
+        "approved_at": "",
+        "approved_by": "",
+        "license": "",
+        "review_evidence": "",
+        "status": "pending-source-review"
+      }
+    },
+    {
+      "name": "senior-security",
+      "source": {
+        "kind": "unregistered",
+        "reason": "Installed provenance is unavailable; register and review an exact source before locking."
+      },
+      "trust": {
+        "approved_at": "",
+        "approved_by": "",
+        "license": "",
+        "review_evidence": "",
+        "status": "pending-source-review"
+      }
+    },
+    {
+      "name": "slo-architect",
+      "source": {
+        "kind": "unregistered",
+        "reason": "Installed provenance is unavailable; register and review an exact source before locking."
+      },
+      "trust": {
+        "approved_at": "",
+        "approved_by": "",
+        "license": "",
+        "review_evidence": "",
+        "status": "pending-source-review"
+      }
+    },
+    {
+      "name": "tech-debt-tracker",
+      "source": {
+        "kind": "unregistered",
+        "reason": "Installed provenance is unavailable; register and review an exact source before locking."
+      },
+      "trust": {
+        "approved_at": "",
+        "approved_by": "",
+        "license": "",
+        "review_evidence": "",
+        "status": "pending-source-review"
+      }
+    },
+    {
+      "name": "tech-stack-evaluator",
+      "source": {
+        "kind": "unregistered",
+        "reason": "Installed provenance is unavailable; register and review an exact source before locking."
+      },
+      "trust": {
+        "approved_at": "",
+        "approved_by": "",
+        "license": "",
+        "review_evidence": "",
+        "status": "pending-source-review"
+      }
+    }
+  ]
+}

@@ -1283,9 +1283,28 @@ def _string_field(payload: dict[str, object], key: str) -> str:
 def _authority_skill_inventory_details(bootstrap_payload: dict[str, object]) -> dict[str, object]:
     inventory = bootstrap_payload.get("authority_skill_inventory")
     inventory_map = inventory if isinstance(inventory, dict) else {}
+    manifest = inventory_map.get("manifest")
+    manifest_map = manifest if isinstance(manifest, dict) else {}
+    repair_plan = inventory_map.get("repair_plan")
+    repair_map = repair_plan if isinstance(repair_plan, dict) else {}
     return {
         "ok": inventory_map.get("ok") is True,
         "strict": inventory_map.get("strict") is True,
+        "strict_provenance": inventory_map.get("strict_provenance") is True,
+        "manifest_ok": manifest_map.get("ok") is True,
+        "manifest_aligned_with_routing": manifest_map.get("aligned_with_routing") is True,
+        "status_counts": inventory_map.get("status_counts")
+        if isinstance(inventory_map.get("status_counts"), dict)
+        else {},
+        "provenance_issue_count": inventory_map.get("provenance_issue_count")
+        if isinstance(inventory_map.get("provenance_issue_count"), int)
+        else 0,
+        "repair_requested": repair_map.get("requested") is True,
+        "repair_check": repair_map.get("check") is True,
+        "repair_writes_state": repair_map.get("writes_state") is True,
+        "repair_action_count": repair_map.get("action_count")
+        if isinstance(repair_map.get("action_count"), int)
+        else 0,
         "required_skill_count": inventory_map.get("required_skill_count")
         if isinstance(inventory_map.get("required_skill_count"), int)
         else 0,
