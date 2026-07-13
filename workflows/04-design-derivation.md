@@ -98,6 +98,7 @@ Load according to the design track:
    - major quality attributes
    - external dependencies
    - deployment assumptions
+   Before architecture authority signoff, derive `docs/architecture/threat-model/scope.json` and `mitigations.json` from those views using the bundled templates. Run `bin/governance design threat-review <target> --reviewed --check --json`, inspect every tool result, then apply. The command runs `senior-security` `threat_modeler.py` once per DFD element, requires complete type-specific STRIDE coverage, blocks every DREAD >= 7 threat without a named owner, concrete mitigation, and repository evidence, and binds all input, report, source, skill, and tool hashes.
 4. Read `references/api-design-checklist.md`, then create or complete `docs/api/`:
    - `00-conventions.md`
    - `endpoints/README.md`
@@ -142,6 +143,8 @@ Design documents sufficient for creating a task board without guessing product m
 ## Verification
 
 - Every current `A-NNN` and design track has a non-stale authority review in `docs/decisions/design-reviews.json`; malformed, missing, orphaned, or stale records block implementation.
+- `docs/architecture/threat-model/review-evidence.json` is valid and current; `threat_review_evidence_missing`, `threat_review_evidence_invalid`, and `threat_review_evidence_stale` block architecture signoff and implementation.
+- Threat review evidence binds `scope.json`, `mitigations.json`, `stride-report.json`, architecture/mitigation sources, `senior-security` `SKILL.md`, and `threat_modeler.py` SHA-256 values.
 - `docs/api/reviews/review-evidence.json` is valid and current; `api_review_evidence_missing`, `api_review_evidence_invalid`, and `api_review_evidence_stale` block implementation.
 - API review evidence binds `docs/api/openapi.json`, the baseline, all three reports, `api-design-reviewer` `SKILL.md`, and the three authority tool script SHA-256 values.
 - API endpoints have request, response, error code, auth, and idempotency notes.

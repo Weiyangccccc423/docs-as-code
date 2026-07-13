@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "mitigations": [
+    {
+      "element_id": "product-derived-element-id",
+      "category": "Spoofing",
+      "threat_name": "Exact authority-tool threat name",
+      "owner": "named-team-or-role",
+      "mitigation": "Concrete design control for this threat.",
+      "evidence": [
+        "docs/architecture/03-quality-attributes.md"
+      ]
+    }
+  ]
+}

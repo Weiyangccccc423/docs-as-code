@@ -30,6 +30,9 @@ class PackStructureTest(unittest.TestCase):
     def test_api_review_runtime_is_required_in_generated_targets(self) -> None:
         self.assertIn(Path("scripts/api_review_evidence.py"), RUNTIME_REQUIRED_PATHS)
 
+    def test_threat_review_runtime_is_required_in_generated_targets(self) -> None:
+        self.assertIn(Path("scripts/threat_review_evidence.py"), RUNTIME_REQUIRED_PATHS)
+
     def test_target_local_command_contracts_stay_aligned(self) -> None:
         expected_targets = tuple(target for target, _recipe, _description, _writes_state in TARGET_LOCAL_COMMANDS)
         expected_recipes = {
@@ -3133,6 +3136,56 @@ class PackStructureTest(unittest.TestCase):
                     finding.code == "pack_api_review_doc_missing"
                     and finding.path == "skills/designing-api-contracts/SKILL.md"
                     and "design api-review" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_missing_threat_review_evidence_source(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            (target / "scripts/threat_review_evidence.py").unlink()
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_threat_review_source_missing"
+                    and finding.path == "scripts/threat_review_evidence.py"
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_missing_threat_review_doc_phrase(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            skill = target / "skills/designing-system-architecture/SKILL.md"
+            skill.write_text(
+                skill.read_text(encoding="utf-8").replace(
+                    "design threat-review",
+                    "design security-review",
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_threat_review_doc_missing"
+                    and finding.path == "skills/designing-system-architecture/SKILL.md"
+                    and "design threat-review" in finding.message
                     for finding in report.findings
                 )
             )

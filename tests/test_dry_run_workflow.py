@@ -223,11 +223,17 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertTrue(payload["api_review"]["current_after_runtime_refresh"])
             self.assertEqual("initial-baseline", payload["api_review"]["baseline_mode"])
             self.assertEqual("A", payload["api_review"]["scorecard_grade"])
+            self.assertTrue(payload["threat_review"]["preflight_ok"])
+            self.assertTrue(payload["threat_review"]["applied"])
+            self.assertTrue(payload["threat_review"]["current_after_runtime_refresh"])
+            self.assertEqual(1, payload["threat_review"]["element_count"])
+            self.assertEqual(1, payload["threat_review"]["high_dread_threat_count"])
             self.assertEqual(
                 [
                     "bin/governance",
                     "scripts/governance_cli.py",
                     "scripts/api_review_evidence.py",
+                    "scripts/threat_review_evidence.py",
                     "scripts/design_reviews.py",
                     "docs/agent-workflow/runtime-manifest.json",
                     "docs/agent-workflow/workflow-pack/manifest.json",

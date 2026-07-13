@@ -471,6 +471,12 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
             "unpacked artifact dry-run did not prove machine-reviewed OpenAPI evidence",
             payload=dry_run_payload,
         )
+        threat_review = _dry_run_threat_review_details(dry_run_payload)
+        _require(
+            threat_review.get("ok") is True,
+            "unpacked artifact dry-run did not prove machine-reviewed architecture threat evidence",
+            payload=dry_run_payload,
+        )
 
         payload = {
             "ok": True,
@@ -485,6 +491,7 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
             "product_dispositions": product_dispositions,
             "design_reviews": design_reviews,
             "api_review": api_review,
+            "threat_review": threat_review,
             "fresh_target_init": fresh_target_init,
             "consumer_bootstrap_product_structure": consumer_bootstrap_product_structure,
             "consumer_bootstrap_design_scaffold": consumer_bootstrap_design_scaffold,
@@ -643,6 +650,40 @@ def _dry_run_api_review_details(payload: dict[str, object]) -> dict[str, object]
         "current_after_runtime_refresh": current_after_runtime_refresh,
         "baseline_mode": str(review_map.get("baseline_mode", "")),
         "scorecard_grade": scorecard_grade,
+        "evidence_paths": list(evidence_paths) if isinstance(evidence_paths, list) else [],
+    }
+
+
+def _dry_run_threat_review_details(payload: dict[str, object]) -> dict[str, object]:
+    review = payload.get("threat_review")
+    review_map = review if isinstance(review, dict) else {}
+    preflight_ok = review_map.get("preflight_ok") is True
+    applied = review_map.get("applied") is True
+    current_after_runtime_refresh = review_map.get("current_after_runtime_refresh") is True
+    element_count = review_map.get("element_count")
+    high_dread_threat_count = review_map.get("high_dread_threat_count")
+    evidence_paths = review_map.get("evidence_paths")
+    return {
+        "ok": (
+            preflight_ok
+            and applied
+            and current_after_runtime_refresh
+            and isinstance(element_count, int)
+            and not isinstance(element_count, bool)
+            and element_count > 0
+            and isinstance(high_dread_threat_count, int)
+            and not isinstance(high_dread_threat_count, bool)
+            and high_dread_threat_count >= 0
+            and isinstance(evidence_paths, list)
+            and len(evidence_paths) == 2
+        ),
+        "preflight_ok": preflight_ok,
+        "applied": applied,
+        "current_after_runtime_refresh": current_after_runtime_refresh,
+        "element_count": element_count if isinstance(element_count, int) else 0,
+        "high_dread_threat_count": (
+            high_dread_threat_count if isinstance(high_dread_threat_count, int) else 0
+        ),
         "evidence_paths": list(evidence_paths) if isinstance(evidence_paths, list) else [],
     }
 

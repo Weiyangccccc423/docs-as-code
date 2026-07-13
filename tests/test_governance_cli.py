@@ -502,6 +502,126 @@ def _install_test_authority_skills(target: Path, names: tuple[str, ...]) -> None
         )
         if name == "api-design-reviewer":
             _install_test_api_review_tools(target)
+        if name == "senior-security":
+            _install_test_threat_modeler(target)
+
+
+def _install_test_threat_modeler(target: Path) -> None:
+    script = target / ".agents/skills/senior-security/scripts/threat_modeler.py"
+    script.parent.mkdir(parents=True, exist_ok=True)
+    script.write_text(
+        "import json\n"
+        "import sys\n"
+        "from pathlib import Path\n\n"
+        "component = sys.argv[sys.argv.index('--component') + 1]\n"
+        "output = Path(sys.argv[sys.argv.index('--output') + 1])\n"
+        "report = {\n"
+        "    'component': component,\n"
+        "    'analysis_date': '2026-01-01T00:00:00+00:00',\n"
+        "    'summary': {\n"
+        "        'total_threats': 2,\n"
+        "        'by_risk_level': {'critical': 0, 'high': 1, 'medium': 1, 'low': 0},\n"
+        "    },\n"
+        "    'threats': [{\n"
+        "        'category': 'Spoofing',\n"
+        "        'name': 'API Key Impersonation',\n"
+        "        'description': 'An attacker uses a stolen API credential.',\n"
+        "        'attack_vector': 'Credential exposure',\n"
+        "        'impact': 'Unauthorized access',\n"
+        "        'likelihood': 4,\n"
+        "        'severity': 4,\n"
+        "        'risk_score': 16,\n"
+        "        'risk_level': 'High',\n"
+        "        'dread': {\n"
+        "            'damage': 8,\n"
+        "            'reproducibility': 8,\n"
+        "            'exploitability': 8,\n"
+        "            'affected_users': 8,\n"
+        "            'discoverability': 8,\n"
+        "            'total': 8.0,\n"
+        "        },\n"
+        "        'mitigations': ['Use short-lived credentials.'],\n"
+        "    }, {\n"
+        "        'category': 'Denial of Service',\n"
+        "        'name': 'Burst Exhaustion',\n"
+        "        'description': 'A client exhausts request capacity.',\n"
+        "        'attack_vector': 'Request bursts',\n"
+        "        'impact': 'Temporary degradation',\n"
+        "        'likelihood': 2,\n"
+        "        'severity': 2,\n"
+        "        'risk_score': 4,\n"
+        "        'risk_level': 'Medium',\n"
+        "        'dread': {\n"
+        "            'damage': 4,\n"
+        "            'reproducibility': 5,\n"
+        "            'exploitability': 4,\n"
+        "            'affected_users': 5,\n"
+        "            'discoverability': 7,\n"
+        "            'total': 5.0,\n"
+        "        },\n"
+        "        'mitigations': ['Apply layered rate limits.'],\n"
+        "    }],\n"
+        "}\n"
+        "output.write_text(json.dumps(report, indent=2, sort_keys=True) + '\\n', encoding='utf-8')\n",
+        encoding="utf-8",
+    )
+
+
+def _write_test_threat_review_inputs(target: Path, *, include_owner: bool = True) -> None:
+    root = target / "docs/architecture/threat-model"
+    root.mkdir(parents=True, exist_ok=True)
+    categories = [
+        "Spoofing",
+        "Tampering",
+        "Repudiation",
+        "Information Disclosure",
+        "Denial of Service",
+        "Elevation of Privilege",
+    ]
+    scope = {
+        "schema_version": 1,
+        "elements": [
+            {
+                "id": "goal-api",
+                "name": "Goal API",
+                "type": "process",
+                "component": "REST API",
+                "assets": ["goal_data", "access_tokens"],
+                "trust_boundaries": ["public-client-to-api"],
+                "source_references": [
+                    "docs/architecture/01-system-context.md",
+                    "docs/architecture/02-containers.md",
+                    "docs/architecture/03-quality-attributes.md",
+                ],
+            }
+        ],
+        "stride_coverage": [
+            {
+                "element_id": "goal-api",
+                "category": category,
+                "status": "considered",
+                "notes": f"Reviewed {category} against the Goal API boundary.",
+            }
+            for category in categories
+        ],
+    }
+    mitigation = {
+        "element_id": "goal-api",
+        "category": "Spoofing",
+        "threat_name": "API Key Impersonation",
+        "owner": "backend-security" if include_owner else "",
+        "mitigation": "Use short-lived credentials and rotate exposed keys.",
+        "evidence": ["docs/architecture/03-quality-attributes.md"],
+    }
+    mitigations = {"schema_version": 1, "mitigations": [mitigation]}
+    (root / "scope.json").write_text(
+        json.dumps(scope, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    (root / "mitigations.json").write_text(
+        json.dumps(mitigations, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
 
 
 def _install_test_api_review_tools(
@@ -663,7 +783,15 @@ def _record_all_test_design_reviews(case: unittest.TestCase, target: Path) -> No
         ("implementation-planning", "PLAN-AUTHOR-001", "approved", "senior-fullstack"),
         ("architecture-decisions", "ADR-AUTHOR-001", "not-applicable", "senior-architect"),
     )
-    _install_test_authority_skills(target, tuple(dict.fromkeys(item[3] for item in reviews)))
+    _install_test_authority_skills(
+        target,
+        tuple(dict.fromkeys([*(item[3] for item in reviews), "senior-security"])),
+    )
+    _write_test_threat_review_inputs(target)
+    _run_governance_json(
+        case,
+        ["design", "threat-review", str(target), "--reviewed"],
+    )
     _run_governance_json(
         case,
         ["design", "api-review", str(target), "--reviewed"],
@@ -3360,6 +3488,11 @@ class GovernanceCliTest(unittest.TestCase):
                 target,
                 ("api-design-reviewer", "senior-backend", "senior-security"),
             )
+            _write_test_threat_review_inputs(target)
+            _run_governance_json(
+                self,
+                ["design", "threat-review", str(target), "--reviewed"],
+            )
 
             machine_review = _run_governance_json(
                 self,
@@ -3390,6 +3523,169 @@ class GovernanceCliTest(unittest.TestCase):
             )
             self.assertEqual("review", authority_review["work_package"]["work_stage"])
             self.assertNotEqual("run-api-review", authority_review["next_action"]["kind"])
+
+    def test_threat_review_runs_authority_tool_and_gates_architecture_signoff(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp, advance_implementation=False)
+            _install_test_authority_skills(target, ("senior-architect", "senior-security"))
+            _write_test_threat_review_inputs(target)
+
+            blocked_review = _run_governance_json(
+                self,
+                [
+                    "design",
+                    "review",
+                    str(target),
+                    "--track",
+                    "architecture",
+                    "--work",
+                    "ARCHITECTURE-AUTHOR-001",
+                    "--result",
+                    "approved",
+                    "--reason",
+                    "Architecture boundaries and security risks were reviewed.",
+                    "--reviewed",
+                ],
+                expected_returncode=1,
+            )
+            self.assertTrue(any("design threat-review" in error for error in blocked_review["errors"]))
+
+            work_package = _run_governance_json(self, ["workflow", "work-package", str(target)])
+            self.assertEqual("architecture", work_package["work_package"]["track_id"])
+            self.assertEqual("threat-review", work_package["work_package"]["work_stage"])
+            self.assertEqual("run-threat-review", work_package["next_action"]["kind"])
+            self.assertEqual(
+                ["bin/governance", "design", "threat-review", "."],
+                work_package["next_action"]["command_contract"]["argv_prefix"],
+            )
+            input_contract = work_package["next_action"]["input_contract"]
+            self.assertTrue((target / input_contract["scope_template"]).is_file())
+            self.assertTrue((target / input_contract["mitigations_template"]).is_file())
+
+            args = ["design", "threat-review", str(target), "--reviewed"]
+            preview = _run_governance_json(self, [*args, "--check"])
+            expected_paths = {
+                "docs/architecture/threat-model/stride-report.json",
+                "docs/architecture/threat-model/review-evidence.json",
+            }
+            self.assertTrue(preview["ok"])
+            self.assertEqual(expected_paths, set(preview["would_update"]))
+            self.assertEqual(1, preview["evidence"]["summary"]["high_dread_threat_count"])
+            self.assertEqual(1, preview["evidence"]["summary"]["mitigated_high_dread_threat_count"])
+
+            applied = _run_governance_json(self, args)
+            self.assertTrue(applied["ok"])
+            self.assertEqual(expected_paths, set(applied["updated"]))
+            evidence = json.loads(
+                (target / "docs/architecture/threat-model/review-evidence.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual("senior-security", evidence["authority_skill"]["name"])
+            self.assertRegex(evidence["authority_tool"]["sha256"], r"^[0-9a-f]{64}$")
+            self.assertEqual(7.0, evidence["dread_threshold"])
+            report = json.loads(
+                (target / "docs/architecture/threat-model/stride-report.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(
+                ["Burst Exhaustion", "API Key Impersonation"],
+                [item["name"] for item in report["elements"][0]["threats"]],
+            )
+
+            approved_review = _run_governance_json(
+                self,
+                [
+                    "design",
+                    "review",
+                    str(target),
+                    "--track",
+                    "architecture",
+                    "--work",
+                    "ARCHITECTURE-AUTHOR-001",
+                    "--result",
+                    "approved",
+                    "--reason",
+                    "Architecture boundaries and threat mitigations are complete.",
+                    "--reviewed",
+                ],
+            )
+            evidence_paths = {item["path"] for item in approved_review["review"]["evidence_snapshots"]}
+            self.assertIn("docs/architecture/threat-model/review-evidence.json", evidence_paths)
+
+    def test_threat_review_fails_closed_for_unowned_high_dread_threat(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp, advance_implementation=False)
+            _install_test_authority_skills(target, ("senior-security",))
+            _write_test_threat_review_inputs(target, include_owner=False)
+
+            payload = _run_governance_json(
+                self,
+                ["design", "threat-review", str(target), "--reviewed", "--check"],
+                expected_returncode=1,
+            )
+            self.assertFalse(payload["ok"])
+            self.assertTrue(any("named mitigation owner" in error for error in payload["errors"]))
+            self.assertFalse((target / "docs/architecture/threat-model/review-evidence.json").exists())
+
+    def test_threat_review_requires_all_core_architecture_sources(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp, advance_implementation=False)
+            _install_test_authority_skills(target, ("senior-security",))
+            _write_test_threat_review_inputs(target)
+            scope_path = target / "docs/architecture/threat-model/scope.json"
+            scope = json.loads(scope_path.read_text(encoding="utf-8"))
+            scope["elements"][0]["source_references"].remove(
+                "docs/architecture/03-quality-attributes.md"
+            )
+            scope_path.write_text(json.dumps(scope, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+            payload = _run_governance_json(
+                self,
+                ["design", "threat-review", str(target), "--reviewed", "--check"],
+                expected_returncode=1,
+            )
+            self.assertTrue(
+                any("required architecture source" in error for error in payload["errors"])
+            )
+
+    def test_threat_review_allows_owned_mitigation_below_required_threshold(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp, advance_implementation=False)
+            _install_test_authority_skills(target, ("senior-security",))
+            _write_test_threat_review_inputs(target)
+            path = target / "docs/architecture/threat-model/mitigations.json"
+            document = json.loads(path.read_text(encoding="utf-8"))
+            document["mitigations"].append(
+                {
+                    "element_id": "goal-api",
+                    "category": "Denial of Service",
+                    "threat_name": "Burst Exhaustion",
+                    "owner": "backend-platform",
+                    "mitigation": "Apply layered request rate limits.",
+                    "evidence": ["docs/architecture/03-quality-attributes.md"],
+                }
+            )
+            path.write_text(json.dumps(document, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+            payload = _run_governance_json(
+                self,
+                ["design", "threat-review", str(target), "--reviewed", "--check"],
+            )
+            self.assertTrue(payload["ok"])
+
+    def test_threat_review_evidence_becomes_stale_when_authority_tool_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp, advance_implementation=False)
+            _install_test_authority_skills(target, ("senior-security",))
+            _write_test_threat_review_inputs(target)
+            _run_governance_json(self, ["design", "threat-review", str(target), "--reviewed"])
+
+            tool = target / ".agents/skills/senior-security/scripts/threat_modeler.py"
+            tool.write_text(tool.read_text(encoding="utf-8") + "\n# changed\n", encoding="utf-8")
+            verification = _run_governance_json(
+                self,
+                ["verify", str(target), "--check"],
+                expected_returncode=1,
+            )
+            self.assertIn("threat_review_evidence_stale", {item["code"] for item in verification["findings"]})
 
     def test_api_design_review_requires_current_machine_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -3621,6 +3917,11 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn(
                 "design_review_missing",
                 {finding["code"] for finding in missing_review["findings"]},
+            )
+            _write_test_threat_review_inputs(target)
+            _run_governance_json(
+                self,
+                ["design", "threat-review", str(target), "--reviewed"],
             )
             _run_governance_json(
                 self,
@@ -3879,6 +4180,10 @@ class GovernanceCliTest(unittest.TestCase):
                     for finding in stale_verify["findings"]
                     if isinstance(finding, dict) and "code" in finding
                 },
+            )
+            _run_governance_json(
+                self,
+                ["design", "threat-review", str(target), "--reviewed"],
             )
 
             review_args = [

@@ -53,3 +53,11 @@ Reference: `https://resources.sei.cmu.edu/asset_files/TechnicalReport/2000_005_0
 - Was `senior-architect` loaded before approving system boundaries, container responsibilities, quality scenarios, deployment assumptions, and ADR candidates?
 - Does `docs/decisions/design-reviews.json` bind the architecture review to current PRD, acceptance, architecture files, and authority skill SHA-256?
 - Does `design review --check` report no missing, unsafe, or stale evidence before apply?
+
+## Threat Review Evidence
+
+- Does `design threat-review --reviewed --check --json` pass before architecture authority review?
+- Does scope cover every DFD element using the element-type STRIDE matrix, with trust boundaries and architecture sources?
+- Did `senior-security` `threat_modeler.py` run once per element with skill and tool SHA-256 recorded?
+- Does every DREAD >= 7 threat have a named mitigation owner, concrete control, and existing repository evidence?
+- Are `scope.json`, `mitigations.json`, `stride-report.json`, and `review-evidence.json` current after architecture changes?

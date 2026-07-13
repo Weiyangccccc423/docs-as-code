@@ -37,6 +37,13 @@ Calibrate architecture review against ISO/IEC/IEEE 42010 and ISO/IEC 25010, API 
 - Are lint errors and warnings both zero, breaking and potentially breaking changes both zero, and the scorecard grade B or better?
 - Does the API design review snapshot `docs/api/openapi.json`, the baseline, all three reports, and machine review evidence?
 
+## Architecture Threat Review
+
+- Before architecture authority review, is `work_stage: threat-review` complete and `docs/architecture/threat-model/review-evidence.json` current?
+- Did `threat_modeler.py` run from `senior-security` for every scoped DFD element with its script hash recorded?
+- Does scope prove type-specific STRIDE coverage, and does every DREAD score at or above 7 have an owner, mitigation, and repository evidence?
+- Does the architecture review snapshot scope, mitigations, normalized report, and machine evidence?
+
 ## Freshness
 
 - Does `--check` succeed before writing the review record?

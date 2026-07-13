@@ -2328,6 +2328,75 @@ API_REVIEW_DOC_REQUIREMENTS = {
         "design api-review --reviewed --min-grade B --check",
     ),
 }
+THREAT_REVIEW_SOURCE_PATH = "scripts/threat_review_evidence.py"
+THREAT_REVIEW_SOURCE_REQUIRED_PHRASES = (
+    "ThreatReviewEvidenceResult",
+    "check_threat_review_evidence",
+    "record_threat_review_evidence",
+    "build_threat_review_evidence_inventory",
+    "THREAT_SCOPE_REL",
+    "THREAT_MITIGATIONS_REL",
+    "THREAT_REPORT_REL",
+    "THREAT_REVIEW_EVIDENCE_REL",
+    "THREAT_REVIEW_AUTHORITY_SKILL",
+    "THREAT_REVIEW_DREAD_THRESHOLD = 7.0",
+    "threat_modeler.py",
+    "sys.executable",
+    "subprocess.run",
+    "TemporaryDirectory",
+    "_write_outputs_atomically",
+)
+THREAT_REVIEW_DOC_REQUIREMENTS = {
+    "README.md": (
+        "design threat-review",
+        "docs/architecture/threat-model/scope.json",
+        "work_stage: threat-review",
+        "run-threat-review",
+        "DREAD >= 7",
+    ),
+    "workflows/00-overview.md": (
+        "design threat-review",
+        "architecture-threat-review-third",
+        "run-threat-review",
+        "DREAD >= 7",
+    ),
+    "workflows/04-design-derivation.md": (
+        "design threat-review",
+        "threat_modeler.py",
+        "threat_review_evidence_stale",
+    ),
+    "skills/designing-system-architecture/SKILL.md": (
+        "design threat-review",
+        "docs/architecture/threat-model/scope.json",
+        "threat_modeler.py",
+        "DREAD >= 7",
+    ),
+    "skills/using-governance-workflow/SKILL.md": (
+        "threat-review",
+        "run-threat-review",
+        "threat_review_evidence_stale",
+    ),
+    "skills/verifying-governance-docs/SKILL.md": (
+        "threat_review_evidence_missing",
+        "threat_review_evidence_invalid",
+        "threat_review_evidence_stale",
+    ),
+    "references/architecture-quality-checklist.md": (
+        "Threat Review Evidence",
+        "design threat-review",
+        "DREAD >= 7",
+    ),
+    "references/design-review-checklist.md": (
+        "Architecture Threat Review",
+        "work_stage: threat-review",
+        "threat_modeler.py",
+        "docs/architecture/threat-model/review-evidence.json",
+    ),
+    "references/workflow-routing-checklist.md": (
+        "run-threat-review",
+        "design threat-review",
+    ),
+}
 DESIGN_SCAFFOLD_DOC_PATHS = (
     "README.md",
     "workflows/00-overview.md",
@@ -4558,6 +4627,8 @@ def verify_pack(root: Path) -> PackReport:
     _check_design_review_docs(root, findings)
     _check_api_review_source(root, findings)
     _check_api_review_docs(root, findings)
+    _check_threat_review_source(root, findings)
+    _check_threat_review_docs(root, findings)
     _check_design_scaffold_docs(root, findings)
     _check_design_plan_source(root, findings)
     _check_design_plan_docs(root, findings)
@@ -6476,6 +6547,50 @@ def _check_api_review_docs(root: Path, findings: list[PackFinding]) -> None:
                 PackFinding(
                     "pack_api_review_doc_missing",
                     f"{rel} must document API machine-review phrase(s): {', '.join(missing)}",
+                    rel,
+                )
+            )
+
+
+def _check_threat_review_source(root: Path, findings: list[PackFinding]) -> None:
+    path = root / THREAT_REVIEW_SOURCE_PATH
+    if not path.is_file():
+        findings.append(
+            PackFinding(
+                "pack_threat_review_source_missing",
+                f"missing architecture threat-review source script: {THREAT_REVIEW_SOURCE_PATH}",
+                THREAT_REVIEW_SOURCE_PATH,
+            )
+        )
+        return
+    text = _read_utf8_text_or_none(path)
+    if text is None:
+        return
+    missing = [phrase for phrase in THREAT_REVIEW_SOURCE_REQUIRED_PHRASES if phrase not in text]
+    if missing:
+        findings.append(
+            PackFinding(
+                "pack_threat_review_source_incomplete",
+                (
+                    f"{THREAT_REVIEW_SOURCE_PATH} must preserve authority-tool execution and hash-bound "
+                    f"STRIDE/DREAD evidence; missing phrase(s): {', '.join(missing)}"
+                ),
+                THREAT_REVIEW_SOURCE_PATH,
+            )
+        )
+
+
+def _check_threat_review_docs(root: Path, findings: list[PackFinding]) -> None:
+    for rel, phrases in THREAT_REVIEW_DOC_REQUIREMENTS.items():
+        text = _read_utf8_text_or_none(root / rel)
+        if text is None:
+            continue
+        missing = [phrase for phrase in phrases if phrase not in text]
+        if missing:
+            findings.append(
+                PackFinding(
+                    "pack_threat_review_doc_missing",
+                    f"{rel} must document architecture threat-review phrase(s): {', '.join(missing)}",
                     rel,
                 )
             )

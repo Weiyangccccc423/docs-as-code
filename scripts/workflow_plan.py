@@ -28,6 +28,10 @@ try:
     from .product_structure import build_product_plan
     from .state import load_state
     from .workflow_actions import next_actions_payload
+    from .threat_review_evidence import (
+        build_threat_review_evidence_inventory,
+        threat_review_required_evidence_paths,
+    )
 except ImportError:  # pragma: no cover - direct script execution
     from api_review_evidence import (
         api_review_required_evidence_paths,
@@ -53,6 +57,10 @@ except ImportError:  # pragma: no cover - direct script execution
     from product_structure import build_product_plan
     from state import load_state
     from workflow_actions import next_actions_payload
+    from threat_review_evidence import (
+        build_threat_review_evidence_inventory,
+        threat_review_required_evidence_paths,
+    )
 
 
 PRODUCT_PHASE = "product-structuring"
@@ -318,7 +326,7 @@ def _design_work_package(root: Path) -> tuple[dict[str, object], list[str], str]
         queues.append((track, queue_id, authoring_payload))
 
     selected: tuple[dict[str, object], str, dict[str, object], dict[str, object], str] | None = None
-    for stage in ("authoring", "integration", "machine-review", "review"):
+    for stage in ("authoring", "integration", "threat-review", "machine-review", "review"):
         for track, queue_id, authoring_payload in queues:
             authoring_tasks = _dict_items(authoring_payload.get("authoring_tasks"))
             task = _first_design_task_for_stage(
@@ -352,7 +360,19 @@ def _design_work_package(root: Path) -> tuple[dict[str, object], list[str], str]
     source_documents = _string_list(authoring_payload.get("source_documents"))
     references = _target_read_paths(
         root,
-        [*_string_list(track.get("references")), "references/design-review-checklist.md"],
+        [
+            *_string_list(track.get("references")),
+            "references/design-review-checklist.md",
+            *(
+                [
+                    "references/security-design-checklist.md",
+                    "templates/docs/architecture/threat-model/scope.json",
+                    "templates/docs/architecture/threat-model/mitigations.json",
+                ]
+                if str(track.get("id", "")) == "architecture"
+                else []
+            ),
+        ],
     )
     primary_paths = [
         str(item.get("path", ""))
@@ -375,14 +395,23 @@ def _design_work_package(root: Path) -> tuple[dict[str, object], list[str], str]
         if stage == "machine-review"
         else {}
     )
-    machine_review_blockers = _api_machine_review_blockers(api_machine_review)
+    architecture_threat_review = (
+        build_threat_review_evidence_inventory(root)
+        if stage == "threat-review"
+        else {}
+    )
+    machine_review_blockers = (
+        _threat_review_blockers(architecture_threat_review)
+        if stage == "threat-review"
+        else _api_machine_review_blockers(api_machine_review)
+    )
     blockers = (
         document_blockers
         if stage == "authoring"
         else link_blockers
         if stage == "integration"
         else machine_review_blockers
-        if stage == "machine-review"
+        if stage in {"threat-review", "machine-review"}
         else review_blockers
     )
     repair_actions = (
@@ -396,6 +425,7 @@ def _design_work_package(root: Path) -> tuple[dict[str, object], list[str], str]
         "authoring": "authoring_required",
         "integration": "integration_required",
         "machine-review": "machine_review_required",
+        "threat-review": "threat_review_required",
         "review": "review_required",
     }
     return {
@@ -423,6 +453,7 @@ def _design_work_package(root: Path) -> tuple[dict[str, object], list[str], str]
                 [
                     "docs/unresolved.md",
                     "docs/decisions/design-reviews.json",
+                    *(threat_review_required_evidence_paths() if track_id == "architecture" else []),
                     *(api_review_required_evidence_paths() if track_id == "api-contracts" else []),
                 ]
             ),
@@ -438,6 +469,7 @@ def _design_work_package(root: Path) -> tuple[dict[str, object], list[str], str]
         "repair_actions": repair_actions,
         "review_status": str(task.get("review_status", "missing")),
         "api_machine_review": api_machine_review,
+        "architecture_threat_review": architecture_threat_review,
         "design_review": _dict_value(task.get("design_review")),
         "required_authority_skill": str(
             _dict_value(task.get("execution")).get("primary_specialist_skill", "")
@@ -470,6 +502,12 @@ def _first_design_task_for_stage(
         ):
             return task
         if (
+            stage == "threat-review"
+            and track_id == "architecture"
+            and build_threat_review_evidence_inventory(root).get("ok") is not True
+        ):
+            return task
+        if (
             stage == "machine-review"
             and track_id == "api-contracts"
             and build_api_review_evidence_inventory(root).get("ok") is not True
@@ -491,6 +529,28 @@ def _api_machine_review_blockers(inventory: dict[str, object]) -> list[dict[str,
         {
             "kind": "api_machine_review",
             "target": str(inventory.get("path", "docs/api/reviews/review-evidence.json")),
+            "status": status,
+            "details": details,
+        }
+    ]
+
+
+def _threat_review_blockers(inventory: dict[str, object]) -> list[dict[str, object]]:
+    if not inventory or inventory.get("ok") is True:
+        return []
+    status = str(inventory.get("status", "missing"))
+    details = _string_list(inventory.get("errors"))
+    if status == "stale":
+        details = _string_list(inventory.get("stale_reasons"))
+    return [
+        {
+            "kind": "architecture_threat_review",
+            "target": str(
+                inventory.get(
+                    "path",
+                    "docs/architecture/threat-model/review-evidence.json",
+                )
+            ),
             "status": status,
             "details": details,
         }
@@ -699,6 +759,46 @@ def _work_package_next_action(
             "required_decisions": _string_list(package.get("required_decisions")),
             "authority_skill": str(package.get("required_authority_skill", "")),
             "success_condition": "declared design documents become authored before integration review",
+        }
+    if package.get("kind") == "design-authoring" and package.get("work_stage") == "threat-review":
+        scope_template = _target_read_paths(
+            root,
+            ["templates/docs/architecture/threat-model/scope.json"],
+        )[0]
+        mitigations_template = _target_read_paths(
+            root,
+            ["templates/docs/architecture/threat-model/mitigations.json"],
+        )[0]
+        return {
+            "kind": "run-threat-review",
+            "track": str(package.get("track_id", "")),
+            "work_id": str(package.get("work_id", "")),
+            "authority_skill": "senior-security",
+            "machine_review": _dict_value(package.get("architecture_threat_review")),
+            "input_contract": {
+                "scope_path": "docs/architecture/threat-model/scope.json",
+                "scope_template": scope_template,
+                "mitigations_path": "docs/architecture/threat-model/mitigations.json",
+                "mitigations_template": mitigations_template,
+                "dread_threshold": 7.0,
+                "required_element_types": [
+                    "external-entity",
+                    "process",
+                    "data-store",
+                    "data-flow",
+                ],
+            },
+            "decision_policy": "run_stride_dread_review_before_architecture_authority_signoff",
+            "command_contract": {
+                "cwd": str(root),
+                "argv_prefix": ["bin/governance", "design", "threat-review", "."],
+                "required_arguments": ["--reviewed"],
+                "optional_arguments": ["--skill-root"],
+                "preflight_argument": "--check",
+                "writes_state": True,
+                "approval_required": False,
+            },
+            "success_condition": "every DFD element has complete STRIDE coverage and every DREAD >= 7 threat has a named owner, mitigation, and repository evidence",
         }
     if package.get("kind") == "design-authoring" and package.get("work_stage") == "machine-review":
         return {

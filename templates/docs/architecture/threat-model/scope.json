@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "elements": [
+    {
+      "id": "product-derived-element-id",
+      "name": "Product-derived DFD element name",
+      "type": "process",
+      "component": "Component name recognized by the authority tool",
+      "assets": [
+        "product-derived-asset"
+      ],
+      "trust_boundaries": [
+        "product-derived-trust-boundary"
+      ],
+      "source_references": [
+        "docs/architecture/01-system-context.md",
+        "docs/architecture/02-containers.md",
+        "docs/architecture/03-quality-attributes.md"
+      ]
+    }
+  ],
+  "stride_coverage": [
+    {
+      "element_id": "product-derived-element-id",
+      "category": "Spoofing",
+      "status": "considered",
+      "notes": "Concrete review outcome for this DFD element and STRIDE category."
+    },
+    {
+      "element_id": "product-derived-element-id",
+      "category": "Tampering",
+      "status": "considered",
+      "notes": "Concrete review outcome for this DFD element and STRIDE category."
+    },
+    {
+      "element_id": "product-derived-element-id",
+      "category": "Repudiation",
+      "status": "considered",
+      "notes": "Concrete review outcome for this DFD element and STRIDE category."
+    },
+    {
+      "element_id": "product-derived-element-id",
+      "category": "Information Disclosure",
+      "status": "considered",
+      "notes": "Concrete review outcome for this DFD element and STRIDE category."
+    },
+    {
+      "element_id": "product-derived-element-id",
+      "category": "Denial of Service",
+      "status": "considered",
+      "notes": "Concrete review outcome for this DFD element and STRIDE category."
+    },
+    {
+      "element_id": "product-derived-element-id",
+      "category": "Elevation of Privilege",
+      "status": "considered",
+      "notes": "Concrete review outcome for this DFD element and STRIDE category."
+    }
+  ]
+}

@@ -944,6 +944,8 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
     _require(implementation_preflight.get("ok") is False, "implementation gate unexpectedly passed")
 
     _write_minimal_implementation_ready_docs(target, acceptance_ids)
+    _write_threat_review_inputs(target)
+    threat_review_apply = _record_threat_review(target, steps)
     api_review_apply = _record_api_review(target, steps)
     design_review_applies = _record_design_reviews(
         target,
@@ -1182,6 +1184,18 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         "API machine-review evidence did not remain current after runtime refresh",
         payload=api_review_after_runtime_refresh,
     )
+    threat_review_after_runtime_refresh = _run_json(
+        steps,
+        "threat_review_check_after_runtime_refresh",
+        ["bin/governance", "design", "threat-review", ".", "--reviewed", "--check", "--json"],
+        target,
+    )
+    _require(
+        threat_review_after_runtime_refresh.get("ok") is True
+        and threat_review_after_runtime_refresh.get("would_update") == [],
+        "architecture threat-review evidence did not remain current after runtime refresh",
+        payload=threat_review_after_runtime_refresh,
+    )
     make_workflow_plan_after_runtime_refresh = _run_json(
         steps,
         "make_workflow_plan_after_runtime_refresh",
@@ -1239,6 +1253,17 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
                 and api_review_after_runtime_refresh.get("would_update") == []
             ),
             "evidence_paths": list(api_review_apply.get("evidence_paths", [])),
+        },
+        "threat_review": {
+            "preflight_ok": threat_review_apply.get("preflight_ok") is True,
+            "applied": threat_review_apply.get("applied") is True,
+            "element_count": threat_review_apply.get("element_count", 0),
+            "high_dread_threat_count": threat_review_apply.get("high_dread_threat_count", 0),
+            "current_after_runtime_refresh": (
+                threat_review_after_runtime_refresh.get("ok") is True
+                and threat_review_after_runtime_refresh.get("would_update") == []
+            ),
+            "evidence_paths": list(threat_review_apply.get("evidence_paths", [])),
         },
         "design_reviews": {
             "recorded_count": len(design_review_applies),
@@ -1308,6 +1333,7 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
                     "bin/governance",
                     "scripts/governance_cli.py",
                     "scripts/api_review_evidence.py",
+                    "scripts/threat_review_evidence.py",
                     "scripts/design_reviews.py",
                     "docs/agent-workflow/runtime-manifest.json",
                     "docs/agent-workflow/workflow-pack/manifest.json",
@@ -1868,6 +1894,67 @@ def _record_optional_product_dispositions(
     return applied
 
 
+def _write_threat_review_inputs(target: Path) -> None:
+    root = target / "docs/architecture/threat-model"
+    root.mkdir(parents=True, exist_ok=True)
+    categories = [
+        "Spoofing",
+        "Tampering",
+        "Repudiation",
+        "Information Disclosure",
+        "Denial of Service",
+        "Elevation of Privilege",
+    ]
+    scope = {
+        "schema_version": 1,
+        "elements": [
+            {
+                "id": "governance-api",
+                "name": "Governance API",
+                "type": "process",
+                "component": "REST API",
+                "assets": ["governance_state", "workflow_evidence"],
+                "trust_boundaries": ["agent-to-governance-runtime"],
+                "source_references": [
+                    "docs/architecture/01-system-context.md",
+                    "docs/architecture/02-containers.md",
+                    "docs/architecture/03-quality-attributes.md",
+                ],
+            }
+        ],
+        "stride_coverage": [
+            {
+                "element_id": "governance-api",
+                "category": category,
+                "status": "considered",
+                "notes": f"Golden dry-run reviewed {category} against the governance API boundary.",
+            }
+            for category in categories
+        ],
+    }
+    mitigations = {
+        "schema_version": 1,
+        "mitigations": [
+            {
+                "element_id": "governance-api",
+                "category": "Spoofing",
+                "threat_name": "API Key Impersonation",
+                "owner": "governance-runtime-maintainers",
+                "mitigation": "Use short-lived credentials and rotate exposed keys.",
+                "evidence": ["docs/architecture/03-quality-attributes.md"],
+            }
+        ],
+    }
+    (root / "scope.json").write_text(
+        json.dumps(scope, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    (root / "mitigations.json").write_text(
+        json.dumps(mitigations, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+
 def _record_api_review(
     target: Path,
     steps: list[dict[str, object]],
@@ -1916,6 +2003,56 @@ def _record_api_review(
         "applied": result.get("applied") is True,
         "baseline_mode": str(result.get("baseline_mode", "")),
         "scorecard_grade": str(scorecard.get("grade", "")),
+        "evidence_paths": sorted(expected_paths),
+    }
+
+
+def _record_threat_review(
+    target: Path,
+    steps: list[dict[str, object]],
+) -> dict[str, object]:
+    _install_dry_run_authority_skill_fixtures(target)
+    argv = ["bin/governance", "design", "threat-review", ".", "--reviewed"]
+    expected_paths = {
+        "docs/architecture/threat-model/stride-report.json",
+        "docs/architecture/threat-model/review-evidence.json",
+    }
+    preview = _run_json(
+        steps,
+        "threat_review_check",
+        [*argv, "--check", "--json"],
+        target,
+    )
+    _require(
+        preview.get("ok") is True
+        and preview.get("check") is True
+        and set(preview.get("would_update", [])) == expected_paths,
+        "architecture threat-review preflight did not plan complete evidence",
+        payload=preview,
+    )
+    result = _run_json(
+        steps,
+        "threat_review_apply",
+        [*argv, "--json"],
+        target,
+    )
+    evidence = result.get("evidence") if isinstance(result.get("evidence"), dict) else {}
+    summary = evidence.get("summary") if isinstance(evidence.get("summary"), dict) else {}
+    _require(
+        result.get("ok") is True
+        and result.get("applied") is True
+        and set(result.get("updated", [])) == expected_paths
+        and summary.get("element_count") == 1
+        and summary.get("high_dread_threat_count") == 1
+        and summary.get("mitigated_high_dread_threat_count") == 1,
+        "architecture threat-review apply did not record passing authority-tool evidence",
+        payload=result,
+    )
+    return {
+        "preflight_ok": preview.get("ok") is True,
+        "applied": result.get("applied") is True,
+        "element_count": summary.get("element_count", 0),
+        "high_dread_threat_count": summary.get("high_dread_threat_count", 0),
         "evidence_paths": sorted(expected_paths),
     }
 
@@ -1993,6 +2130,7 @@ def _install_dry_run_authority_skill_fixtures(target: Path) -> None:
         str(spec["primary_authority_skill"])
         for spec in DESIGN_REVIEW_TRACK_SPECS.values()
     }
+    skill_names.add("senior-security")
     for skill_name in sorted(skill_names):
         path = target / ".agents/skills" / skill_name / "SKILL.md"
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -2060,6 +2198,48 @@ def _install_dry_run_authority_skill_fixtures(target: Path) -> None:
             "Path(sys.argv[output_index]).write_text(json.dumps(REPORT, indent=2, sort_keys=True) + '\\n', encoding='utf-8')\n",
             encoding="utf-8",
         )
+    threat_report = {
+        "component": "REST API",
+        "analysis_date": "2026-01-01T00:00:00+00:00",
+        "summary": {
+            "total_threats": 1,
+            "by_risk_level": {"critical": 0, "high": 1, "medium": 0, "low": 0},
+        },
+        "threats": [
+            {
+                "category": "Spoofing",
+                "name": "API Key Impersonation",
+                "description": "An attacker uses a stolen API credential.",
+                "attack_vector": "Credential exposure",
+                "impact": "Unauthorized governance access",
+                "likelihood": 4,
+                "severity": 4,
+                "risk_score": 16,
+                "risk_level": "High",
+                "dread": {
+                    "damage": 8,
+                    "reproducibility": 8,
+                    "exploitability": 8,
+                    "affected_users": 8,
+                    "discoverability": 8,
+                    "total": 8.0,
+                },
+                "mitigations": ["Use short-lived credentials and rotate exposed keys."],
+            }
+        ],
+    }
+    threat_tool = target / ".agents/skills/senior-security/scripts/threat_modeler.py"
+    threat_tool.parent.mkdir(parents=True, exist_ok=True)
+    threat_tool.write_text(
+        "# Deterministic dry-run fixture only; not a production authority tool.\n"
+        "import json\n"
+        "import sys\n"
+        "from pathlib import Path\n\n"
+        f"REPORT = {threat_report!r}\n"
+        "output_index = sys.argv.index('--output') + 1\n"
+        "Path(sys.argv[output_index]).write_text(json.dumps(REPORT, indent=2, sort_keys=True) + '\\n', encoding='utf-8')\n",
+        encoding="utf-8",
+    )
 
 
 def _require_phase_action_work_package(payload: dict[str, object], phase: str, next_action_id: str) -> None:

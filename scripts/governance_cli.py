@@ -80,6 +80,7 @@ from scaffold import (
     scaffold_product,
 )
 from state import STATE_REL, StateFileError, load_state, merge_state, utc_now
+from threat_review_evidence import check_threat_review_evidence, record_threat_review_evidence
 from verify_governance import verify
 from workflow_actions import next_actions_payload
 from workflow_plan import build_work_package, build_workflow_plan
@@ -962,6 +963,60 @@ def _cmd_design_api_review(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_design_threat_review(args: argparse.Namespace) -> int:
+    target = Path(args.target)
+    kwargs = {
+        "reviewed": args.reviewed,
+        "skill_roots": list(args.skill_root),
+    }
+    result = (
+        check_threat_review_evidence(target, **kwargs)
+        if args.check
+        else record_threat_review_evidence(target, **kwargs)
+    )
+    payload = result.to_dict()
+    if result.ok:
+        cwd = result.target
+        payload["refresh_command"] = _continuation_command(
+            cwd,
+            "refresh-architecture-authoring",
+            ["bin/governance", "design", "architecture-authoring", ".", "--json"],
+            "Refresh architecture authoring and threat-review status.",
+        )
+        payload["work_package_command"] = _continuation_command(
+            cwd,
+            "refresh-work-package",
+            ["bin/governance", "workflow", "work-package", ".", "--json"],
+            "Select the next design work package after threat review.",
+        )
+        payload["verify_command"] = _continuation_command(
+            cwd,
+            "verify-threat-review-evidence",
+            ["bin/governance", "verify", ".", "--check", "--json"],
+            "Verify threat-review evidence and downstream architecture review freshness.",
+        )
+        if not args.check:
+            payload["local_commands"] = target_local_commands_payload(cwd=cwd)
+            payload["next_actions"] = next_actions_payload(result.state, cwd=cwd)
+    if args.json:
+        _print_json(payload)
+        return 0 if result.ok else 1
+    if not result.ok:
+        print("Architecture threat review failed:")
+        for error in result.errors:
+            print(f"- ERROR: {error}")
+        return 1
+    if args.check:
+        print("Architecture threat-review preflight passed.")
+        for path in result.would_update:
+            print(f"- WOULD UPDATE: {path}")
+        return 0
+    print("Architecture threat-review evidence recorded.")
+    for path in result.updated:
+        print(f"- UPDATED: {path}")
+    return 0
+
+
 def _cmd_design_api_candidates(args: argparse.Namespace) -> int:
     target = Path(args.target)
     payload = build_api_candidates(target)
@@ -1401,6 +1456,30 @@ def build_parser() -> argparse.ArgumentParser:
     api_review.add_argument("--check", action="store_true", help="Run tools in a temporary directory without writing evidence.")
     api_review.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     api_review.set_defaults(func=_cmd_design_api_review)
+    threat_review = design_sub.add_parser(
+        "threat-review",
+        help="Run the senior-security STRIDE/DREAD tool and bind architecture threat evidence.",
+    )
+    threat_review.add_argument("target", nargs="?", default=".")
+    threat_review.add_argument(
+        "--reviewed",
+        action="store_true",
+        help="Confirm the DFD scope, STRIDE coverage, and high-DREAD mitigations were reviewed.",
+    )
+    threat_review.add_argument(
+        "--skill-root",
+        action="append",
+        type=Path,
+        default=[],
+        help="Additional authority skill root containing senior-security. Repeat when needed.",
+    )
+    threat_review.add_argument(
+        "--check",
+        action="store_true",
+        help="Run the authority tool in a temporary directory without writing evidence.",
+    )
+    threat_review.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    threat_review.set_defaults(func=_cmd_design_threat_review)
     api_candidates = design_sub.add_parser(
         "api-candidates",
         help="Extract source-backed API endpoint candidates from product acceptance criteria.",

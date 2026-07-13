@@ -33,6 +33,7 @@ Calibrate against OWASP ASVS, OWASP API Security Top 10, and OpenSSF Best Practi
 - Are security-relevant acceptance criteria mapped to tests or manual review?
 - Are auth, authorization, abuse limits, sensitive logging, and dependency failure cases covered by unit, integration, contract, or end-to-end checks?
 - Are unresolved security decisions registered in `docs/unresolved.md` before implementation starts?
+- Does `design threat-review` prove complete STRIDE consideration and named mitigation ownership for every DREAD >= 7 threat?
 
 References:
 
