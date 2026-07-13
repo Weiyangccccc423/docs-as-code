@@ -506,6 +506,8 @@ def _install_test_authority_skills(target: Path, names: tuple[str, ...]) -> None
             _install_test_threat_modeler(target)
         if name == "slo-architect":
             _install_test_slo_tools(target)
+        if name == "migration-architect":
+            _install_test_migration_tools(target)
 
 
 def _install_test_threat_modeler(target: Path) -> None:
@@ -791,6 +793,218 @@ def _write_test_reliability_review_inputs(
     )
 
 
+def _install_test_migration_tools(target: Path, *, issue_severity: str = "") -> None:
+    root = target / ".agents/skills/migration-architect/scripts"
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "migration_planner.py").write_text(
+        "import json\n"
+        "import sys\n"
+        "from datetime import datetime, timezone\n"
+        "from pathlib import Path\n\n"
+        "source = json.loads(Path(sys.argv[sys.argv.index('--input') + 1]).read_text(encoding='utf-8'))\n"
+        "output = Path(sys.argv[sys.argv.index('--output') + 1])\n"
+        "plan = {\n"
+        "    'migration_id': 'fixture-migration',\n"
+        "    'source_system': source['source'],\n"
+        "    'target_system': source['target'],\n"
+        "    'migration_type': source['type'],\n"
+        "    'complexity': 'low',\n"
+        "    'estimated_duration_hours': 4,\n"
+        "    'phases': [{'name': 'migration', 'description': 'Apply initial schema', 'duration_hours': 4, 'dependencies': [], 'validation_criteria': ['Schema validation passes'], 'rollback_triggers': ['Validation fails'], 'tasks': ['Apply schema'], 'risk_level': 'low', 'resources_required': ['database owner']}],\n"
+        "    'risks': [{'category': 'technical', 'description': 'Schema application fails', 'probability': 'low', 'impact': 'medium', 'severity': 'medium', 'mitigation': 'Run validation before cutover', 'owner': 'database-platform'}],\n"
+        "    'success_criteria': ['Schema validation passes'],\n"
+        "    'rollback_plan': {'rollback_phases': [{'phase': 'migration', 'rollback_actions': ['Drop initial schema'], 'validation_criteria': ['Empty schema restored'], 'estimated_time_minutes': 15}], 'rollback_triggers': ['Validation fails'], 'rollback_decision_matrix': {'medium_severity': 'rollback'}, 'rollback_contacts': ['database-platform']},\n"
+        "    'stakeholders': ['database-platform'],\n"
+        "    'created_at': datetime.now(timezone.utc).isoformat(),\n"
+        "}\n"
+        "output.write_text(json.dumps(plan, indent=2, sort_keys=True) + '\\n', encoding='utf-8')\n",
+        encoding="utf-8",
+    )
+    issue = (
+        {
+            "type": "column_removed",
+            "severity": issue_severity,
+            "description": "Column legacy_title is removed from goals",
+            "field_path": "tables.goals.columns.legacy_title",
+            "old_value": {"type": "varchar", "nullable": True},
+            "new_value": None,
+            "impact": "Existing readers can fail",
+            "suggested_migration": "Use expand-contract before removal",
+            "affected_operations": ["SELECT", "UPDATE"],
+        }
+        if issue_severity
+        else None
+    )
+    issue_count = 1 if issue_severity else 0
+    compatibility = (
+        "breaking_changes"
+        if issue_severity == "breaking"
+        else "potentially_incompatible"
+        if issue_severity
+        else "backward_compatible"
+    )
+    return_code = 2 if issue_severity == "breaking" else 1 if issue_severity else 0
+    (root / "compatibility_checker.py").write_text(
+        "import json\n"
+        "import sys\n"
+        "from datetime import datetime, timezone\n"
+        "from pathlib import Path\n\n"
+        "before = Path(sys.argv[sys.argv.index('--before') + 1]).read_text(encoding='utf-8')\n"
+        "after = Path(sys.argv[sys.argv.index('--after') + 1]).read_text(encoding='utf-8')\n"
+        "output = Path(sys.argv[sys.argv.index('--output') + 1])\n"
+        f"issue = {issue!r}\n"
+        "issues = [issue] if issue else []\n"
+        "report = {\n"
+        "    'schema_before': before[:500],\n"
+        "    'schema_after': after[:500],\n"
+        "    'analysis_date': datetime.now(timezone.utc).isoformat(),\n"
+        f"    'overall_compatibility': {compatibility!r},\n"
+        f"    'breaking_changes_count': {issue_count if issue_severity == 'breaking' else 0},\n"
+        f"    'potentially_breaking_count': {issue_count if issue_severity and issue_severity != 'breaking' else 0},\n"
+        "    'non_breaking_changes_count': 0,\n"
+        "    'additive_changes_count': 1,\n"
+        "    'issues': issues,\n"
+        "    'migration_scripts': [{'script_type': 'sql', 'description': 'Create goals table', 'script_content': 'CREATE TABLE goals (id text primary key);', 'rollback_script': 'DROP TABLE goals;', 'dependencies': [], 'validation_query': \"SELECT 1 FROM goals LIMIT 1;\"}],\n"
+        "    'risk_assessment': {'overall_risk': 'low', 'deployment_risk': 'safe_independent_deployment', 'rollback_complexity': 'low', 'testing_requirements': ['migration_testing']},\n"
+        "    'recommendations': ['Run migration tests'],\n"
+        "}\n"
+        "output.write_text(json.dumps(report, indent=2, sort_keys=True) + '\\n', encoding='utf-8')\n"
+        f"raise SystemExit({return_code})\n",
+        encoding="utf-8",
+    )
+    (root / "rollback_generator.py").write_text(
+        "import json\n"
+        "import sys\n"
+        "from datetime import datetime, timezone\n"
+        "from pathlib import Path\n\n"
+        "plan = json.loads(Path(sys.argv[sys.argv.index('--input') + 1]).read_text(encoding='utf-8'))\n"
+        "output = Path(sys.argv[sys.argv.index('--output') + 1])\n"
+        "runbook = {\n"
+        "    'runbook_id': 'fixture-runbook',\n"
+        "    'migration_id': plan['migration_id'],\n"
+        "    'created_at': datetime.now(timezone.utc).isoformat(),\n"
+        "    'rollback_phases': [{'phase_name': 'rollback_migration', 'description': 'Undo migration', 'urgency_level': 'medium', 'estimated_duration_minutes': 15, 'prerequisites': ['Database owner available'], 'steps': [{'step_id': 'rollback-1', 'name': 'Drop goals table', 'description': 'Restore empty schema', 'script_type': 'sql', 'script_content': 'DROP TABLE goals;', 'estimated_duration_minutes': 5, 'dependencies': [], 'validation_commands': [\"SELECT 1;\"], 'success_criteria': ['Empty schema restored'], 'failure_escalation': 'Escalate to database owner', 'rollback_order': 1}], 'validation_checkpoints': ['Empty schema restored'], 'communication_requirements': ['Notify database owner'], 'risk_level': 'low'}],\n"
+        "    'trigger_conditions': [{'trigger_id': 'validation_failure', 'name': 'Validation Failure', 'condition': 'migration_validation_failures > 0', 'metric_threshold': {'metric': 'migration_validation_failures', 'operator': 'greater_than', 'value': 0, 'duration_minutes': 1}, 'evaluation_window_minutes': 1, 'auto_execute': False, 'escalation_contacts': ['database-platform']}],\n"
+        "    'data_recovery_plan': {'recovery_method': 'backup_restore', 'backup_location': 'controlled-backup', 'recovery_scripts': ['restore-schema'], 'data_validation_queries': ['SELECT 1;'], 'estimated_recovery_time_minutes': 15, 'recovery_dependencies': ['database-platform']},\n"
+        "    'communication_templates': [{'template_type': 'start', 'audience': 'technical', 'subject': 'Rollback started', 'body': 'Notify the database owner.', 'urgency': 'high', 'delivery_methods': ['incident-channel']}],\n"
+        "    'escalation_matrix': {'high': {'trigger': 'rollback failure', 'contacts': ['database-platform']}},\n"
+        "    'validation_checklist': ['Schema validation passes'],\n"
+        "    'post_rollback_procedures': ['Monitor schema health'],\n"
+        "    'emergency_contacts': [{'role': 'Database owner', 'name': 'database-platform'}],\n"
+        "}\n"
+        "output.write_text(json.dumps(runbook, indent=2, sort_keys=True) + '\\n', encoding='utf-8')\n",
+        encoding="utf-8",
+    )
+
+
+def _write_test_migration_review_inputs(
+    target: Path,
+    *,
+    decision: str = "required",
+    accepted_issue_id: str = "",
+) -> None:
+    root = target / "docs/backend/migrations"
+    root.mkdir(parents=True, exist_ok=True)
+    source_references = [
+        "docs/product/08-acceptance-criteria.md",
+        "docs/architecture/03-quality-attributes.md",
+        "docs/backend/01-modules.md",
+        "docs/backend/02-data-model.md",
+    ]
+    scope = {
+        "schema_version": 1,
+        "applicability": {
+            "decision": decision,
+            "owner": "database-platform",
+            "reason": (
+                "The goal data model must be deployed from an empty schema."
+                if decision == "required"
+                else "The project has no persistent data store or schema lifecycle."
+            ),
+            "source_references": source_references,
+            "revisit_triggers": ["A persistent data store or schema lifecycle is introduced."],
+        },
+        "review": {
+            "owner": "database-platform",
+            "reason": "Schema ownership, compatibility, validation, and rollback evidence were reviewed.",
+            "source_references": source_references,
+        },
+    }
+    (root / "review-scope.json").write_text(
+        json.dumps(scope, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    if decision != "required":
+        return
+    before = {
+        "schema_version": "0.0",
+        "database": "goal_store",
+        "tables": {},
+        "views": {},
+        "procedures": [],
+    }
+    after = {
+        "schema_version": "1.0",
+        "database": "goal_store",
+        "tables": {
+            "goals": {
+                "columns": {
+                    "id": {"type": "varchar", "length": 64, "nullable": False, "primary_key": True},
+                    "title": {"type": "varchar", "length": 255, "nullable": False},
+                },
+                "constraints": {"primary_key": ["id"], "unique": [], "foreign_key": [], "check": []},
+                "indexes": [{"name": "idx_goals_title", "columns": ["title"]}],
+            }
+        },
+        "views": {},
+        "procedures": [],
+    }
+    migration_spec = {
+        "type": "database",
+        "pattern": "schema_change",
+        "source": "Empty goal_store schema",
+        "target": "goal_store schema version 1.0",
+        "description": "Deploy the source-backed initial goal persistence schema.",
+        "constraints": {
+            "max_downtime_minutes": 30,
+            "data_volume_gb": 0,
+            "dependencies": ["goal-api"],
+            "compliance_requirements": [],
+            "special_requirements": ["referential_integrity"],
+        },
+        "tables_to_migrate": [{"name": "goals", "row_count": 0, "size_mb": 0, "critical": True}],
+        "schema_changes": [{"table": "goals", "changes": [{"type": "create_table"}]}],
+        "governance": {
+            "owner": "database-platform",
+            "strategy_rationale": "Use an explicit initial schema migration so deployment and rollback remain auditable.",
+            "validation_plan": "Apply and roll back the schema in an isolated database before implementation release.",
+            "source_references": source_references,
+        },
+    }
+    decisions = []
+    if accepted_issue_id:
+        decisions.append(
+            {
+                "issue_id": accepted_issue_id,
+                "owner": "database-platform",
+                "reason": "The legacy reader is removed in the same controlled release.",
+                "mitigation": "Use expand-contract deployment and verify no legacy readers before contraction.",
+                "evidence": ["docs/backend/02-data-model.md"],
+            }
+        )
+    acceptances = {"schema_version": 1, "decisions": decisions}
+    for name, payload in (
+        ("schema-before.json", before),
+        ("schema-after.json", after),
+        ("migration-spec.json", migration_spec),
+        ("compatibility-acceptances.json", acceptances),
+    ):
+        (root / name).write_text(
+            json.dumps(payload, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+
+
 def _install_test_api_review_tools(
     target: Path,
     *,
@@ -952,7 +1166,17 @@ def _record_all_test_design_reviews(case: unittest.TestCase, target: Path) -> No
     )
     _install_test_authority_skills(
         target,
-        tuple(dict.fromkeys([*(item[3] for item in reviews), "senior-security", "slo-architect"])),
+        tuple(
+            dict.fromkeys(
+                [
+                    *(item[3] for item in reviews),
+                    "senior-security",
+                    "slo-architect",
+                    "database-schema-designer",
+                    "migration-architect",
+                ]
+            )
+        ),
     )
     _write_test_threat_review_inputs(target)
     _run_governance_json(
@@ -967,6 +1191,11 @@ def _record_all_test_design_reviews(case: unittest.TestCase, target: Path) -> No
     _run_governance_json(
         case,
         ["design", "api-review", str(target), "--reviewed"],
+    )
+    _write_test_migration_review_inputs(target)
+    _run_governance_json(
+        case,
+        ["design", "migration-review", str(target), "--reviewed"],
     )
     for track, work_id, result, authority_skill in reviews:
         _run_governance_json(
@@ -3658,7 +3887,14 @@ class GovernanceCliTest(unittest.TestCase):
             target = _implementation_ready_target(self, tmp, advance_implementation=False)
             _install_test_authority_skills(
                 target,
-                ("api-design-reviewer", "senior-backend", "senior-security", "slo-architect"),
+                (
+                    "api-design-reviewer",
+                    "senior-backend",
+                    "senior-security",
+                    "slo-architect",
+                    "migration-architect",
+                    "database-schema-designer",
+                ),
             )
             _write_test_threat_review_inputs(target)
             _run_governance_json(
@@ -3693,6 +3929,11 @@ class GovernanceCliTest(unittest.TestCase):
             _run_governance_json(
                 self,
                 ["design", "reliability-review", str(target), "--reviewed"],
+            )
+            _write_test_migration_review_inputs(target)
+            _run_governance_json(
+                self,
+                ["design", "migration-review", str(target), "--reviewed"],
             )
             authority_review = _run_governance_json(
                 self,
@@ -4031,6 +4272,329 @@ class GovernanceCliTest(unittest.TestCase):
                 {item["code"] for item in verification["findings"]},
             )
 
+    def test_migration_review_runs_authority_tools_before_data_model_signoff(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp, advance_implementation=False)
+            _install_test_authority_skills(
+                target,
+                (
+                    "api-design-reviewer",
+                    "senior-security",
+                    "slo-architect",
+                    "migration-architect",
+                    "database-schema-designer",
+                    "database-designer",
+                ),
+            )
+            _write_test_threat_review_inputs(target)
+            _run_governance_json(self, ["design", "threat-review", str(target), "--reviewed"])
+            _run_governance_json(self, ["design", "api-review", str(target), "--reviewed"])
+            _write_test_reliability_review_inputs(target)
+            _run_governance_json(self, ["design", "reliability-review", str(target), "--reviewed"])
+            _write_test_migration_review_inputs(target)
+
+            blocked = _run_governance_json(
+                self,
+                [
+                    "design",
+                    "review",
+                    str(target),
+                    "--track",
+                    "data-model",
+                    "--work",
+                    "DATA-MODEL-AUTHOR-001",
+                    "--result",
+                    "approved",
+                    "--reason",
+                    "Data ownership and migration decisions were reviewed.",
+                    "--reviewed",
+                ],
+                expected_returncode=1,
+            )
+            self.assertTrue(any("design migration-review" in error for error in blocked["errors"]))
+
+            package = _run_governance_json(self, ["workflow", "work-package", str(target)])
+            self.assertEqual("data-model", package["work_package"]["track_id"])
+            self.assertEqual("migration-review", package["work_package"]["work_stage"])
+            self.assertEqual("run-migration-review", package["next_action"]["kind"])
+            self.assertEqual(
+                ["database-schema-designer", "migration-architect"],
+                package["next_action"]["authority_skills"],
+            )
+            supporting_paths = set(package["work_package"]["write_scope"]["supporting_paths"])
+            self.assertTrue(
+                {
+                    "docs/backend/migrations/review-scope.json",
+                    "docs/backend/migrations/schema-before.json",
+                    "docs/backend/migrations/schema-after.json",
+                    "docs/backend/migrations/migration-spec.json",
+                    "docs/backend/migrations/compatibility-acceptances.json",
+                    "docs/backend/migrations/migration-plan.json",
+                    "docs/backend/migrations/compatibility-report.json",
+                    "docs/backend/migrations/rollback-runbook.json",
+                    "docs/backend/migrations/review-evidence.json",
+                }.issubset(supporting_paths)
+            )
+            for template in package["next_action"]["input_contract"]["templates"].values():
+                self.assertTrue((target / template).is_file())
+
+            args = ["design", "migration-review", str(target), "--reviewed"]
+            preview = _run_governance_json(self, [*args, "--check"])
+            expected_paths = {
+                "docs/backend/migrations/migration-plan.json",
+                "docs/backend/migrations/compatibility-report.json",
+                "docs/backend/migrations/rollback-runbook.json",
+                "docs/backend/migrations/review-evidence.json",
+            }
+            self.assertTrue(preview["ok"])
+            self.assertEqual("required", preview["mode"])
+            self.assertEqual(expected_paths, set(preview["would_update"]))
+            self.assertEqual("backward_compatible", preview["evidence"]["summary"]["compatibility"])
+            self.assertEqual(3, preview["evidence"]["summary"]["tool_run_count"])
+
+            applied = _run_governance_json(self, args)
+            self.assertEqual(expected_paths, set(applied["updated"]))
+            evidence = json.loads(
+                (target / "docs/backend/migrations/review-evidence.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(
+                {"database-schema-designer", "migration-architect"},
+                {item["name"] for item in evidence["authority_skills"]},
+            )
+            rollback = json.loads(
+                (target / "docs/backend/migrations/rollback-runbook.json").read_text(encoding="utf-8")
+            )
+            self.assertTrue(rollback["data_recovery_plan"])
+            self.assertTrue(rollback["communication_templates"])
+            self.assertTrue(rollback["validation_checklist"])
+            self.assertTrue(rollback["post_rollback_procedures"])
+
+            approved = _run_governance_json(
+                self,
+                [
+                    "design",
+                    "review",
+                    str(target),
+                    "--track",
+                    "data-model",
+                    "--work",
+                    "DATA-MODEL-AUTHOR-001",
+                    "--result",
+                    "approved",
+                    "--reason",
+                    "Data schema, compatibility, migration, and rollback evidence are implementation-ready.",
+                    "--reviewed",
+                ],
+            )
+            paths = {item["path"] for item in approved["review"]["evidence_snapshots"]}
+            self.assertIn("docs/backend/migrations/review-evidence.json", paths)
+            self.assertIn("docs/backend/migrations/rollback-runbook.json", paths)
+
+    def test_migration_review_requires_written_acceptance_for_compatibility_issues(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp, advance_implementation=False)
+            _install_test_authority_skills(
+                target,
+                ("migration-architect", "database-schema-designer"),
+            )
+            _install_test_migration_tools(target, issue_severity="potentially_breaking")
+            _write_test_migration_review_inputs(target)
+
+            blocked = _run_governance_json(
+                self,
+                ["design", "migration-review", str(target), "--reviewed", "--check"],
+                expected_returncode=1,
+            )
+            self.assertEqual(1, len(blocked["unaccepted_issues"]))
+            issue_id = blocked["unaccepted_issues"][0]["issue_id"]
+            self.assertRegex(issue_id, r"^migration-compat-[0-9a-f]{12}$")
+            self.assertTrue(any(issue_id in error for error in blocked["errors"]))
+
+            _write_test_migration_review_inputs(target, accepted_issue_id=issue_id)
+            accepted = _run_governance_json(
+                self,
+                ["design", "migration-review", str(target), "--reviewed"],
+            )
+            self.assertTrue(accepted["ok"])
+            self.assertEqual("accepted_with_mitigations", accepted["compatibility_status"])
+            self.assertEqual(1, accepted["evidence"]["summary"]["accepted_issue_count"])
+
+    def test_migration_review_records_not_applicable_without_running_tools(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp, advance_implementation=False)
+            _install_test_authority_skills(
+                target,
+                ("migration-architect", "database-schema-designer"),
+            )
+            _write_test_migration_review_inputs(target, decision="not-applicable")
+
+            payload = _run_governance_json(
+                self,
+                ["design", "migration-review", str(target), "--reviewed"],
+            )
+            self.assertTrue(payload["ok"])
+            self.assertEqual("not-applicable", payload["mode"])
+            self.assertEqual(
+                ["docs/backend/migrations/review-evidence.json"],
+                payload["updated"],
+            )
+            self.assertEqual([], payload["tool_runs"])
+
+    def test_migration_review_evidence_stales_when_authority_tool_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp, advance_implementation=False)
+            _install_test_authority_skills(
+                target,
+                ("migration-architect", "database-schema-designer"),
+            )
+            _write_test_migration_review_inputs(target)
+            _run_governance_json(self, ["design", "migration-review", str(target), "--reviewed"])
+
+            tool = target / ".agents/skills/migration-architect/scripts/compatibility_checker.py"
+            tool.write_text(tool.read_text(encoding="utf-8") + "\n# changed\n", encoding="utf-8")
+            verification = _run_governance_json(
+                self,
+                ["verify", str(target), "--check"],
+                expected_returncode=1,
+            )
+            self.assertIn(
+                "migration_review_evidence_stale",
+                {item["code"] for item in verification["findings"]},
+            )
+
+    def test_migration_review_rejects_tool_exit_code_that_disagrees_with_report(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp, advance_implementation=False)
+            _install_test_authority_skills(
+                target,
+                ("migration-architect", "database-schema-designer"),
+            )
+            _install_test_migration_tools(target, issue_severity="potentially_breaking")
+            tool = target / ".agents/skills/migration-architect/scripts/compatibility_checker.py"
+            tool.write_text(
+                tool.read_text(encoding="utf-8").replace("raise SystemExit(1)", "raise SystemExit(0)"),
+                encoding="utf-8",
+            )
+            _write_test_migration_review_inputs(target)
+
+            blocked = _run_governance_json(
+                self,
+                ["design", "migration-review", str(target), "--reviewed", "--check"],
+                expected_returncode=1,
+            )
+
+            self.assertTrue(
+                any("return code does not match compatibility report" in error for error in blocked["errors"])
+            )
+
+    def test_migration_review_evidence_summary_must_match_generated_reports(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp, advance_implementation=False)
+            _install_test_authority_skills(
+                target,
+                ("migration-architect", "database-schema-designer"),
+            )
+            _write_test_migration_review_inputs(target)
+            _run_governance_json(self, ["design", "migration-review", str(target), "--reviewed"])
+            evidence_path = target / "docs/backend/migrations/review-evidence.json"
+            evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+            evidence["summary"]["compatibility_issue_count"] = 1
+            evidence["summary"]["accepted_issue_count"] = 1
+            evidence_path.write_text(
+                json.dumps(evidence, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+
+            verification = _run_governance_json(
+                self,
+                ["verify", str(target), "--check"],
+                expected_returncode=1,
+            )
+
+            self.assertTrue(
+                any(
+                    item["code"] == "migration_review_evidence_invalid"
+                    and "compatibility_issue_count does not match" in item["message"]
+                    for item in verification["findings"]
+                )
+            )
+
+    def test_migration_review_rejects_orphan_acceptance_and_obsolete_not_applicable_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp, advance_implementation=False)
+            _install_test_authority_skills(
+                target,
+                ("migration-architect", "database-schema-designer"),
+            )
+            orphan_id = "migration-compat-0123456789ab"
+            _write_test_migration_review_inputs(target, accepted_issue_id=orphan_id)
+            orphaned = _run_governance_json(
+                self,
+                ["design", "migration-review", str(target), "--reviewed", "--check"],
+                expected_returncode=1,
+            )
+            self.assertTrue(any(orphan_id in error and "orphaned" in error for error in orphaned["errors"]))
+
+            _write_test_migration_review_inputs(target)
+            _run_governance_json(self, ["design", "migration-review", str(target), "--reviewed"])
+            _write_test_migration_review_inputs(target, decision="not-applicable")
+            obsolete = _run_governance_json(
+                self,
+                ["design", "migration-review", str(target), "--reviewed", "--check"],
+                expected_returncode=1,
+            )
+            self.assertTrue(
+                any("requires removing obsolete migration artifact" in error for error in obsolete["errors"])
+            )
+
+    def test_migration_review_rejects_symlinked_schema_input(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp, advance_implementation=False)
+            _install_test_authority_skills(
+                target,
+                ("migration-architect", "database-schema-designer"),
+            )
+            _write_test_migration_review_inputs(target)
+            schema = target / "docs/backend/migrations/schema-before.json"
+            external = Path(tmp) / "external-schema.json"
+            external.write_text(schema.read_text(encoding="utf-8"), encoding="utf-8")
+            schema.unlink()
+            schema.symlink_to(external)
+
+            blocked = _run_governance_json(
+                self,
+                ["design", "migration-review", str(target), "--reviewed", "--check"],
+                expected_returncode=1,
+            )
+
+            self.assertTrue(any("must not be a symbolic link" in error for error in blocked["errors"]))
+
+    def test_migration_review_reports_temporary_workspace_write_failure(self) -> None:
+        scripts_dir = str(ROOT / "scripts")
+        if scripts_dir not in sys.path:
+            sys.path.insert(0, scripts_dir)
+        migration_review = importlib.import_module("migration_review_evidence")
+        tool_paths = {
+            name: ROOT / "scripts/migration_review_evidence.py"
+            for name in migration_review.MIGRATION_TOOL_FILES
+        }
+        input_bytes = {
+            key: b"{}\n"
+            for key in migration_review.MIGRATION_INPUT_PATHS
+        }
+
+        with mock.patch.object(migration_review.Path, "write_bytes", side_effect=OSError("disk full")):
+            plan, compatibility, rollback, runs, errors = migration_review._run_authority_tools(
+                tool_paths,
+                input_bytes,
+            )
+
+        self.assertEqual({}, plan)
+        self.assertEqual({}, compatibility)
+        self.assertEqual({}, rollback)
+        self.assertEqual([], runs)
+        self.assertTrue(any("workspace write failed" in error and "disk full" in error for error in errors))
+
     def test_api_design_review_requires_current_machine_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = _implementation_ready_target(self, tmp, advance_implementation=False)
@@ -4250,6 +4814,8 @@ class GovernanceCliTest(unittest.TestCase):
                     "observability-designer",
                     "slo-architect",
                     "api-design-reviewer",
+                    "migration-architect",
+                    "database-schema-designer",
                 ),
             )
 
@@ -4275,6 +4841,11 @@ class GovernanceCliTest(unittest.TestCase):
             _run_governance_json(
                 self,
                 ["design", "reliability-review", str(target), "--reviewed"],
+            )
+            _write_test_migration_review_inputs(target)
+            _run_governance_json(
+                self,
+                ["design", "migration-review", str(target), "--reviewed"],
             )
             review_package = _run_governance_json(
                 self,

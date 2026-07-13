@@ -483,6 +483,12 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
             "unpacked artifact dry-run did not prove machine-reviewed backend reliability evidence",
             payload=dry_run_payload,
         )
+        migration_review = _dry_run_migration_review_details(dry_run_payload)
+        _require(
+            migration_review.get("ok") is True,
+            "unpacked artifact dry-run did not prove migration compatibility and rollback evidence",
+            payload=dry_run_payload,
+        )
 
         payload = {
             "ok": True,
@@ -499,6 +505,7 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
             "api_review": api_review,
             "threat_review": threat_review,
             "reliability_review": reliability_review,
+            "migration_review": migration_review,
             "fresh_target_init": fresh_target_init,
             "consumer_bootstrap_product_structure": consumer_bootstrap_product_structure,
             "consumer_bootstrap_design_scaffold": consumer_bootstrap_design_scaffold,
@@ -721,6 +728,36 @@ def _dry_run_reliability_review_details(payload: dict[str, object]) -> dict[str,
         "current_after_runtime_refresh": current_after_runtime_refresh,
         "mode": mode,
         "slo_count": slo_count if isinstance(slo_count, int) else 0,
+        "evidence_paths": list(evidence_paths) if isinstance(evidence_paths, list) else [],
+    }
+
+
+def _dry_run_migration_review_details(payload: dict[str, object]) -> dict[str, object]:
+    review = payload.get("migration_review")
+    review_map = review if isinstance(review, dict) else {}
+    preflight_ok = review_map.get("preflight_ok") is True
+    applied = review_map.get("applied") is True
+    current_after_runtime_refresh = review_map.get("current_after_runtime_refresh") is True
+    mode = str(review_map.get("mode", ""))
+    compatibility_status = str(review_map.get("compatibility_status", ""))
+    evidence_paths = review_map.get("evidence_paths")
+    return {
+        "ok": (
+            preflight_ok
+            and applied
+            and current_after_runtime_refresh
+            and mode == "required"
+            and compatibility_status in {
+                "fully_compatible", "backward_compatible", "accepted_with_mitigations"
+            }
+            and isinstance(evidence_paths, list)
+            and len(evidence_paths) == 4
+        ),
+        "preflight_ok": preflight_ok,
+        "applied": applied,
+        "current_after_runtime_refresh": current_after_runtime_refresh,
+        "mode": mode,
+        "compatibility_status": compatibility_status,
         "evidence_paths": list(evidence_paths) if isinstance(evidence_paths, list) else [],
     }
 

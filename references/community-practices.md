@@ -8,6 +8,8 @@ Use these as calibration sources, not rigid templates.
 | Diataxis | reader-oriented navigation and doc purpose separation |
 | Backstage TechDocs | docs-as-code operating model |
 | OpenAPI Specification | machine-readable API contracts |
+| PostgreSQL DDL constraints and transactions | relational integrity, concurrency, and schema semantics |
+| Evolutionary Database Design | backward-compatible schema evolution and expand-contract migration planning |
 | C4 Model | architecture view layering; see `references/architecture-methods.md` |
 | arc42 | architecture completeness checklist; see `references/architecture-methods.md` |
 | ADR / MADR | decision records |

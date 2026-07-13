@@ -1,0 +1,29 @@
+{
+  "type": "database",
+  "pattern": "schema_change",
+  "source": "Product-derived source schema and runtime",
+  "target": "Product-derived target schema and runtime",
+  "description": "Source-backed migration objective and scope.",
+  "constraints": {
+    "max_downtime_minutes": 30,
+    "data_volume_gb": 0,
+    "dependencies": [],
+    "compliance_requirements": [],
+    "special_requirements": [
+      "referential_integrity"
+    ]
+  },
+  "tables_to_migrate": [],
+  "schema_changes": [],
+  "governance": {
+    "owner": "product-derived-database-owner",
+    "strategy_rationale": "Source-backed reason for the selected migration pattern.",
+    "validation_plan": "Owned pre-deployment, cutover, reconciliation, and rollback validation plan.",
+    "source_references": [
+      "docs/product/NN-acceptance-criteria.md",
+      "docs/architecture/03-quality-attributes.md",
+      "docs/backend/01-modules.md",
+      "docs/backend/02-data-model.md"
+    ]
+  }
+}

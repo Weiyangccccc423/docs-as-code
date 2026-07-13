@@ -22,6 +22,10 @@ try:
         build_reliability_review_evidence_inventory,
         reliability_review_required_evidence_paths,
     )
+    from .migration_review_evidence import (
+        build_migration_review_evidence_inventory,
+        migration_review_required_evidence_paths,
+    )
     from .state import StateFileError, load_state, utc_now
 except ImportError:  # pragma: no cover - direct script execution
     from api_review_evidence import (
@@ -35,6 +39,10 @@ except ImportError:  # pragma: no cover - direct script execution
     from reliability_review_evidence import (
         build_reliability_review_evidence_inventory,
         reliability_review_required_evidence_paths,
+    )
+    from migration_review_evidence import (
+        build_migration_review_evidence_inventory,
+        migration_review_required_evidence_paths,
     )
     from state import StateFileError, load_state, utc_now
 
@@ -764,6 +772,24 @@ def _build_design_review_plan(
         else:
             explicit_evidence = _dedupe_strings(
                 [*explicit_evidence, *reliability_review_required_evidence_paths(root)]
+            )
+    if normalized_track == "data-model":
+        migration_review = build_migration_review_evidence_inventory(root)
+        migration_status = str(migration_review.get("status", "missing"))
+        if migration_review.get("ok") is not True:
+            if migration_status == "missing":
+                errors.append(
+                    "data-model migration review evidence is missing; run design migration-review before authority signoff"
+                )
+            elif migration_status == "invalid":
+                details = "; ".join(_string_items(migration_review.get("errors"))) or "invalid evidence document"
+                errors.append(f"data-model migration review evidence is invalid: {details}")
+            else:
+                details = "; ".join(_string_items(migration_review.get("stale_reasons"))) or "review inputs changed"
+                errors.append(f"data-model migration review evidence is stale: {details}")
+        else:
+            explicit_evidence = _dedupe_strings(
+                [*explicit_evidence, *migration_review_required_evidence_paths(root)]
             )
     if normalized_track == "architecture-decisions" and normalized_result == "approved":
         if not any(ADR_PATH_RE.fullmatch(path) for path in explicit_evidence):

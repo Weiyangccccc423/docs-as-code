@@ -946,9 +946,11 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
     _write_minimal_implementation_ready_docs(target, acceptance_ids)
     _write_threat_review_inputs(target)
     _write_reliability_review_inputs(target)
+    _write_migration_review_inputs(target)
     threat_review_apply = _record_threat_review(target, steps)
     api_review_apply = _record_api_review(target, steps)
     reliability_review_apply = _record_reliability_review(target, steps)
+    migration_review_apply = _record_migration_review(target, steps)
     design_review_applies = _record_design_reviews(
         target,
         acceptance_ids,
@@ -1210,6 +1212,18 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         "backend reliability-review evidence did not remain current after runtime refresh",
         payload=reliability_review_after_runtime_refresh,
     )
+    migration_review_after_runtime_refresh = _run_json(
+        steps,
+        "migration_review_check_after_runtime_refresh",
+        ["bin/governance", "design", "migration-review", ".", "--reviewed", "--check", "--json"],
+        target,
+    )
+    _require(
+        migration_review_after_runtime_refresh.get("ok") is True
+        and migration_review_after_runtime_refresh.get("would_update") == [],
+        "data-model migration-review evidence did not remain current after runtime refresh",
+        payload=migration_review_after_runtime_refresh,
+    )
     make_workflow_plan_after_runtime_refresh = _run_json(
         steps,
         "make_workflow_plan_after_runtime_refresh",
@@ -1290,6 +1304,17 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
             ),
             "evidence_paths": list(reliability_review_apply.get("evidence_paths", [])),
         },
+        "migration_review": {
+            "preflight_ok": migration_review_apply.get("preflight_ok") is True,
+            "applied": migration_review_apply.get("applied") is True,
+            "mode": str(migration_review_apply.get("mode", "")),
+            "compatibility_status": str(migration_review_apply.get("compatibility_status", "")),
+            "current_after_runtime_refresh": (
+                migration_review_after_runtime_refresh.get("ok") is True
+                and migration_review_after_runtime_refresh.get("would_update") == []
+            ),
+            "evidence_paths": list(migration_review_apply.get("evidence_paths", [])),
+        },
         "design_reviews": {
             "recorded_count": len(design_review_applies),
             "expected_count": expected_design_review_count,
@@ -1360,6 +1385,7 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
                     "scripts/api_review_evidence.py",
                     "scripts/threat_review_evidence.py",
                     "scripts/reliability_review_evidence.py",
+                    "scripts/migration_review_evidence.py",
                     "scripts/design_reviews.py",
                     "docs/agent-workflow/runtime-manifest.json",
                     "docs/agent-workflow/workflow-pack/manifest.json",
@@ -2051,6 +2077,85 @@ def _write_reliability_review_inputs(target: Path) -> None:
     )
 
 
+def _write_migration_review_inputs(target: Path) -> None:
+    root = target / "docs/backend/migrations"
+    root.mkdir(parents=True, exist_ok=True)
+    sources = [
+        "docs/product/08-acceptance-criteria.md",
+        "docs/architecture/03-quality-attributes.md",
+        "docs/backend/01-modules.md",
+        "docs/backend/02-data-model.md",
+    ]
+    documents = {
+        "review-scope.json": {
+            "schema_version": 1,
+            "applicability": {
+                "decision": "required",
+                "owner": "governance-runtime-maintainers",
+                "reason": "The governed workflow persists auditable state and requires a deployable initial schema.",
+                "source_references": sources,
+                "revisit_triggers": ["The persistence schema or data lifecycle changes."],
+            },
+            "review": {
+                "owner": "governance-runtime-maintainers",
+                "reason": "Initial schema compatibility, validation, migration, and rollback evidence were reviewed.",
+                "source_references": sources,
+            },
+        },
+        "schema-before.json": {
+            "schema_version": "0.0",
+            "database": "governance_store",
+            "tables": {},
+            "views": {},
+            "procedures": [],
+        },
+        "schema-after.json": {
+            "schema_version": "1.0",
+            "database": "governance_store",
+            "tables": {
+                "workflow_state": {
+                    "columns": {
+                        "id": {"type": "varchar", "length": 64, "nullable": False, "primary_key": True},
+                        "phase": {"type": "varchar", "length": 64, "nullable": False},
+                    },
+                    "constraints": {"primary_key": ["id"], "unique": [], "foreign_key": [], "check": []},
+                    "indexes": [{"name": "idx_workflow_state_phase", "columns": ["phase"]}],
+                }
+            },
+            "views": {},
+            "procedures": [],
+        },
+        "migration-spec.json": {
+            "type": "database",
+            "pattern": "schema_change",
+            "source": "Empty governance_store schema",
+            "target": "governance_store schema version 1.0",
+            "description": "Deploy the initial source-backed governance state schema.",
+            "constraints": {
+                "max_downtime_minutes": 30,
+                "data_volume_gb": 0,
+                "dependencies": ["governance-api"],
+                "compliance_requirements": [],
+                "special_requirements": ["referential_integrity"],
+            },
+            "tables_to_migrate": [{"name": "workflow_state", "row_count": 0, "size_mb": 0, "critical": True}],
+            "schema_changes": [{"table": "workflow_state", "changes": [{"type": "create_table"}]}],
+            "governance": {
+                "owner": "governance-runtime-maintainers",
+                "strategy_rationale": "Use an explicit initial migration so deployment and rollback remain auditable.",
+                "validation_plan": "Apply and roll back the schema in an isolated database before release.",
+                "source_references": sources,
+            },
+        },
+        "compatibility-acceptances.json": {"schema_version": 1, "decisions": []},
+    }
+    for name, document in documents.items():
+        (root / name).write_text(
+            json.dumps(document, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+
+
 def _record_api_review(
     target: Path,
     steps: list[dict[str, object]],
@@ -2205,6 +2310,58 @@ def _record_reliability_review(
     }
 
 
+def _record_migration_review(
+    target: Path,
+    steps: list[dict[str, object]],
+) -> dict[str, object]:
+    _install_dry_run_authority_skill_fixtures(target)
+    argv = ["bin/governance", "design", "migration-review", ".", "--reviewed"]
+    expected_paths = {
+        "docs/backend/migrations/migration-plan.json",
+        "docs/backend/migrations/compatibility-report.json",
+        "docs/backend/migrations/rollback-runbook.json",
+        "docs/backend/migrations/review-evidence.json",
+    }
+    preview = _run_json(
+        steps,
+        "migration_review_check",
+        [*argv, "--check", "--json"],
+        target,
+    )
+    _require(
+        preview.get("ok") is True
+        and preview.get("check") is True
+        and set(preview.get("would_update", [])) == expected_paths,
+        "data-model migration-review preflight did not plan complete evidence",
+        payload=preview,
+    )
+    result = _run_json(
+        steps,
+        "migration_review_apply",
+        [*argv, "--json"],
+        target,
+    )
+    evidence = result.get("evidence") if isinstance(result.get("evidence"), dict) else {}
+    summary = evidence.get("summary") if isinstance(evidence.get("summary"), dict) else {}
+    _require(
+        result.get("ok") is True
+        and result.get("applied") is True
+        and result.get("mode") == "required"
+        and result.get("compatibility_status") == "backward_compatible"
+        and set(result.get("updated", [])) == expected_paths
+        and summary.get("tool_run_count") == 3,
+        "data-model migration-review apply did not record compatible migration and rollback evidence",
+        payload=result,
+    )
+    return {
+        "preflight_ok": preview.get("ok") is True,
+        "applied": result.get("applied") is True,
+        "mode": str(result.get("mode", "")),
+        "compatibility_status": str(result.get("compatibility_status", "")),
+        "evidence_paths": sorted(expected_paths),
+    }
+
+
 def _record_design_reviews(
     target: Path,
     acceptance_ids: list[str],
@@ -2280,6 +2437,8 @@ def _install_dry_run_authority_skill_fixtures(target: Path) -> None:
     }
     skill_names.add("senior-security")
     skill_names.add("slo-architect")
+    skill_names.add("database-schema-designer")
+    skill_names.add("migration-architect")
     for skill_name in sorted(skill_names):
         path = target / ".agents/skills" / skill_name / "SKILL.md"
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -2457,6 +2616,143 @@ def _install_dry_run_authority_skill_fixtures(target: Path) -> None:
         "print(json.dumps(results, indent=2, sort_keys=True))\n",
         encoding="utf-8",
     )
+    migration_tools = target / ".agents/skills/migration-architect/scripts"
+    migration_tools.mkdir(parents=True, exist_ok=True)
+    migration_plan = {
+        "migration_id": "dry-run-migration",
+        "source_system": "Empty governance_store schema",
+        "target_system": "governance_store schema version 1.0",
+        "migration_type": "database",
+        "complexity": "low",
+        "estimated_duration_hours": 4,
+        "phases": [{
+            "name": "migration",
+            "description": "Apply initial schema",
+            "duration_hours": 4,
+            "dependencies": [],
+            "validation_criteria": ["Schema validation passes"],
+            "rollback_triggers": ["Validation fails"],
+            "tasks": ["Apply schema"],
+            "risk_level": "low",
+            "resources_required": ["database owner"],
+        }],
+        "risks": [{
+            "category": "technical",
+            "description": "Schema application fails",
+            "probability": "low",
+            "impact": "medium",
+            "severity": "medium",
+            "mitigation": "Validate before cutover",
+            "owner": "governance-runtime-maintainers",
+        }],
+        "success_criteria": ["Schema validation passes"],
+        "rollback_plan": {"rollback_phases": [{"phase": "migration"}]},
+        "stakeholders": ["governance-runtime-maintainers"],
+    }
+    compatibility_report = {
+        "overall_compatibility": "backward_compatible",
+        "breaking_changes_count": 0,
+        "potentially_breaking_count": 0,
+        "non_breaking_changes_count": 0,
+        "additive_changes_count": 1,
+        "issues": [],
+        "migration_scripts": [{
+            "script_type": "sql",
+            "description": "Create workflow state table",
+            "script_content": "CREATE TABLE workflow_state (id text primary key);",
+            "rollback_script": "DROP TABLE workflow_state;",
+            "dependencies": [],
+            "validation_query": "SELECT 1 FROM workflow_state LIMIT 1;",
+        }],
+        "risk_assessment": {
+            "overall_risk": "low",
+            "deployment_risk": "safe_independent_deployment",
+            "rollback_complexity": "low",
+            "testing_requirements": ["migration_testing"],
+        },
+        "recommendations": ["Run migration tests"],
+    }
+    rollback_runbook = {
+        "runbook_id": "dry-run-rollback",
+        "migration_id": "dry-run-migration",
+        "rollback_phases": [{
+            "phase_name": "rollback_migration",
+            "description": "Undo initial schema",
+            "urgency_level": "medium",
+            "estimated_duration_minutes": 15,
+            "prerequisites": ["Database owner available"],
+            "steps": [{
+                "step_id": "rollback-1",
+                "name": "Drop workflow state table",
+                "description": "Restore empty schema",
+                "script_type": "sql",
+                "script_content": "DROP TABLE workflow_state;",
+                "estimated_duration_minutes": 5,
+                "dependencies": [],
+                "validation_commands": ["SELECT 1;"],
+                "success_criteria": ["Empty schema restored"],
+                "failure_escalation": "Escalate to database owner",
+                "rollback_order": 1,
+            }],
+            "validation_checkpoints": ["Empty schema restored"],
+            "communication_requirements": ["Notify database owner"],
+            "risk_level": "low",
+        }],
+        "trigger_conditions": [{
+            "trigger_id": "validation_failure",
+            "name": "Validation Failure",
+            "condition": "migration_validation_failures > 0",
+            "metric_threshold": {"metric": "migration_validation_failures", "operator": "greater_than", "value": 0},
+            "evaluation_window_minutes": 1,
+            "auto_execute": False,
+            "escalation_contacts": ["governance-runtime-maintainers"],
+        }],
+        "data_recovery_plan": {
+            "recovery_method": "backup_restore",
+            "backup_location": "controlled-backup",
+            "recovery_scripts": ["restore-governance-schema"],
+            "data_validation_queries": ["SELECT 1;"],
+            "estimated_recovery_time_minutes": 15,
+            "recovery_dependencies": ["governance-runtime-maintainers"],
+        },
+        "communication_templates": [{
+            "template_type": "start",
+            "audience": "technical",
+            "subject": "Governance schema rollback started",
+            "body": "Notify the governance runtime maintainers.",
+            "urgency": "high",
+            "delivery_methods": ["incident-channel"],
+        }],
+        "escalation_matrix": {
+            "high": {
+                "trigger": "rollback failure",
+                "contacts": ["governance-runtime-maintainers"],
+            }
+        },
+        "validation_checklist": ["Schema validation passes"],
+        "post_rollback_procedures": ["Monitor governance schema health"],
+        "emergency_contacts": [{
+            "role": "Governance runtime owner",
+            "name": "governance-runtime-maintainers",
+        }],
+    }
+    for script_name, report in (
+        ("migration_planner.py", migration_plan),
+        ("compatibility_checker.py", compatibility_report),
+        ("rollback_generator.py", rollback_runbook),
+    ):
+        (migration_tools / script_name).write_text(
+            "import json\n"
+            "import sys\n"
+            "from datetime import datetime, timezone\n"
+            "from pathlib import Path\n\n"
+            f"REPORT = {report!r}\n"
+            "payload = dict(REPORT)\n"
+            "payload['created_at' if 'rollback' in Path(__file__).name or 'planner' in Path(__file__).name else 'analysis_date'] = datetime.now(timezone.utc).isoformat()\n"
+            "output = Path(sys.argv[sys.argv.index('--output') + 1])\n"
+            "output.write_text(json.dumps(payload, indent=2, sort_keys=True) + '\\n', encoding='utf-8')\n",
+            encoding="utf-8",
+        )
 
 
 def _require_phase_action_work_package(payload: dict[str, object], phase: str, next_action_id: str) -> None:

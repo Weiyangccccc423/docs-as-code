@@ -51,6 +51,17 @@ Reference: `https://www.postgresql.org/docs/current/indexes.html`
 
 Reference: `https://martinfowler.com/articles/evodb.html`
 
+## Migration Review Evidence
+
+- Is `docs/backend/migrations/review-scope.json` set to `required` when the repository owns a persistent schema lifecycle, and is `not-applicable` used only when repository sources prove that no persistent datastore or schema migration exists?
+- Do `schema-before.json`, `schema-after.json`, and `migration-spec.json` represent the reviewed current and proposed states rather than illustrative examples?
+- Was `database-schema-designer` used for schema judgment and `migration-architect` used to generate the migration plan, compatibility report, and rollback runbook?
+- Did `bin/governance design migration-review <target> --reviewed --check --json` pass before write mode?
+- Does every breaking or potentially breaking issue have a stable ID and a matching `compatibility-acceptances.json` entry with owner, reason, mitigation, and repository evidence?
+- Is `accepted_with_mitigations` used only when every serious compatibility issue is explicitly accepted, with no orphaned acceptance entries?
+- After apply, are `migration-plan.json`, `compatibility-report.json`, `rollback-runbook.json`, and `review-evidence.json` current and hash-bound to all inputs, sources, authority skills, and tools?
+- After any schema, migration, source, authority skill, or tool change, was the preflight rerun before data-model authority signoff?
+
 ## Retention, Deletion, and Audit
 
 - Are retention, archival, soft-delete, restore, legal hold, and hard-delete rules explicit when product or policy requires them?
@@ -62,3 +73,4 @@ Reference: `https://martinfowler.com/articles/evodb.html`
 - Are constraint tests, migration tests, concurrency tests, query-performance checks, and fixture or seed-data expectations identifiable?
 - Do acceptance criteria and API contracts cover lifecycle, idempotency, conflict, retention, and deletion behavior?
 - Are any unverified data risks registered in `docs/unresolved.md` before task planning?
+- Does data-model authority signoff snapshot the current migration-review evidence instead of relying on a prior conversation or manually edited report?

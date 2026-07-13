@@ -237,6 +237,10 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertTrue(payload["reliability_review"]["current_after_runtime_refresh"])
             self.assertEqual("required", payload["reliability_review"]["mode"])
             self.assertEqual(1, payload["reliability_review"]["slo_count"])
+            self.assertTrue(payload["migration_review"]["preflight_ok"])
+            self.assertTrue(payload["migration_review"]["applied"])
+            self.assertTrue(payload["migration_review"]["current_after_runtime_refresh"])
+            self.assertEqual("backward_compatible", payload["migration_review"]["compatibility_status"])
             self.assertEqual(
                 [
                     "bin/governance",
@@ -244,6 +248,7 @@ class DryRunWorkflowTest(unittest.TestCase):
                     "scripts/api_review_evidence.py",
                     "scripts/threat_review_evidence.py",
                     "scripts/reliability_review_evidence.py",
+                    "scripts/migration_review_evidence.py",
                     "scripts/design_reviews.py",
                     "docs/agent-workflow/runtime-manifest.json",
                     "docs/agent-workflow/workflow-pack/manifest.json",
@@ -290,6 +295,8 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertIn("api_review_apply", step_ids)
             self.assertIn("reliability_review_check", step_ids)
             self.assertIn("reliability_review_apply", step_ids)
+            self.assertIn("migration_review_check", step_ids)
+            self.assertIn("migration_review_apply", step_ids)
             self.assertIn("api_review_check_after_runtime_refresh", step_ids)
             self.assertIn("design_plan", step_ids)
             self.assertIn("make_design_plan", step_ids)
@@ -388,6 +395,9 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertTrue(payload["api_review"]["preflight_ok"])
             self.assertTrue(payload["api_review"]["applied"])
             self.assertTrue(payload["api_review"]["current_after_runtime_refresh"])
+            self.assertTrue(payload["migration_review"]["preflight_ok"])
+            self.assertTrue(payload["migration_review"]["applied"])
+            self.assertTrue(payload["migration_review"]["current_after_runtime_refresh"])
             self.assertEqual([], payload["target_local_make_coverage"]["missing_step_ids"])
             self.assertEqual(36, payload["design_reviews"]["recorded_count"])
             self.assertEqual(36, payload["design_reviews"]["expected_count"])

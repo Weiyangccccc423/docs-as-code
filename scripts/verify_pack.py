@@ -763,6 +763,7 @@ DRY_RUN_WORKFLOW_REQUIRED_PHRASES = (
     '"architecture-decisions-authoring"',
     "_record_design_reviews",
     "_record_reliability_review",
+    "_record_migration_review",
     "design_review_{step_slug}_check",
     "design_review_{step_slug}_apply",
     "design_plan_after_reviews",
@@ -1603,6 +1604,7 @@ ARTIFACT_SMOKE_REQUIRED_PHRASES = (
     "_dry_run_product_disposition_details",
     "_dry_run_design_review_details",
     "_dry_run_reliability_review_details",
+    "_dry_run_migration_review_details",
     "target_local_make_coverage",
     "product_dispositions",
     "design_reviews",
@@ -1701,11 +1703,13 @@ RELEASE_READINESS_REQUIRED_PHRASES = (
     "_dry_run_product_dispositions_ok",
     "_dry_run_design_reviews_ok",
     "_dry_run_reliability_review_ok",
+    "_dry_run_migration_review_ok",
     "_dry_run_target_local_make_coverage_ok",
     "_artifact_smoke_fresh_target_init_ok",
     "_artifact_smoke_product_dispositions_ok",
     "_artifact_smoke_design_reviews_ok",
     "_artifact_smoke_reliability_review_ok",
+    "_artifact_smoke_migration_review_ok",
     "_artifact_smoke_consumer_bootstrap_ok",
     "_artifact_smoke_work_package_ok",
     "_artifact_smoke_consumer_design_scaffold_ok",
@@ -2470,6 +2474,82 @@ RELIABILITY_REVIEW_DOC_REQUIREMENTS = {
     "references/workflow-routing-checklist.md": (
         "run-reliability-review",
         "design reliability-review",
+    ),
+}
+MIGRATION_REVIEW_SOURCE_PATH = "scripts/migration_review_evidence.py"
+MIGRATION_REVIEW_SOURCE_REQUIRED_PHRASES = (
+    "MigrationReviewEvidenceResult",
+    "check_migration_review_evidence",
+    "record_migration_review_evidence",
+    "build_migration_review_evidence_inventory",
+    "MIGRATION_SCOPE_REL",
+    "MIGRATION_EVIDENCE_REL",
+    "MIGRATION_AUTHORITY_SKILLS",
+    "MIGRATION_TOOL_FILES",
+    "migration_planner.py",
+    "compatibility_checker.py",
+    "rollback_generator.py",
+    "accepted_with_mitigations",
+    "_compatibility_returncode_errors",
+    "_persisted_report_errors",
+    "data_recovery_plan",
+    "communication_templates",
+    "validation_checklist",
+    "sys.executable",
+    "subprocess.run",
+    "TemporaryDirectory",
+    "_write_outputs_atomically",
+)
+MIGRATION_REVIEW_DOC_REQUIREMENTS = {
+    "README.md": (
+        "design migration-review",
+        "docs/backend/migrations/review-scope.json",
+        "work_stage: migration-review",
+        "run-migration-review",
+        "accepted_with_mitigations",
+    ),
+    "workflows/00-overview.md": (
+        "design migration-review",
+        "data-model-migration-review-sixth",
+        "run-migration-review",
+        "accepted_with_mitigations",
+    ),
+    "workflows/04-design-derivation.md": (
+        "design migration-review",
+        "migration_planner.py",
+        "compatibility_checker.py",
+        "rollback_generator.py",
+        "migration_review_evidence_stale",
+    ),
+    "skills/designing-data-models/SKILL.md": (
+        "design migration-review",
+        "database-schema-designer",
+        "migration-architect",
+        "compatibility-acceptances.json",
+    ),
+    "skills/using-governance-workflow/SKILL.md": (
+        "migration-review",
+        "run-migration-review",
+        "migration_review_evidence_stale",
+    ),
+    "skills/verifying-governance-docs/SKILL.md": (
+        "migration_review_evidence_missing",
+        "migration_review_evidence_invalid",
+        "migration_review_evidence_stale",
+    ),
+    "references/data-model-design-checklist.md": (
+        "Migration Review Evidence",
+        "design migration-review",
+        "accepted_with_mitigations",
+    ),
+    "references/design-review-checklist.md": (
+        "Data-Model Migration Review",
+        "work_stage: migration-review",
+        "docs/backend/migrations/review-evidence.json",
+    ),
+    "references/workflow-routing-checklist.md": (
+        "run-migration-review",
+        "design migration-review",
     ),
 }
 DESIGN_SCAFFOLD_DOC_PATHS = (
@@ -4706,6 +4786,8 @@ def verify_pack(root: Path) -> PackReport:
     _check_threat_review_docs(root, findings)
     _check_reliability_review_source(root, findings)
     _check_reliability_review_docs(root, findings)
+    _check_migration_review_source(root, findings)
+    _check_migration_review_docs(root, findings)
     _check_design_scaffold_docs(root, findings)
     _check_design_plan_source(root, findings)
     _check_design_plan_docs(root, findings)
@@ -6712,6 +6794,50 @@ def _check_reliability_review_docs(root: Path, findings: list[PackFinding]) -> N
                 PackFinding(
                     "pack_reliability_review_doc_missing",
                     f"{rel} must document backend reliability-review phrase(s): {', '.join(missing)}",
+                    rel,
+                )
+            )
+
+
+def _check_migration_review_source(root: Path, findings: list[PackFinding]) -> None:
+    path = root / MIGRATION_REVIEW_SOURCE_PATH
+    if not path.is_file():
+        findings.append(
+            PackFinding(
+                "pack_migration_review_source_missing",
+                f"missing data-model migration-review source script: {MIGRATION_REVIEW_SOURCE_PATH}",
+                MIGRATION_REVIEW_SOURCE_PATH,
+            )
+        )
+        return
+    text = _read_utf8_text_or_none(path)
+    if text is None:
+        return
+    missing = [phrase for phrase in MIGRATION_REVIEW_SOURCE_REQUIRED_PHRASES if phrase not in text]
+    if missing:
+        findings.append(
+            PackFinding(
+                "pack_migration_review_source_incomplete",
+                (
+                    f"{MIGRATION_REVIEW_SOURCE_PATH} must preserve authority-tool execution and hash-bound "
+                    f"schema/migration evidence; missing phrase(s): {', '.join(missing)}"
+                ),
+                MIGRATION_REVIEW_SOURCE_PATH,
+            )
+        )
+
+
+def _check_migration_review_docs(root: Path, findings: list[PackFinding]) -> None:
+    for rel, phrases in MIGRATION_REVIEW_DOC_REQUIREMENTS.items():
+        text = _read_utf8_text_or_none(root / rel)
+        if text is None:
+            continue
+        missing = [phrase for phrase in phrases if phrase not in text]
+        if missing:
+            findings.append(
+                PackFinding(
+                    "pack_migration_review_doc_missing",
+                    f"{rel} must document data-model migration-review phrase(s): {', '.join(missing)}",
                     rel,
                 )
             )

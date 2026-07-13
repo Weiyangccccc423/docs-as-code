@@ -36,6 +36,9 @@ class PackStructureTest(unittest.TestCase):
     def test_reliability_review_runtime_is_required_in_generated_targets(self) -> None:
         self.assertIn(Path("scripts/reliability_review_evidence.py"), RUNTIME_REQUIRED_PATHS)
 
+    def test_migration_review_runtime_is_required_in_generated_targets(self) -> None:
+        self.assertIn(Path("scripts/migration_review_evidence.py"), RUNTIME_REQUIRED_PATHS)
+
     def test_target_local_command_contracts_stay_aligned(self) -> None:
         expected_targets = tuple(target for target, _recipe, _description, _writes_state in TARGET_LOCAL_COMMANDS)
         expected_recipes = {
@@ -397,6 +400,7 @@ class PackStructureTest(unittest.TestCase):
             ("make_implementation_plan", "local_implementation_plan"),
             ("_record_design_reviews", "_record_design_approvals"),
             ("_record_reliability_review", "_record_service_level_preview"),
+            ("_record_migration_review", "_record_schema_migration_preview"),
         )
         for required_phrase, replacement in cases:
             with self.subTest(required_phrase=required_phrase):
@@ -1258,6 +1262,7 @@ class PackStructureTest(unittest.TestCase):
             ("_dry_run_target_local_make_details", "_dry_run_local_command_details"),
             ("_dry_run_design_review_details", "_dry_run_design_approval_details"),
             ("_dry_run_reliability_review_details", "_dry_run_service_level_details"),
+            ("_dry_run_migration_review_details", "_dry_run_schema_migration_details"),
             ("make_verify_check", "local_verify_check"),
             ("fresh_target_init", "target_init_preview"),
             ("unpacked_init_fresh_target", "unpacked_init_preview"),
@@ -1417,6 +1422,8 @@ class PackStructureTest(unittest.TestCase):
             ("_artifact_smoke_design_reviews_ok", "_artifact_smoke_design_approvals_ok"),
             ("_dry_run_reliability_review_ok", "_dry_run_service_level_ok"),
             ("_artifact_smoke_reliability_review_ok", "_artifact_smoke_service_level_ok"),
+            ("_dry_run_migration_review_ok", "_dry_run_schema_migration_ok"),
+            ("_artifact_smoke_migration_review_ok", "_artifact_smoke_schema_migration_ok"),
         )
         for required_phrase, replacement in cases:
             with self.subTest(required_phrase=required_phrase):
@@ -3185,6 +3192,56 @@ class PackStructureTest(unittest.TestCase):
                 any(
                     finding.code == "pack_reliability_review_source_missing"
                     and finding.path == "scripts/reliability_review_evidence.py"
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_missing_migration_review_evidence_source(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            (target / "scripts/migration_review_evidence.py").unlink()
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_migration_review_source_missing"
+                    and finding.path == "scripts/migration_review_evidence.py"
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_incomplete_migration_review_evidence_source(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/migration_review_evidence.py"
+            script.write_text(
+                script.read_text(encoding="utf-8").replace(
+                    "_persisted_report_errors",
+                    "_unchecked_persisted_reports",
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_migration_review_source_incomplete"
+                    and finding.path == "scripts/migration_review_evidence.py"
+                    and "_persisted_report_errors" in finding.message
                     for finding in report.findings
                 )
             )

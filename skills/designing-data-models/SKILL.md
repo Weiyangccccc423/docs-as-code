@@ -42,7 +42,9 @@ Read `references/backend-design-checklist.md` and `references/data-model-design-
 9. Define transaction boundaries, consistency expectations, and concurrency conflict handling for each state-changing operation.
 10. Document query paths that justify indexes.
 11. Link schema choices to API contracts and acceptance criteria.
-12. Re-check data ownership, lifecycle states, constraints, transaction boundaries, indexes, migrations, retention, audit, and tests against both checklists.
+12. Follow `work_stage: migration-review` before data-model authority signoff. Start from the five templates under `templates/docs/backend/migrations/`, load `database-schema-designer` and `migration-architect`, and run `design migration-review --reviewed --check --json` before apply. In required mode, inspect `migration_planner.py`, `compatibility_checker.py`, and `rollback_generator.py` outputs. For every serious compatibility issue, use its stable ID in `docs/backend/migrations/compatibility-acceptances.json` and provide owner, reason, mitigation, and repository evidence; do not reinterpret a nonzero tool result as success. Use not-applicable only when repository sources prove there is no persistent datastore or schema lifecycle.
+13. Read `references/design-review-checklist.md`, then run `design review --track data-model --work <WORK-ID> --result approved --reason "<authority-review explanation>" --reviewed --check --json` before apply. The review binds current schema/migration evidence and the `database-designer` authority skill.
+14. Re-check data ownership, lifecycle states, constraints, transaction boundaries, indexes, migrations, retention, audit, and tests against both checklists.
 
 ## Stop Conditions
 

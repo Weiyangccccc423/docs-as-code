@@ -247,6 +247,24 @@ def _dry_run_reliability_review_ok(payload: dict[str, object] | None) -> bool:
     )
 
 
+def _dry_run_migration_review_ok(payload: dict[str, object] | None) -> bool:
+    if payload is None:
+        return False
+    review = payload.get("migration_review")
+    return (
+        isinstance(review, dict)
+        and review.get("preflight_ok") is True
+        and review.get("applied") is True
+        and review.get("current_after_runtime_refresh") is True
+        and review.get("mode") == "required"
+        and review.get("compatibility_status") in {
+            "fully_compatible", "backward_compatible", "accepted_with_mitigations"
+        }
+        and isinstance(review.get("evidence_paths"), list)
+        and len(review.get("evidence_paths", [])) == 4
+    )
+
+
 def _dry_run_target_local_make_details(payload: dict[str, object] | None) -> dict[str, object]:
     steps = payload.get("steps") if payload else []
     step_ids = {str(step.get("id")) for step in steps if isinstance(step, dict)} if isinstance(steps, list) else set()
@@ -350,6 +368,23 @@ def _artifact_smoke_reliability_review_ok(payload: dict[str, object] | None) -> 
         and isinstance(review.get("slo_count"), int)
         and not isinstance(review.get("slo_count"), bool)
         and review.get("slo_count", 0) > 0
+    )
+
+
+def _artifact_smoke_migration_review_ok(payload: dict[str, object] | None) -> bool:
+    if payload is None:
+        return False
+    review = payload.get("migration_review")
+    return (
+        isinstance(review, dict)
+        and review.get("ok") is True
+        and review.get("preflight_ok") is True
+        and review.get("applied") is True
+        and review.get("current_after_runtime_refresh") is True
+        and review.get("mode") == "required"
+        and review.get("compatibility_status") in {
+            "fully_compatible", "backward_compatible", "accepted_with_mitigations"
+        }
     )
 
 
@@ -787,6 +822,7 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
         and _dry_run_api_review_ok(dry_run_payload)
         and _dry_run_threat_review_ok(dry_run_payload)
         and _dry_run_reliability_review_ok(dry_run_payload)
+        and _dry_run_migration_review_ok(dry_run_payload)
         and _dry_run_design_reviews_ok(dry_run_payload)
         and _dry_run_target_local_make_coverage_ok(dry_run_payload),
         evidence="python3 scripts/dry_run_workflow.py --json",
@@ -798,6 +834,7 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
             "api_review": dry_run_payload.get("api_review") if dry_run_payload else {},
             "threat_review": dry_run_payload.get("threat_review") if dry_run_payload else {},
             "reliability_review": dry_run_payload.get("reliability_review") if dry_run_payload else {},
+            "migration_review": dry_run_payload.get("migration_review") if dry_run_payload else {},
             "design_reviews": dry_run_payload.get("design_reviews") if dry_run_payload else {},
             "target_local_make_coverage": _dry_run_target_local_make_details(dry_run_payload),
         },
@@ -827,6 +864,7 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
         and _dry_run_api_review_ok(multi_acceptance_payload)
         and _dry_run_threat_review_ok(multi_acceptance_payload)
         and _dry_run_reliability_review_ok(multi_acceptance_payload)
+        and _dry_run_migration_review_ok(multi_acceptance_payload)
         and _dry_run_design_reviews_ok(multi_acceptance_payload)
         and multi_acceptance_payload.get("acceptance_id_count") == 4
         and multi_acceptance_payload.get("api_candidate_count") == 4
@@ -854,6 +892,9 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
             if multi_acceptance_payload
             else {},
             "reliability_review": multi_acceptance_payload.get("reliability_review")
+            if multi_acceptance_payload
+            else {},
+            "migration_review": multi_acceptance_payload.get("migration_review")
             if multi_acceptance_payload
             else {},
             "design_reviews": multi_acceptance_payload.get("design_reviews")
@@ -991,6 +1032,7 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
         and _artifact_smoke_api_review_ok(artifact_smoke_payload)
         and _artifact_smoke_threat_review_ok(artifact_smoke_payload)
         and _artifact_smoke_reliability_review_ok(artifact_smoke_payload)
+        and _artifact_smoke_migration_review_ok(artifact_smoke_payload)
         and _artifact_smoke_design_reviews_ok(artifact_smoke_payload)
         and _artifact_smoke_consumer_bootstrap_ok(artifact_smoke_payload)
         and _artifact_smoke_consumer_design_scaffold_ok(artifact_smoke_payload)
@@ -1017,6 +1059,9 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
             if artifact_smoke_payload
             else {},
             "reliability_review": artifact_smoke_payload.get("reliability_review", {})
+            if artifact_smoke_payload
+            else {},
+            "migration_review": artifact_smoke_payload.get("migration_review", {})
             if artifact_smoke_payload
             else {},
             "design_reviews": artifact_smoke_payload.get("design_reviews", {})

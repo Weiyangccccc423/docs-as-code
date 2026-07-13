@@ -66,6 +66,10 @@ from reliability_review_evidence import (
     check_reliability_review_evidence,
     record_reliability_review_evidence,
 )
+from migration_review_evidence import (
+    check_migration_review_evidence,
+    record_migration_review_evidence,
+)
 from phases import PHASE_NAMES, advance_phase, check_advance_phase
 from product_dispositions import (
     PRODUCT_DISPOSITION_DECISIONS,
@@ -1075,6 +1079,60 @@ def _cmd_design_reliability_review(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_design_migration_review(args: argparse.Namespace) -> int:
+    target = Path(args.target)
+    kwargs = {
+        "reviewed": args.reviewed,
+        "skill_roots": list(args.skill_root),
+    }
+    result = (
+        check_migration_review_evidence(target, **kwargs)
+        if args.check
+        else record_migration_review_evidence(target, **kwargs)
+    )
+    payload = result.to_dict()
+    if result.ok:
+        cwd = result.target
+        payload["refresh_command"] = _continuation_command(
+            cwd,
+            "refresh-data-model-authoring",
+            ["bin/governance", "design", "data-model-authoring", ".", "--json"],
+            "Refresh data-model authoring and migration-review status.",
+        )
+        payload["work_package_command"] = _continuation_command(
+            cwd,
+            "refresh-work-package",
+            ["bin/governance", "workflow", "work-package", ".", "--json"],
+            "Select the next design work package after migration review.",
+        )
+        payload["verify_command"] = _continuation_command(
+            cwd,
+            "verify-migration-review-evidence",
+            ["bin/governance", "verify", ".", "--check", "--json"],
+            "Verify migration-review evidence and downstream data-model review freshness.",
+        )
+        if not args.check:
+            payload["local_commands"] = target_local_commands_payload(cwd=cwd)
+            payload["next_actions"] = next_actions_payload(result.state, cwd=cwd)
+    if args.json:
+        _print_json(payload)
+        return 0 if result.ok else 1
+    if not result.ok:
+        print("Data-model migration review failed:")
+        for error in result.errors:
+            print(f"- ERROR: {error}")
+        return 1
+    if args.check:
+        print("Data-model migration-review preflight passed.")
+        for path in result.would_update:
+            print(f"- WOULD UPDATE: {path}")
+        return 0
+    print("Data-model migration-review evidence recorded.")
+    for path in result.updated:
+        print(f"- UPDATED: {path}")
+    return 0
+
+
 def _cmd_design_api_candidates(args: argparse.Namespace) -> int:
     target = Path(args.target)
     payload = build_api_candidates(target)
@@ -1562,6 +1620,30 @@ def build_parser() -> argparse.ArgumentParser:
     )
     reliability_review.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     reliability_review.set_defaults(func=_cmd_design_reliability_review)
+    migration_review = design_sub.add_parser(
+        "migration-review",
+        help="Run migration planning, schema compatibility, rollback tools, and bind data-model evidence.",
+    )
+    migration_review.add_argument("target", nargs="?", default=".")
+    migration_review.add_argument(
+        "--reviewed",
+        action="store_true",
+        help="Confirm schema applicability, compatibility acceptances, migration plan, and rollback runbook were reviewed.",
+    )
+    migration_review.add_argument(
+        "--skill-root",
+        action="append",
+        type=Path,
+        default=[],
+        help="Additional authority skill root containing database-schema-designer and migration-architect.",
+    )
+    migration_review.add_argument(
+        "--check",
+        action="store_true",
+        help="Run authority tools in a temporary directory without writing evidence.",
+    )
+    migration_review.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    migration_review.set_defaults(func=_cmd_design_migration_review)
     api_candidates = design_sub.add_parser(
         "api-candidates",
         help="Extract source-backed API endpoint candidates from product acceptance criteria.",

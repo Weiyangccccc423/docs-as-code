@@ -52,6 +52,15 @@ Calibrate architecture review against ISO/IEC/IEEE 42010 and ISO/IEC 25010, API 
 - Does the backend design review snapshot the scope, error-budget policy when required, generated reports, source documents, and machine evidence?
 - In not-applicable mode, are owner, reason, source references, and revisit triggers reviewed without inventing SLO targets?
 
+## Data-Model Migration Review
+
+- Before data-model authority review, is `work_stage: migration-review` complete and `docs/backend/migrations/review-evidence.json` current?
+- Is the `required` or `not-applicable` decision supported by product acceptance, architecture quality attributes, backend ownership, and the authored data model?
+- In required mode, did `migration_planner.py`, `compatibility_checker.py`, and `rollback_generator.py` run from the loaded `migration-architect` skill, with `database-schema-designer` and all tool hashes recorded?
+- Does every breaking or potentially breaking compatibility issue have a stable ID plus written owner, reason, mitigation, and repository evidence, with no orphaned acceptances?
+- Does the data-model design review snapshot the scope, schemas, migration specification, compatibility acceptances, generated plan/report/runbook, source documents, and machine evidence?
+- In not-applicable mode, do owner, reason, source references, and revisit triggers prove the absence of a persistent schema lifecycle without fabricating migration artifacts?
+
 ## Freshness
 
 - Does `--check` succeed before writing the review record?

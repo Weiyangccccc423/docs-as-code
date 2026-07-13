@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "applicability": {
+    "decision": "required",
+    "owner": "product-derived-database-owner",
+    "reason": "Source-backed reason that this project does or does not require a schema migration lifecycle.",
+    "source_references": [
+      "docs/product/NN-acceptance-criteria.md",
+      "docs/architecture/03-quality-attributes.md",
+      "docs/backend/01-modules.md",
+      "docs/backend/02-data-model.md"
+    ],
+    "revisit_triggers": [
+      "A persistent data store, schema revision, or data migration is introduced."
+    ]
+  },
+  "review": {
+    "owner": "product-derived-database-owner",
+    "reason": "Schema ownership, compatibility, validation, and rollback evidence reviewed for this design.",
+    "source_references": [
+      "docs/product/NN-acceptance-criteria.md",
+      "docs/architecture/03-quality-attributes.md",
+      "docs/backend/01-modules.md",
+      "docs/backend/02-data-model.md"
+    ]
+  }
+}

@@ -30,6 +30,10 @@ try:
         build_reliability_review_evidence_inventory,
         reliability_review_required_evidence_paths,
     )
+    from .migration_review_evidence import (
+        build_migration_review_evidence_inventory,
+        migration_review_required_evidence_paths,
+    )
     from .state import load_state
     from .workflow_actions import next_actions_payload
     from .threat_review_evidence import (
@@ -62,6 +66,10 @@ except ImportError:  # pragma: no cover - direct script execution
     from reliability_review_evidence import (
         build_reliability_review_evidence_inventory,
         reliability_review_required_evidence_paths,
+    )
+    from migration_review_evidence import (
+        build_migration_review_evidence_inventory,
+        migration_review_required_evidence_paths,
     )
     from state import load_state
     from workflow_actions import next_actions_payload
@@ -340,6 +348,7 @@ def _design_work_package(root: Path) -> tuple[dict[str, object], list[str], str]
         "threat-review",
         "machine-review",
         "reliability-review",
+        "migration-review",
         "review",
     ):
         for track, queue_id, authoring_payload in queues:
@@ -420,11 +429,18 @@ def _design_work_package(root: Path) -> tuple[dict[str, object], list[str], str]
         if stage == "reliability-review"
         else {}
     )
+    data_model_migration_review = (
+        build_migration_review_evidence_inventory(root)
+        if stage == "migration-review"
+        else {}
+    )
     machine_review_blockers = (
         _threat_review_blockers(architecture_threat_review)
         if stage == "threat-review"
         else _reliability_review_blockers(backend_reliability_review)
         if stage == "reliability-review"
+        else _migration_review_blockers(data_model_migration_review)
+        if stage == "migration-review"
         else _api_machine_review_blockers(api_machine_review)
     )
     blockers = (
@@ -433,7 +449,7 @@ def _design_work_package(root: Path) -> tuple[dict[str, object], list[str], str]
         else link_blockers
         if stage == "integration"
         else machine_review_blockers
-        if stage in {"threat-review", "machine-review", "reliability-review"}
+        if stage in {"threat-review", "machine-review", "reliability-review", "migration-review"}
         else review_blockers
     )
     repair_actions = (
@@ -449,6 +465,7 @@ def _design_work_package(root: Path) -> tuple[dict[str, object], list[str], str]
         "machine-review": "machine_review_required",
         "threat-review": "threat_review_required",
         "reliability-review": "reliability_review_required",
+        "migration-review": "migration_review_required",
         "review": "review_required",
     }
     return {
@@ -483,6 +500,11 @@ def _design_work_package(root: Path) -> tuple[dict[str, object], list[str], str]
                         if track_id == "backend-modules"
                         else []
                     ),
+                    *(
+                        migration_review_required_evidence_paths(root)
+                        if track_id == "data-model"
+                        else []
+                    ),
                 ]
             ),
             "requires_codebase_mapping": False,
@@ -499,6 +521,7 @@ def _design_work_package(root: Path) -> tuple[dict[str, object], list[str], str]
         "api_machine_review": api_machine_review,
         "architecture_threat_review": architecture_threat_review,
         "backend_reliability_review": backend_reliability_review,
+        "data_model_migration_review": data_model_migration_review,
         "design_review": _dict_value(task.get("design_review")),
         "required_authority_skill": str(
             _dict_value(task.get("execution")).get("primary_specialist_skill", "")
@@ -546,6 +569,12 @@ def _first_design_task_for_stage(
             stage == "reliability-review"
             and track_id == "backend-modules"
             and build_reliability_review_evidence_inventory(root).get("ok") is not True
+        ):
+            return task
+        if (
+            stage == "migration-review"
+            and track_id == "data-model"
+            and build_migration_review_evidence_inventory(root).get("ok") is not True
         ):
             return task
         if stage == "review" and _string_list(task.get("open_decisions")):
@@ -608,6 +637,23 @@ def _reliability_review_blockers(inventory: dict[str, object]) -> list[dict[str,
                     "docs/backend/reliability/review-evidence.json",
                 )
             ),
+            "status": status,
+            "details": details,
+        }
+    ]
+
+
+def _migration_review_blockers(inventory: dict[str, object]) -> list[dict[str, object]]:
+    if not inventory or inventory.get("ok") is True:
+        return []
+    status = str(inventory.get("status", "missing"))
+    details = _string_list(inventory.get("errors"))
+    if status == "stale":
+        details = _string_list(inventory.get("stale_reasons"))
+    return [
+        {
+            "kind": "data_model_migration_review",
+            "target": str(inventory.get("path", "docs/backend/migrations/review-evidence.json")),
             "status": status,
             "details": details,
         }
@@ -915,6 +961,42 @@ def _work_package_next_action(
                 "approval_required": False,
             },
             "success_condition": "SLO applicability is source-backed; required SLOs pass designer, error-budget, and reviewer tools with zero findings",
+        }
+    if package.get("kind") == "design-authoring" and package.get("work_stage") == "migration-review":
+        template_paths = {
+            "review_scope": "templates/docs/backend/migrations/review-scope.json",
+            "schema_before": "templates/docs/backend/migrations/schema-before.json",
+            "schema_after": "templates/docs/backend/migrations/schema-after.json",
+            "migration_spec": "templates/docs/backend/migrations/migration-spec.json",
+            "compatibility_acceptances": "templates/docs/backend/migrations/compatibility-acceptances.json",
+        }
+        templates = {
+            key: _target_read_paths(root, [path])[0]
+            for key, path in template_paths.items()
+        }
+        return {
+            "kind": "run-migration-review",
+            "track": str(package.get("track_id", "")),
+            "work_id": str(package.get("work_id", "")),
+            "authority_skills": ["database-schema-designer", "migration-architect"],
+            "machine_review": _dict_value(package.get("data_model_migration_review")),
+            "input_contract": {
+                "root": "docs/backend/migrations",
+                "templates": templates,
+                "applicability_modes": ["required", "not-applicable"],
+                "compatibility_policy": "fully compatible or every breaking and potentially-breaking issue explicitly accepted",
+            },
+            "decision_policy": "design_schema_with_database_schema_designer_then_run_migration_architect_before_data_model_signoff",
+            "command_contract": {
+                "cwd": str(root),
+                "argv_prefix": ["bin/governance", "design", "migration-review", "."],
+                "required_arguments": ["--reviewed"],
+                "optional_arguments": ["--skill-root"],
+                "preflight_argument": "--check",
+                "writes_state": True,
+                "approval_required": False,
+            },
+            "success_condition": "schema applicability is source-backed, compatibility is approved, and every migration phase has rollback evidence",
         }
     if package.get("kind") == "design-authoring" and package.get("work_stage") == "review":
         track = str(package.get("track_id", ""))
