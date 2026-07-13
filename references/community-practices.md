@@ -14,3 +14,5 @@ Use these as calibration sources, not rigid templates.
 | OpenSSF Best Practices | quality and security baseline thinking |
 | OWASP ASVS | application security verification calibration |
 | OWASP API Security Top 10 | API abuse-case and authorization calibration |
+| Google SRE Book and Workbook | source-backed SLIs/SLOs, error-budget policy, and multi-window burn-rate calibration; see `references/backend-operability-checklist.md` |
+| OpenTelemetry | logs, metrics, and traces for operability evidence |

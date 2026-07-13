@@ -945,8 +945,10 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
 
     _write_minimal_implementation_ready_docs(target, acceptance_ids)
     _write_threat_review_inputs(target)
+    _write_reliability_review_inputs(target)
     threat_review_apply = _record_threat_review(target, steps)
     api_review_apply = _record_api_review(target, steps)
+    reliability_review_apply = _record_reliability_review(target, steps)
     design_review_applies = _record_design_reviews(
         target,
         acceptance_ids,
@@ -1196,6 +1198,18 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         "architecture threat-review evidence did not remain current after runtime refresh",
         payload=threat_review_after_runtime_refresh,
     )
+    reliability_review_after_runtime_refresh = _run_json(
+        steps,
+        "reliability_review_check_after_runtime_refresh",
+        ["bin/governance", "design", "reliability-review", ".", "--reviewed", "--check", "--json"],
+        target,
+    )
+    _require(
+        reliability_review_after_runtime_refresh.get("ok") is True
+        and reliability_review_after_runtime_refresh.get("would_update") == [],
+        "backend reliability-review evidence did not remain current after runtime refresh",
+        payload=reliability_review_after_runtime_refresh,
+    )
     make_workflow_plan_after_runtime_refresh = _run_json(
         steps,
         "make_workflow_plan_after_runtime_refresh",
@@ -1264,6 +1278,17 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
                 and threat_review_after_runtime_refresh.get("would_update") == []
             ),
             "evidence_paths": list(threat_review_apply.get("evidence_paths", [])),
+        },
+        "reliability_review": {
+            "preflight_ok": reliability_review_apply.get("preflight_ok") is True,
+            "applied": reliability_review_apply.get("applied") is True,
+            "mode": str(reliability_review_apply.get("mode", "")),
+            "slo_count": reliability_review_apply.get("slo_count", 0),
+            "current_after_runtime_refresh": (
+                reliability_review_after_runtime_refresh.get("ok") is True
+                and reliability_review_after_runtime_refresh.get("would_update") == []
+            ),
+            "evidence_paths": list(reliability_review_apply.get("evidence_paths", [])),
         },
         "design_reviews": {
             "recorded_count": len(design_review_applies),
@@ -1334,6 +1359,7 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
                     "scripts/governance_cli.py",
                     "scripts/api_review_evidence.py",
                     "scripts/threat_review_evidence.py",
+                    "scripts/reliability_review_evidence.py",
                     "scripts/design_reviews.py",
                     "docs/agent-workflow/runtime-manifest.json",
                     "docs/agent-workflow/workflow-pack/manifest.json",
@@ -1955,6 +1981,76 @@ def _write_threat_review_inputs(target: Path) -> None:
     )
 
 
+def _write_reliability_review_inputs(target: Path) -> None:
+    root = target / "docs/backend/reliability"
+    root.mkdir(parents=True, exist_ok=True)
+    policy_rel = "docs/backend/04-error-budget-policy.md"
+    (target / policy_rel).write_text(
+        "# Error Budget Policy\n\n"
+        "## Scope\n\n- Protect governed workflow execution.\n\n"
+        "## Budget Actions\n\n- Pause risky releases when the budget is exhausted.\n\n"
+        "## Release Policy\n\n- Require burn-rate evidence before rollback.\n\n"
+        "## Incident Policy\n\n- Page the governance runtime owner on fast or slow burn.\n\n"
+        "## Review\n\n- Review quarterly with product and backend owners.\n",
+        encoding="utf-8",
+    )
+    backend_readme = target / "docs/backend/README.md"
+    readme_text = backend_readme.read_text(encoding="utf-8")
+    if "04-error-budget-policy.md" not in readme_text:
+        backend_readme.write_text(
+            readme_text.rstrip() + "\n- [Error budget policy](04-error-budget-policy.md)\n",
+            encoding="utf-8",
+        )
+    source_references = [
+        "docs/product/08-acceptance-criteria.md",
+        "docs/architecture/03-quality-attributes.md",
+        "docs/backend/01-modules.md",
+        "docs/backend/03-external-services.md",
+    ]
+    scope = {
+        "schema_version": 1,
+        "applicability": {
+            "decision": "required",
+            "owner": "governance-runtime-maintainers",
+            "reason": "The governed workflow exposes a user-visible service success path that requires a measurable objective.",
+            "source_references": source_references,
+            "revisit_triggers": [
+                "The production execution path or user-visible reliability commitment changes."
+            ],
+        },
+        "slos": [
+            {
+                "id": "governance-api-success",
+                "service": "governance-api",
+                "sli_type": "request-success-rate",
+                "target_percent": 99.9,
+                "window_days": 28,
+                "owner": "governance-runtime-maintainers",
+                "user_journey": "A maintainer executes a governed workflow action and receives a valid result.",
+                "sli_numerator": "count(governance_actions_total{outcome=\"success\"})",
+                "sli_denominator": "count(governance_actions_total)",
+                "sli_labels": ["environment=production"],
+                "policy_doc": policy_rel,
+                "review_cadence": "quarterly",
+                "source_references": source_references,
+                "target_basis": {
+                    "kind": "provisional-prelaunch",
+                    "rationale": "Use a provisional target until the first production measurement window completes.",
+                    "source_references": [
+                        "docs/product/08-acceptance-criteria.md",
+                        "docs/architecture/03-quality-attributes.md",
+                    ],
+                    "validation_plan": "Measure the SLI for 28 days after launch and review the target before the next release.",
+                },
+            }
+        ],
+    }
+    (root / "slo-scope.json").write_text(
+        json.dumps(scope, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+
 def _record_api_review(
     target: Path,
     steps: list[dict[str, object]],
@@ -2057,6 +2153,58 @@ def _record_threat_review(
     }
 
 
+def _record_reliability_review(
+    target: Path,
+    steps: list[dict[str, object]],
+) -> dict[str, object]:
+    _install_dry_run_authority_skill_fixtures(target)
+    argv = ["bin/governance", "design", "reliability-review", ".", "--reviewed"]
+    expected_paths = {
+        "docs/backend/reliability/slo-definitions.json",
+        "docs/backend/reliability/error-budgets.json",
+        "docs/backend/reliability/slo-review.json",
+        "docs/backend/reliability/review-evidence.json",
+    }
+    preview = _run_json(
+        steps,
+        "reliability_review_check",
+        [*argv, "--check", "--json"],
+        target,
+    )
+    _require(
+        preview.get("ok") is True
+        and preview.get("check") is True
+        and set(preview.get("would_update", [])) == expected_paths,
+        "backend reliability-review preflight did not plan complete evidence",
+        payload=preview,
+    )
+    result = _run_json(
+        steps,
+        "reliability_review_apply",
+        [*argv, "--json"],
+        target,
+    )
+    evidence = result.get("evidence") if isinstance(result.get("evidence"), dict) else {}
+    summary = evidence.get("summary") if isinstance(evidence.get("summary"), dict) else {}
+    _require(
+        result.get("ok") is True
+        and result.get("applied") is True
+        and result.get("mode") == "required"
+        and set(result.get("updated", [])) == expected_paths
+        and summary.get("slo_count") == 1
+        and summary.get("review_finding_count") == 0,
+        "backend reliability-review apply did not record passing authority-tool evidence",
+        payload=result,
+    )
+    return {
+        "preflight_ok": preview.get("ok") is True,
+        "applied": result.get("applied") is True,
+        "mode": str(result.get("mode", "")),
+        "slo_count": summary.get("slo_count", 0),
+        "evidence_paths": sorted(expected_paths),
+    }
+
+
 def _record_design_reviews(
     target: Path,
     acceptance_ids: list[str],
@@ -2131,6 +2279,7 @@ def _install_dry_run_authority_skill_fixtures(target: Path) -> None:
         for spec in DESIGN_REVIEW_TRACK_SPECS.values()
     }
     skill_names.add("senior-security")
+    skill_names.add("slo-architect")
     for skill_name in sorted(skill_names):
         path = target / ".agents/skills" / skill_name / "SKILL.md"
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -2238,6 +2387,74 @@ def _install_dry_run_authority_skill_fixtures(target: Path) -> None:
         f"REPORT = {threat_report!r}\n"
         "output_index = sys.argv.index('--output') + 1\n"
         "Path(sys.argv[output_index]).write_text(json.dumps(REPORT, indent=2, sort_keys=True) + '\\n', encoding='utf-8')\n",
+        encoding="utf-8",
+    )
+    slo_tools = target / ".agents/skills/slo-architect/scripts"
+    slo_tools.mkdir(parents=True, exist_ok=True)
+    (slo_tools / "slo_designer.py").write_text(
+        "import json\n"
+        "import sys\n\n"
+        "def arg(name, default=''):\n"
+        "    return sys.argv[sys.argv.index(name) + 1] if name in sys.argv else default\n\n"
+        "target = float(arg('--target'))\n"
+        "window = int(arg('--window-days'))\n"
+        "payload = {\n"
+        "    'service': arg('--service'),\n"
+        "    'owner': arg('--owner'),\n"
+        "    'user_journey': arg('--user-journey'),\n"
+        "    'sli': {\n"
+        "        'type': arg('--sli-type'),\n"
+        "        'numerator': arg('--sli-numerator'),\n"
+        "        'denominator': arg('--sli-denominator'),\n"
+        "        'labels': arg('--sli-labels').split(',') if arg('--sli-labels') else [],\n"
+        "    },\n"
+        "    'target_percent': target,\n"
+        "    'window_days': window,\n"
+        "    'error_budget': {\n"
+        "        'minutes_per_window': round((100 - target) / 100 * window * 24 * 60, 2),\n"
+        "        'policy_doc': arg('--policy-doc'),\n"
+        "    },\n"
+        "    'alerts': {'fast_burn_threshold': 'calculated', 'slow_burn_threshold': 'calculated'},\n"
+        "    'review_cadence': arg('--review-cadence'),\n"
+        "}\n"
+        "print(json.dumps(payload, indent=2, sort_keys=True))\n",
+        encoding="utf-8",
+    )
+    (slo_tools / "error_budget_calculator.py").write_text(
+        "import json\n"
+        "import sys\n\n"
+        "target = float(sys.argv[sys.argv.index('--target') + 1])\n"
+        "window = int(sys.argv[sys.argv.index('--window-days') + 1])\n"
+        "budget = round((100 - target) / 100 * window * 24 * 60, 4)\n"
+        "payload = {\n"
+        "    'target_percent': target,\n"
+        "    'window_days': window,\n"
+        "    'bad_fraction': round((100 - target) / 100, 6),\n"
+        "    'budget_minutes': budget,\n"
+        "    'budget_hours': round(budget / 60, 4),\n"
+        "    'alert_rules': [\n"
+        "        {'name': 'fast_burn'},\n"
+        "        {'name': 'slow_burn'},\n"
+        "        {'name': 'ticket_burn'},\n"
+        "    ],\n"
+        "}\n"
+        "print(json.dumps(payload, indent=2, sort_keys=True))\n",
+        encoding="utf-8",
+    )
+    (slo_tools / "slo_review.py").write_text(
+        "import json\n"
+        "import sys\n"
+        "from pathlib import Path\n\n"
+        "root = Path(sys.argv[sys.argv.index('--slo-doc') + 1])\n"
+        "results = []\n"
+        "for path in sorted(root.glob('*.json')):\n"
+        "    document = json.loads(path.read_text(encoding='utf-8'))\n"
+        "    findings = []\n"
+        "    if document.get('target') is None:\n"
+        "        findings.append(['FAIL', 'no_target', 'no target'])\n"
+        "    if findings:\n"
+        "        results.append({'path': str(path), 'findings': findings})\n"
+        "print(json.dumps(results, indent=2, sort_keys=True))\n",
         encoding="utf-8",
     )
 

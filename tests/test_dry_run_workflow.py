@@ -221,6 +221,10 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertTrue(payload["api_review"]["preflight_ok"])
             self.assertTrue(payload["api_review"]["applied"])
             self.assertTrue(payload["api_review"]["current_after_runtime_refresh"])
+            self.assertTrue(payload["reliability_review"]["preflight_ok"])
+            self.assertTrue(payload["reliability_review"]["applied"])
+            self.assertTrue(payload["reliability_review"]["current_after_runtime_refresh"])
+            self.assertEqual(1, payload["reliability_review"]["slo_count"])
             self.assertEqual("initial-baseline", payload["api_review"]["baseline_mode"])
             self.assertEqual("A", payload["api_review"]["scorecard_grade"])
             self.assertTrue(payload["threat_review"]["preflight_ok"])
@@ -228,12 +232,18 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertTrue(payload["threat_review"]["current_after_runtime_refresh"])
             self.assertEqual(1, payload["threat_review"]["element_count"])
             self.assertEqual(1, payload["threat_review"]["high_dread_threat_count"])
+            self.assertTrue(payload["reliability_review"]["preflight_ok"])
+            self.assertTrue(payload["reliability_review"]["applied"])
+            self.assertTrue(payload["reliability_review"]["current_after_runtime_refresh"])
+            self.assertEqual("required", payload["reliability_review"]["mode"])
+            self.assertEqual(1, payload["reliability_review"]["slo_count"])
             self.assertEqual(
                 [
                     "bin/governance",
                     "scripts/governance_cli.py",
                     "scripts/api_review_evidence.py",
                     "scripts/threat_review_evidence.py",
+                    "scripts/reliability_review_evidence.py",
                     "scripts/design_reviews.py",
                     "docs/agent-workflow/runtime-manifest.json",
                     "docs/agent-workflow/workflow-pack/manifest.json",
@@ -278,6 +288,8 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertIn("product_dispositions_verify_check", step_ids)
             self.assertIn("api_review_check", step_ids)
             self.assertIn("api_review_apply", step_ids)
+            self.assertIn("reliability_review_check", step_ids)
+            self.assertIn("reliability_review_apply", step_ids)
             self.assertIn("api_review_check_after_runtime_refresh", step_ids)
             self.assertIn("design_plan", step_ids)
             self.assertIn("make_design_plan", step_ids)

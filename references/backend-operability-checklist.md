@@ -12,6 +12,20 @@ Calibrate backend operability against Google SRE service-level guidance, OpenTel
 
 Reference: `https://sre.google/sre-book/service-level-objectives/`
 
+## Reliability Review Evidence
+
+- Before backend authority signoff, does `design reliability-review --reviewed --check` pass against `docs/backend/reliability/slo-scope.json`?
+- Is applicability explicitly `required` or `not-applicable`, with a named owner, repository sources, concrete reason, and revisit triggers?
+- When required, are SLI numerator/denominator, user journey, target basis, window, owner, and error-budget policy source-backed rather than copied from a default?
+- Does a provisional prelaunch target include a measurement window and owned validation plan?
+- Did `slo_designer.py`, `error_budget_calculator.py`, and `slo_review.py` run from the loaded `slo-architect` skill with zero findings and hash-bound evidence?
+- Is `docs/backend/reliability/review-evidence.json` current before the backend design review is recorded?
+
+References:
+
+- `https://sre.google/workbook/implementing-slos/`
+- `https://sre.google/workbook/alerting-on-slos/`
+
 ## Observability Signals
 
 - Are logs, metrics, traces, and audit events named for critical success and failure paths?

@@ -33,6 +33,9 @@ class PackStructureTest(unittest.TestCase):
     def test_threat_review_runtime_is_required_in_generated_targets(self) -> None:
         self.assertIn(Path("scripts/threat_review_evidence.py"), RUNTIME_REQUIRED_PATHS)
 
+    def test_reliability_review_runtime_is_required_in_generated_targets(self) -> None:
+        self.assertIn(Path("scripts/reliability_review_evidence.py"), RUNTIME_REQUIRED_PATHS)
+
     def test_target_local_command_contracts_stay_aligned(self) -> None:
         expected_targets = tuple(target for target, _recipe, _description, _writes_state in TARGET_LOCAL_COMMANDS)
         expected_recipes = {
@@ -393,6 +396,7 @@ class PackStructureTest(unittest.TestCase):
             ("make_design_plan", "local_design_plan"),
             ("make_implementation_plan", "local_implementation_plan"),
             ("_record_design_reviews", "_record_design_approvals"),
+            ("_record_reliability_review", "_record_service_level_preview"),
         )
         for required_phrase, replacement in cases:
             with self.subTest(required_phrase=required_phrase):
@@ -1253,6 +1257,7 @@ class PackStructureTest(unittest.TestCase):
             ("unpacked_dry_run", "unpacked_preview"),
             ("_dry_run_target_local_make_details", "_dry_run_local_command_details"),
             ("_dry_run_design_review_details", "_dry_run_design_approval_details"),
+            ("_dry_run_reliability_review_details", "_dry_run_service_level_details"),
             ("make_verify_check", "local_verify_check"),
             ("fresh_target_init", "target_init_preview"),
             ("unpacked_init_fresh_target", "unpacked_init_preview"),
@@ -1410,6 +1415,8 @@ class PackStructureTest(unittest.TestCase):
             ("release_ready", "handoff_ready"),
             ("_dry_run_design_reviews_ok", "_dry_run_design_approvals_ok"),
             ("_artifact_smoke_design_reviews_ok", "_artifact_smoke_design_approvals_ok"),
+            ("_dry_run_reliability_review_ok", "_dry_run_service_level_ok"),
+            ("_artifact_smoke_reliability_review_ok", "_artifact_smoke_service_level_ok"),
         )
         for required_phrase, replacement in cases:
             with self.subTest(required_phrase=required_phrase):
@@ -3157,6 +3164,27 @@ class PackStructureTest(unittest.TestCase):
                 any(
                     finding.code == "pack_threat_review_source_missing"
                     and finding.path == "scripts/threat_review_evidence.py"
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_missing_reliability_review_evidence_source(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            (target / "scripts/reliability_review_evidence.py").unlink()
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_reliability_review_source_missing"
+                    and finding.path == "scripts/reliability_review_evidence.py"
                     for finding in report.findings
                 )
             )

@@ -62,6 +62,10 @@ from implementation_plan import (
     build_implementation_plan,
     build_implementation_start,
 )
+from reliability_review_evidence import (
+    check_reliability_review_evidence,
+    record_reliability_review_evidence,
+)
 from phases import PHASE_NAMES, advance_phase, check_advance_phase
 from product_dispositions import (
     PRODUCT_DISPOSITION_DECISIONS,
@@ -1017,6 +1021,60 @@ def _cmd_design_threat_review(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_design_reliability_review(args: argparse.Namespace) -> int:
+    target = Path(args.target)
+    kwargs = {
+        "reviewed": args.reviewed,
+        "skill_roots": list(args.skill_root),
+    }
+    result = (
+        check_reliability_review_evidence(target, **kwargs)
+        if args.check
+        else record_reliability_review_evidence(target, **kwargs)
+    )
+    payload = result.to_dict()
+    if result.ok:
+        cwd = result.target
+        payload["refresh_command"] = _continuation_command(
+            cwd,
+            "refresh-backend-authoring",
+            ["bin/governance", "design", "backend-authoring", ".", "--json"],
+            "Refresh backend authoring and reliability-review status.",
+        )
+        payload["work_package_command"] = _continuation_command(
+            cwd,
+            "refresh-work-package",
+            ["bin/governance", "workflow", "work-package", ".", "--json"],
+            "Select the next design work package after reliability review.",
+        )
+        payload["verify_command"] = _continuation_command(
+            cwd,
+            "verify-reliability-review-evidence",
+            ["bin/governance", "verify", ".", "--check", "--json"],
+            "Verify reliability-review evidence and downstream backend review freshness.",
+        )
+        if not args.check:
+            payload["local_commands"] = target_local_commands_payload(cwd=cwd)
+            payload["next_actions"] = next_actions_payload(result.state, cwd=cwd)
+    if args.json:
+        _print_json(payload)
+        return 0 if result.ok else 1
+    if not result.ok:
+        print("Backend reliability review failed:")
+        for error in result.errors:
+            print(f"- ERROR: {error}")
+        return 1
+    if args.check:
+        print("Backend reliability-review preflight passed.")
+        for path in result.would_update:
+            print(f"- WOULD UPDATE: {path}")
+        return 0
+    print("Backend reliability-review evidence recorded.")
+    for path in result.updated:
+        print(f"- UPDATED: {path}")
+    return 0
+
+
 def _cmd_design_api_candidates(args: argparse.Namespace) -> int:
     target = Path(args.target)
     payload = build_api_candidates(target)
@@ -1480,6 +1538,30 @@ def build_parser() -> argparse.ArgumentParser:
     )
     threat_review.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     threat_review.set_defaults(func=_cmd_design_threat_review)
+    reliability_review = design_sub.add_parser(
+        "reliability-review",
+        help="Decide SLO applicability, run slo-architect tools when required, and bind reliability evidence.",
+    )
+    reliability_review.add_argument("target", nargs="?", default=".")
+    reliability_review.add_argument(
+        "--reviewed",
+        action="store_true",
+        help="Confirm the applicability decision, SLO basis, generated reports, and error-budget policy were reviewed.",
+    )
+    reliability_review.add_argument(
+        "--skill-root",
+        action="append",
+        type=Path,
+        default=[],
+        help="Additional authority skill root containing slo-architect. Repeat when needed.",
+    )
+    reliability_review.add_argument(
+        "--check",
+        action="store_true",
+        help="Run authority tools in a temporary directory without writing evidence.",
+    )
+    reliability_review.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    reliability_review.set_defaults(func=_cmd_design_reliability_review)
     api_candidates = design_sub.add_parser(
         "api-candidates",
         help="Extract source-backed API endpoint candidates from product acceptance criteria.",

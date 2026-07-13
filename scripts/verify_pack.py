@@ -762,6 +762,7 @@ DRY_RUN_WORKFLOW_REQUIRED_PHRASES = (
     '"implementation-planning-authoring"',
     '"architecture-decisions-authoring"',
     "_record_design_reviews",
+    "_record_reliability_review",
     "design_review_{step_slug}_check",
     "design_review_{step_slug}_apply",
     "design_plan_after_reviews",
@@ -1601,6 +1602,7 @@ ARTIFACT_SMOKE_REQUIRED_PHRASES = (
     "_dry_run_target_local_make_details",
     "_dry_run_product_disposition_details",
     "_dry_run_design_review_details",
+    "_dry_run_reliability_review_details",
     "target_local_make_coverage",
     "product_dispositions",
     "design_reviews",
@@ -1698,10 +1700,12 @@ RELEASE_READINESS_REQUIRED_PHRASES = (
     "_dry_run_closeout_evidence_ok",
     "_dry_run_product_dispositions_ok",
     "_dry_run_design_reviews_ok",
+    "_dry_run_reliability_review_ok",
     "_dry_run_target_local_make_coverage_ok",
     "_artifact_smoke_fresh_target_init_ok",
     "_artifact_smoke_product_dispositions_ok",
     "_artifact_smoke_design_reviews_ok",
+    "_artifact_smoke_reliability_review_ok",
     "_artifact_smoke_consumer_bootstrap_ok",
     "_artifact_smoke_work_package_ok",
     "_artifact_smoke_consumer_design_scaffold_ok",
@@ -2280,7 +2284,7 @@ API_REVIEW_DOC_REQUIREMENTS = {
     ),
     "workflows/00-overview.md": (
         "design api-review",
-        "API-machine-review-third",
+        "API-machine-review-fourth",
         "run-api-review",
         "zero lint errors/warnings",
     ),
@@ -2395,6 +2399,77 @@ THREAT_REVIEW_DOC_REQUIREMENTS = {
     "references/workflow-routing-checklist.md": (
         "run-threat-review",
         "design threat-review",
+    ),
+}
+RELIABILITY_REVIEW_SOURCE_PATH = "scripts/reliability_review_evidence.py"
+RELIABILITY_REVIEW_SOURCE_REQUIRED_PHRASES = (
+    "ReliabilityReviewEvidenceResult",
+    "check_reliability_review_evidence",
+    "record_reliability_review_evidence",
+    "build_reliability_review_evidence_inventory",
+    "RELIABILITY_SCOPE_REL",
+    "RELIABILITY_EVIDENCE_REL",
+    "RELIABILITY_AUTHORITY_SKILL",
+    "RELIABILITY_TOOL_FILES",
+    "RELIABILITY_REVIEW_ADAPTER",
+    "slo_designer.py",
+    "error_budget_calculator.py",
+    "slo_review.py",
+    "sys.executable",
+    "subprocess.run",
+    "TemporaryDirectory",
+    "_write_outputs_atomically",
+)
+RELIABILITY_REVIEW_DOC_REQUIREMENTS = {
+    "README.md": (
+        "design reliability-review",
+        "docs/backend/reliability/slo-scope.json",
+        "work_stage: reliability-review",
+        "run-reliability-review",
+        "not-applicable",
+    ),
+    "workflows/00-overview.md": (
+        "design reliability-review",
+        "backend-reliability-review-fifth",
+        "run-reliability-review",
+        "not-applicable",
+    ),
+    "workflows/04-design-derivation.md": (
+        "design reliability-review",
+        "slo_designer.py",
+        "error_budget_calculator.py",
+        "slo_review.py",
+        "reliability_review_evidence_stale",
+    ),
+    "skills/designing-backend-modules/SKILL.md": (
+        "design reliability-review",
+        "docs/backend/reliability/slo-scope.json",
+        "slo-architect",
+        "not-applicable",
+    ),
+    "skills/using-governance-workflow/SKILL.md": (
+        "reliability-review",
+        "run-reliability-review",
+        "reliability_review_evidence_stale",
+    ),
+    "skills/verifying-governance-docs/SKILL.md": (
+        "reliability_review_evidence_missing",
+        "reliability_review_evidence_invalid",
+        "reliability_review_evidence_stale",
+    ),
+    "references/backend-operability-checklist.md": (
+        "Reliability Review Evidence",
+        "design reliability-review",
+        "not-applicable",
+    ),
+    "references/design-review-checklist.md": (
+        "Backend Reliability Review",
+        "work_stage: reliability-review",
+        "docs/backend/reliability/review-evidence.json",
+    ),
+    "references/workflow-routing-checklist.md": (
+        "run-reliability-review",
+        "design reliability-review",
     ),
 }
 DESIGN_SCAFFOLD_DOC_PATHS = (
@@ -4629,6 +4704,8 @@ def verify_pack(root: Path) -> PackReport:
     _check_api_review_docs(root, findings)
     _check_threat_review_source(root, findings)
     _check_threat_review_docs(root, findings)
+    _check_reliability_review_source(root, findings)
+    _check_reliability_review_docs(root, findings)
     _check_design_scaffold_docs(root, findings)
     _check_design_plan_source(root, findings)
     _check_design_plan_docs(root, findings)
@@ -6591,6 +6668,50 @@ def _check_threat_review_docs(root: Path, findings: list[PackFinding]) -> None:
                 PackFinding(
                     "pack_threat_review_doc_missing",
                     f"{rel} must document architecture threat-review phrase(s): {', '.join(missing)}",
+                    rel,
+                )
+            )
+
+
+def _check_reliability_review_source(root: Path, findings: list[PackFinding]) -> None:
+    path = root / RELIABILITY_REVIEW_SOURCE_PATH
+    if not path.is_file():
+        findings.append(
+            PackFinding(
+                "pack_reliability_review_source_missing",
+                f"missing backend reliability-review source script: {RELIABILITY_REVIEW_SOURCE_PATH}",
+                RELIABILITY_REVIEW_SOURCE_PATH,
+            )
+        )
+        return
+    text = _read_utf8_text_or_none(path)
+    if text is None:
+        return
+    missing = [phrase for phrase in RELIABILITY_REVIEW_SOURCE_REQUIRED_PHRASES if phrase not in text]
+    if missing:
+        findings.append(
+            PackFinding(
+                "pack_reliability_review_source_incomplete",
+                (
+                    f"{RELIABILITY_REVIEW_SOURCE_PATH} must preserve authority-tool execution and hash-bound "
+                    f"SLO/error-budget evidence; missing phrase(s): {', '.join(missing)}"
+                ),
+                RELIABILITY_REVIEW_SOURCE_PATH,
+            )
+        )
+
+
+def _check_reliability_review_docs(root: Path, findings: list[PackFinding]) -> None:
+    for rel, phrases in RELIABILITY_REVIEW_DOC_REQUIREMENTS.items():
+        text = _read_utf8_text_or_none(root / rel)
+        if text is None:
+            continue
+        missing = [phrase for phrase in phrases if phrase not in text]
+        if missing:
+            findings.append(
+                PackFinding(
+                    "pack_reliability_review_doc_missing",
+                    f"{rel} must document backend reliability-review phrase(s): {', '.join(missing)}",
                     rel,
                 )
             )

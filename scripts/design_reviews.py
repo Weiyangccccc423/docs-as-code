@@ -18,6 +18,10 @@ try:
         build_threat_review_evidence_inventory,
         threat_review_required_evidence_paths,
     )
+    from .reliability_review_evidence import (
+        build_reliability_review_evidence_inventory,
+        reliability_review_required_evidence_paths,
+    )
     from .state import StateFileError, load_state, utc_now
 except ImportError:  # pragma: no cover - direct script execution
     from api_review_evidence import (
@@ -27,6 +31,10 @@ except ImportError:  # pragma: no cover - direct script execution
     from threat_review_evidence import (
         build_threat_review_evidence_inventory,
         threat_review_required_evidence_paths,
+    )
+    from reliability_review_evidence import (
+        build_reliability_review_evidence_inventory,
+        reliability_review_required_evidence_paths,
     )
     from state import StateFileError, load_state, utc_now
 
@@ -738,6 +746,24 @@ def _build_design_review_plan(
         else:
             explicit_evidence = _dedupe_strings(
                 [*explicit_evidence, *threat_review_required_evidence_paths()]
+            )
+    if normalized_track == "backend-modules":
+        reliability_review = build_reliability_review_evidence_inventory(root)
+        reliability_status = str(reliability_review.get("status", "missing"))
+        if reliability_review.get("ok") is not True:
+            if reliability_status == "missing":
+                errors.append(
+                    "backend reliability review evidence is missing; run design reliability-review before authority signoff"
+                )
+            elif reliability_status == "invalid":
+                details = "; ".join(_string_items(reliability_review.get("errors"))) or "invalid evidence document"
+                errors.append(f"backend reliability review evidence is invalid: {details}")
+            else:
+                details = "; ".join(_string_items(reliability_review.get("stale_reasons"))) or "review inputs changed"
+                errors.append(f"backend reliability review evidence is stale: {details}")
+        else:
+            explicit_evidence = _dedupe_strings(
+                [*explicit_evidence, *reliability_review_required_evidence_paths(root)]
             )
     if normalized_track == "architecture-decisions" and normalized_result == "approved":
         if not any(ADR_PATH_RE.fullmatch(path) for path in explicit_evidence):

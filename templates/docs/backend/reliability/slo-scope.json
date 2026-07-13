@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "applicability": {
+    "decision": "required",
+    "owner": "product-derived-owner",
+    "reason": "Source-backed reason that this project does or does not need production SLOs.",
+    "source_references": [
+      "docs/product/NN-acceptance-criteria.md",
+      "docs/architecture/03-quality-attributes.md",
+      "docs/backend/01-modules.md",
+      "docs/backend/03-external-services.md"
+    ],
+    "revisit_triggers": [
+      "A production service, user-visible reliability commitment, or critical dependency changes."
+    ]
+  },
+  "slos": [
+    {
+      "id": "product-derived-slo-id",
+      "service": "product-derived-service",
+      "sli_type": "request-success-rate",
+      "target_percent": 99.9,
+      "window_days": 28,
+      "owner": "product-derived-owner",
+      "user_journey": "Product-derived user journey protected by this SLO.",
+      "sli_numerator": "Product-derived good-event expression.",
+      "sli_denominator": "Product-derived valid-event expression.",
+      "sli_labels": [
+        "environment=production"
+      ],
+      "policy_doc": "docs/backend/04-error-budget-policy.md",
+      "review_cadence": "quarterly",
+      "source_references": [
+        "docs/product/NN-acceptance-criteria.md",
+        "docs/architecture/03-quality-attributes.md",
+        "docs/backend/01-modules.md",
+        "docs/backend/03-external-services.md"
+      ],
+      "target_basis": {
+        "kind": "provisional-prelaunch",
+        "rationale": "Source-backed explanation for this initial target.",
+        "source_references": [
+          "docs/product/NN-acceptance-criteria.md",
+          "docs/architecture/03-quality-attributes.md"
+        ],
+        "validation_plan": "Measurement window, owner, and decision date for replacing the provisional target."
+      }
+    }
+  ]
+}

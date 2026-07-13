@@ -289,7 +289,7 @@ DESIGN_TRACKS: tuple[DesignTrack, ...] = (
         title="Backend Modules",
         purpose="Replace backend placeholders with module boundaries, API ownership, failure modes, operability, and dependency behavior.",
         skills=("designing-backend-modules",),
-        specialist_skills=("senior-backend", "observability-designer", "senior-security"),
+        specialist_skills=("senior-backend", "observability-designer", "slo-architect", "senior-security"),
         references=(
             "references/backend-design-checklist.md",
             "references/backend-operability-checklist.md",

@@ -24,6 +24,11 @@ try:
         design_review_enforcement_ready,
     )
     from .product_dispositions import PRODUCT_DISPOSITIONS_REL, build_product_disposition_inventory
+    from .reliability_review_evidence import (
+        RELIABILITY_EVIDENCE_REL,
+        build_reliability_review_evidence_inventory,
+        reliability_review_enforcement_ready,
+    )
     from .state import StateFileError, load_state
     from .workflow_actions import next_actions_payload
     from .threat_review_evidence import (
@@ -44,6 +49,11 @@ except ImportError:  # pragma: no cover - direct script execution
         design_review_enforcement_ready,
     )
     from product_dispositions import PRODUCT_DISPOSITIONS_REL, build_product_disposition_inventory
+    from reliability_review_evidence import (
+        RELIABILITY_EVIDENCE_REL,
+        build_reliability_review_evidence_inventory,
+        reliability_review_enforcement_ready,
+    )
     from state import StateFileError, load_state
     from workflow_actions import next_actions_payload
     from threat_review_evidence import (
@@ -168,6 +178,8 @@ WORKFLOW_PACK_REQUIRED_PATHS = (
     "templates/docs/backend/01-modules.md",
     "templates/docs/backend/02-data-model.md",
     "templates/docs/backend/03-external-services.md",
+    "templates/docs/backend/04-error-budget-policy.md",
+    "templates/docs/backend/reliability/slo-scope.json",
     "templates/docs/decisions/ADR-template.md",
     "templates/docs/development/01-roadmap.md",
     "templates/docs/development/02-task-board.md",
@@ -201,6 +213,7 @@ RUNTIME_REQUIRED_SCRIPT_FILES = (
     "authority_skills.py",
     "api_review_evidence.py",
     "threat_review_evidence.py",
+    "reliability_review_evidence.py",
     "bootstrap_tree.py",
     "check_env.py",
     "design_reviews.py",
@@ -757,6 +770,7 @@ def verify(root: Path) -> VerificationReport:
     _check_product_chapter_dispositions(root, report)
     _check_api_review_evidence(root, report)
     _check_threat_review_evidence(root, report)
+    _check_reliability_review_evidence(root, report)
     _check_design_reviews(root, report)
     _check_product_chapter_links(root, report)
     _check_api_conventions(root, report)
@@ -853,6 +867,37 @@ def _check_threat_review_evidence(root: Path, report: VerificationReport) -> Non
     for reason in stale_reasons if isinstance(stale_reasons, list) else []:
         if isinstance(reason, str):
             report.add_error("threat_review_evidence_stale", reason, rel)
+
+
+def _check_reliability_review_evidence(root: Path, report: VerificationReport) -> None:
+    try:
+        state = load_state(root)
+    except StateFileError:
+        return
+    if state.get("phase") not in {"design-derivation", "implementation"}:
+        return
+    inventory = build_reliability_review_evidence_inventory(root)
+    if inventory.get("exists") is not True and not reliability_review_enforcement_ready(root):
+        return
+    rel = RELIABILITY_EVIDENCE_REL.as_posix()
+    status = str(inventory.get("status", "missing"))
+    if status == "missing":
+        report.add_error(
+            "reliability_review_evidence_missing",
+            "backend reliability review evidence is missing; run design reliability-review before authority signoff",
+            rel,
+        )
+        return
+    if status == "invalid":
+        errors = inventory.get("errors")
+        for error in errors if isinstance(errors, list) else ["backend reliability review evidence is invalid"]:
+            if isinstance(error, str):
+                report.add_error("reliability_review_evidence_invalid", error, rel)
+        return
+    stale_reasons = inventory.get("stale_reasons")
+    for reason in stale_reasons if isinstance(stale_reasons, list) else []:
+        if isinstance(reason, str):
+            report.add_error("reliability_review_evidence_stale", reason, rel)
 
 
 def _check_product_chapter_dispositions(root: Path, report: VerificationReport) -> None:

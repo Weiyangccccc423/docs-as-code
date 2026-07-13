@@ -504,6 +504,8 @@ def _install_test_authority_skills(target: Path, names: tuple[str, ...]) -> None
             _install_test_api_review_tools(target)
         if name == "senior-security":
             _install_test_threat_modeler(target)
+        if name == "slo-architect":
+            _install_test_slo_tools(target)
 
 
 def _install_test_threat_modeler(target: Path) -> None:
@@ -620,6 +622,171 @@ def _write_test_threat_review_inputs(target: Path, *, include_owner: bool = True
     )
     (root / "mitigations.json").write_text(
         json.dumps(mitigations, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _install_test_slo_tools(target: Path) -> None:
+    root = target / ".agents/skills/slo-architect/scripts"
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "slo_designer.py").write_text(
+        "import json\n"
+        "import sys\n"
+        "from datetime import datetime, timezone\n\n"
+        "def arg(name, default=''):\n"
+        "    return sys.argv[sys.argv.index(name) + 1] if name in sys.argv else default\n\n"
+        "target = float(arg('--target'))\n"
+        "window = int(arg('--window-days'))\n"
+        "payload = {\n"
+        "    'slo_id': 'nondeterministic-' + str(datetime.now(timezone.utc).timestamp()),\n"
+        "    'created': datetime.now(timezone.utc).isoformat(),\n"
+        "    'service': arg('--service'),\n"
+        "    'owner': arg('--owner'),\n"
+        "    'user_journey': arg('--user-journey'),\n"
+        "    'sli': {\n"
+        "        'type': arg('--sli-type'),\n"
+        "        'numerator': arg('--sli-numerator', 'count(good_events)'),\n"
+        "        'denominator': arg('--sli-denominator', 'count(total_events)'),\n"
+        "        'labels': arg('--sli-labels').split(',') if arg('--sli-labels') else [],\n"
+        "    },\n"
+        "    'target_percent': target,\n"
+        "    'window_days': window,\n"
+        "    'error_budget': {\n"
+        "        'minutes_per_window': round((100 - target) / 100 * window * 24 * 60, 2),\n"
+        "        'policy_doc': arg('--policy-doc'),\n"
+        "    },\n"
+        "    'alerts': {\n"
+        "        'fast_burn_threshold': 'see error_budget_calculator.py',\n"
+        "        'slow_burn_threshold': 'see error_budget_calculator.py',\n"
+        "    },\n"
+        "    'review_cadence': arg('--review-cadence', 'quarterly'),\n"
+        "}\n"
+        "print(json.dumps(payload, indent=2, sort_keys=True))\n",
+        encoding="utf-8",
+    )
+    (root / "error_budget_calculator.py").write_text(
+        "import json\n"
+        "import sys\n\n"
+        "target = float(sys.argv[sys.argv.index('--target') + 1])\n"
+        "window = int(sys.argv[sys.argv.index('--window-days') + 1])\n"
+        "budget = round((100 - target) / 100 * window * 24 * 60, 4)\n"
+        "payload = {\n"
+        "    'target_percent': target,\n"
+        "    'window_days': window,\n"
+        "    'bad_fraction': round((100 - target) / 100, 6),\n"
+        "    'budget_minutes': budget,\n"
+        "    'budget_hours': round(budget / 60, 4),\n"
+        "    'alert_rules': [\n"
+        "        {'name': 'fast_burn', 'severity': 'page', 'long_window': '1h', 'short_window': '5m', 'budget_pct_consumed': 2.0, 'burn_rate_threshold': 14.4, 'rationale': 'fast', 'promql': 'fast'},\n"
+        "        {'name': 'slow_burn', 'severity': 'page', 'long_window': '6h', 'short_window': '30m', 'budget_pct_consumed': 5.0, 'burn_rate_threshold': 6.0, 'rationale': 'slow', 'promql': 'slow'},\n"
+        "        {'name': 'ticket_burn', 'severity': 'ticket', 'long_window': '3d', 'short_window': '6h', 'budget_pct_consumed': 10.0, 'burn_rate_threshold': 1.0, 'rationale': 'ticket', 'promql': 'ticket'},\n"
+        "    ],\n"
+        "}\n"
+        "print(json.dumps(payload, indent=2, sort_keys=True))\n",
+        encoding="utf-8",
+    )
+    (root / "slo_review.py").write_text(
+        "import json\n"
+        "import sys\n"
+        "from pathlib import Path\n\n"
+        "review_root = Path(sys.argv[sys.argv.index('--slo-doc') + 1])\n"
+        "results = []\n"
+        "for path in sorted(review_root.glob('*.json')):\n"
+        "    doc = json.loads(path.read_text(encoding='utf-8'))\n"
+        "    findings = []\n"
+        "    target = doc.get('target')\n"
+        "    window = doc.get('window_days')\n"
+        "    if target is None:\n"
+        "        findings.append(['FAIL', 'no_target', 'no target'])\n"
+        "    elif target >= 99.99:\n"
+        "        findings.append(['FAIL', 'target_too_high', 'target too high'])\n"
+        "    elif target <= 99.0:\n"
+        "        findings.append(['WARN', 'target_too_low', 'target too low'])\n"
+        "    if window is None or window < 7:\n"
+        "        findings.append(['FAIL', 'window_too_short', 'window too short'])\n"
+        "    if findings:\n"
+        "        results.append({'path': str(path), 'findings': findings})\n"
+        "print(json.dumps(results, indent=2, sort_keys=True))\n"
+        "raise SystemExit(1 if any(f[0] == 'FAIL' for r in results for f in r['findings']) else 0)\n",
+        encoding="utf-8",
+    )
+
+
+def _write_test_reliability_review_inputs(
+    target: Path,
+    *,
+    decision: str = "required",
+    target_percent: float = 99.9,
+) -> None:
+    root = target / "docs/backend/reliability"
+    root.mkdir(parents=True, exist_ok=True)
+    source_references = [
+        "docs/product/08-acceptance-criteria.md",
+        "docs/architecture/03-quality-attributes.md",
+        "docs/backend/01-modules.md",
+        "docs/backend/03-external-services.md",
+    ]
+    applicability = {
+        "decision": decision,
+        "owner": "backend-platform",
+        "reason": (
+            "The user-facing goal API requires a measurable reliability objective."
+            if decision == "required"
+            else "This repository does not operate a production service or user-facing reliability commitment."
+        ),
+        "source_references": source_references,
+        "revisit_triggers": [
+            "A production service or user-facing reliability commitment is introduced."
+        ],
+    }
+    slos: list[dict[str, object]] = []
+    if decision == "required":
+        policy = target / "docs/backend/04-error-budget-policy.md"
+        policy.write_text(
+            "# Error Budget Policy\n\n"
+            "## Scope\n\n- Protect the goal creation journey.\n\n"
+            "## Budget Actions\n\n- Pause risky releases when the budget is exhausted.\n\n"
+            "## Release Policy\n\n- Use multi-window burn-rate evidence before rollback.\n\n"
+            "## Incident Policy\n\n- Page the backend owner on fast or slow burn.\n\n"
+            "## Review\n\n- Review quarterly with product and backend owners.\n",
+            encoding="utf-8",
+        )
+        readme = target / "docs/backend/README.md"
+        if "04-error-budget-policy.md" not in readme.read_text(encoding="utf-8"):
+            _append_index(readme, "04-error-budget-policy.md")
+        slos.append(
+            {
+                "id": "goal-api-success",
+                "service": "goal-api",
+                "sli_type": "request-success-rate",
+                "target_percent": target_percent,
+                "window_days": 28,
+                "owner": "backend-platform",
+                "user_journey": "An authenticated user creates a goal and receives a stable identifier.",
+                "sli_numerator": "count(goal_create_requests_total{outcome=\"success\"})",
+                "sli_denominator": "count(goal_create_requests_total)",
+                "sli_labels": ["environment=production"],
+                "policy_doc": "docs/backend/04-error-budget-policy.md",
+                "review_cadence": "quarterly",
+                "source_references": source_references,
+                "target_basis": {
+                    "kind": "provisional-prelaunch",
+                    "rationale": "Use a provisional target until production measurements establish a sustainable baseline.",
+                    "source_references": [
+                        "docs/architecture/03-quality-attributes.md",
+                        "docs/product/08-acceptance-criteria.md",
+                    ],
+                    "validation_plan": "Measure the SLI for 28 days after launch and review the target before the next release.",
+                },
+            }
+        )
+    document = {
+        "schema_version": 1,
+        "applicability": applicability,
+        "slos": slos,
+    }
+    (root / "slo-scope.json").write_text(
+        json.dumps(document, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
 
@@ -785,12 +952,17 @@ def _record_all_test_design_reviews(case: unittest.TestCase, target: Path) -> No
     )
     _install_test_authority_skills(
         target,
-        tuple(dict.fromkeys([*(item[3] for item in reviews), "senior-security"])),
+        tuple(dict.fromkeys([*(item[3] for item in reviews), "senior-security", "slo-architect"])),
     )
     _write_test_threat_review_inputs(target)
     _run_governance_json(
         case,
         ["design", "threat-review", str(target), "--reviewed"],
+    )
+    _write_test_reliability_review_inputs(target)
+    _run_governance_json(
+        case,
+        ["design", "reliability-review", str(target), "--reviewed"],
     )
     _run_governance_json(
         case,
@@ -3486,7 +3658,7 @@ class GovernanceCliTest(unittest.TestCase):
             target = _implementation_ready_target(self, tmp, advance_implementation=False)
             _install_test_authority_skills(
                 target,
-                ("api-design-reviewer", "senior-backend", "senior-security"),
+                ("api-design-reviewer", "senior-backend", "senior-security", "slo-architect"),
             )
             _write_test_threat_review_inputs(target)
             _run_governance_json(
@@ -3516,6 +3688,11 @@ class GovernanceCliTest(unittest.TestCase):
             _run_governance_json(
                 self,
                 ["design", "api-review", str(target), "--reviewed"],
+            )
+            _write_test_reliability_review_inputs(target)
+            _run_governance_json(
+                self,
+                ["design", "reliability-review", str(target), "--reviewed"],
             )
             authority_review = _run_governance_json(
                 self,
@@ -3686,6 +3863,173 @@ class GovernanceCliTest(unittest.TestCase):
                 expected_returncode=1,
             )
             self.assertIn("threat_review_evidence_stale", {item["code"] for item in verification["findings"]})
+
+    def test_reliability_review_runs_slo_authority_tools_before_backend_signoff(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp, advance_implementation=False)
+            _install_test_authority_skills(
+                target,
+                (
+                    "api-design-reviewer",
+                    "senior-security",
+                    "slo-architect",
+                    "senior-backend",
+                ),
+            )
+            _write_test_threat_review_inputs(target)
+            _run_governance_json(self, ["design", "threat-review", str(target), "--reviewed"])
+            _run_governance_json(self, ["design", "api-review", str(target), "--reviewed"])
+            _write_test_reliability_review_inputs(target)
+
+            blocked = _run_governance_json(
+                self,
+                [
+                    "design",
+                    "review",
+                    str(target),
+                    "--track",
+                    "backend-modules",
+                    "--work",
+                    "BACKEND-AUTHOR-001",
+                    "--result",
+                    "approved",
+                    "--reason",
+                    "Backend module and operability decisions were reviewed.",
+                    "--reviewed",
+                ],
+                expected_returncode=1,
+            )
+            self.assertTrue(any("design reliability-review" in error for error in blocked["errors"]))
+
+            package = _run_governance_json(self, ["workflow", "work-package", str(target)])
+            self.assertEqual("backend-modules", package["work_package"]["track_id"])
+            self.assertEqual("reliability-review", package["work_package"]["work_stage"])
+            self.assertEqual("run-reliability-review", package["next_action"]["kind"])
+            input_contract = package["next_action"]["input_contract"]
+            self.assertTrue((target / input_contract["scope_template"]).is_file())
+            self.assertTrue((target / input_contract["policy_template"]).is_file())
+
+            args = ["design", "reliability-review", str(target), "--reviewed"]
+            preview = _run_governance_json(self, [*args, "--check"])
+            expected_paths = {
+                "docs/backend/reliability/slo-definitions.json",
+                "docs/backend/reliability/error-budgets.json",
+                "docs/backend/reliability/slo-review.json",
+                "docs/backend/reliability/review-evidence.json",
+            }
+            self.assertTrue(preview["ok"])
+            self.assertEqual("required", preview["mode"])
+            self.assertEqual(expected_paths, set(preview["would_update"]))
+            self.assertEqual(1, preview["evidence"]["summary"]["slo_count"])
+            self.assertEqual(0, preview["evidence"]["summary"]["review_finding_count"])
+            self.assertEqual(
+                "target_percent_to_target_alias",
+                preview["evidence"]["review_adapter"]["name"],
+            )
+
+            applied = _run_governance_json(self, args)
+            self.assertTrue(applied["ok"])
+            self.assertEqual(expected_paths, set(applied["updated"]))
+            evidence = json.loads(
+                (target / "docs/backend/reliability/review-evidence.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual("slo-architect", evidence["authority_skill"]["name"])
+            self.assertEqual(
+                {"slo_designer", "error_budget_calculator", "slo_review"},
+                {item["name"] for item in evidence["authority_tools"]},
+            )
+
+            approved = _run_governance_json(
+                self,
+                [
+                    "design",
+                    "review",
+                    str(target),
+                    "--track",
+                    "backend-modules",
+                    "--work",
+                    "BACKEND-AUTHOR-001",
+                    "--result",
+                    "approved",
+                    "--reason",
+                    "Backend boundaries and reliability evidence are implementation-ready.",
+                    "--reviewed",
+                ],
+            )
+            paths = {item["path"] for item in approved["review"]["evidence_snapshots"]}
+            self.assertIn("docs/backend/reliability/review-evidence.json", paths)
+            self.assertIn("docs/backend/04-error-budget-policy.md", paths)
+
+    def test_reliability_review_records_reviewed_not_applicable_decision_without_tools(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp, advance_implementation=False)
+            _install_test_authority_skills(target, ("slo-architect",))
+            _write_test_reliability_review_inputs(target, decision="not-applicable")
+
+            payload = _run_governance_json(
+                self,
+                ["design", "reliability-review", str(target), "--reviewed"],
+            )
+            self.assertTrue(payload["ok"])
+            self.assertEqual("not-applicable", payload["mode"])
+            self.assertEqual(
+                ["docs/backend/reliability/review-evidence.json"],
+                payload["updated"],
+            )
+            self.assertEqual([], payload["tool_runs"])
+            self.assertEqual(0, payload["evidence"]["summary"]["slo_count"])
+
+    def test_reliability_review_rejects_not_applicable_with_obsolete_generated_reports(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp, advance_implementation=False)
+            _install_test_authority_skills(target, ("slo-architect",))
+            _write_test_reliability_review_inputs(target)
+            _run_governance_json(self, ["design", "reliability-review", str(target), "--reviewed"])
+
+            _write_test_reliability_review_inputs(target, decision="not-applicable")
+            blocked = _run_governance_json(
+                self,
+                ["design", "reliability-review", str(target), "--reviewed", "--check"],
+                expected_returncode=1,
+            )
+
+            self.assertTrue(
+                any("not-applicable reliability scope requires removing obsolete generated report" in error for error in blocked["errors"])
+            )
+
+    def test_reliability_review_fails_closed_on_authority_warning(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp, advance_implementation=False)
+            _install_test_authority_skills(target, ("slo-architect",))
+            _write_test_reliability_review_inputs(target, target_percent=99.0)
+
+            payload = _run_governance_json(
+                self,
+                ["design", "reliability-review", str(target), "--reviewed", "--check"],
+                expected_returncode=1,
+            )
+            self.assertFalse(payload["ok"])
+            self.assertTrue(any("authority review reported" in error for error in payload["errors"]))
+            self.assertFalse((target / "docs/backend/reliability/review-evidence.json").exists())
+
+    def test_reliability_review_evidence_stales_when_slo_tool_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp, advance_implementation=False)
+            _install_test_authority_skills(target, ("slo-architect",))
+            _write_test_reliability_review_inputs(target)
+            _run_governance_json(self, ["design", "reliability-review", str(target), "--reviewed"])
+
+            tool = target / ".agents/skills/slo-architect/scripts/slo_review.py"
+            tool.write_text(tool.read_text(encoding="utf-8") + "\n# changed\n", encoding="utf-8")
+            verification = _run_governance_json(
+                self,
+                ["verify", str(target), "--check"],
+                expected_returncode=1,
+            )
+            self.assertIn(
+                "reliability_review_evidence_stale",
+                {item["code"] for item in verification["findings"]},
+            )
 
     def test_api_design_review_requires_current_machine_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -3926,6 +4270,11 @@ class GovernanceCliTest(unittest.TestCase):
             _run_governance_json(
                 self,
                 ["design", "api-review", str(target), "--reviewed"],
+            )
+            _write_test_reliability_review_inputs(target)
+            _run_governance_json(
+                self,
+                ["design", "reliability-review", str(target), "--reviewed"],
             )
             review_package = _run_governance_json(
                 self,
@@ -9082,6 +9431,7 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn("designing-backend-modules", tracks["backend-modules"]["skills"])
             self.assertIn("senior-backend", tracks["backend-modules"]["specialist_skills"])
             self.assertIn("observability-designer", tracks["backend-modules"]["specialist_skills"])
+            self.assertIn("slo-architect", tracks["backend-modules"]["specialist_skills"])
             self.assertIn("references/backend-operability-checklist.md", tracks["backend-modules"]["references"])
             self.assertEqual("senior-backend", tracks["backend-modules"]["primary_specialist_skill"])
             self.assertIn("designing-data-models", tracks["data-model"]["skills"])
@@ -9552,6 +9902,7 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertNotIn("designing-data-models", payload["skills"])
             self.assertIn("senior-backend", payload["specialist_skills"])
             self.assertIn("observability-designer", payload["specialist_skills"])
+            self.assertIn("slo-architect", payload["specialist_skills"])
             self.assertNotIn("database-schema-designer", payload["specialist_skills"])
             payload_requirements = _requirements_by_name(payload["skill_requirements"])
             self.assertEqual("local-workflow", payload_requirements["designing-backend-modules"]["type"])
@@ -9590,6 +9941,7 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual("docs/product/08-acceptance-criteria.md#a-001-goal-flow", task["source"]["reference"])
             self.assertIn("senior-backend", task["specialist_skills"])
             self.assertIn("observability-designer", task["specialist_skills"])
+            self.assertIn("slo-architect", task["specialist_skills"])
             self.assertNotIn("database-schema-designer", task["specialist_skills"])
             task_requirements = _requirements_by_name(task["skill_requirements"])
             self.assertEqual("local-workflow", task_requirements["designing-backend-modules"]["type"])
@@ -9661,6 +10013,7 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual(list(range(1, 10)), [step["sequence"] for step in task["steps"]])
             self.assertEqual(["designing-backend-modules"], task["steps"][0]["skills"])
             self.assertIn("senior-backend", task["steps"][0]["specialist_skills"])
+            self.assertIn("slo-architect", task["steps"][0]["specialist_skills"])
             self.assertNotIn("database-schema-designer", task["steps"][0]["specialist_skills"])
             step_requirements = _requirements_by_name(task["steps"][0]["skill_requirements"])
             self.assertEqual("authority-routing", step_requirements["senior-backend"]["type"])
@@ -9669,6 +10022,7 @@ class GovernanceCliTest(unittest.TestCase):
                     "designing-backend-modules",
                     "senior-backend",
                     "observability-designer",
+                    "slo-architect",
                     "senior-security",
                 ],
                 [step["name"] for step in task["skill_loading_plan"]["steps"]],

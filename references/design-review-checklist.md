@@ -44,6 +44,14 @@ Calibrate architecture review against ISO/IEC/IEEE 42010 and ISO/IEC 25010, API 
 - Does scope prove type-specific STRIDE coverage, and does every DREAD score at or above 7 have an owner, mitigation, and repository evidence?
 - Does the architecture review snapshot scope, mitigations, normalized report, and machine evidence?
 
+## Backend Reliability Review
+
+- Before backend authority review, is `work_stage: reliability-review` complete and `docs/backend/reliability/review-evidence.json` current?
+- Is the `required` or `not-applicable` decision backed by product acceptance, architecture quality attributes, backend modules, and external-service sources?
+- In required mode, did `slo_designer.py`, `error_budget_calculator.py`, and `slo_review.py` run with zero findings, and are skill/tool/report hashes recorded?
+- Does the backend design review snapshot the scope, error-budget policy when required, generated reports, source documents, and machine evidence?
+- In not-applicable mode, are owner, reason, source references, and revisit triggers reviewed without inventing SLO targets?
+
 ## Freshness
 
 - Does `--check` succeed before writing the review record?

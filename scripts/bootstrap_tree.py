@@ -42,6 +42,7 @@ RUNTIME_SCRIPT_FILES = [
     "authority_skills.py",
     "api_review_evidence.py",
     "threat_review_evidence.py",
+    "reliability_review_evidence.py",
     "bootstrap_tree.py",
     "check_env.py",
     "design_reviews.py",
