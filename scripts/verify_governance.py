@@ -200,6 +200,7 @@ WORKFLOW_PACK_REQUIRED_PATHS = (
     "templates/docs/development/01-roadmap.md",
     "templates/docs/development/02-task-board.md",
     "templates/docs/development/03-verification-log.md",
+    "templates/docs/development/04-implementation-evidence.md",
     "templates/docs/frontend/01-modules.md",
     "templates/docs/frontend/02-api-consumption.md",
     "templates/docs/product/core/PRD.md",
@@ -238,6 +239,7 @@ RUNTIME_REQUIRED_SCRIPT_FILES = (
     "gates.py",
     "governance_cli.py",
     "implementation_plan.py",
+    "implementation_verify.py",
     "phases.py",
     "product_dispositions.py",
     "product_import.py",
@@ -4665,7 +4667,7 @@ def _check_verification_log_runs_table(text: str, report: VerificationReport) ->
             rel,
         )
         return
-    seen_tasks: set[str] = set()
+    seen_task_commands: set[tuple[str, str]] = set()
     for row in rows:
         task_id = row.get("task", "").strip()
         if TASK_ID_RE.fullmatch(task_id) is None:
@@ -4675,11 +4677,16 @@ def _check_verification_log_runs_table(text: str, report: VerificationReport) ->
                 rel,
             )
             continue
-        task_key = _normalize_cell(task_id)
-        if task_key in seen_tasks:
-            report.add_error("verification_log_duplicate_task_id", f"duplicate verification log Task ID: {task_id}", rel)
+        command = row.get("command", "").strip()
+        task_command_key = (_normalize_cell(task_id), _normalize_cell(command))
+        if task_command_key in seen_task_commands:
+            report.add_error(
+                "verification_log_duplicate_task_command",
+                f"duplicate verification log Task and Command: {task_id} / {command}",
+                rel,
+            )
             continue
-        seen_tasks.add(task_key)
+        seen_task_commands.add(task_command_key)
 
 
 def _verification_log_rows(text: str) -> tuple[list[dict[str, str]], list[str]]:

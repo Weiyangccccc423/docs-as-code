@@ -179,6 +179,25 @@ def _verification_log_doc(rows: str = "") -> str:
     )
 
 
+def _append_project_command(
+    target: Path,
+    *,
+    name: str,
+    argv: list[str],
+    writes_state: bool = False,
+    approval_required: bool = False,
+    cwd: str = ".",
+) -> None:
+    path = target / "docs/agent-workflow/command-contract.md"
+    text = path.read_text(encoding="utf-8")
+    row = (
+        f"| {name} | Verify one implementation task. | `{cwd}` | `{json.dumps(argv)}` | "
+        f"{str(writes_state).lower()} | {str(approval_required).lower()} | "
+        "`docs/development/04-implementation-evidence.md` | Project runtime |\n"
+    )
+    path.write_text(text.replace("\n## Project Commands", f"\n{row}\n## Project Commands", 1), encoding="utf-8")
+
+
 def _backend_external_services_doc() -> str:
     return (
         "# External Services\n\n"
@@ -5509,6 +5528,531 @@ class GovernanceCliTest(unittest.TestCase):
                 ["bin/governance", "implementation", "closeout", ".", "--task", "TASK-001", "--json"],
                 payload["refresh_command"]["argv"],
             )
+
+    def test_implementation_verify_check_previews_registered_command_without_execution(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp)
+            marker = target / "command-ran"
+            _append_project_command(
+                target,
+                name="task-tests",
+                argv=["python3", "-c", f"from pathlib import Path; Path({str(marker)!r}).write_text('ran')"],
+            )
+            _run_governance_json(
+                self,
+                ["implementation", "start", str(target), "--task", "TASK-001", "--apply"],
+            )
+
+            payload = _run_governance_json(
+                self,
+                [
+                    "implementation",
+                    "verify",
+                    str(target),
+                    "--task",
+                    "TASK-001",
+                    "--command",
+                    "task-tests",
+                    "--run-id",
+                    "VR-20260713T120000000000Z-01234567",
+                    "--check",
+                ],
+            )
+
+            self.assertTrue(payload["ok"])
+            self.assertTrue(payload["check"])
+            self.assertTrue(payload["verification_ready"])
+            self.assertFalse(payload["writes_state"])
+            self.assertFalse(payload["executed"])
+            self.assertFalse(marker.exists())
+            self.assertEqual("task-tests", payload["command_contract"]["name"])
+            self.assertEqual(
+                ["docs/development/04-implementation-evidence.md", "docs/development/03-verification-log.md", "docs/development/02-task-board.md", "docs/development/README.md"],
+                payload["would_write"],
+            )
+            self.assertIn("--run-id", payload["execute_command"]["argv"])
+
+    def test_implementation_verify_executes_and_records_passing_evidence_atomically(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp)
+            _append_project_command(
+                target,
+                name="task-tests",
+                argv=["python3", "-c", "print('verification passed')"],
+            )
+            _run_governance_json(
+                self,
+                ["implementation", "start", str(target), "--task", "TASK-001", "--apply"],
+            )
+
+            payload = _run_governance_json(
+                self,
+                [
+                    "implementation",
+                    "verify",
+                    str(target),
+                    "--task",
+                    "TASK-001",
+                    "--command",
+                    "task-tests",
+                    "--run-id",
+                    "VR-20260713T120000000000Z-01234567",
+                ],
+            )
+
+            self.assertTrue(payload["ok"])
+            self.assertTrue(payload["executed"])
+            self.assertTrue(payload["evidence_recorded"])
+            self.assertTrue(payload["command_passed"])
+            self.assertEqual(0, payload["execution_result"]["returncode"])
+            self.assertEqual("pass", payload["execution_result"]["result"])
+            self.assertEqual(
+                [
+                    "docs/development/04-implementation-evidence.md",
+                    "docs/development/03-verification-log.md",
+                    "docs/development/02-task-board.md",
+                    "docs/development/README.md",
+                ],
+                payload["updated_paths"],
+            )
+            evidence = (target / "docs/development/04-implementation-evidence.md").read_text(encoding="utf-8")
+            verification_log = (target / "docs/development/03-verification-log.md").read_text(encoding="utf-8")
+            task_board = (target / "docs/development/02-task-board.md").read_text(encoding="utf-8")
+            self.assertIn("## VR-20260713T120000000000Z-01234567", evidence)
+            self.assertIn("verification passed", evidence)
+            execution_date = str(payload["execution_result"]["started_at"])[:10]
+            self.assertIn(f"| TASK-001 | task-tests | pass | {execution_date} |", verification_log)
+            self.assertIn("[task-tests evidence](04-implementation-evidence.md#vr-20260713t120000000000z-01234567)", task_board)
+            self.assertTrue(_run_governance_json(self, ["verify", str(target), "--check"])["ok"])
+            closeout = _run_governance_json(
+                self,
+                ["implementation", "closeout", str(target), "--task", "TASK-001"],
+            )
+            self.assertTrue(closeout["closeout_ready"])
+            self.assertTrue(closeout["evidence_summary"]["all_verification_results_passing"])
+
+    def test_implementation_verify_records_failure_and_closeout_remains_blocked(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp)
+            _append_project_command(
+                target,
+                name="task-tests",
+                argv=["python3", "-c", "print('verification failed'); raise SystemExit(3)"],
+            )
+            _run_governance_json(
+                self,
+                ["implementation", "start", str(target), "--task", "TASK-001", "--apply"],
+            )
+
+            payload = _run_governance_json(
+                self,
+                [
+                    "implementation",
+                    "verify",
+                    str(target),
+                    "--task",
+                    "TASK-001",
+                    "--command",
+                    "task-tests",
+                    "--run-id",
+                    "VR-20260713T120000000000Z-89abcdef",
+                ],
+                expected_returncode=1,
+            )
+
+            self.assertFalse(payload["ok"])
+            self.assertTrue(payload["evidence_recorded"])
+            self.assertFalse(payload["command_passed"])
+            self.assertEqual(3, payload["execution_result"]["returncode"])
+            self.assertIn("verification failed", (target / "docs/development/04-implementation-evidence.md").read_text(encoding="utf-8"))
+            closeout = _run_governance_json(
+                self,
+                ["implementation", "closeout", str(target), "--task", "TASK-001"],
+            )
+            requirements = {item["code"]: item for item in closeout["requirements"]}
+            self.assertFalse(closeout["closeout_ready"])
+            self.assertEqual("missing", requirements["verification_results_all_passing"]["status"])
+
+    def test_implementation_verify_rerun_replaces_current_summary_but_preserves_history(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp)
+            _append_project_command(
+                target,
+                name="task-tests",
+                argv=[
+                    "python3",
+                    "-c",
+                    "from pathlib import Path; raise SystemExit(0 if Path('verification-ready').is_file() else 2)",
+                ],
+            )
+            _run_governance_json(
+                self,
+                ["implementation", "start", str(target), "--task", "TASK-001", "--apply"],
+            )
+            _run_governance_json(
+                self,
+                [
+                    "implementation",
+                    "verify",
+                    str(target),
+                    "--task",
+                    "TASK-001",
+                    "--command",
+                    "task-tests",
+                    "--run-id",
+                    "VR-20260713T120000000000Z-11111111",
+                ],
+                expected_returncode=1,
+            )
+            (target / "verification-ready").write_text("ready\n", encoding="utf-8")
+
+            second = _run_governance_json(
+                self,
+                [
+                    "implementation",
+                    "verify",
+                    str(target),
+                    "--task",
+                    "TASK-001",
+                    "--command",
+                    "task-tests",
+                    "--run-id",
+                    "VR-20260713T120100000000Z-22222222",
+                ],
+            )
+
+            self.assertTrue(second["command_passed"])
+            log = (target / "docs/development/03-verification-log.md").read_text(encoding="utf-8")
+            evidence = (target / "docs/development/04-implementation-evidence.md").read_text(encoding="utf-8")
+            self.assertEqual(1, len(re.findall(r"^\| TASK-001 \| task-tests \|", log, flags=re.MULTILINE)))
+            self.assertIn("| TASK-001 | task-tests | pass |", log)
+            self.assertIn("## VR-20260713T120000000000Z-11111111", evidence)
+            self.assertIn("## VR-20260713T120100000000Z-22222222", evidence)
+            closeout = _run_governance_json(
+                self,
+                ["implementation", "closeout", str(target), "--task", "TASK-001"],
+            )
+            self.assertTrue(closeout["closeout_ready"])
+
+    def test_implementation_verify_refuses_approval_required_contract_without_execution(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp)
+            marker = target / "approval-command-ran"
+            _append_project_command(
+                target,
+                name="external-check",
+                argv=["python3", "-c", f"from pathlib import Path; Path({str(marker)!r}).write_text('ran')"],
+                approval_required=True,
+            )
+            _run_governance_json(
+                self,
+                ["implementation", "start", str(target), "--task", "TASK-001", "--apply"],
+            )
+
+            payload = _run_governance_json(
+                self,
+                [
+                    "implementation",
+                    "verify",
+                    str(target),
+                    "--task",
+                    "TASK-001",
+                    "--command",
+                    "external-check",
+                    "--run-id",
+                    "VR-20260713T120000000000Z-aabbccdd",
+                ],
+                expected_returncode=1,
+            )
+
+            self.assertFalse(payload["ok"])
+            self.assertFalse(payload["executed"])
+            self.assertFalse(marker.exists())
+            blocker_codes = {item["code"] for item in payload["blocking_requirements"]}
+            self.assertIn("command_approval_not_allowed", blocker_codes)
+
+    def test_implementation_verify_requires_write_opt_in_for_state_writing_command(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp)
+            marker = target / "state-writing-command-ran"
+            _append_project_command(
+                target,
+                name="generate-artifact",
+                argv=["python3", "-c", f"from pathlib import Path; Path({str(marker)!r}).write_text('ran')"],
+                writes_state=True,
+            )
+            _run_governance_json(
+                self,
+                ["implementation", "start", str(target), "--task", "TASK-001", "--apply"],
+            )
+
+            blocked = _run_governance_json(
+                self,
+                [
+                    "implementation",
+                    "verify",
+                    str(target),
+                    "--task",
+                    "TASK-001",
+                    "--command",
+                    "generate-artifact",
+                    "--run-id",
+                    "VR-20260713T120000000000Z-bbccddee",
+                ],
+                expected_returncode=1,
+            )
+
+            self.assertFalse(blocked["executed"])
+            self.assertFalse(marker.exists())
+            blocker_codes = {item["code"] for item in blocked["blocking_requirements"]}
+            self.assertIn("command_writes_state_requires_opt_in", blocker_codes)
+
+            allowed = _run_governance_json(
+                self,
+                [
+                    "implementation",
+                    "verify",
+                    str(target),
+                    "--task",
+                    "TASK-001",
+                    "--command",
+                    "generate-artifact",
+                    "--run-id",
+                    "VR-20260713T120100000000Z-ccddeeff",
+                    "--allow-writes",
+                ],
+            )
+
+            self.assertTrue(allowed["command_passed"])
+            self.assertTrue(marker.is_file())
+
+    def test_implementation_verify_times_out_and_records_bounded_failure_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp)
+            _append_project_command(
+                target,
+                name="slow-tests",
+                argv=[
+                    "python3",
+                    "-c",
+                    "import time; print('before timeout', flush=True); time.sleep(5)",
+                ],
+            )
+            _run_governance_json(
+                self,
+                ["implementation", "start", str(target), "--task", "TASK-001", "--apply"],
+            )
+
+            payload = _run_governance_json(
+                self,
+                [
+                    "implementation",
+                    "verify",
+                    str(target),
+                    "--task",
+                    "TASK-001",
+                    "--command",
+                    "slow-tests",
+                    "--run-id",
+                    "VR-20260713T120000000000Z-ddeeff00",
+                    "--timeout-seconds",
+                    "0.1",
+                ],
+                expected_returncode=1,
+            )
+
+            self.assertTrue(payload["executed"])
+            self.assertTrue(payload["evidence_recorded"])
+            self.assertFalse(payload["command_passed"])
+            self.assertTrue(payload["execution_result"]["timed_out"])
+            self.assertIn(
+                "before timeout",
+                (target / "docs/development/04-implementation-evidence.md").read_text(encoding="utf-8"),
+            )
+
+    def test_implementation_verify_truncates_captured_output_at_configured_limit(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp)
+            _append_project_command(
+                target,
+                name="verbose-tests",
+                argv=["python3", "-c", "print('x' * 4096)"],
+            )
+            _run_governance_json(
+                self,
+                ["implementation", "start", str(target), "--task", "TASK-001", "--apply"],
+            )
+
+            payload = _run_governance_json(
+                self,
+                [
+                    "implementation",
+                    "verify",
+                    str(target),
+                    "--task",
+                    "TASK-001",
+                    "--command",
+                    "verbose-tests",
+                    "--run-id",
+                    "VR-20260713T120000000000Z-eeff0011",
+                    "--max-output-bytes",
+                    "128",
+                ],
+            )
+
+            self.assertTrue(payload["command_passed"])
+            self.assertTrue(payload["execution_result"]["stdout_truncated"])
+            self.assertLessEqual(len(payload["execution_result"]["stdout"].encode("utf-8")), 128)
+
+    def test_implementation_verify_keeps_replacement_text_within_byte_limit(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp)
+            _append_project_command(
+                target,
+                name="binary-output-tests",
+                argv=["python3", "-c", "import os; os.write(1, b'\\xff' * 256)"],
+            )
+            _run_governance_json(
+                self,
+                ["implementation", "start", str(target), "--task", "TASK-001", "--apply"],
+            )
+
+            payload = _run_governance_json(
+                self,
+                [
+                    "implementation",
+                    "verify",
+                    str(target),
+                    "--task",
+                    "TASK-001",
+                    "--command",
+                    "binary-output-tests",
+                    "--run-id",
+                    "VR-20260714T120000000000Z-ff001122",
+                    "--max-output-bytes",
+                    "32",
+                ],
+            )
+
+            self.assertTrue(payload["execution_result"]["stdout_truncated"])
+            self.assertLessEqual(len(payload["execution_result"]["stdout"].encode("utf-8")), 32)
+
+    def test_implementation_verify_redacts_common_secret_output_before_recording(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp)
+            _append_project_command(
+                target,
+                name="secret-safe-tests",
+                argv=[
+                    "python3",
+                    "-c",
+                    "import os; print('API_TOKEN=' + os.environ['IMPLEMENTATION_VERIFY_TEST_TOKEN'])",
+                ],
+            )
+            _run_governance_json(
+                self,
+                ["implementation", "start", str(target), "--task", "TASK-001", "--apply"],
+            )
+
+            with mock.patch.dict(os.environ, {"IMPLEMENTATION_VERIFY_TEST_TOKEN": "super-secret-value"}):
+                payload = _run_governance_json(
+                    self,
+                    [
+                        "implementation",
+                        "verify",
+                        str(target),
+                        "--task",
+                        "TASK-001",
+                        "--command",
+                        "secret-safe-tests",
+                        "--run-id",
+                        "VR-20260714T120000000000Z-00112233",
+                    ],
+                )
+
+            evidence = (target / "docs/development/04-implementation-evidence.md").read_text(encoding="utf-8")
+            self.assertNotIn("super-secret-value", payload["execution_result"]["stdout"])
+            self.assertNotIn("super-secret-value", evidence)
+            self.assertIn("[REDACTED]", evidence)
+            self.assertTrue(payload["execution_result"]["output_redacted"])
+            self.assertGreater(payload["execution_result"]["stdout_redaction_count"], 0)
+
+    @unittest.skipUnless(os.name == "posix", "implementation verification lock uses POSIX advisory locking")
+    def test_implementation_verify_refuses_execution_while_evidence_lock_is_held(self) -> None:
+        import fcntl
+
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp)
+            marker = target / "locked-command-ran"
+            _append_project_command(
+                target,
+                name="locked-tests",
+                argv=["python3", "-c", f"from pathlib import Path; Path({str(marker)!r}).write_text('ran')"],
+            )
+            _run_governance_json(
+                self,
+                ["implementation", "start", str(target), "--task", "TASK-001", "--apply"],
+            )
+            lock_path = target / ".governance/implementation-verify.lock"
+            with lock_path.open("a+b") as lock:
+                fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                payload = _run_governance_json(
+                    self,
+                    [
+                        "implementation",
+                        "verify",
+                        str(target),
+                        "--task",
+                        "TASK-001",
+                        "--command",
+                        "locked-tests",
+                        "--run-id",
+                        "VR-20260714T120000000000Z-11223344",
+                    ],
+                    expected_returncode=1,
+                )
+
+            self.assertFalse(payload["executed"])
+            self.assertFalse(marker.exists())
+            blocker_codes = {item["code"] for item in payload["blocking_requirements"]}
+            self.assertIn("implementation_verify_lock_unavailable", blocker_codes)
+
+    def test_implementation_closeout_requires_every_current_verification_command_to_pass(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp)
+            (target / "docs/development/02-task-board.md").write_text(
+                _task_board_doc(
+                    "| TASK-001 | In Progress | Implement goal flow | docs/product/01-goals.md | "
+                    "docs/architecture/01-system-context.md | docs/api/00-conventions.md | "
+                    "docs/product/08-acceptance-criteria.md | docs/development/03-verification-log.md |\n"
+                ),
+                encoding="utf-8",
+            )
+            (target / "docs/development/01-roadmap.md").write_text(
+                _roadmap_doc().replace("| TASK-001 | Ready |", "| TASK-001 | In Progress |"),
+                encoding="utf-8",
+            )
+            (target / "docs/development/03-verification-log.md").write_text(
+                _verification_log_doc(
+                    "| TASK-001 | unit-tests | pass | 2026-07-13 | unit evidence |\n"
+                    "| TASK-001 | integration-tests | fail | 2026-07-13 | integration evidence |\n"
+                ),
+                encoding="utf-8",
+            )
+
+            payload = _run_governance_json(
+                self,
+                ["implementation", "closeout", str(target), "--task", "TASK-001"],
+            )
+
+            requirements = {item["code"]: item for item in payload["requirements"]}
+            self.assertFalse(payload["closeout_ready"])
+            self.assertEqual("missing", requirements["verification_results_all_passing"]["status"])
+            self.assertFalse(payload["evidence_summary"]["all_verification_results_passing"])
+            plan = _run_governance_json(self, ["implementation", "plan", str(target)])
+            task = next(item for item in plan["tasks"] if item["task_id"] == "TASK-001")
+            self.assertTrue(task["passing_verification_logged"])
+            self.assertFalse(task["all_verification_results_passing"])
 
     def test_implementation_closeout_reports_done_status_sync_plan_with_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

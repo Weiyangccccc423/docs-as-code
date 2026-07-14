@@ -39,6 +39,9 @@ class PackStructureTest(unittest.TestCase):
     def test_migration_review_runtime_is_required_in_generated_targets(self) -> None:
         self.assertIn(Path("scripts/migration_review_evidence.py"), RUNTIME_REQUIRED_PATHS)
 
+    def test_implementation_verify_runtime_is_required_in_generated_targets(self) -> None:
+        self.assertIn(Path("scripts/implementation_verify.py"), RUNTIME_REQUIRED_PATHS)
+
     def test_target_local_command_contracts_stay_aligned(self) -> None:
         expected_targets = tuple(target for target, _recipe, _description, _writes_state in TARGET_LOCAL_COMMANDS)
         expected_recipes = {
@@ -5582,6 +5585,87 @@ class PackStructureTest(unittest.TestCase):
                     and finding.path == "scripts/governance_cli.py"
                     and "runtime" in finding.message
                     and "refresh" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_missing_implementation_verify_subcommand(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/governance_cli.py"
+            original = 'implementation_verify = implementation_sub.add_parser(\n        "verify",'
+            replacement = 'implementation_verify = implementation_sub.add_parser(\n        "run-check",'
+            text = script.read_text(encoding="utf-8")
+            self.assertIn(original, text)
+            script.write_text(text.replace(original, replacement, 1), encoding="utf-8")
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_governance_cli_subcommand_missing"
+                    and finding.path == "scripts/governance_cli.py"
+                    and "implementation" in finding.message
+                    and "verify" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_incomplete_implementation_verify_source_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/implementation_verify.py"
+            text = script.read_text(encoding="utf-8")
+            self.assertIn("shell=False", text)
+            script.write_text(text.replace("shell=False", "shell=0", 1), encoding="utf-8")
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_implementation_verify_source_incomplete"
+                    and finding.path == "scripts/implementation_verify.py"
+                    and "shell=False" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_missing_implementation_verify_doc_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            workflow = target / "workflows/06-implementation-execution.md"
+            text = workflow.read_text(encoding="utf-8")
+            self.assertIn("evidence_summary.all_verification_results_passing", text)
+            workflow.write_text(
+                text.replace("evidence_summary.all_verification_results_passing", "evidence_summary", 1),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_implementation_verify_doc_missing"
+                    and finding.path == "workflows/06-implementation-execution.md"
+                    and "evidence_summary.all_verification_results_passing" in finding.message
                     for finding in report.findings
                 )
             )

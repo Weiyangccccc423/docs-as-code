@@ -62,6 +62,7 @@ from implementation_plan import (
     build_implementation_plan,
     build_implementation_start,
 )
+from implementation_verify import build_implementation_verify, run_implementation_verify
 from reliability_review_evidence import (
     check_reliability_review_evidence,
     record_reliability_review_evidence,
@@ -1360,6 +1361,35 @@ def _cmd_implementation_closeout(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_implementation_verify(args: argparse.Namespace) -> int:
+    target = Path(args.target)
+    kwargs = {
+        "run_id": args.run_id,
+        "allow_writes": args.allow_writes,
+        "timeout_seconds": args.timeout_seconds,
+        "max_output_bytes": args.max_output_bytes,
+    }
+    payload = (
+        build_implementation_verify(target, args.task, args.command, check=True, **kwargs)
+        if args.check
+        else run_implementation_verify(target, args.task, args.command, **kwargs)
+    )
+    if args.json:
+        _print_json(payload)
+    elif payload.get("ok") is not True:
+        print("Implementation verification failed:")
+        for requirement in payload.get("blocking_requirements", []):
+            print(f"- {requirement.get('code')}: {requirement.get('message')}")
+        for error in payload.get("errors", []):
+            print(f"- {error}")
+    else:
+        print(f"Implementation verification: {payload['task_id']} / {payload['command_name']}")
+        print(f"- check: {str(payload['check']).lower()}")
+        print(f"- command_passed: {str(payload['command_passed']).lower()}")
+        print(f"- evidence_recorded: {str(payload['evidence_recorded']).lower()}")
+    return 0 if payload.get("ok") is True else 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="docs-as-code governance workflow CLI")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -1737,6 +1767,42 @@ def build_parser() -> argparse.ArgumentParser:
     )
     implementation_start.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     implementation_start.set_defaults(func=_cmd_implementation_start)
+    implementation_verify = implementation_sub.add_parser(
+        "verify",
+        help="Execute one registered task command and atomically record its actual result.",
+    )
+    implementation_verify.add_argument("target", nargs="?", default=".")
+    implementation_verify.add_argument("--task", required=True, help="In Progress TASK-NNN task ID to verify.")
+    implementation_verify.add_argument(
+        "--command",
+        required=True,
+        help="Exact Name from docs/agent-workflow/command-contract.md.",
+    )
+    implementation_verify.add_argument("--run-id", default="", help="Optional stable verification run ID.")
+    implementation_verify.add_argument(
+        "--check",
+        action="store_true",
+        help="Preview the exact registered command and evidence writes without execution.",
+    )
+    implementation_verify.add_argument(
+        "--allow-writes",
+        action="store_true",
+        help="Allow execution when the command contract marks Writes State as true.",
+    )
+    implementation_verify.add_argument(
+        "--timeout-seconds",
+        type=float,
+        default=300.0,
+        help="Kill the command when this execution timeout is reached (default: 300).",
+    )
+    implementation_verify.add_argument(
+        "--max-output-bytes",
+        type=int,
+        default=65536,
+        help="Maximum captured bytes per stdout/stderr stream (default: 65536).",
+    )
+    implementation_verify.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    implementation_verify.set_defaults(func=_cmd_implementation_verify)
     implementation_closeout = implementation_sub.add_parser(
         "closeout",
         help="Check whether one implementation task has enough evidence to mark Done.",

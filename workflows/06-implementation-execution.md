@@ -65,7 +65,16 @@ Load:
    - update generated clients, schemas, migrations, fixtures, snapshots, or lockfiles only when task scope and repository tooling require them
    - register missing or conflicting requirements in `docs/unresolved.md` instead of guessing
 
-9. Run the exact task verification commands. Prefer target-local `local_commands[].argv`, `docs/agent-workflow/command-contract.md` `Argv` rows, and task-board or handoff commands over reconstructed shell strings. Treat command-contract rows with `Approval Required` set to `true` as stop-and-ask actions until the task explicitly authorizes them. Record unavailable, flaky, skipped, failed, and passing checks in `docs/development/03-verification-log.md`.
+9. Register each project verification command in `docs/agent-workflow/command-contract.md`, then execute it through the target-local evidence runner:
+
+   ```bash
+   bin/governance implementation verify <target> --task TASK-NNN --command command-name --check --json
+   bin/governance implementation verify <target> --task TASK-NNN --command command-name --json
+   ```
+
+   The runner reads the exact structured `Argv` and `Cwd`; it never reconstructs a shell string. The task must be `In Progress`. `--check` performs no execution and no writes. Rows marked `Approval Required: true` are refused; execute those only through an explicitly authorized external path and record the result honestly. Rows marked `Writes State: true` also require `--allow-writes`. Use `--timeout-seconds` and `--max-output-bytes` when project checks need bounds different from the defaults.
+
+   Every execution derives pass/fail from the process return code, serializes evidence writers with a repository-local lock, applies best-effort redaction to common credential output, and atomically updates `docs/development/04-implementation-evidence.md`, `03-verification-log.md`, `02-task-board.md`, and the development README index. The evidence ledger preserves every run. The current verification log has one summary row per `(Task, Command)`, so rerunning the same command replaces only its summary row. Redaction is not a substitute for keeping secrets out of command arguments and output.
 
 10. Re-run governance verification and refresh the implementation plan when docs, task status, or handoff evidence changes:
 
@@ -76,7 +85,7 @@ Load:
    bin/governance implementation closeout <target> --task TASK-NNN --apply --json
    ```
 
-11. Before marking `Done`, run `implementation closeout --task TASK-NNN --json`. Its `decision_policy` is `do_not_mark_done_without_passing_evidence`; inspect `closeout_ready`, `requirements[]`, `blocking_requirements[]`, `evidence_summary`, and `status_update_plan`. Do not mark `Done` unless `closeout_ready` is `true`. When `status_update_plan.can_auto_apply` is true, run the returned `status_update_plan.apply_command.argv` or `implementation closeout --task TASK-NNN --apply --json` so the CLI updates `docs/development/02-task-board.md` and `docs/development/01-roadmap.md` together.
+11. Before marking `Done`, run `implementation closeout --task TASK-NNN --json`. Its `decision_policy` is `do_not_mark_done_without_passing_evidence`; inspect `closeout_ready`, `requirements[]`, `blocking_requirements[]`, `evidence_summary.all_verification_results_passing`, and `status_update_plan`. Do not mark `Done` unless every current verification command for the task passes. When `status_update_plan.can_auto_apply` is true, run the returned `status_update_plan.apply_command.argv` or `implementation closeout --task TASK-NNN --apply --json` so the CLI updates `docs/development/02-task-board.md` and `docs/development/01-roadmap.md` together.
 
 12. Keep `docs/development/02-task-board.md` and `docs/development/01-roadmap.md` statuses synchronized:
    - `In Progress` only through `implementation start --apply` when one Ready task is claimed or resumed
@@ -91,6 +100,7 @@ Load:
 - Scoped code and test changes for one `TASK-NNN`
 - Synchronized product-derived docs when implementation changes documented behavior
 - Updated `docs/development/03-verification-log.md`
+- Append-only `docs/development/04-implementation-evidence.md`
 - Synchronized roadmap and task-board statuses
 - Explicit unresolved, blocked, or deferred follow-ups when the task cannot be completed
 
@@ -99,7 +109,8 @@ Load:
 Implementation execution is complete when:
 
 - `bin/governance verify <target> --check --json` reports `ok: true`
-- task-specific verification commands have been run or honestly recorded as unavailable
+- task-specific verification commands have been run through `implementation verify` or honestly recorded as unavailable
+- every current `(Task, Command)` summary result is passing before closeout
 - project-specific verification commands are documented in `docs/agent-workflow/command-contract.md` before agents rely on them
 - `docs/development/03-verification-log.md` contains matching `TASK-NNN` evidence
 - any `Done` task links local Markdown evidence from its task-board `Verification` field
@@ -113,4 +124,5 @@ Implementation execution is complete when:
 - The task requires behavior that is not present in local Markdown sources.
 - The required project command is not documented in `docs/agent-workflow/command-contract.md`.
 - A command-contract row with `Approval Required` set to `true` needs approval that has not been granted.
+- A state-writing command has not received explicit `--allow-writes` authorization.
 - Verification fails and no blocker or follow-up is recorded.

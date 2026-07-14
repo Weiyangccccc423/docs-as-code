@@ -37,8 +37,8 @@ Read `references/implementation-readiness-checklist.md` before marking tasks `Re
 8. Create matching `TASK-NNN` rows in `docs/development/02-task-board.md` with `Product`, `Design`, `API`, `Acceptance`, and `Verification` fields.
 9. Mark a task `Ready` only when its Product, Design, API, Acceptance, and Verification cells link existing local Markdown sources, its `A-NNN` ID is mapped in `docs/tests/02-acceptance-matrix.md`, and its Ready contract satisfies `references/implementation-readiness-checklist.md`.
 10. Keep task board statuses synchronized with roadmap milestone statuses.
-11. Initialize `docs/development/03-verification-log.md` as the stable target for Done evidence; add matching `TASK-NNN` rows when tasks are completed.
-12. Accept `Done` only when verification evidence is recorded, documentation is synchronized, and the task satisfies the Definition of Done in `references/implementation-readiness-checklist.md` plus the execution rubric in `references/implementation-execution-checklist.md`.
+11. Initialize `docs/development/03-verification-log.md` as the current summary keyed by `(Task, Command)`. Reserve `docs/development/04-implementation-evidence.md` for the append-only ledger created by `implementation verify`.
+12. Accept `Done` only when every current verification command passes, local evidence is linked, documentation is synchronized, and the task satisfies the Definition of Done in `references/implementation-readiness-checklist.md` plus the execution rubric in `references/implementation-execution-checklist.md`.
 13. Register blockers in `docs/unresolved.md` instead of marking speculative tasks Ready.
 
 ## Stop Conditions

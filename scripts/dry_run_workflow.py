@@ -57,6 +57,8 @@ AUTHORING_COMMANDS = [
 ]
 ACCEPTANCE_ID_HEADING_RE = re.compile(r"^##[ \t]+(?P<id>A-[0-9]{3})\b", re.MULTILINE)
 IMPLEMENTATION_TASK_ID = "TASK-001"
+IMPLEMENTATION_VERIFICATION_COMMAND = "dry-run-task-tests"
+IMPLEMENTATION_VERIFICATION_RUN_ID = "VR-20260713T120000000000Z-01234567"
 DESIGN_REVIEW_REL = "docs/decisions/design-reviews.json"
 OPTIONAL_PRODUCT_CHAPTERS = {
     "background-and-problems",
@@ -1109,7 +1111,53 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         payload=closeout_without_evidence,
     )
 
-    _write_minimal_closeout_evidence(target, acceptance_ids[0])
+    implementation_verification_preview = _run_json(
+        steps,
+        "implementation_verification_preview",
+        [
+            "bin/governance",
+            "implementation",
+            "verify",
+            ".",
+            "--task",
+            IMPLEMENTATION_TASK_ID,
+            "--command",
+            IMPLEMENTATION_VERIFICATION_COMMAND,
+            "--run-id",
+            IMPLEMENTATION_VERIFICATION_RUN_ID,
+            "--check",
+            "--json",
+        ],
+        target,
+    )
+    _require(
+        _implementation_verification_preview_ready(implementation_verification_preview),
+        "implementation verification preflight did not expose an exact no-write command plan",
+        payload=implementation_verification_preview,
+    )
+    implementation_verification_execute = _run_json(
+        steps,
+        "implementation_verification_execute",
+        [
+            "bin/governance",
+            "implementation",
+            "verify",
+            ".",
+            "--task",
+            IMPLEMENTATION_TASK_ID,
+            "--command",
+            IMPLEMENTATION_VERIFICATION_COMMAND,
+            "--run-id",
+            IMPLEMENTATION_VERIFICATION_RUN_ID,
+            "--json",
+        ],
+        target,
+    )
+    _require(
+        _implementation_verification_completed(implementation_verification_execute),
+        "implementation verification did not execute and atomically record passing evidence",
+        payload=implementation_verification_execute,
+    )
     closeout_with_evidence = _run_json(
         steps,
         "implementation_closeout_with_evidence",
@@ -1348,6 +1396,22 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
                 for path in implementation_start_apply.get("updated_paths", [])
             ],
         },
+        "implementation_verification": {
+            "ok": _implementation_verification_completed(implementation_verification_execute)
+            and closeout_with_evidence.get("evidence_summary", {}).get("all_verification_results_passing") is True,
+            "task_id": IMPLEMENTATION_TASK_ID,
+            "command": IMPLEMENTATION_VERIFICATION_COMMAND,
+            "run_id": IMPLEMENTATION_VERIFICATION_RUN_ID,
+            "preview_ready": implementation_verification_preview.get("verification_ready") is True,
+            "executed": implementation_verification_execute.get("executed") is True,
+            "evidence_recorded": implementation_verification_execute.get("evidence_recorded") is True,
+            "command_passed": implementation_verification_execute.get("command_passed") is True,
+            "all_current_results_passing": closeout_with_evidence.get("evidence_summary", {}).get(
+                "all_verification_results_passing"
+            )
+            is True,
+            "updated_paths": list(implementation_verification_execute.get("updated_paths", [])),
+        },
         "implementation_closeout": {
             "task_id": IMPLEMENTATION_TASK_ID,
             "blocked_without_evidence": closeout_without_evidence.get("closeout_ready") is False,
@@ -1382,6 +1446,7 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
                 for path in (
                     "bin/governance",
                     "scripts/governance_cli.py",
+                    "scripts/implementation_verify.py",
                     "scripts/api_review_evidence.py",
                     "scripts/threat_review_evidence.py",
                     "scripts/reliability_review_evidence.py",
@@ -1422,19 +1487,19 @@ def _write_minimal_implementation_ready_docs(target: Path, acceptance_ids: list[
     }
     for rel, text in documents.items():
         (target / rel).write_text(text, encoding="utf-8")
+    _register_implementation_verification_command(target)
 
 
-def _write_minimal_closeout_evidence(target: Path, acceptance_id: str) -> None:
-    (target / "docs/development/02-task-board.md").write_text(
-        _task_board_doc(acceptance_id, status="In Progress", verification="docs/development/03-verification-log.md"),
-        encoding="utf-8",
+def _register_implementation_verification_command(target: Path) -> None:
+    path = target / "docs/agent-workflow/command-contract.md"
+    text = path.read_text(encoding="utf-8")
+    argv = ["python3", "-c", "print('dry-run implementation verification passed')"]
+    row = (
+        f"| {IMPLEMENTATION_VERIFICATION_COMMAND} | Verify the dry-run implementation task. | `.` | "
+        f"`{json.dumps(argv)}` | false | false | "
+        "`docs/development/04-implementation-evidence.md` | Python standard library |\n"
     )
-    (target / "docs/development/03-verification-log.md").write_text(
-        _verification_log_doc(
-            f"| {IMPLEMENTATION_TASK_ID} | make test | pass | 2026-07-08 | Local dry-run verification evidence. |\n"
-        ),
-        encoding="utf-8",
-    )
+    path.write_text(text.replace("\n## Project Commands", f"\n{row}\n## Project Commands", 1), encoding="utf-8")
 
 
 def _architecture_system_context_doc() -> str:
@@ -3014,6 +3079,45 @@ def _implementation_plan_is_in_progress(payload: dict[str, object]) -> bool:
     return active_work.get("task_id") == IMPLEMENTATION_TASK_ID and active_work.get("status") == "in_progress"
 
 
+def _implementation_verification_preview_ready(payload: dict[str, object]) -> bool:
+    return (
+        payload.get("ok") is True
+        and payload.get("check") is True
+        and payload.get("verification_ready") is True
+        and payload.get("writes_state") is False
+        and payload.get("executed") is False
+        and payload.get("evidence_recorded") is False
+        and payload.get("command_contract", {}).get("name") == IMPLEMENTATION_VERIFICATION_COMMAND
+        and payload.get("would_write")
+        == [
+            "docs/development/04-implementation-evidence.md",
+            "docs/development/03-verification-log.md",
+            "docs/development/02-task-board.md",
+            "docs/development/README.md",
+        ]
+    )
+
+
+def _implementation_verification_completed(payload: dict[str, object]) -> bool:
+    execution = payload.get("execution_result")
+    return (
+        payload.get("ok") is True
+        and payload.get("executed") is True
+        and payload.get("evidence_recorded") is True
+        and payload.get("command_passed") is True
+        and isinstance(execution, dict)
+        and execution.get("returncode") == 0
+        and execution.get("result") == "pass"
+        and payload.get("updated_paths")
+        == [
+            "docs/development/04-implementation-evidence.md",
+            "docs/development/03-verification-log.md",
+            "docs/development/02-task-board.md",
+            "docs/development/README.md",
+        ]
+    )
+
+
 def _closeout_blocks_without_evidence(payload: dict[str, object]) -> bool:
     if payload.get("ok") is not True:
         return False
@@ -3029,6 +3133,7 @@ def _closeout_blocks_without_evidence(payload: dict[str, object]) -> bool:
     required_codes = {
         "verification_log_row_present",
         "verification_result_passing",
+        "verification_results_all_passing",
         "task_verification_links_local_evidence",
     }
     if not required_codes.issubset(blocking_codes):
@@ -3056,6 +3161,8 @@ def _closeout_ready_with_evidence(payload: dict[str, object]) -> bool:
     if evidence.get("verification_logged") is not True:
         return False
     if evidence.get("passing_verification_logged") is not True:
+        return False
+    if evidence.get("all_verification_results_passing") is not True:
         return False
     if evidence.get("verification_links_local_evidence") is not True:
         return False

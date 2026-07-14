@@ -106,7 +106,15 @@ def build_implementation_plan(root: Path) -> dict[str, object]:
     matrix_ids = _acceptance_matrix_mapped_acceptance_ids(root)
     verification_task_ids = _verification_log_task_ids(root)
     passing_verification_task_ids = _verification_log_passing_task_ids(root)
-    tasks = _implementation_tasks(root, rows, matrix_ids, verification_task_ids, passing_verification_task_ids)
+    all_passing_verification_task_ids = _verification_log_all_passing_task_ids(root)
+    tasks = _implementation_tasks(
+        root,
+        rows,
+        matrix_ids,
+        verification_task_ids,
+        passing_verification_task_ids,
+        all_passing_verification_task_ids,
+    )
     gate = evaluate_gate(root, IMPLEMENTATION_PHASE).to_dict() if state else {}
     specialist_skills = _implementation_specialist_skills(tasks)
     active_work = _active_implementation_work(root, tasks, gate)
@@ -506,6 +514,29 @@ def _verification_log_passing_task_ids(root: Path) -> set[str] | None:
     return {row.get("task", "").strip() for row in rows if _verification_row_passed(row)}
 
 
+def _verification_log_all_passing_task_ids(root: Path) -> set[str] | None:
+    path = root / VERIFICATION_LOG_REL
+    if not path.is_file():
+        return None
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
+    rows, missing = _verification_log_rows(text)
+    if missing:
+        return None
+    rows_by_task: dict[str, list[dict[str, str]]] = {}
+    for row in rows:
+        task_id = row.get("task", "").strip()
+        if task_id:
+            rows_by_task.setdefault(task_id, []).append(row)
+    return {
+        task_id
+        for task_id, task_rows in rows_by_task.items()
+        if task_rows and all(_verification_row_passed(row) for row in task_rows)
+    }
+
+
 def _roadmap_row_for_task(root: Path, task_id: str) -> dict[str, str] | None:
     path = root / ROADMAP_REL
     if not path.is_file():
@@ -602,6 +633,17 @@ def _closeout_requirements(
                 path=VERIFICATION_LOG_REL.as_posix(),
                 detail=", ".join(row.get("result", "").strip() for row in verification_rows),
                 repair_strategy="run_required_task_checks_and_record_passing_result",
+            ),
+            _closeout_requirement(
+                "verification_results_all_passing",
+                bool(verification_rows) and all(_verification_row_passed(row) for row in verification_rows),
+                "every current task verification command result must be passing",
+                path=VERIFICATION_LOG_REL.as_posix(),
+                detail=", ".join(
+                    f"{row.get('command', '').strip()}={row.get('result', '').strip()}"
+                    for row in verification_rows
+                ),
+                repair_strategy="rerun_each_failing_task_command_and_record_current_passing_results",
             ),
             _closeout_requirement(
                 "task_verification_links_local_evidence",
@@ -777,6 +819,8 @@ def _closeout_evidence_summary(
         "roadmap_status": roadmap_row.get("status", "").strip() if roadmap_row is not None else "",
         "verification_logged": bool(verification_rows),
         "passing_verification_logged": any(_verification_row_passed(item) for item in verification_rows),
+        "all_verification_results_passing": bool(verification_rows)
+        and all(_verification_row_passed(item) for item in verification_rows),
         "verification_results": [
             {
                 "command": item.get("command", "").strip(),
@@ -998,6 +1042,7 @@ def _implementation_tasks(
     matrix_ids: set[str] | None,
     verification_task_ids: set[str] | None,
     passing_verification_task_ids: set[str] | None,
+    all_passing_verification_task_ids: set[str] | None,
 ) -> list[dict[str, object]]:
     seen_ids: set[str] = set()
     tasks: list[dict[str, object]] = []
@@ -1009,6 +1054,7 @@ def _implementation_tasks(
             matrix_ids,
             verification_task_ids,
             passing_verification_task_ids,
+            all_passing_verification_task_ids,
             seen_ids,
         )
         task_id = str(task.get("task_id", ""))
@@ -1025,6 +1071,7 @@ def _implementation_task(
     matrix_ids: set[str] | None,
     verification_task_ids: set[str] | None,
     passing_verification_task_ids: set[str] | None,
+    all_passing_verification_task_ids: set[str] | None,
     seen_ids: set[str],
 ) -> dict[str, object]:
     task_id = row.get("id", "").strip()
@@ -1054,6 +1101,9 @@ def _implementation_task(
         "verification": row.get("verification", "").strip(),
         "verification_logged": task_id in verification_task_ids if verification_task_ids is not None else False,
         "passing_verification_logged": task_id in passing_verification_task_ids if passing_verification_task_ids is not None else False,
+        "all_verification_results_passing": task_id in all_passing_verification_task_ids
+        if all_passing_verification_task_ids is not None
+        else False,
         "blockers": blockers,
         "blocker_count": len(blockers),
         "open_decisions": [],
@@ -1410,7 +1460,7 @@ def _implementation_summary(
         1
         for task in tasks
         if task.get("normalized_status") == "done"
-        and task.get("passing_verification_logged") is True
+        and task.get("all_verification_results_passing") is True
         and int(task.get("blocker_count", 0)) == 0
     )
     all_tasks_done = bool(tasks) and done_count == len(tasks)
@@ -1450,7 +1500,7 @@ def _implementation_execution_complete(tasks: list[dict[str, object]]) -> bool:
         return False
     return all(
         task.get("normalized_status") == "done"
-        and task.get("passing_verification_logged") is True
+        and task.get("all_verification_results_passing") is True
         and int(task.get("blocker_count", 0)) == 0
         for task in tasks
     )

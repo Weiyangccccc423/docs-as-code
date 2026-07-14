@@ -123,10 +123,13 @@ make repair-env-check
    - roadmap tables with `ID` and `Status` columns have matching task board rows, no extra task board IDs, and agree with same-ID task board statuses
    - `docs/development/02-task-board.md` has non-placeholder Task Table, Status Policy, and Traceability Rules sections
    - `docs/development/03-verification-log.md` has non-placeholder Verification Runs, Artifacts, and Open Follow-ups sections, and its Verification Runs table uses `Task`, `Command`, `Result`, `Date`, and `Notes` columns
+   - verification-log rows are unique by `(Task, Command)`; multiple commands per task are allowed
+   - `implementation verify --check` is used before exact structured command execution, and generated `docs/development/04-implementation-evidence.md` is indexed by the development README
    - task board items have `ID`, `Status`, `Task`, `Product`, `Design`, `API`, `Acceptance`, and `Verification`
    - task board `Status` values are one of `Backlog`, `Ready`, `In Progress`, `Blocked`, `Done`, or `Deferred`
    - task board items marked `Blocked` cite an existing unresolved item ID and link to `docs/unresolved.md`
    - task board items marked `Done` link to existing local Markdown verification evidence, and when they link `docs/development/03-verification-log.md`, the log has a matching `TASK-NNN` run row
+   - every current verification command for a Done task passes; one passing row cannot mask another failing row
    - task board item IDs are unique, use `TASK-NNN`, and match roadmap milestones
    - task board `Product`, `Design`, `API`, and `Acceptance` fields point to existing local Markdown files in the matching source domains
    - task board `Acceptance` fields include an `A-NNN` ID defined in the referenced product acceptance chapter, mapped in `docs/tests/02-acceptance-matrix.md`, a matching link fragment when present, and a product acceptance chapter reference matching `docs/product/NN-*acceptance*.md`

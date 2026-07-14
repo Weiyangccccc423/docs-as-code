@@ -102,6 +102,9 @@ TEMPLATE_REQUIRED_GUARDRAILS = {
         "Mark `Approval Required` as `true`",
         "Do not run commands with `Approval Required` set to `true` unless the task explicitly authorizes them.",
         "docs/development/03-verification-log.md",
+        "implementation verify . --task TASK-NNN --command command-name --check --json",
+        "docs/development/04-implementation-evidence.md",
+        "requires `--allow-writes` for state-writing rows",
     ),
     "templates/docs/agent-workflow/task-handoff.md": (
         "# Agent Task Handoff",
@@ -280,8 +283,18 @@ TEMPLATE_REQUIRED_GUARDRAILS = {
     "templates/docs/development/03-verification-log.md": (
         "# Verification Log",
         "| Task | Command | Result | Date | Notes |",
-        "- Link local evidence artifacts or summarize relevant command output here.",
+        "one current summary row per `(Task, Command)`",
+        "04-implementation-evidence.md",
         "- none",
+    ),
+    "templates/docs/development/04-implementation-evidence.md": (
+        "# Implementation Verification Evidence",
+        "Append-only ledger",
+        "Current command status is summarized in `03-verification-log.md`",
+        "exact structured `Argv`",
+        "redaction metadata",
+        "stdout",
+        "stderr",
     ),
     "templates/docs/frontend/01-modules.md": (
         "# Frontend Modules",
@@ -791,6 +804,11 @@ DRY_RUN_WORKFLOW_REQUIRED_PHRASES = (
     "implementation_start_apply",
     "implementation_plan_after_start",
     "implementation_start",
+    "implementation_verification_preview",
+    "implementation_verification_execute",
+    '"implementation_verification"',
+    "04-implementation-evidence.md",
+    "all_current_results_passing",
     "make_check_env",
     "make_repair_env_check",
     "_env_repair_decision_allows_workflow",
@@ -1531,6 +1549,9 @@ ARTIFACT_SMOKE_REQUIRED_PHRASES = (
     "_consumer_bootstrap_implementation_routing_details",
     "_has_finding_code",
     "unpacked_dry_run",
+    "implementation_verification",
+    "automated implementation verification evidence",
+    "all_current_results_passing",
     "_write_fresh_target_product",
     "_fresh_target_init_details",
     "_sha256_file",
@@ -1725,6 +1746,8 @@ RELEASE_READINESS_REQUIRED_PHRASES = (
     "continue_workflow",
     "stop_before_workflow",
     "_dry_run_closeout_evidence_ok",
+    "implementation_verification",
+    "all_current_results_passing",
     "_dry_run_product_dispositions_ok",
     "_dry_run_design_reviews_ok",
     "_dry_run_reliability_review_ok",
@@ -2667,6 +2690,67 @@ DESIGN_PLAN_SOURCE_REQUIRED_PHRASES = (
     "review_summary",
     "review_status",
 )
+IMPLEMENTATION_VERIFY_SOURCE_PATH = "scripts/implementation_verify.py"
+IMPLEMENTATION_VERIFY_SOURCE_REQUIRED_PHRASES = (
+    "build_implementation_verify",
+    "run_implementation_verify",
+    "EVIDENCE_OUTPUT_PATHS",
+    "IMPLEMENTATION_EVIDENCE_REL",
+    "command_approval_not_allowed",
+    "command_writes_state_requires_opt_in",
+    "verification_run_id_unique",
+    "IMPLEMENTATION_VERIFY_LOCK_REL",
+    "subprocess.Popen",
+    "shell=False",
+    "timeout_seconds",
+    "max_output_bytes",
+    "stdout_truncated",
+    "stderr_truncated",
+    "output_redacted",
+    "_redact_sensitive_output",
+    "_upsert_verification_log",
+    "_update_task_evidence_link",
+    "_write_outputs_atomically",
+    "post-write governance verification failed",
+)
+IMPLEMENTATION_VERIFY_DOC_REQUIREMENTS = {
+    "README.md": (
+        "implementation verify <target> --task TASK-NNN --command command-name --check --json",
+        "docs/development/04-implementation-evidence.md",
+        "one current verification-log row per `(Task, Command)`",
+        "evidence_summary.all_verification_results_passing",
+    ),
+    "workflows/00-overview.md": (
+        "implementation verify --task TASK-NNN --command command-name --check --json",
+        "without a shell",
+        "all_verification_results_passing",
+    ),
+    "workflows/05-verification-and-drift-control.md": (
+        "verification-log rows are unique by `(Task, Command)`",
+        "one passing row cannot mask another failing row",
+    ),
+    "workflows/06-implementation-execution.md": (
+        "implementation verify <target> --task TASK-NNN --command command-name --check --json",
+        "`Approval Required: true` are refused",
+        "require `--allow-writes`",
+        "`--timeout-seconds`",
+        "one summary row per `(Task, Command)`",
+        "best-effort redaction",
+        "evidence_summary.all_verification_results_passing",
+    ),
+    "skills/executing-implementation-task/SKILL.md": (
+        "implementation verify . --task TASK-NNN --command command-name --check --json",
+        "docs/development/04-implementation-evidence.md",
+        "evidence_summary.all_verification_results_passing",
+    ),
+    "references/implementation-execution-checklist.md": (
+        "implementation verify --task TASK-NNN --command command-name --check --json",
+        "bounded timeout and bounded stdout/stderr capture",
+        "best-effort output redaction",
+        "exactly one current summary row per `(Task, Command)`",
+        "evidence_summary.all_verification_results_passing",
+    ),
+}
 WORK_PACKAGE_SOURCE_PATH = "scripts/workflow_plan.py"
 WORK_PACKAGE_SOURCE_REQUIRED_PHRASES = (
     "build_work_package",
@@ -4455,7 +4539,7 @@ GOVERNANCE_CLI_REQUIRED_SUBCOMMANDS = {
         "implementation-planning-authoring",
         "architecture-decisions-authoring",
     ),
-    "implementation": ("plan", "start", "closeout"),
+    "implementation": ("plan", "start", "verify", "closeout"),
 }
 GOVERNANCE_CLI_PARSER_VARIABLES = {
     "top-level": "sub",
@@ -4829,6 +4913,8 @@ def verify_pack(root: Path) -> PackReport:
     _check_design_scaffold_docs(root, findings)
     _check_design_plan_source(root, findings)
     _check_design_plan_docs(root, findings)
+    _check_implementation_verify_source(root, findings)
+    _check_implementation_verify_docs(root, findings)
     _check_work_package_source(root, findings)
     _check_work_package_docs(root, findings)
     _check_api_candidates_docs(root, findings)
@@ -6983,6 +7069,53 @@ def _check_design_plan_source(root: Path, findings: list[PackFinding]) -> None:
             DESIGN_PLAN_SOURCE_PATH,
         )
     )
+
+
+def _check_implementation_verify_source(root: Path, findings: list[PackFinding]) -> None:
+    path = root / IMPLEMENTATION_VERIFY_SOURCE_PATH
+    if not path.is_file():
+        findings.append(
+            PackFinding(
+                "pack_implementation_verify_source_missing",
+                f"missing implementation verification source script: {IMPLEMENTATION_VERIFY_SOURCE_PATH}",
+                IMPLEMENTATION_VERIFY_SOURCE_PATH,
+            )
+        )
+        return
+    text = _read_utf8_text_or_none(path)
+    if text is None:
+        return
+    missing = [phrase for phrase in IMPLEMENTATION_VERIFY_SOURCE_REQUIRED_PHRASES if phrase not in text]
+    if not missing:
+        return
+    findings.append(
+        PackFinding(
+            "pack_implementation_verify_source_incomplete",
+            (
+                f"{IMPLEMENTATION_VERIFY_SOURCE_PATH} must preserve structured no-shell execution, approval and write "
+                f"gates, bounded timeout evidence, upserted summaries, and atomic post-write verification; "
+                f"missing phrase(s): {', '.join(missing)}"
+            ),
+            IMPLEMENTATION_VERIFY_SOURCE_PATH,
+        )
+    )
+
+
+def _check_implementation_verify_docs(root: Path, findings: list[PackFinding]) -> None:
+    for rel, required_phrases in IMPLEMENTATION_VERIFY_DOC_REQUIREMENTS.items():
+        text = _read_utf8_text_or_none(root / rel)
+        if text is None:
+            continue
+        missing = [phrase for phrase in required_phrases if phrase not in text]
+        if not missing:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_implementation_verify_doc_missing",
+                f"{rel} must document implementation verification phrase(s): {', '.join(missing)}",
+                rel,
+            )
+        )
 
 
 def _check_work_package_source(root: Path, findings: list[PackFinding]) -> None:

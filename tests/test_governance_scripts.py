@@ -6,10 +6,12 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import scripts.bootstrap_tree as bootstrap_module
 import scripts.check_env as check_env_module
 import scripts.gates as gates_module
+import scripts.implementation_verify as implementation_verify_module
 import scripts.phases as phases_module
 import scripts.product_import as product_import_module
 import scripts.scaffold as scaffold_module
@@ -542,6 +544,35 @@ def _endpoint_contract_doc(
 
 
 class GovernanceScriptsTest(unittest.TestCase):
+    def test_implementation_verify_atomic_writer_rolls_back_when_post_verify_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            first = root / "first.md"
+            second = root / "second.md"
+            created = root / "created.md"
+            first.write_text("first-original\n", encoding="utf-8")
+            second.write_text("second-original\n", encoding="utf-8")
+            failed_report = type(
+                "FailedReport",
+                (),
+                {"ok": False, "findings": [type("Finding", (), {"code": "forced_failure"})()]},
+            )()
+
+            with mock.patch.object(implementation_verify_module, "verify", return_value=failed_report):
+                with self.assertRaisesRegex(OSError, "post-write governance verification failed"):
+                    implementation_verify_module._write_outputs_atomically(
+                        root,
+                        {
+                            "first.md": b"first-new\n",
+                            "second.md": b"second-new\n",
+                            "created.md": b"created-new\n",
+                        },
+                    )
+
+            self.assertEqual("first-original\n", first.read_text(encoding="utf-8"))
+            self.assertEqual("second-original\n", second.read_text(encoding="utf-8"))
+            self.assertFalse(created.exists())
+
     def test_bootstrap_archives_markdown_product_doc_and_passes_verification(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -14695,6 +14726,52 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "path": "docs/development/03-verification-log.md",
                     "message": "docs/development/03-verification-log.md Verification Runs table is missing required columns: "
                     "Date, Notes",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_allows_multiple_verification_commands_for_one_task(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(
+                root,
+                "docs/development/03-verification-log.md",
+                _verification_log_doc(
+                    "| TASK-001 | unit-tests | pass | 2026-07-13 | unit evidence |\n"
+                    "| TASK-001 | integration-tests | fail | 2026-07-13 | integration evidence |\n"
+                ),
+            )
+
+            report = verify(root)
+
+            self.assertFalse(any(finding.code.startswith("verification_log_duplicate") for finding in report.findings))
+
+    def test_verify_rejects_duplicate_task_and_command_verification_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _write_indexed_doc(
+                root,
+                "docs/development/03-verification-log.md",
+                _verification_log_doc(
+                    "| TASK-001 | unit-tests | fail | 2026-07-13 | first run |\n"
+                    "| TASK-001 | unit-tests | pass | 2026-07-13 | duplicate summary |\n"
+                ),
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                {
+                    "code": "verification_log_duplicate_task_command",
+                    "severity": "error",
+                    "path": "docs/development/03-verification-log.md",
+                    "message": "duplicate verification log Task and Command: TASK-001 / unit-tests",
                 },
                 [finding.to_dict() for finding in report.findings],
             )

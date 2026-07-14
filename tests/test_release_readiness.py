@@ -185,6 +185,14 @@ class ReleaseReadinessTest(unittest.TestCase):
             criteria["fresh-target-dry-run"]["details"]["design_reviews"]["work_package_complete"]
         )
         self.assertTrue(
+            criteria["fresh-target-dry-run"]["details"]["implementation_verification"]["command_passed"]
+        )
+        self.assertTrue(
+            criteria["fresh-target-dry-run"]["details"]["implementation_verification"][
+                "all_current_results_passing"
+            ]
+        )
+        self.assertTrue(
             criteria["fresh-target-dry-run"]["details"]["api_review"]["current_after_runtime_refresh"]
         )
         self.assertTrue(
@@ -210,6 +218,9 @@ class ReleaseReadinessTest(unittest.TestCase):
         self.assertTrue(
             criteria["multi-acceptance-dry-run"]["details"]["threat_review"]["current_after_runtime_refresh"]
         )
+        self.assertTrue(
+            criteria["multi-acceptance-dry-run"]["details"]["implementation_verification"]["evidence_recorded"]
+        )
         self.assertTrue(criteria["release-artifact-smoke"]["details"]["fresh_target_init"]["ok"])
         self.assertTrue(
             criteria["release-artifact-smoke"]["details"]["fresh_target_init"]["target_local_workflow_plan_ok"]
@@ -226,6 +237,9 @@ class ReleaseReadinessTest(unittest.TestCase):
         self.assertTrue(criteria["release-artifact-smoke"]["details"]["design_reviews"]["ok"])
         self.assertTrue(criteria["release-artifact-smoke"]["details"]["api_review"]["ok"])
         self.assertTrue(criteria["release-artifact-smoke"]["details"]["threat_review"]["ok"])
+        self.assertTrue(
+            criteria["release-artifact-smoke"]["details"]["implementation_verification"]["ok"]
+        )
         self.assertTrue(
             criteria["release-artifact-smoke"]["details"]["api_review"][
                 "current_after_runtime_refresh"

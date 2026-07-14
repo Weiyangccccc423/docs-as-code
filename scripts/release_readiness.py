@@ -122,6 +122,7 @@ def _criterion(
 def _dry_run_closeout_evidence_ok(payload: dict[str, object]) -> bool:
     gate = payload.get("implementation_gate")
     start = payload.get("implementation_start")
+    verification = payload.get("implementation_verification")
     closeout = payload.get("implementation_closeout")
     runtime_refresh = payload.get("runtime_refresh")
     return (
@@ -133,6 +134,13 @@ def _dry_run_closeout_evidence_ok(payload: dict[str, object]) -> bool:
         and start.get("ready") is True
         and start.get("applied_status_updates") is True
         and start.get("implementation_plan_in_progress") is True
+        and isinstance(verification, dict)
+        and verification.get("ok") is True
+        and verification.get("preview_ready") is True
+        and verification.get("executed") is True
+        and verification.get("evidence_recorded") is True
+        and verification.get("command_passed") is True
+        and verification.get("all_current_results_passing") is True
         and isinstance(closeout, dict)
         and closeout.get("blocked_without_evidence") is True
         and closeout.get("ready_with_evidence") is True
@@ -857,6 +865,9 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
             "final_phase": dry_run_payload.get("final_phase") if dry_run_payload else "",
             "api_candidate_count": dry_run_payload.get("api_candidate_count") if dry_run_payload else 0,
             "implementation_closeout": dry_run_payload.get("implementation_closeout") if dry_run_payload else {},
+            "implementation_verification": dry_run_payload.get("implementation_verification")
+            if dry_run_payload
+            else {},
             "product_dispositions": dry_run_payload.get("product_dispositions") if dry_run_payload else {},
             "api_review": dry_run_payload.get("api_review") if dry_run_payload else {},
             "threat_review": dry_run_payload.get("threat_review") if dry_run_payload else {},
@@ -907,6 +918,9 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
             "api_candidate_count": multi_acceptance_payload.get("api_candidate_count") if multi_acceptance_payload else 0,
             "authoring_task_counts": authoring_counts,
             "implementation_closeout": multi_acceptance_payload.get("implementation_closeout")
+            if multi_acceptance_payload
+            else {},
+            "implementation_verification": multi_acceptance_payload.get("implementation_verification")
             if multi_acceptance_payload
             else {},
             "product_dispositions": multi_acceptance_payload.get("product_dispositions")
@@ -1092,6 +1106,9 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
             if artifact_smoke_payload
             else {},
             "design_reviews": artifact_smoke_payload.get("design_reviews", {})
+            if artifact_smoke_payload
+            else {},
+            "implementation_verification": artifact_smoke_payload.get("implementation_verification", {})
             if artifact_smoke_payload
             else {},
             "consumer_bootstrap_product_structure": artifact_smoke_payload.get(

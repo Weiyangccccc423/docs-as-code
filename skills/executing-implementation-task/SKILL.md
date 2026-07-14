@@ -13,6 +13,7 @@ Read `references/implementation-execution-checklist.md` before editing code, cha
 
 - `docs/development/02-task-board.md`
 - `docs/development/03-verification-log.md`
+- `docs/development/04-implementation-evidence.md` when prior runs exist
 - `docs/agent-workflow/command-contract.md`
 - linked Product, Design, API, Acceptance, and Verification sources for the selected `TASK-NNN`
 - `docs/tests/02-acceptance-matrix.md`
@@ -38,11 +39,11 @@ Read `references/implementation-execution-checklist.md` before editing code, cha
 6. Inspect existing code, tests, generated files, build scripts, and local conventions around the changed surface.
 7. Keep edits limited to the selected task. Register missing requirements, conflicting docs, missing credentials, or unsafe dependency changes in `docs/unresolved.md` instead of guessing.
 8. Implement in small coherent steps and add or update tests next to the changed behavior.
-9. Run the task's verification commands. Prefer `local_commands[].argv`, `docs/agent-workflow/command-contract.md` `Argv` rows, and task-provided commands over reconstructed shell strings. Stop and ask before running any command-contract row with `Approval Required` set to `true` unless the task explicitly authorizes it.
-10. Record command, result, date, notes, and evidence path in `docs/development/03-verification-log.md`.
+9. Register each task verification command in `docs/agent-workflow/command-contract.md`. Preflight it with `bin/governance implementation verify . --task TASK-NNN --command command-name --check --json`, inspect `command_contract`, `blocking_requirements`, `would_write`, and `execute_command`, then run the returned structured command. Do not reconstruct a shell string.
+10. The evidence runner refuses `Approval Required: true` rows and requires `--allow-writes` for `Writes State: true` rows. It derives the result from the return code, enforces timeout and output bounds, appends immutable history to `docs/development/04-implementation-evidence.md`, and upserts the current `(Task, Command)` summary in `docs/development/03-verification-log.md`.
 11. Synchronize `docs/development/02-task-board.md` and `docs/development/01-roadmap.md` statuses through start and closeout apply when available.
 12. Refresh `bin/governance implementation plan . --json` and confirm the selected task state, `gate_ok`, and evidence are consistent before claiming completion.
-13. Run `bin/governance implementation closeout . --task TASK-NNN --json` before marking `Done`. Its `decision_policy` is `do_not_mark_done_without_passing_evidence`; use `requirements[]`, `blocking_requirements[]`, `evidence_summary`, and `status_update_plan` to decide whether the verification log, local evidence links, and task/roadmap status updates are complete. When `status_update_plan.can_auto_apply` is true, run `status_update_plan.apply_command.argv` or `bin/governance implementation closeout . --task TASK-NNN --apply --json`.
+13. Run `bin/governance implementation closeout . --task TASK-NNN --json` before marking `Done`. Its `decision_policy` is `do_not_mark_done_without_passing_evidence`; require `evidence_summary.all_verification_results_passing: true` in addition to complete local evidence links and synchronized task/roadmap status. When `status_update_plan.can_auto_apply` is true, run `status_update_plan.apply_command.argv` or `bin/governance implementation closeout . --task TASK-NNN --apply --json`.
 14. Mark `Done` only when closeout reports `closeout_ready: true` and code, tests, synchronized docs, local evidence, `references/implementation-readiness-checklist.md`, and `references/implementation-execution-checklist.md` are satisfied.
 
 ## Stop Conditions
@@ -55,4 +56,5 @@ Read `references/implementation-execution-checklist.md` before editing code, cha
 - The acceptance ID is not mapped in `docs/tests/02-acceptance-matrix.md`.
 - A required project command is missing from `docs/agent-workflow/command-contract.md`.
 - A command-contract row with `Approval Required` set to `true` needs unapproved escalation.
+- A command-contract row writes state but explicit `--allow-writes` authorization is absent.
 - Verification cannot pass and no `Blocked`, `Deferred`, or unresolved follow-up is recorded.

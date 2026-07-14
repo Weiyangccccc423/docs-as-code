@@ -51,6 +51,7 @@ RUNTIME_SCRIPT_FILES = [
     "gates.py",
     "governance_cli.py",
     "implementation_plan.py",
+    "implementation_verify.py",
     "phases.py",
     "product_dispositions.py",
     "product_import.py",
@@ -1659,6 +1660,9 @@ def _command_contract() -> str:
         "- Run read-only commands before state-writing commands when both exist.\n"
         "- Do not run commands with `Approval Required` set to `true` unless the task explicitly authorizes them.\n"
         "- Record skipped, unavailable, failed, flaky, and passing commands in `docs/development/03-verification-log.md`.\n"
+        "- For an `In Progress` task, preflight registered project checks with `bin/governance implementation verify . --task <task-id> --command <command-name> --check --json`.\n"
+        "- Run the returned structured command to append `docs/development/04-implementation-evidence.md` and update the current `(Task, Command)` summary without deleting prior runs.\n"
+        "- `implementation verify` refuses approval-required rows and requires `--allow-writes` for state-writing rows.\n"
     )
 
 

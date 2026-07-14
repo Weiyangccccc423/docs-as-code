@@ -5,9 +5,11 @@
 | Task | Command | Result | Date | Notes |
 | --- | --- | --- | --- | --- |
 
+Keep exactly one current summary row per `(Task, Command)`. Reruns replace that row; prior output remains in `04-implementation-evidence.md`.
+
 ## Artifacts
 
-- Link local evidence artifacts or summarize relevant command output here.
+- Append command output with `implementation verify`; link the resulting `04-implementation-evidence.md` run here.
 
 ## Open Follow-ups
 

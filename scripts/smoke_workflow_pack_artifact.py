@@ -419,6 +419,7 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
             payload=dry_run_payload,
         )
         start = dry_run_payload.get("implementation_start")
+        implementation_verification = dry_run_payload.get("implementation_verification")
         closeout = dry_run_payload.get("implementation_closeout")
         runtime_refresh = dry_run_payload.get("runtime_refresh")
         _require(
@@ -427,6 +428,17 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
             and start.get("applied_status_updates") is True
             and start.get("implementation_plan_in_progress") is True,
             "unpacked artifact dry-run did not prove implementation start status gates",
+            payload=dry_run_payload,
+        )
+        _require(
+            isinstance(implementation_verification, dict)
+            and implementation_verification.get("ok") is True
+            and implementation_verification.get("preview_ready") is True
+            and implementation_verification.get("executed") is True
+            and implementation_verification.get("evidence_recorded") is True
+            and implementation_verification.get("command_passed") is True
+            and implementation_verification.get("all_current_results_passing") is True,
+            "unpacked artifact dry-run did not prove automated implementation verification evidence",
             payload=dry_run_payload,
         )
         _require(
@@ -502,6 +514,7 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
             "target_local_make_coverage": target_local_make_coverage,
             "product_dispositions": product_dispositions,
             "design_reviews": design_reviews,
+            "implementation_verification": dict(implementation_verification),
             "api_review": api_review,
             "threat_review": threat_review,
             "reliability_review": reliability_review,

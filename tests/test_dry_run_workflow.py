@@ -208,6 +208,20 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertTrue(payload["implementation_start"]["ready"])
             self.assertTrue(payload["implementation_start"]["applied_status_updates"])
             self.assertTrue(payload["implementation_start"]["implementation_plan_in_progress"])
+            self.assertTrue(payload["implementation_verification"]["preview_ready"])
+            self.assertTrue(payload["implementation_verification"]["executed"])
+            self.assertTrue(payload["implementation_verification"]["evidence_recorded"])
+            self.assertTrue(payload["implementation_verification"]["command_passed"])
+            self.assertTrue(payload["implementation_verification"]["all_current_results_passing"])
+            self.assertEqual(
+                [
+                    "docs/development/04-implementation-evidence.md",
+                    "docs/development/03-verification-log.md",
+                    "docs/development/02-task-board.md",
+                    "docs/development/README.md",
+                ],
+                payload["implementation_verification"]["updated_paths"],
+            )
             self.assertEqual("TASK-001", payload["implementation_closeout"]["task_id"])
             self.assertTrue(payload["implementation_closeout"]["blocked_without_evidence"])
             self.assertTrue(payload["implementation_closeout"]["ready_with_evidence"])
@@ -245,6 +259,7 @@ class DryRunWorkflowTest(unittest.TestCase):
                 [
                     "bin/governance",
                     "scripts/governance_cli.py",
+                    "scripts/implementation_verify.py",
                     "scripts/api_review_evidence.py",
                     "scripts/threat_review_evidence.py",
                     "scripts/reliability_review_evidence.py",
@@ -259,6 +274,7 @@ class DryRunWorkflowTest(unittest.TestCase):
                 [
                     "verification_log_row_present",
                     "verification_result_passing",
+                    "verification_results_all_passing",
                     "task_verification_links_local_evidence",
                 ],
                 payload["implementation_closeout"]["blocking_codes_without_evidence"],
@@ -320,6 +336,8 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertIn("implementation_start_apply", step_ids)
             self.assertIn("implementation_plan_after_start", step_ids)
             self.assertIn("implementation_closeout_without_evidence", step_ids)
+            self.assertIn("implementation_verification_preview", step_ids)
+            self.assertIn("implementation_verification_execute", step_ids)
             self.assertIn("implementation_closeout_with_evidence", step_ids)
             self.assertIn("implementation_closeout_apply", step_ids)
             self.assertIn("implementation_plan_after_closeout_apply", step_ids)
@@ -332,6 +350,7 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertTrue((target / "docs/product/core/chapter-dispositions.json").is_file())
             self.assertTrue((target / "docs/decisions/design-reviews.json").is_file())
             self.assertTrue((target / "docs/api/endpoints/01-endpoint-contract.md").is_file())
+            self.assertTrue((target / "docs/development/04-implementation-evidence.md").is_file())
 
     def test_dry_run_handles_realistic_multi_acceptance_product_fixture(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

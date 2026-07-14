@@ -35,8 +35,13 @@ Reference: `https://dora.dev/capabilities/trunk-based-development/`
 
 ## Verification Execution
 
-- Are the exact task verification commands run, preferring target-local `local_commands[].argv` over reparsed command strings when JSON payloads provide them?
-- Are command-contract rows with `Approval Required` set to `true` skipped until explicit task authorization is granted?
+- Is each task verification command registered with structured `Argv` and `Cwd` in `docs/agent-workflow/command-contract.md`?
+- Are exact task commands selected by preferring target-local `local_commands[].argv` when a machine-readable payload already provides them?
+- Was `implementation verify --task TASK-NNN --command command-name --check --json` run before execution, with no command execution or evidence writes during preflight?
+- Was the returned structured command executed without a shell string, with a bounded timeout and bounded stdout/stderr capture?
+- Was best-effort output redaction applied, while secret-bearing command arguments and intentionally printed credentials remained prohibited?
+- Were command-contract rows with `Approval Required` set to `true` refused and routed to explicit external authorization?
+- Did every `Writes State: true` command receive explicit `--allow-writes` authorization before execution?
 - Are unit, integration, contract, end-to-end, accessibility, performance, security, or manual checks selected from the acceptance matrix and risk-bearing design docs?
 - Are skipped, flaky, unavailable, or failed checks recorded honestly with command, result, date, and follow-up owner?
 - Is `bin/governance verify . --check --json` or the target-local equivalent rerun when docs, workflow state, or handoff evidence changes?
@@ -45,7 +50,8 @@ Reference: `https://dora.dev/capabilities/test-automation/`
 
 ## Evidence and Status
 
-- Is `docs/development/03-verification-log.md` updated with a matching `TASK-NNN` row for every completed or blocked verification run?
+- Does `docs/development/04-implementation-evidence.md` preserve every execution while `docs/development/03-verification-log.md` contains exactly one current summary row per `(Task, Command)`?
+- When a command is rerun, was its current summary replaced without deleting the prior evidence-ledger run?
 - Does any `Done` task link local Markdown evidence instead of relying on chat transcript memory?
 - Are roadmap and task board statuses synchronized after implementation, verification, or blocking findings?
 - Does the final handoff name changed files, commands run, failures, deferred follow-ups, and remaining risks?
@@ -65,5 +71,6 @@ Reference: `https://openssf.org/projects/scorecard/`
 ## Completion Gate
 
 - Does the task satisfy `references/implementation-readiness-checklist.md` plus this execution checklist before being marked `Done`?
+- Does `implementation closeout` report `evidence_summary.all_verification_results_passing: true`, proving every current command result passes rather than only one?
 - Are failing checks, unresolved questions, or out-of-scope discoveries reflected as `Blocked`, `Deferred`, or follow-up tasks instead of hidden in prose?
 - Are all source-of-truth docs, implementation files, tests, and evidence committed as one coherent change when the repository uses Git?
