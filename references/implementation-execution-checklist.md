@@ -38,6 +38,8 @@ Reference: `https://dora.dev/capabilities/trunk-based-development/`
 - Is each task verification command registered with structured `Argv` and `Cwd` in `docs/agent-workflow/command-contract.md`?
 - Are exact task commands selected by preferring target-local `local_commands[].argv` when a machine-readable payload already provides them?
 - Was `implementation verify --task TASK-NNN --command command-name --check --json` run before execution, with no command execution or evidence writes during preflight?
+- Does `environment_readiness.ok` prove the exact `Argv[0]` is available and executable, with repository-relative paths resolved from `Cwd` and confined to the repository?
+- For a missing known tool, was the returned no-write environment repair preflight inspected; for an unknown project tool, was an approved source and install policy registered without guessing a package or install command?
 - Was the returned structured command executed without a shell string, with a bounded timeout and bounded stdout/stderr capture?
 - Was best-effort output redaction applied, while secret-bearing command arguments and intentionally printed credentials remained prohibited?
 - Were command-contract rows with `Approval Required` set to `true` refused and routed to explicit external authorization?

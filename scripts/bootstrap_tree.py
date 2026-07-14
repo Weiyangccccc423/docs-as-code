@@ -1661,6 +1661,7 @@ def _command_contract() -> str:
         "- Do not run commands with `Approval Required` set to `true` unless the task explicitly authorizes them.\n"
         "- Record skipped, unavailable, failed, flaky, and passing commands in `docs/development/03-verification-log.md`.\n"
         "- For an `In Progress` task, preflight registered project checks with `bin/governance implementation verify . --task <task-id> --command <command-name> --check --json`.\n"
+        "- Require `environment_readiness.ok: true` before execution. Follow `repair_preflight_command` only for tools already known to the governance inventory; register approved source/install policy for unknown project tools instead of guessing installation commands.\n"
         "- Run the returned structured command to append `docs/development/04-implementation-evidence.md` and update the current `(Task, Command)` summary without deleting prior runs.\n"
         "- `implementation verify` refuses approval-required rows and requires `--allow-writes` for state-writing rows.\n"
     )

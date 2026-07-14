@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import signal
 import stat
 import subprocess
@@ -21,6 +22,7 @@ except ImportError:  # pragma: no cover - target runtime uses POSIX wrappers
     fcntl = None  # type: ignore[assignment]
 
 try:
+    from .check_env import TOOLS
     from .implementation_plan import (
         IMPLEMENTATION_PHASE,
         _is_empty_task_board_value,
@@ -47,6 +49,7 @@ try:
         verify,
     )
 except ImportError:  # pragma: no cover - direct script execution
+    from check_env import TOOLS
     from implementation_plan import (
         IMPLEMENTATION_PHASE,
         _is_empty_task_board_value,
@@ -128,6 +131,21 @@ def build_implementation_verify(
     prior_run_ids, evidence_errors = _evidence_run_ids(root)
     governance_report = verify(root)
     command_cwd = _command_cwd(root, command_contract)
+    refresh_command = _verification_preflight_command_payload(
+        root,
+        task_id,
+        command_name,
+        run_id,
+        allow_writes=allow_writes,
+        timeout_seconds=timeout_seconds,
+        max_output_bytes=max_output_bytes,
+    )
+    environment_readiness = _command_environment_readiness(
+        root,
+        command_cwd,
+        command_contract,
+        refresh_command=refresh_command,
+    )
 
     requirements = [
         _requirement(
@@ -199,6 +217,18 @@ def build_implementation_verify(
             detail=str(command_contract.get("cwd", "")) if command_contract else "",
         ),
         _requirement(
+            "command_environment_ready",
+            environment_readiness.get("ok") is True,
+            "the exact registered command executable must be available before execution",
+            path=COMMAND_CONTRACT_REL.as_posix(),
+            detail=str(
+                environment_readiness.get("blocker_code")
+                or environment_readiness.get("resolved_path")
+                or environment_readiness.get("required_executable")
+                or ""
+            ),
+        ),
+        _requirement(
             "verification_run_id_valid",
             RUN_ID_RE.fullmatch(run_id) is not None,
             "verification run ID must use VR-YYYYMMDDTHHMMSSffffffZ-xxxxxxxx format",
@@ -253,6 +283,7 @@ def build_implementation_verify(
         "command_passed": False,
         "command_contract": command_contract,
         "command_cwd": str(command_cwd) if command_cwd is not None else "",
+        "environment_readiness": environment_readiness,
         "timeout_seconds": timeout_seconds,
         "max_output_bytes": max_output_bytes,
         "requirements": requirements,
@@ -449,9 +480,264 @@ def _command_cwd(root: Path, contract: dict[str, object]) -> Path | None:
     try:
         resolved = candidate.resolve()
         resolved.relative_to(root)
-    except (OSError, ValueError):
+    except (OSError, RuntimeError, ValueError):
         return None
     return resolved if resolved.is_dir() else None
+
+
+def _command_environment_readiness(
+    root: Path,
+    command_cwd: Path | None,
+    contract: dict[str, object],
+    *,
+    refresh_command: dict[str, object],
+) -> dict[str, object]:
+    argv = contract.get("argv")
+    environment_label = contract.get("environment")
+    required_executable = argv[0] if isinstance(argv, list) and argv and isinstance(argv[0], str) else ""
+    environment = environment_label if isinstance(environment_label, str) else ""
+    base: dict[str, object] = {
+        "ok": False,
+        "environment": environment,
+        "validation_scope": "argv0_executable",
+        "version_constraints_enforced": False,
+        "package_source_inferred": False,
+        "required_executable": required_executable,
+        "resolution_strategy": "unavailable",
+        "resolved_path": "",
+        "available": False,
+        "executable": False,
+        "known_governance_tool": False,
+        "blocker_code": "command_contract_executable_invalid",
+        "repair_decision": _environment_repair_decision(
+            "register_project_environment_tool",
+            status="contract_invalid",
+            stop_before_execution=True,
+            requires_approval=False,
+            manual_repair_required=True,
+            next_step="fix the command contract Argv executable before retrying preflight",
+        ),
+        "repair_preflight_command": {},
+        "refresh_command": dict(refresh_command),
+    }
+    if not required_executable or "\x00" in required_executable:
+        return base
+    if command_cwd is None:
+        base["blocker_code"] = "command_environment_cwd_unavailable"
+        base["repair_decision"] = _environment_repair_decision(
+            "repair_command_cwd",
+            status="cwd_unavailable",
+            stop_before_execution=True,
+            requires_approval=False,
+            manual_repair_required=True,
+            next_step="restore or correct the repository-local command Cwd before retrying preflight",
+        )
+        return base
+
+    if "/" not in required_executable:
+        base["resolution_strategy"] = "path_lookup"
+        known_tool = required_executable in {spec.name for spec in TOOLS}
+        base["known_governance_tool"] = known_tool
+        try:
+            found = shutil.which(required_executable, path=_command_search_path(command_cwd))
+        except (OSError, RuntimeError, ValueError):
+            found = None
+        if found:
+            try:
+                resolved = Path(found).resolve()
+            except (OSError, RuntimeError, ValueError):
+                resolved = Path(found)
+            available, executable = _executable_path_status(resolved)
+            base.update(
+                {
+                    "ok": available and executable,
+                    "resolved_path": str(resolved),
+                    "available": available,
+                    "executable": executable,
+                    "blocker_code": "" if available and executable else "command_executable_not_executable",
+                }
+            )
+            if available and executable:
+                base["repair_decision"] = _environment_repair_decision(
+                    "continue_execution",
+                    status="ready",
+                    stop_before_execution=False,
+                    requires_approval=False,
+                    manual_repair_required=False,
+                    next_step="execute the exact registered command",
+                )
+                return base
+        base["blocker_code"] = "command_executable_unavailable"
+        if known_tool:
+            base["repair_decision"] = _environment_repair_decision(
+                "run_governance_environment_repair_preflight",
+                status="repair_preflight_required",
+                stop_before_execution=True,
+                requires_approval=False,
+                manual_repair_required=False,
+                next_step="run repair_preflight_command, inspect its repair_decision, then refresh this preflight",
+            )
+            base["repair_preflight_command"] = _environment_repair_preflight_command(root)
+        else:
+            base["repair_decision"] = _environment_repair_decision(
+                "register_project_environment_tool",
+                status="tool_registration_required",
+                stop_before_execution=True,
+                requires_approval=True,
+                manual_repair_required=True,
+                next_step=(
+                    "document the project's approved tool source and install policy; "
+                    "do not infer a package name or installation command"
+                ),
+            )
+        return base
+
+    candidate = Path(required_executable)
+    if candidate.is_absolute():
+        base["resolution_strategy"] = "absolute_path"
+        try:
+            resolved = candidate.resolve()
+        except (OSError, RuntimeError, ValueError):
+            resolved = candidate
+        base["resolved_path"] = str(resolved)
+        available, executable = _executable_path_status(resolved)
+        base["available"] = available
+        base["executable"] = executable
+        if available and executable:
+            base["ok"] = True
+            base["blocker_code"] = ""
+            base["repair_decision"] = _environment_repair_decision(
+                "continue_execution",
+                status="ready",
+                stop_before_execution=False,
+                requires_approval=False,
+                manual_repair_required=False,
+                next_step="execute the exact registered command",
+            )
+            return base
+        base["blocker_code"] = (
+            "command_executable_not_executable" if available else "command_executable_unavailable"
+        )
+        base["repair_decision"] = _environment_repair_decision(
+            "repair_external_executable",
+            status="external_executable_unavailable",
+            stop_before_execution=True,
+            requires_approval=True,
+            manual_repair_required=True,
+            next_step="repair the explicitly pinned external executable path, then refresh this preflight",
+        )
+        return base
+
+    base["resolution_strategy"] = "cwd_relative"
+    try:
+        resolved = (command_cwd / candidate).resolve()
+    except (OSError, RuntimeError, ValueError):
+        base["blocker_code"] = "command_executable_path_invalid"
+        base["repair_decision"] = _environment_repair_decision(
+            "repair_repository_executable",
+            status="repository_path_invalid",
+            stop_before_execution=True,
+            requires_approval=False,
+            manual_repair_required=True,
+            next_step="repair the invalid repository executable path, then refresh this preflight",
+        )
+        return base
+    try:
+        resolved.relative_to(root)
+    except ValueError:
+        base["blocker_code"] = "command_executable_outside_repository"
+        base["repair_decision"] = _environment_repair_decision(
+            "repair_repository_executable",
+            status="repository_path_invalid",
+            stop_before_execution=True,
+            requires_approval=False,
+            manual_repair_required=True,
+            next_step="use an executable path that resolves inside the repository, then refresh this preflight",
+        )
+        return base
+
+    base["resolved_path"] = str(resolved)
+    available, executable = _executable_path_status(resolved)
+    base["available"] = available
+    base["executable"] = executable
+    if available and executable:
+        base["ok"] = True
+        base["blocker_code"] = ""
+        base["repair_decision"] = _environment_repair_decision(
+            "continue_execution",
+            status="ready",
+            stop_before_execution=False,
+            requires_approval=False,
+            manual_repair_required=False,
+            next_step="execute the exact registered command",
+        )
+        return base
+    base["blocker_code"] = "command_executable_not_executable" if available else "command_executable_unavailable"
+    base["repair_decision"] = _environment_repair_decision(
+        "repair_repository_executable",
+        status="repository_executable_unavailable",
+        stop_before_execution=True,
+        requires_approval=False,
+        manual_repair_required=True,
+        next_step="restore the repository-local executable and mode, then refresh this preflight",
+    )
+    return base
+
+
+def _command_search_path(command_cwd: Path) -> str:
+    entries: list[str] = []
+    for entry in os.get_exec_path():
+        path = Path(entry) if entry else Path(".")
+        entries.append(str(path if path.is_absolute() else (command_cwd / path).resolve()))
+    return os.pathsep.join(entries)
+
+
+def _executable_path_status(path: Path) -> tuple[bool, bool]:
+    try:
+        available = path.is_file()
+        return available, available and os.access(path, os.X_OK)
+    except (OSError, RuntimeError, ValueError):
+        return False, False
+
+
+def _environment_repair_decision(
+    decision: str,
+    *,
+    status: str,
+    stop_before_execution: bool,
+    requires_approval: bool,
+    manual_repair_required: bool,
+    next_step: str,
+) -> dict[str, object]:
+    return {
+        "decision": decision,
+        "status": status,
+        "stop_before_execution": stop_before_execution,
+        "can_auto_apply": False,
+        "requires_approval": requires_approval,
+        "manual_repair_required": manual_repair_required,
+        "next_step": next_step,
+    }
+
+
+def _environment_repair_preflight_command(root: Path) -> dict[str, object]:
+    return {
+        "id": "preflight-command-environment-repair",
+        "description": "Preview registered governance environment repairs without writing or installing.",
+        "cwd": str(root),
+        "argv": [
+            "bin/governance",
+            "env",
+            "--repair",
+            "--check",
+            "--strict",
+            "--target",
+            ".",
+            "--json",
+        ],
+        "writes_state": False,
+        "approval_required": False,
+    }
 
 
 def _evidence_run_ids(root: Path) -> tuple[set[str], list[str]]:
@@ -530,6 +816,37 @@ def _execute_command_payload(
         "cwd": str(root),
         "argv": argv,
         "writes_state": True,
+        "approval_required": False,
+    }
+
+
+def _verification_preflight_command_payload(
+    root: Path,
+    task_id: str,
+    command_name: str,
+    run_id: str,
+    *,
+    allow_writes: bool,
+    timeout_seconds: float,
+    max_output_bytes: int,
+) -> dict[str, object]:
+    command = _execute_command_payload(
+        root,
+        task_id,
+        command_name,
+        run_id,
+        allow_writes=allow_writes,
+        timeout_seconds=timeout_seconds,
+        max_output_bytes=max_output_bytes,
+    )
+    argv = list(command["argv"])
+    argv.insert(-1, "--check")
+    return {
+        "id": "refresh-implementation-verification-preflight",
+        "description": "Refresh command and environment readiness without execution or evidence writes.",
+        "cwd": str(root),
+        "argv": argv,
+        "writes_state": False,
         "approval_required": False,
     }
 

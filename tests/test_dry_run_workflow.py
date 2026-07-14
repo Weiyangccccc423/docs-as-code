@@ -209,6 +209,7 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertTrue(payload["implementation_start"]["applied_status_updates"])
             self.assertTrue(payload["implementation_start"]["implementation_plan_in_progress"])
             self.assertTrue(payload["implementation_verification"]["preview_ready"])
+            self.assertTrue(payload["implementation_verification"]["environment_ready"])
             self.assertTrue(payload["implementation_verification"]["executed"])
             self.assertTrue(payload["implementation_verification"]["evidence_recorded"])
             self.assertTrue(payload["implementation_verification"]["command_passed"])

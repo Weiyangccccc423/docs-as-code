@@ -103,6 +103,7 @@ TEMPLATE_REQUIRED_GUARDRAILS = {
         "Do not run commands with `Approval Required` set to `true` unless the task explicitly authorizes them.",
         "docs/development/03-verification-log.md",
         "implementation verify . --task TASK-NNN --command command-name --check --json",
+        "environment_readiness.ok: true",
         "docs/development/04-implementation-evidence.md",
         "requires `--allow-writes` for state-writing rows",
     ),
@@ -2016,6 +2017,8 @@ RUNTIME_REFRESH_DOC_REQUIREMENTS = {
         "leaving target files and `.governance/state.json` unchanged",
         "local_commands",
         "next_actions",
+        "environment_readiness",
+        "must not claim runtime-version compatibility",
     ),
     "skills/initializing-governance-repo/SKILL.md": (
         "trusted source workflow-pack checkout",
@@ -2698,6 +2701,14 @@ IMPLEMENTATION_VERIFY_SOURCE_REQUIRED_PHRASES = (
     "IMPLEMENTATION_EVIDENCE_REL",
     "command_approval_not_allowed",
     "command_writes_state_requires_opt_in",
+    "command_environment_ready",
+    "_command_environment_readiness",
+    "run_governance_environment_repair_preflight",
+    "register_project_environment_tool",
+    "repair_preflight_command",
+    "argv0_executable",
+    "version_constraints_enforced",
+    "package_source_inferred",
     "verification_run_id_unique",
     "IMPLEMENTATION_VERIFY_LOCK_REL",
     "subprocess.Popen",
@@ -2719,11 +2730,13 @@ IMPLEMENTATION_VERIFY_DOC_REQUIREMENTS = {
         "docs/development/04-implementation-evidence.md",
         "one current verification-log row per `(Task, Command)`",
         "evidence_summary.all_verification_results_passing",
+        "environment_readiness",
     ),
     "workflows/00-overview.md": (
         "implementation verify --task TASK-NNN --command command-name --check --json",
         "without a shell",
         "all_verification_results_passing",
+        "environment_readiness",
     ),
     "workflows/05-verification-and-drift-control.md": (
         "verification-log rows are unique by `(Task, Command)`",
@@ -2736,19 +2749,27 @@ IMPLEMENTATION_VERIFY_DOC_REQUIREMENTS = {
         "`--timeout-seconds`",
         "one summary row per `(Task, Command)`",
         "best-effort redaction",
+        "environment_readiness",
         "evidence_summary.all_verification_results_passing",
     ),
     "skills/executing-implementation-task/SKILL.md": (
         "implementation verify . --task TASK-NNN --command command-name --check --json",
         "docs/development/04-implementation-evidence.md",
+        "environment_readiness",
         "evidence_summary.all_verification_results_passing",
     ),
     "references/implementation-execution-checklist.md": (
         "implementation verify --task TASK-NNN --command command-name --check --json",
         "bounded timeout and bounded stdout/stderr capture",
         "best-effort output redaction",
+        "environment_readiness",
         "exactly one current summary row per `(Task, Command)`",
         "evidence_summary.all_verification_results_passing",
+    ),
+    "templates/docs/agent-workflow/command-contract.md": (
+        "environment_readiness.ok: true",
+        "repair_preflight_command",
+        "instead of guessing installation commands",
     ),
 }
 WORK_PACKAGE_SOURCE_PATH = "scripts/workflow_plan.py"
@@ -7093,7 +7114,8 @@ def _check_implementation_verify_source(root: Path, findings: list[PackFinding])
             "pack_implementation_verify_source_incomplete",
             (
                 f"{IMPLEMENTATION_VERIFY_SOURCE_PATH} must preserve structured no-shell execution, approval and write "
-                f"gates, bounded timeout evidence, upserted summaries, and atomic post-write verification; "
+                f"gates, executable environment preflight and non-guessing repair routing, bounded timeout evidence, "
+                f"upserted summaries, and atomic post-write verification; "
                 f"missing phrase(s): {', '.join(missing)}"
             ),
             IMPLEMENTATION_VERIFY_SOURCE_PATH,

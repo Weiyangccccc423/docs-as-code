@@ -1403,6 +1403,8 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
             "command": IMPLEMENTATION_VERIFICATION_COMMAND,
             "run_id": IMPLEMENTATION_VERIFICATION_RUN_ID,
             "preview_ready": implementation_verification_preview.get("verification_ready") is True,
+            "environment_ready": implementation_verification_preview.get("environment_readiness", {}).get("ok")
+            is True,
             "executed": implementation_verification_execute.get("executed") is True,
             "evidence_recorded": implementation_verification_execute.get("evidence_recorded") is True,
             "command_passed": implementation_verification_execute.get("command_passed") is True,
@@ -3088,6 +3090,10 @@ def _implementation_verification_preview_ready(payload: dict[str, object]) -> bo
         and payload.get("executed") is False
         and payload.get("evidence_recorded") is False
         and payload.get("command_contract", {}).get("name") == IMPLEMENTATION_VERIFICATION_COMMAND
+        and payload.get("environment_readiness", {}).get("ok") is True
+        and payload.get("environment_readiness", {}).get("required_executable") == "python3"
+        and payload.get("environment_readiness", {}).get("repair_decision", {}).get("decision")
+        == "continue_execution"
         and payload.get("would_write")
         == [
             "docs/development/04-implementation-evidence.md",

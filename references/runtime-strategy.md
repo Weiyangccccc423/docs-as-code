@@ -118,6 +118,8 @@ Environment repair may create local governance directories and write repair plan
 
 Authority skill repair is a separate trust domain. It is always planning-only in this pack; it must not download code or modify `CODEX_HOME` without explicit approval.
 
+Project-command verification is also a separate scope. `implementation verify --check` reports `environment_readiness` for the exact structured `Argv[0]`: bare executable names use the effective `PATH`, repository-relative executable paths resolve from contract `Cwd` and may not escape the repository, and absolute executable paths are checked as explicitly pinned external paths. A missing executable already listed in `check_env.py` may route to `env --repair --check --strict`; an unknown project executable must stop for approved source and install-policy registration, with no inferred package name or install command. The command-contract `Environment` cell is a human-readable label, not a version or package-source contract, so this preflight must not claim runtime-version compatibility.
+
 Repair scope follows strictness:
 
 - non-strict repair plans only install supported missing required tools

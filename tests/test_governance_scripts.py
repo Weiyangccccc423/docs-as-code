@@ -544,6 +544,63 @@ def _endpoint_contract_doc(
 
 
 class GovernanceScriptsTest(unittest.TestCase):
+    @unittest.skipUnless(hasattr(Path, "symlink_to"), "path symlink support is required")
+    def test_implementation_verify_reports_invalid_relative_executable_without_crashing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            (root / "loop-a").symlink_to("loop-b")
+            (root / "loop-b").symlink_to("loop-a")
+
+            payload = implementation_verify_module._command_environment_readiness(
+                root,
+                root,
+                {"argv": ["./loop-a"], "environment": "Project runtime"},
+                refresh_command={},
+            )
+
+        self.assertFalse(payload["ok"])
+        self.assertEqual("command_executable_path_invalid", payload["blocker_code"])
+        self.assertEqual("repair_repository_executable", payload["repair_decision"]["decision"])
+
+    def test_implementation_verify_routes_known_missing_tool_to_env_repair_preflight(self) -> None:
+        root = Path("/tmp/project").resolve()
+        refresh_command = {
+            "id": "refresh-implementation-verification-preflight",
+            "argv": ["bin/governance", "implementation", "verify", ".", "--check", "--json"],
+        }
+        with mock.patch.object(implementation_verify_module.shutil, "which", return_value=None):
+            payload = implementation_verify_module._command_environment_readiness(
+                root,
+                root,
+                {"argv": ["node", "--test"], "environment": "Project runtime"},
+                refresh_command=refresh_command,
+            )
+
+        self.assertFalse(payload["ok"])
+        self.assertEqual("node", payload["required_executable"])
+        self.assertEqual("path_lookup", payload["resolution_strategy"])
+        self.assertTrue(payload["known_governance_tool"])
+        self.assertEqual("command_executable_unavailable", payload["blocker_code"])
+        self.assertEqual(
+            "run_governance_environment_repair_preflight",
+            payload["repair_decision"]["decision"],
+        )
+        self.assertFalse(payload["repair_decision"]["can_auto_apply"])
+        self.assertEqual(
+            [
+                "bin/governance",
+                "env",
+                "--repair",
+                "--check",
+                "--strict",
+                "--target",
+                ".",
+                "--json",
+            ],
+            payload["repair_preflight_command"]["argv"],
+        )
+        self.assertEqual(refresh_command, payload["refresh_command"])
+
     def test_implementation_verify_atomic_writer_rolls_back_when_post_verify_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

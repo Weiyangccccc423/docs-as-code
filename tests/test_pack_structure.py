@@ -5642,6 +5642,34 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_missing_implementation_environment_preflight_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/implementation_verify.py"
+            text = script.read_text(encoding="utf-8")
+            self.assertIn("command_environment_ready", text)
+            script.write_text(
+                text.replace("command_environment_ready", "command_runtime_ready", 1),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_implementation_verify_source_incomplete"
+                    and finding.path == "scripts/implementation_verify.py"
+                    and "command_environment_ready" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_missing_implementation_verify_doc_contract(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"

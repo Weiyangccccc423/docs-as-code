@@ -72,7 +72,9 @@ Load:
    bin/governance implementation verify <target> --task TASK-NNN --command command-name --json
    ```
 
-   The runner reads the exact structured `Argv` and `Cwd`; it never reconstructs a shell string. The task must be `In Progress`. `--check` performs no execution and no writes. Rows marked `Approval Required: true` are refused; execute those only through an explicitly authorized external path and record the result honestly. Rows marked `Writes State: true` also require `--allow-writes`. Use `--timeout-seconds` and `--max-output-bytes` when project checks need bounds different from the defaults.
+   The runner reads the exact structured `Argv` and `Cwd`; it never reconstructs a shell string. The task must be `In Progress`. `--check` performs no execution and no writes. Inspect `environment_readiness.ok`, `required_executable`, `resolution_strategy`, `resolved_path`, `blocker_code`, `repair_decision`, `repair_preflight_command`, and `refresh_command` before execution. Bare tools resolve through the effective `PATH`; relative executable paths resolve from `Cwd` and must stay inside the repository. Missing tools known to the governance inventory route to `env --repair --check --strict`; unknown project tools require approved source/install-policy registration and never receive guessed installation commands. The current `Environment` cell is a runtime label, not a machine-enforced version constraint.
+
+   Rows marked `Approval Required: true` are refused; execute those only through an explicitly authorized external path and record the result honestly. Rows marked `Writes State: true` also require `--allow-writes`. Use `--timeout-seconds` and `--max-output-bytes` when project checks need bounds different from the defaults.
 
    Every execution derives pass/fail from the process return code, serializes evidence writers with a repository-local lock, applies best-effort redaction to common credential output, and atomically updates `docs/development/04-implementation-evidence.md`, `03-verification-log.md`, `02-task-board.md`, and the development README index. The evidence ledger preserves every run. The current verification log has one summary row per `(Task, Command)`, so rerunning the same command replaces only its summary row. Redaction is not a substitute for keeping secrets out of command arguments and output.
 
@@ -123,6 +125,7 @@ Implementation execution is complete when:
 - Required product, design, API, acceptance, or verification links are missing.
 - The task requires behavior that is not present in local Markdown sources.
 - The required project command is not documented in `docs/agent-workflow/command-contract.md`.
+- `environment_readiness.ok` is false, or its repair decision requires environment preflight, manual tool registration, or executable-path repair.
 - A command-contract row with `Approval Required` set to `true` needs approval that has not been granted.
 - A state-writing command has not received explicit `--allow-writes` authorization.
 - Verification fails and no blocker or follow-up is recorded.

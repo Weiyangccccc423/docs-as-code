@@ -5566,11 +5566,189 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertFalse(payload["executed"])
             self.assertFalse(marker.exists())
             self.assertEqual("task-tests", payload["command_contract"]["name"])
+            self.assertTrue(payload["environment_readiness"]["ok"])
+            self.assertEqual("python3", payload["environment_readiness"]["required_executable"])
+            self.assertEqual("path_lookup", payload["environment_readiness"]["resolution_strategy"])
+            self.assertEqual("argv0_executable", payload["environment_readiness"]["validation_scope"])
+            self.assertFalse(payload["environment_readiness"]["version_constraints_enforced"])
+            self.assertFalse(payload["environment_readiness"]["package_source_inferred"])
+            self.assertTrue(payload["environment_readiness"]["available"])
+            self.assertTrue(payload["environment_readiness"]["executable"])
+            self.assertEqual(
+                "continue_execution",
+                payload["environment_readiness"]["repair_decision"]["decision"],
+            )
             self.assertEqual(
                 ["docs/development/04-implementation-evidence.md", "docs/development/03-verification-log.md", "docs/development/02-task-board.md", "docs/development/README.md"],
                 payload["would_write"],
             )
             self.assertIn("--run-id", payload["execute_command"]["argv"])
+
+    def test_implementation_verify_blocks_unknown_missing_executable_without_guessing_repair(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp)
+            _append_project_command(
+                target,
+                name="missing-project-tool",
+                argv=["docs-as-code-missing-project-tool", "test"],
+            )
+            _run_governance_json(
+                self,
+                ["implementation", "start", str(target), "--task", "TASK-001", "--apply"],
+            )
+
+            payload = _run_governance_json(
+                self,
+                [
+                    "implementation",
+                    "verify",
+                    str(target),
+                    "--task",
+                    "TASK-001",
+                    "--command",
+                    "missing-project-tool",
+                    "--run-id",
+                    "VR-20260713T120000000000Z-10203040",
+                    "--check",
+                ],
+                expected_returncode=1,
+            )
+
+            self.assertFalse(payload["verification_ready"])
+            self.assertFalse(payload["executed"])
+            readiness = payload["environment_readiness"]
+            self.assertFalse(readiness["ok"])
+            self.assertEqual("command_executable_unavailable", readiness["blocker_code"])
+            self.assertEqual(
+                "register_project_environment_tool",
+                readiness["repair_decision"]["decision"],
+            )
+            self.assertTrue(readiness["repair_decision"]["manual_repair_required"])
+            self.assertEqual({}, readiness["repair_preflight_command"])
+            self.assertIn("--check", readiness["refresh_command"]["argv"])
+            blocker_codes = {item["code"] for item in payload["blocking_requirements"]}
+            self.assertIn("command_environment_ready", blocker_codes)
+
+    def test_implementation_verify_resolves_repository_relative_executable_from_contract_cwd(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp)
+            project = target / "services/api"
+            project.mkdir(parents=True)
+            executable = project / "tools/check"
+            executable.parent.mkdir()
+            executable.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            executable.chmod(0o755)
+            _append_project_command(
+                target,
+                name="api-check",
+                argv=["tools/check"],
+                cwd="services/api",
+            )
+            _run_governance_json(
+                self,
+                ["implementation", "start", str(target), "--task", "TASK-001", "--apply"],
+            )
+
+            payload = _run_governance_json(
+                self,
+                [
+                    "implementation",
+                    "verify",
+                    str(target),
+                    "--task",
+                    "TASK-001",
+                    "--command",
+                    "api-check",
+                    "--run-id",
+                    "VR-20260713T120000000000Z-20304050",
+                    "--check",
+                ],
+            )
+
+            readiness = payload["environment_readiness"]
+            self.assertTrue(readiness["ok"])
+            self.assertEqual("cwd_relative", readiness["resolution_strategy"])
+            self.assertEqual(str(executable.resolve()), readiness["resolved_path"])
+
+    def test_implementation_verify_rejects_relative_executable_that_escapes_repository(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp)
+            project = target / "services/api"
+            project.mkdir(parents=True)
+            outside = target.parent / "outside-check"
+            outside.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            outside.chmod(0o755)
+            _append_project_command(
+                target,
+                name="outside-check",
+                argv=["../../../outside-check"],
+                cwd="services/api",
+            )
+            _run_governance_json(
+                self,
+                ["implementation", "start", str(target), "--task", "TASK-001", "--apply"],
+            )
+
+            payload = _run_governance_json(
+                self,
+                [
+                    "implementation",
+                    "verify",
+                    str(target),
+                    "--task",
+                    "TASK-001",
+                    "--command",
+                    "outside-check",
+                    "--run-id",
+                    "VR-20260713T120000000000Z-30405060",
+                    "--check",
+                ],
+                expected_returncode=1,
+            )
+
+            readiness = payload["environment_readiness"]
+            self.assertFalse(readiness["ok"])
+            self.assertEqual("command_executable_outside_repository", readiness["blocker_code"])
+            self.assertEqual(
+                "repair_repository_executable",
+                readiness["repair_decision"]["decision"],
+            )
+
+    def test_implementation_verify_rejects_non_executable_repository_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp)
+            executable = target / "tools/check"
+            executable.parent.mkdir()
+            executable.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            executable.chmod(0o644)
+            _append_project_command(target, name="non-executable-check", argv=["tools/check"])
+            _run_governance_json(
+                self,
+                ["implementation", "start", str(target), "--task", "TASK-001", "--apply"],
+            )
+
+            payload = _run_governance_json(
+                self,
+                [
+                    "implementation",
+                    "verify",
+                    str(target),
+                    "--task",
+                    "TASK-001",
+                    "--command",
+                    "non-executable-check",
+                    "--run-id",
+                    "VR-20260713T120000000000Z-40506070",
+                    "--check",
+                ],
+                expected_returncode=1,
+            )
+
+            readiness = payload["environment_readiness"]
+            self.assertFalse(readiness["ok"])
+            self.assertTrue(readiness["available"])
+            self.assertFalse(readiness["executable"])
+            self.assertEqual("command_executable_not_executable", readiness["blocker_code"])
 
     def test_implementation_verify_executes_and_records_passing_evidence_atomically(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
