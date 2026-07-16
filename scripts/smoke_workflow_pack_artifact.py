@@ -21,14 +21,19 @@ TARGET_LOCAL_MAKE_STEP_IDS = [
     "make_governance_status",
     "make_workflow_plan_initialized",
     "make_work_package_initialized",
+    "make_workflow_resume_initialized",
     "make_workflow_plan_product_structuring",
     "make_work_package_product_structuring",
+    "make_workflow_resume_product_structuring",
     "make_workflow_plan_design_derivation",
     "make_work_package_design_derivation",
+    "make_workflow_resume_design_derivation",
     "make_work_package_design_complete",
     "make_workflow_plan_implementation",
     "make_work_package_implementation",
+    "make_workflow_resume_implementation",
     "make_work_package_complete_after_runtime_refresh",
+    "make_workflow_resume_complete_after_runtime_refresh",
     "make_product_plan",
     "make_design_plan",
     "make_implementation_plan",
@@ -260,6 +265,12 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
             ["make", "work-package"],
             fresh_target,
         )
+        target_local_workflow_resume_payload = _run_json(
+            steps,
+            "fresh_target_workflow_resume",
+            ["make", "workflow-resume"],
+            fresh_target,
+        )
         fresh_target_init = _fresh_target_init_details(
             fresh_target=fresh_target,
             init_payload=init_payload,
@@ -267,6 +278,7 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
             status_payload=target_local_status_payload,
             workflow_plan_payload=target_local_workflow_plan_payload,
             work_package_payload=target_local_work_package_payload,
+            workflow_resume_payload=target_local_workflow_resume_payload,
         )
         _require(
             fresh_target_init.get("ok") is True,
@@ -798,6 +810,7 @@ def _fresh_target_init_details(
     status_payload: dict[str, object],
     workflow_plan_payload: dict[str, object],
     work_package_payload: dict[str, object],
+    workflow_resume_payload: dict[str, object],
 ) -> dict[str, object]:
     init_state = init_payload.get("state")
     status_state = status_payload.get("state")
@@ -805,6 +818,10 @@ def _fresh_target_init_details(
     phase = init_state.get("phase") if isinstance(init_state, dict) else ""
     profile = init_state.get("profile") if isinstance(init_state, dict) else ""
     project_name = init_state.get("project_name") if isinstance(init_state, dict) else ""
+    workflow_resume = _workflow_resume_payload_details(
+        workflow_resume_payload,
+        expected_phase="initialized",
+    )
     return {
         "ok": (
             phase == "initialized"
@@ -820,6 +837,7 @@ def _fresh_target_init_details(
             and work_package_payload.get("phase") == "initialized"
             and work_package_payload.get("package_available") is False
             and work_package_payload.get("status") == "phase_action_required"
+            and workflow_resume.get("ok") is True
             and (fresh_target / "bin/governance").is_file()
             and (fresh_target / "scripts/governance_cli.py").is_file()
             and (fresh_target / "docs/agent-workflow/runtime-manifest.json").is_file()
@@ -841,6 +859,8 @@ def _fresh_target_init_details(
             and work_package_payload.get("package_available") is False
             and work_package_payload.get("status") == "phase_action_required"
         ),
+        "target_local_workflow_resume_ok": workflow_resume.get("ok") is True,
+        "workflow_resume": workflow_resume,
         "local_governance_cli": (fresh_target / "bin/governance").is_file(),
         "runtime_manifest": (fresh_target / "docs/agent-workflow/runtime-manifest.json").is_file(),
         "workflow_pack_snapshot": (fresh_target / "docs/agent-workflow/workflow-pack/manifest.json").is_file(),
@@ -904,6 +924,65 @@ def _consumer_work_package_details(
     }
 
 
+def _workflow_resume_payload_details(
+    payload: object,
+    *,
+    expected_phase: str,
+) -> dict[str, object]:
+    payload_map = payload if isinstance(payload, dict) else {}
+    snapshot = payload_map.get("snapshot")
+    snapshot_map = snapshot if isinstance(snapshot, dict) else {}
+    selected_action = payload_map.get("selected_action")
+    selected_action_map = selected_action if isinstance(selected_action, dict) else {}
+    assert_command = payload_map.get("assert_snapshot_command")
+    assert_command_map = assert_command if isinstance(assert_command, dict) else {}
+    refresh_command = payload_map.get("refresh_command")
+    refresh_command_map = refresh_command if isinstance(refresh_command, dict) else {}
+    action_count = payload_map.get("action_count")
+    snapshot_id = snapshot_map.get("id")
+    return {
+        "ok": (
+            payload_map.get("ok") is True
+            and payload_map.get("workflow") == "workflow-resume"
+            and payload_map.get("phase") == expected_phase
+            and payload_map.get("stale") is False
+            and isinstance(snapshot_id, str)
+            and len(snapshot_id) == 64
+            and all(character in "0123456789abcdef" for character in snapshot_id)
+            and isinstance(action_count, int)
+            and not isinstance(action_count, bool)
+            and action_count in {0, 1}
+            and bool(selected_action_map) is (action_count == 1)
+            and isinstance(assert_command_map.get("argv"), list)
+            and isinstance(refresh_command_map.get("argv"), list)
+        ),
+        "phase": str(payload_map.get("phase", "")),
+        "status": str(payload_map.get("status", "")),
+        "snapshot_id": snapshot_id if isinstance(snapshot_id, str) else "",
+        "action_count": action_count if isinstance(action_count, int) and not isinstance(action_count, bool) else -1,
+        "selected_action_kind": str(selected_action_map.get("kind", "")),
+        "can_continue": payload_map.get("can_continue") is True,
+        "stop_before_action": payload_map.get("stop_before_action") is True,
+    }
+
+
+def _consumer_workflow_resume_details(
+    bootstrap_payload: dict[str, object],
+    *,
+    expected_phase: str,
+) -> dict[str, object]:
+    details = _workflow_resume_payload_details(
+        bootstrap_payload.get("workflow_resume"),
+        expected_phase=expected_phase,
+    )
+    details["ok"] = (
+        details.get("ok") is True
+        and bootstrap_payload.get("workflow_resume_generated") is True
+        and bootstrap_payload.get("workflow_resume_ok") is True
+    )
+    return details
+
+
 def _consumer_bootstrap_details(
     *,
     target: Path,
@@ -927,6 +1006,10 @@ def _consumer_bootstrap_details(
         expected_phase="product-structuring",
         expected_kind="product-authoring",
     )
+    workflow_resume = _consumer_workflow_resume_details(
+        bootstrap_payload,
+        expected_phase="product-structuring",
+    )
     return {
         "ok": (
             bootstrap_payload.get("ok") is True
@@ -935,6 +1018,7 @@ def _consumer_bootstrap_details(
             and authority_skill_inventory.get("ok") is True
             and env_auto_repair.get("ok") is True
             and work_package.get("ok") is True
+            and workflow_resume.get("ok") is True
             and bootstrap_payload.get("auto_repair_env") is True
             and bootstrap_payload.get("product_structure_apply_ok") is True
             and "advance_product_structuring" in expanded_flag_list
@@ -951,6 +1035,7 @@ def _consumer_bootstrap_details(
         "authority_skill_inventory": authority_skill_inventory,
         "env_auto_repair": env_auto_repair,
         "work_package": work_package,
+        "workflow_resume": workflow_resume,
         "auto_repair_env": bootstrap_payload.get("auto_repair_env") is True,
         "product_structure_apply_ok": bootstrap_payload.get("product_structure_apply_ok") is True,
         "target_local_ok": target_local.get("ok") is True if isinstance(target_local, dict) else False,
@@ -987,6 +1072,10 @@ def _consumer_bootstrap_design_scaffold_details(
         expected_phase="design-derivation",
         expected_kind="design-authoring",
     )
+    workflow_resume = _consumer_workflow_resume_details(
+        bootstrap_payload,
+        expected_phase="design-derivation",
+    )
     system_context_doc = target / "docs/architecture/01-system-context.md"
     endpoint_contract_doc = target / "docs/api/endpoints/01-endpoint-contract.md"
     return {
@@ -997,6 +1086,7 @@ def _consumer_bootstrap_design_scaffold_details(
             and authority_skill_inventory.get("ok") is True
             and env_auto_repair.get("ok") is True
             and work_package.get("ok") is True
+            and workflow_resume.get("ok") is True
             and bootstrap_payload.get("auto_repair_env") is True
             and bootstrap_payload.get("product_structure_apply_ok") is True
             and bootstrap_payload.get("advanced_design_derivation") is True
@@ -1016,6 +1106,7 @@ def _consumer_bootstrap_design_scaffold_details(
         "authority_skill_inventory": authority_skill_inventory,
         "env_auto_repair": env_auto_repair,
         "work_package": work_package,
+        "workflow_resume": workflow_resume,
         "auto_repair_env": bootstrap_payload.get("auto_repair_env") is True,
         "product_structure_apply_ok": bootstrap_payload.get("product_structure_apply_ok") is True,
         "advanced_design_derivation": bootstrap_payload.get("advanced_design_derivation") is True,

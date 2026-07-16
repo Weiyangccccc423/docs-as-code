@@ -1472,7 +1472,7 @@ class PackStructureTest(unittest.TestCase):
             readme = target / "README.md"
             readme.write_text(
                 readme.read_text(encoding="utf-8").replace(
-                    "initializes a fresh target folder from the unpacked artifact, runs target-local verify/status/workflow-plan commands,",
+                    "initializes a fresh target folder from the unpacked artifact, runs target-local verify/status/workflow-plan/work-package/workflow-resume commands,",
                     "runs transfer checks",
                 ),
                 encoding="utf-8",

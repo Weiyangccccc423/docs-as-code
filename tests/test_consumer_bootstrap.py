@@ -111,6 +111,8 @@ class ConsumerBootstrapTest(unittest.TestCase):
             self.assertFalse(check_payload["authority_skill_inventory"]["repair_plan"]["writes_state"])
             self.assertTrue(check_payload["authority_skill_inventory"]["manifest"]["ok"])
             self.assertGreaterEqual(check_payload["authority_skill_inventory"]["required_skill_count"], 19)
+            self.assertFalse(check_payload["workflow_resume_generated"])
+            self.assertFalse(check_payload["workflow_resume_ok"])
             self.assertEqual(
                 {
                     "pack_manifest_verify",
@@ -154,6 +156,17 @@ class ConsumerBootstrapTest(unittest.TestCase):
             self.assertEqual("initialized", payload["work_package"]["phase"])
             self.assertFalse(payload["work_package"]["package_available"])
             self.assertEqual("phase_action_required", payload["work_package"]["status"])
+            self.assertTrue(payload["workflow_resume_generated"])
+            self.assertTrue(payload["workflow_resume_ok"])
+            self.assertEqual("workflow-resume", payload["workflow_resume"]["workflow"])
+            self.assertEqual("initialized", payload["workflow_resume"]["phase"])
+            self.assertEqual("action_ready", payload["workflow_resume"]["status"])
+            self.assertEqual(1, payload["workflow_resume"]["action_count"])
+            self.assertEqual(
+                "guarded-sequence",
+                payload["workflow_resume"]["selected_action"]["kind"],
+            )
+            self.assertRegex(payload["workflow_resume"]["snapshot"]["id"], r"^[0-9a-f]{64}$")
             self.assertEqual("explicit", payload["target_local"]["product_selection"])
             self.assertTrue((target / "bin/governance").is_file())
             self.assertTrue((target / "scripts/governance_cli.py").is_file())
@@ -169,6 +182,7 @@ class ConsumerBootstrapTest(unittest.TestCase):
             self.assertIn("target_local_governance_status", step_ids)
             self.assertIn("target_local_workflow_plan", step_ids)
             self.assertIn("target_local_work_package", step_ids)
+            self.assertIn("target_local_workflow_resume", step_ids)
 
     def test_strict_authority_skills_blocks_bootstrap_when_agent_skills_are_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -560,12 +574,17 @@ class ConsumerBootstrapTest(unittest.TestCase):
             self.assertTrue(payload["product_structuring"]["product_plan_ok"])
             self.assertEqual("product-structuring", payload["product_structuring"]["phase"])
             self.assertEqual("product-structuring", payload["target_local"]["phase"])
+            self.assertTrue(payload["workflow_resume_ok"])
+            self.assertEqual("product-structuring", payload["workflow_resume"]["phase"])
+            self.assertEqual("work_ready", payload["workflow_resume"]["status"])
+            self.assertEqual(1, payload["workflow_resume"]["action_count"])
             self.assertEqual("do_not_guess_product_meaning", payload["product_plan"]["decision_policy"])
             self.assertIn("manual_authoring_summary", payload["product_plan"])
             step_ids = {step["id"] for step in payload["steps"]}
             self.assertIn("advance_product_structuring_check", step_ids)
             self.assertIn("advance_product_structuring", step_ids)
             self.assertIn("target_local_product_plan", step_ids)
+            self.assertIn("target_local_workflow_resume", step_ids)
 
     def test_exported_pack_previews_product_scaffold_from_product_plan(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

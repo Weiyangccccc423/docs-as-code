@@ -67,6 +67,7 @@ class ArtifactSmokeTest(unittest.TestCase):
         self.assertTrue(payload["fresh_target_init"]["target_local_status_ok"])
         self.assertTrue(payload["fresh_target_init"]["target_local_workflow_plan_ok"])
         self.assertTrue(payload["fresh_target_init"]["target_local_work_package_ok"])
+        self.assertTrue(payload["fresh_target_init"]["target_local_workflow_resume_ok"])
         self.assertTrue(payload["fresh_target_init"]["runtime_manifest"])
         self.assertTrue(payload["fresh_target_init"]["workflow_pack_snapshot"])
         self.assertTrue(payload["fresh_target_init"]["product_source_manifest"])
@@ -123,6 +124,11 @@ class ArtifactSmokeTest(unittest.TestCase):
         )
         self.assertTrue(payload["consumer_bootstrap_product_structure"]["product_structure_apply_ok"])
         self.assertTrue(payload["consumer_bootstrap_product_structure"]["work_package"]["ok"])
+        self.assertTrue(payload["consumer_bootstrap_product_structure"]["workflow_resume"]["ok"])
+        self.assertEqual(
+            "product-structuring",
+            payload["consumer_bootstrap_product_structure"]["workflow_resume"]["phase"],
+        )
         self.assertEqual("product-structuring", payload["consumer_bootstrap_product_structure"]["work_package"]["phase"])
         self.assertTrue(payload["consumer_bootstrap_product_structure"]["goals_chapter"])
         self.assertTrue(payload["consumer_bootstrap_product_structure"]["acceptance_chapter"])
@@ -146,6 +152,7 @@ class ArtifactSmokeTest(unittest.TestCase):
         self.assertTrue(payload["consumer_bootstrap_design_scaffold"]["system_context_doc"])
         self.assertTrue(payload["consumer_bootstrap_design_scaffold"]["endpoint_contract_doc"])
         self.assertTrue(payload["consumer_bootstrap_design_scaffold"]["work_package"]["ok"])
+        self.assertTrue(payload["consumer_bootstrap_design_scaffold"]["workflow_resume"]["ok"])
         self.assertEqual(
             "architecture-authoring",
             payload["consumer_bootstrap_design_scaffold"]["work_package"]["queue_id"],
@@ -168,6 +175,7 @@ class ArtifactSmokeTest(unittest.TestCase):
         self.assertEqual(9, payload["consumer_bootstrap_design_routing"]["queue_count"])
         self.assertEqual([], payload["consumer_bootstrap_design_routing"]["missing_queue_ids"])
         self.assertTrue(payload["consumer_bootstrap_design_routing"]["work_package"]["ok"])
+        self.assertTrue(payload["consumer_bootstrap_design_routing"]["workflow_resume"]["ok"])
         self.assertEqual(
             "architecture-authoring",
             payload["consumer_bootstrap_design_routing"]["work_package"]["queue_id"],
@@ -208,6 +216,7 @@ class ArtifactSmokeTest(unittest.TestCase):
         self.assertFalse(payload["consumer_bootstrap_implementation_routing"]["env_auto_repair"]["stop_before_workflow"])
         self.assertTrue(payload["consumer_bootstrap_implementation_routing"]["authority_skill_inventory"]["ok"])
         self.assertTrue(payload["consumer_bootstrap_implementation_routing"]["work_package"]["ok"])
+        self.assertTrue(payload["consumer_bootstrap_implementation_routing"]["workflow_resume"]["ok"])
         self.assertEqual(
             "architecture-authoring",
             payload["consumer_bootstrap_implementation_routing"]["work_package"]["queue_id"],
@@ -294,6 +303,7 @@ class ArtifactSmokeTest(unittest.TestCase):
         self.assertIn("fresh_target_verify_check", step_ids)
         self.assertIn("fresh_target_governance_status", step_ids)
         self.assertIn("fresh_target_workflow_plan", step_ids)
+        self.assertIn("fresh_target_workflow_resume", step_ids)
         self.assertIn("unpacked_consumer_bootstrap_product_structure", step_ids)
         self.assertIn("unpacked_consumer_bootstrap_design_scaffold", step_ids)
         self.assertIn("unpacked_consumer_bootstrap_design_routing", step_ids)

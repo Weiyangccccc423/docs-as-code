@@ -358,6 +358,8 @@ def run_consumer_bootstrap(
             "env_auto_repair": env_auto_repair,
             "work_package_generated": False,
             "work_package_ok": False,
+            "workflow_resume_generated": False,
+            "workflow_resume_ok": False,
             "advance_product_structuring_requested": advance_product_structuring,
             "advanced_product_structuring": False,
             "product_scaffold_preview_requested": product_scaffold_preview,
@@ -669,6 +671,26 @@ def run_consumer_bootstrap(
         payload["work_package_generated"] = True
         payload["work_package_ok"] = True
         payload["work_package"] = work_package
+        workflow_resume = _run_json(
+            steps,
+            "target_local_workflow_resume",
+            ["make", "workflow-resume"],
+            target,
+        )
+        target_local_payload = payload.get("target_local")
+        expected_resume_phase = (
+            str(target_local_payload.get("phase", ""))
+            if isinstance(target_local_payload, dict)
+            else ""
+        )
+        _require(
+            _workflow_resume_contract_ok(workflow_resume, expected_phase=expected_resume_phase),
+            "target-local workflow resume failed",
+            payload=workflow_resume,
+        )
+        payload["workflow_resume_generated"] = True
+        payload["workflow_resume_ok"] = True
+        payload["workflow_resume"] = workflow_resume
         if isinstance(status_payload.get("local_commands"), list):
             payload["local_commands"] = status_payload["local_commands"]
         elif isinstance(init_payload.get("local_commands"), list):
@@ -724,6 +746,8 @@ def run_consumer_bootstrap(
             "env_auto_repair": env_auto_repair,
             "work_package_generated": False,
             "work_package_ok": False,
+            "workflow_resume_generated": False,
+            "workflow_resume_ok": False,
             "authority_skill_inventory": error.payload
             if error.message == "authority skill inventory failed" and error.payload is not None
             else {},
@@ -1145,6 +1169,32 @@ def _target_local_details(
         "workflow_pack_snapshot": (target / "docs/agent-workflow/workflow-pack/manifest.json").is_file(),
         "product_source_manifest": (target / "docs/product/core/source/source-manifest.json").is_file(),
     }
+
+
+def _workflow_resume_contract_ok(payload: dict[str, object], *, expected_phase: str) -> bool:
+    snapshot = payload.get("snapshot")
+    selected_action = payload.get("selected_action")
+    action_count = payload.get("action_count")
+    assert_command = payload.get("assert_snapshot_command")
+    refresh_command = payload.get("refresh_command")
+    return (
+        payload.get("ok") is True
+        and payload.get("workflow") == "workflow-resume"
+        and payload.get("phase") == expected_phase
+        and payload.get("stale") is False
+        and isinstance(snapshot, dict)
+        and isinstance(snapshot.get("id"), str)
+        and re.fullmatch(r"[0-9a-f]{64}", snapshot["id"]) is not None
+        and isinstance(action_count, int)
+        and not isinstance(action_count, bool)
+        and action_count in {0, 1}
+        and isinstance(selected_action, dict)
+        and bool(selected_action) is (action_count == 1)
+        and isinstance(assert_command, dict)
+        and isinstance(assert_command.get("argv"), list)
+        and isinstance(refresh_command, dict)
+        and isinstance(refresh_command.get("argv"), list)
+    )
 
 
 def _advance_product_structuring(steps: list[dict[str, object]], target: Path) -> dict[str, object]:
