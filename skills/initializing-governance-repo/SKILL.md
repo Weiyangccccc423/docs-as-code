@@ -79,6 +79,7 @@ Create the minimum structure needed for reliable docs-as-code work.
 
 - root `README.md`, `AGENTS.md`, `SPEC.md`
 - root `bin/governance` and `scripts/governance_cli.py`
+- `docs/agent-workflow/project-environment.json` with `core-governance` and an unconfigured `project-runtime`
 - `docs/agent-workflow/workflow-pack/manifest.json`
 - `docs/agent-workflow/workflow-pack/references/authority-skills.lock.json`
 - local workflow-pack snapshot under `docs/agent-workflow/workflow-pack/`

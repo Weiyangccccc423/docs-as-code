@@ -42,6 +42,9 @@ class PackStructureTest(unittest.TestCase):
     def test_implementation_verify_runtime_is_required_in_generated_targets(self) -> None:
         self.assertIn(Path("scripts/implementation_verify.py"), RUNTIME_REQUIRED_PATHS)
 
+    def test_project_environment_runtime_is_required_in_generated_targets(self) -> None:
+        self.assertIn(Path("scripts/project_environment.py"), RUNTIME_REQUIRED_PATHS)
+
     def test_target_local_command_contracts_stay_aligned(self) -> None:
         expected_targets = tuple(target for target, _recipe, _description, _writes_state in TARGET_LOCAL_COMMANDS)
         expected_recipes = {
@@ -5670,6 +5673,62 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_incomplete_project_environment_source_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/project_environment.py"
+            text = script.read_text(encoding="utf-8")
+            self.assertIn("APPROVED_VERSION_PROBE_ARGS =", text)
+            script.write_text(
+                text.replace("APPROVED_VERSION_PROBE_ARGS =", "VERSION_PROBE_ARGS =", 1),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_project_environment_source_incomplete"
+                    and finding.path == "scripts/project_environment.py"
+                    and "APPROVED_VERSION_PROBE_ARGS =" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_project_environment_template_guardrail_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            template = target / "templates/docs/agent-workflow/project-environment.json"
+            text = template.read_text(encoding="utf-8")
+            self.assertIn('"strategy": "governance-env"', text)
+            template.write_text(
+                text.replace('"strategy": "governance-env"', '"strategy": "manual"', 1),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_template_guardrail_missing"
+                    and finding.path == "templates/docs/agent-workflow/project-environment.json"
+                    and '"strategy": "governance-env"' in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_missing_implementation_verify_doc_contract(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
@@ -6515,7 +6574,7 @@ class PackStructureTest(unittest.TestCase):
                 template.read_text(encoding="utf-8").replace(
                     "| governance-status | Print workflow state as JSON. | `.` | `"
                     '["bin/governance", "status", ".", "--json"]'
-                    "` | false | false | `docs/development/03-verification-log.md` | Core governance runtime |\n",
+                    "` | false | false | `docs/development/03-verification-log.md` | core-governance |\n",
                     "",
                     1,
                 ),

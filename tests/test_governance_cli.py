@@ -187,13 +187,14 @@ def _append_project_command(
     writes_state: bool = False,
     approval_required: bool = False,
     cwd: str = ".",
+    environment: str = "core-governance",
 ) -> None:
     path = target / "docs/agent-workflow/command-contract.md"
     text = path.read_text(encoding="utf-8")
     row = (
         f"| {name} | Verify one implementation task. | `{cwd}` | `{json.dumps(argv)}` | "
         f"{str(writes_state).lower()} | {str(approval_required).lower()} | "
-        "`docs/development/04-implementation-evidence.md` | Project runtime |\n"
+        f"`docs/development/04-implementation-evidence.md` | {environment} |\n"
     )
     path.write_text(text.replace("\n## Project Commands", f"\n{row}\n## Project Commands", 1), encoding="utf-8")
 
@@ -2864,6 +2865,47 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn("profile: web-app", status_result.stdout)
             self.assertIn("product_import_status: ready_for_structuring", status_result.stdout)
             self.assertIn("product_can_derive_design: True", status_result.stdout)
+
+    def test_verify_uses_one_timestamp_for_state_update_when_clock_moves_backward(self) -> None:
+        scripts_dir = str(ROOT / "scripts")
+        if scripts_dir not in sys.path:
+            sys.path.insert(0, scripts_dir)
+        governance_cli = importlib.import_module("governance_cli")
+        state_module = importlib.import_module("state")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+            governance_cli.bootstrap(target, product, profile="service", project_name="Clock Test")
+
+            checked_at = "2099-07-14T06:36:25+00:00"
+            earlier_cli_time = "2099-07-14T06:36:24+00:00"
+            earlier_state_time = "2099-07-14T06:36:23+00:00"
+            state_path = target / ".governance/state.json"
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            state["updated_at"] = checked_at
+            state_path.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            original_cli_utc_now = governance_cli.utc_now
+            original_state_utc_now = state_module.utc_now
+            governance_cli.utc_now = lambda: earlier_cli_time
+            state_module.utc_now = lambda: earlier_state_time
+            stdout = io.StringIO()
+            try:
+                with contextlib.redirect_stdout(stdout):
+                    returncode = governance_cli._cmd_verify(
+                        SimpleNamespace(target=str(target), check=False, json=True)
+                    )
+            finally:
+                governance_cli.utc_now = original_cli_utc_now
+                state_module.utc_now = original_state_utc_now
+
+            self.assertEqual(0, returncode)
+            payload = json.loads(stdout.getvalue())
+            self.assertTrue(payload["state_updated"])
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            self.assertEqual(checked_at, state["last_verification"]["checked_at"])
+            self.assertEqual(checked_at, state["updated_at"])
 
     def test_init_verify_and_status_json_output(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -5569,9 +5611,17 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertTrue(payload["environment_readiness"]["ok"])
             self.assertEqual("python3", payload["environment_readiness"]["required_executable"])
             self.assertEqual("path_lookup", payload["environment_readiness"]["resolution_strategy"])
-            self.assertEqual("argv0_executable", payload["environment_readiness"]["validation_scope"])
-            self.assertFalse(payload["environment_readiness"]["version_constraints_enforced"])
+            self.assertEqual(
+                "argv0_and_declared_environment_tools",
+                payload["environment_readiness"]["validation_scope"],
+            )
+            self.assertTrue(payload["environment_readiness"]["version_constraints_enforced"])
             self.assertFalse(payload["environment_readiness"]["package_source_inferred"])
+            self.assertEqual(
+                "core-governance",
+                payload["environment_readiness"]["environment_contract"]["environment_id"],
+            )
+            self.assertTrue(payload["environment_readiness"]["environment_probe_executed"])
             self.assertTrue(payload["environment_readiness"]["available"])
             self.assertTrue(payload["environment_readiness"]["executable"])
             self.assertEqual(
@@ -5583,6 +5633,85 @@ class GovernanceCliTest(unittest.TestCase):
                 payload["would_write"],
             )
             self.assertIn("--run-id", payload["execute_command"]["argv"])
+
+    def test_implementation_verify_blocks_unsatisfied_declared_runtime_version_with_manual_repair(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp)
+            environment_path = target / "docs/agent-workflow/project-environment.json"
+            environment_contract = json.loads(environment_path.read_text(encoding="utf-8"))
+            project_runtime = next(
+                item for item in environment_contract["environments"] if item["id"] == "project-runtime"
+            )
+            project_runtime["tools"] = [
+                {
+                    "id": "python-tests",
+                    "executable": "python3",
+                    "version_probe": {
+                        "args": ["--version"],
+                        "output": "stdout",
+                        "prefix": "Python ",
+                    },
+                    "version_requirement": {"minimum": "99.0.0"},
+                    "repair": {
+                        "strategy": "manual",
+                        "source": {
+                            "type": "official-url",
+                            "location": "https://www.python.org/downloads/",
+                            "review_evidence": "docs/agent-workflow/workflow-pack/references/project-environment-contract.md",
+                        },
+                        "instructions": "Install an approved Python runtime that satisfies the declared version.",
+                    },
+                }
+            ]
+            environment_path.write_text(
+                json.dumps(environment_contract, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+            _append_project_command(
+                target,
+                name="future-python-tests",
+                argv=["python3", "-c", "print('must not run')"],
+                environment="project-runtime",
+            )
+            _run_governance_json(
+                self,
+                ["implementation", "start", str(target), "--task", "TASK-001", "--apply"],
+            )
+
+            payload = _run_governance_json(
+                self,
+                [
+                    "implementation",
+                    "verify",
+                    str(target),
+                    "--task",
+                    "TASK-001",
+                    "--command",
+                    "future-python-tests",
+                    "--run-id",
+                    "VR-20260714T130000000000Z-50607080",
+                    "--check",
+                ],
+                expected_returncode=1,
+            )
+
+            readiness = payload["environment_readiness"]
+            self.assertFalse(readiness["ok"])
+            self.assertEqual("project-runtime", readiness["environment_contract"]["environment_id"])
+            self.assertTrue(readiness["environment_probe_executed"])
+            self.assertEqual(1, len(readiness["required_tools"]))
+            tool = readiness["required_tools"][0]
+            self.assertEqual("python-tests", tool["id"])
+            self.assertTrue(tool["available"])
+            self.assertTrue(tool["probe_passed"])
+            self.assertFalse(tool["version_satisfies"])
+            self.assertEqual("environment_tool_version_unsatisfied", tool["blocker_code"])
+            self.assertEqual(
+                "complete_manual_environment_repairs",
+                readiness["repair_decision"]["decision"],
+            )
+            self.assertEqual("https://www.python.org/downloads/", readiness["repair_actions"][0]["source"]["location"])
+            self.assertEqual({}, readiness["repair_preflight_command"])
 
     def test_implementation_verify_blocks_unknown_missing_executable_without_guessing_repair(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -5618,13 +5747,14 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertFalse(payload["executed"])
             readiness = payload["environment_readiness"]
             self.assertFalse(readiness["ok"])
-            self.assertEqual("command_executable_unavailable", readiness["blocker_code"])
+            self.assertEqual("command_environment_tool_undeclared", readiness["blocker_code"])
             self.assertEqual(
-                "register_project_environment_tool",
+                "complete_manual_environment_repairs",
                 readiness["repair_decision"]["decision"],
             )
             self.assertTrue(readiness["repair_decision"]["manual_repair_required"])
             self.assertEqual({}, readiness["repair_preflight_command"])
+            self.assertEqual("register", readiness["repair_actions"][0]["strategy"])
             self.assertIn("--check", readiness["refresh_command"]["argv"])
             blocker_codes = {item["code"] for item in payload["blocking_requirements"]}
             self.assertIn("command_environment_ready", blocker_codes)

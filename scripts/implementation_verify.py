@@ -10,6 +10,7 @@ import subprocess
 import tempfile
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
@@ -30,6 +31,13 @@ try:
         _read_task_rows,
         _render_markdown_table_line,
         _task_row_by_id,
+    )
+    from .project_environment import (
+        PROJECT_ENVIRONMENT_REL,
+        extract_probed_version,
+        load_project_environment_contract,
+        project_environment_by_id,
+        version_satisfies_requirement,
     )
     from .state import load_state
     from .verify_governance import (
@@ -57,6 +65,13 @@ except ImportError:  # pragma: no cover - direct script execution
         _read_task_rows,
         _render_markdown_table_line,
         _task_row_by_id,
+    )
+    from project_environment import (
+        PROJECT_ENVIRONMENT_REL,
+        extract_probed_version,
+        load_project_environment_contract,
+        project_environment_by_id,
+        version_satisfies_requirement,
     )
     from state import load_state
     from verify_governance import (
@@ -91,6 +106,8 @@ MAX_CONFIGURED_OUTPUT_BYTES = 1_048_576
 RUN_ID_RE = re.compile(r"^VR-[0-9]{8}T[0-9]{12}Z-[0-9a-f]{8}$")
 IMPLEMENTATION_VERIFY_LOCK_REL = Path(".governance/implementation-verify.lock")
 IMPLEMENTATION_VERIFY_LOCK_WAIT_SECONDS = 0.5
+ENVIRONMENT_PROBE_TIMEOUT_SECONDS = 5.0
+ENVIRONMENT_PROBE_MAX_OUTPUT_BYTES = 4096
 SENSITIVE_OUTPUT_PATTERNS = (
     re.compile(
         r"(?i)\b(?P<prefix>authorization\s*:\s*(?:bearer|basic)\s+)(?P<secret>[^\s]+)"
@@ -145,6 +162,7 @@ def build_implementation_verify(
         command_cwd,
         command_contract,
         refresh_command=refresh_command,
+        allow_probes=governance_report.ok and not contract_errors,
     )
 
     requirements = [
@@ -459,7 +477,7 @@ def _load_command_contract(root: Path, command_name: str) -> tuple[dict[str, obj
         "writes_state": writes_state,
         "approval_required": approval_required,
         "evidence": row["evidence"].strip(),
-        "environment": row["environment"].strip(),
+        "environment": row["environment"].strip().strip("`").strip(),
     }, errors
 
 
@@ -491,6 +509,219 @@ def _command_environment_readiness(
     contract: dict[str, object],
     *,
     refresh_command: dict[str, object],
+    allow_probes: bool = True,
+) -> dict[str, object]:
+    readiness = _command_executable_readiness(
+        root,
+        command_cwd,
+        contract,
+        refresh_command=refresh_command,
+    )
+    readiness.update(
+        {
+            "environment_contract": {
+                "path": PROJECT_ENVIRONMENT_REL.as_posix(),
+                "schema_version": None,
+                "environment_id": str(contract.get("environment", "")),
+                "description": "",
+                "allow_repository_executables": False,
+            },
+            "environment_probe_executed": False,
+            "required_tools": [],
+            "repair_actions": [],
+        }
+    )
+    payload, errors = load_project_environment_contract(root)
+    if errors:
+        readiness["ok"] = False
+        readiness["blocker_code"] = "project_environment_contract_invalid"
+        readiness["environment_contract"]["errors"] = list(errors)
+        readiness["repair_decision"] = _environment_repair_decision(
+            "repair_project_environment_contract",
+            status="environment_contract_invalid",
+            stop_before_execution=True,
+            requires_approval=False,
+            manual_repair_required=True,
+            next_step="repair project-environment.json, run governance verification, then refresh this preflight",
+        )
+        readiness["repair_preflight_command"] = {}
+        return readiness
+
+    environment_id = str(contract.get("environment", "")).strip()
+    environment = project_environment_by_id(payload, environment_id)
+    readiness["environment_contract"]["schema_version"] = payload.get("schema_version")
+    if environment is None:
+        readiness["ok"] = False
+        readiness["blocker_code"] = "command_environment_id_unknown"
+        readiness["repair_decision"] = _environment_repair_decision(
+            "register_project_environment",
+            status="environment_registration_required",
+            stop_before_execution=True,
+            requires_approval=False,
+            manual_repair_required=True,
+            next_step="register the command Environment ID in project-environment.json, then refresh this preflight",
+        )
+        readiness["repair_preflight_command"] = {}
+        return readiness
+
+    readiness["environment_contract"].update(
+        {
+            "description": environment.get("description", ""),
+            "allow_repository_executables": environment.get("allow_repository_executables") is True,
+        }
+    )
+    tools = environment.get("tools") if isinstance(environment.get("tools"), list) else []
+    if not allow_probes:
+        readiness["ok"] = False
+        readiness["blocker_code"] = "environment_probe_blocked_by_governance"
+        readiness["required_tools"] = [
+            {
+                "id": str(tool.get("id", "")),
+                "executable": str(tool.get("executable", "")),
+                "probe_executed": False,
+                "ready": False,
+                "blocker_code": "environment_probe_blocked_by_governance",
+            }
+            for tool in tools
+            if isinstance(tool, dict)
+        ]
+        readiness["repair_decision"] = _environment_repair_decision(
+            "repair_governance_before_environment_probe",
+            status="governance_verification_required",
+            stop_before_execution=True,
+            requires_approval=False,
+            manual_repair_required=True,
+            next_step="repair governance verification blockers before executing environment version probes",
+        )
+        readiness["repair_preflight_command"] = {}
+        return readiness
+    readiness["version_constraints_enforced"] = True
+    required_executable = str(readiness.get("required_executable", ""))
+    candidate = Path(required_executable) if required_executable else Path()
+    repository_executable = bool(required_executable and "/" in required_executable and not candidate.is_absolute())
+    declared_executable = candidate.name if candidate.is_absolute() else required_executable
+    resolved_direct = Path(str(readiness.get("resolved_path", ""))) if readiness.get("resolved_path") else None
+    tool_requests = [
+        (
+            tool,
+            (
+                resolved_direct
+                if candidate.is_absolute() and tool.get("executable") == declared_executable
+                else None
+            ),
+        )
+        for tool in tools
+        if isinstance(tool, dict)
+    ]
+    if len(tool_requests) > 1:
+        with ThreadPoolExecutor(max_workers=min(4, len(tool_requests))) as executor:
+            required_tools = list(
+                executor.map(
+                    lambda request: _project_environment_tool_readiness(
+                        command_cwd,
+                        request[0],
+                        resolved_override=request[1],
+                    ),
+                    tool_requests,
+                )
+            )
+    else:
+        required_tools = [
+            _project_environment_tool_readiness(
+                command_cwd,
+                tool,
+                resolved_override=resolved_override,
+            )
+            for tool, resolved_override in tool_requests
+        ]
+    readiness["required_tools"] = required_tools
+    readiness["environment_probe_executed"] = any(
+        tool.get("probe_executed") is True for tool in required_tools
+    )
+
+    declared_tool = next(
+        (tool for tool in required_tools if tool.get("executable") == declared_executable),
+        None,
+    )
+    registration_action: dict[str, object] | None = None
+    if repository_executable:
+        if environment.get("allow_repository_executables") is not True:
+            readiness["ok"] = False
+            readiness["blocker_code"] = "repository_executable_not_allowed_by_environment"
+            registration_action = _environment_registration_action(
+                environment_id,
+                required_executable,
+                "enable reviewed repository executables for this environment or select another environment",
+            )
+    elif required_executable and declared_tool is None:
+        readiness["ok"] = False
+        readiness["blocker_code"] = "command_environment_tool_undeclared"
+        registration_action = _environment_registration_action(
+            environment_id,
+            declared_executable,
+            "register the command executable, version requirement, probe, and reviewed repair source",
+        )
+
+    failed_tools = [tool for tool in required_tools if tool.get("ready") is not True]
+    repair_actions = [_environment_tool_repair_action(root, tool) for tool in failed_tools]
+    if registration_action is not None:
+        repair_actions.insert(0, registration_action)
+    readiness["repair_actions"] = repair_actions
+    if declared_tool is not None and declared_tool.get("ready") is not True:
+        readiness["blocker_code"] = str(declared_tool.get("blocker_code", "environment_tool_unready"))
+    elif failed_tools and not readiness.get("blocker_code"):
+        readiness["blocker_code"] = str(
+            failed_tools[0].get("blocker_code", "environment_tool_unready")
+        )
+
+    readiness["ok"] = readiness.get("ok") is True and registration_action is None and not failed_tools
+    if readiness["ok"] is True:
+        readiness["repair_decision"] = _environment_repair_decision(
+            "continue_execution",
+            status="ready",
+            stop_before_execution=False,
+            requires_approval=False,
+            manual_repair_required=False,
+            next_step="execute the exact registered command",
+        )
+        readiness["repair_preflight_command"] = {}
+        return readiness
+
+    governance_actions = [
+        action for action in repair_actions if action.get("strategy") == "governance-env"
+    ]
+    manual_actions = [
+        action for action in repair_actions if action.get("strategy") in {"manual", "register"}
+    ]
+    if manual_actions:
+        readiness["repair_decision"] = _environment_repair_decision(
+            "complete_manual_environment_repairs",
+            status="manual_environment_repair_required",
+            stop_before_execution=True,
+            requires_approval=True,
+            manual_repair_required=True,
+            next_step="complete the reviewed manual repair_actions, then refresh this preflight",
+        )
+        readiness["repair_preflight_command"] = {}
+    elif governance_actions:
+        readiness["repair_decision"] = _environment_repair_decision(
+            "run_governance_environment_repair_preflight",
+            status="repair_preflight_required",
+            stop_before_execution=True,
+            requires_approval=False,
+            manual_repair_required=False,
+            next_step="run repair_preflight_command, inspect its repair_decision, then refresh this preflight",
+        )
+        readiness["repair_preflight_command"] = _environment_repair_preflight_command(root)
+    return readiness
+
+
+def _command_executable_readiness(
+    root: Path,
+    command_cwd: Path | None,
+    contract: dict[str, object],
+    *,
+    refresh_command: dict[str, object],
 ) -> dict[str, object]:
     argv = contract.get("argv")
     environment_label = contract.get("environment")
@@ -499,7 +730,7 @@ def _command_environment_readiness(
     base: dict[str, object] = {
         "ok": False,
         "environment": environment,
-        "validation_scope": "argv0_executable",
+        "validation_scope": "argv0_and_declared_environment_tools",
         "version_constraints_enforced": False,
         "package_source_inferred": False,
         "required_executable": required_executable,
@@ -682,6 +913,140 @@ def _command_environment_readiness(
         next_step="restore the repository-local executable and mode, then refresh this preflight",
     )
     return base
+
+
+def _project_environment_tool_readiness(
+    command_cwd: Path | None,
+    tool: dict[str, object],
+    *,
+    resolved_override: Path | None = None,
+) -> dict[str, object]:
+    executable = str(tool.get("executable", ""))
+    result: dict[str, object] = {
+        "id": str(tool.get("id", "")),
+        "executable": executable,
+        "resolved_path": "",
+        "available": False,
+        "executable_ready": False,
+        "probe_executed": False,
+        "probe_passed": False,
+        "observed_version": "",
+        "version_requirement": dict(tool.get("version_requirement", {}))
+        if isinstance(tool.get("version_requirement"), dict)
+        else {},
+        "version_satisfies": False,
+        "ready": False,
+        "blocker_code": "environment_tool_unavailable",
+        "repair": dict(tool.get("repair", {})) if isinstance(tool.get("repair"), dict) else {},
+    }
+    if command_cwd is None:
+        result["blocker_code"] = "environment_tool_cwd_unavailable"
+        return result
+    if resolved_override is not None:
+        found = str(resolved_override)
+    else:
+        try:
+            found = shutil.which(executable, path=_command_search_path(command_cwd))
+        except (OSError, RuntimeError, ValueError):
+            found = None
+    if not found:
+        return result
+    try:
+        resolved = Path(found).resolve()
+    except (OSError, RuntimeError, ValueError):
+        resolved = Path(found)
+    available, executable_ready = _executable_path_status(resolved)
+    result["resolved_path"] = str(resolved)
+    result["available"] = available
+    result["executable_ready"] = executable_ready
+    if not available or not executable_ready:
+        result["blocker_code"] = "environment_tool_not_executable"
+        return result
+
+    probe = tool.get("version_probe")
+    if not isinstance(probe, dict):
+        result["blocker_code"] = "environment_tool_probe_invalid"
+        return result
+    args = probe.get("args")
+    if not isinstance(args, list) or any(not isinstance(arg, str) for arg in args):
+        result["blocker_code"] = "environment_tool_probe_invalid"
+        return result
+    execution = _run_bounded_command(
+        [str(resolved), *args],
+        cwd=command_cwd,
+        timeout_seconds=ENVIRONMENT_PROBE_TIMEOUT_SECONDS,
+        max_output_bytes=ENVIRONMENT_PROBE_MAX_OUTPUT_BYTES,
+    )
+    result["probe_executed"] = execution.get("started") is True
+    output_name = str(probe.get("output", ""))
+    stdout = str(execution.get("stdout", ""))
+    stderr = str(execution.get("stderr", ""))
+    output = stdout if output_name == "stdout" else stderr
+    if output_name == "combined":
+        output = "\n".join(item for item in (stdout, stderr) if item)
+    observed_version = extract_probed_version(output, str(probe.get("prefix", "")))
+    probe_passed = execution.get("result") == "pass" and bool(observed_version)
+    requirement = tool.get("version_requirement")
+    version_satisfies = (
+        probe_passed
+        and isinstance(requirement, dict)
+        and version_satisfies_requirement(observed_version, requirement)
+    )
+    result["probe_passed"] = probe_passed
+    result["observed_version"] = observed_version
+    result["version_satisfies"] = version_satisfies
+    result["probe_result"] = {
+        "returncode": execution.get("returncode"),
+        "timed_out": execution.get("timed_out") is True,
+        "output_redacted": execution.get("output_redacted") is True,
+    }
+    if not probe_passed:
+        result["blocker_code"] = "environment_tool_version_probe_failed"
+        return result
+    if not version_satisfies:
+        result["blocker_code"] = "environment_tool_version_unsatisfied"
+        return result
+    result["ready"] = True
+    result["blocker_code"] = ""
+    return result
+
+
+def _environment_tool_repair_action(root: Path, tool: dict[str, object]) -> dict[str, object]:
+    repair = tool.get("repair")
+    repair_payload = repair if isinstance(repair, dict) else {}
+    strategy = str(repair_payload.get("strategy", "manual"))
+    action: dict[str, object] = {
+        "id": f"repair-environment-tool-{tool.get('id', 'unknown')}",
+        "strategy": strategy,
+        "tool_id": str(tool.get("id", "")),
+        "executable": str(tool.get("executable", "")),
+        "blocker_code": str(tool.get("blocker_code", "")),
+        "source": dict(repair_payload.get("source", {}))
+        if isinstance(repair_payload.get("source"), dict)
+        else {},
+        "writes_state": strategy != "governance-env",
+        "approval_required": strategy != "governance-env",
+    }
+    if strategy == "governance-env":
+        action["repair_preflight_command"] = _environment_repair_preflight_command(root)
+    else:
+        action["instructions"] = str(repair_payload.get("instructions", ""))
+    return action
+
+
+def _environment_registration_action(
+    environment_id: str, executable: str, instructions: str
+) -> dict[str, object]:
+    return {
+        "id": f"register-environment-tool-{environment_id}-{executable or 'unknown'}",
+        "strategy": "register",
+        "environment_id": environment_id,
+        "executable": executable,
+        "source": {},
+        "instructions": instructions,
+        "writes_state": True,
+        "approval_required": False,
+    }
 
 
 def _command_search_path(command_cwd: Path) -> str:

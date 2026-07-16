@@ -70,6 +70,7 @@ Load:
    - `Makefile`
    - `bin/governance`
    - `scripts/governance_cli.py`
+   - `docs/agent-workflow/project-environment.json`
    - `docs/agent-workflow/workflow-pack/manifest.json`
    - `docs/agent-workflow/workflow-pack/references/authority-skills.lock.json`
 
@@ -97,7 +98,7 @@ Load:
 
 A repository skeleton with governance entry points, product core files, unresolved item registry, glossary, and domain-level docs entrances.
 
-The target receives a local governance runtime under `bin/` and `scripts/`, a runtime hash manifest at `docs/agent-workflow/runtime-manifest.json`, plus a workflow-pack snapshot under `docs/agent-workflow/workflow-pack/`. After initialization, use target-local commands when working inside the generated repository:
+The target receives a local governance runtime under `bin/` and `scripts/`, a runtime hash manifest at `docs/agent-workflow/runtime-manifest.json`, a structured runtime/version/repair contract at `docs/agent-workflow/project-environment.json`, plus a workflow-pack snapshot under `docs/agent-workflow/workflow-pack/`. `core-governance` is ready immediately; keep `project-runtime` empty until stack selection supplies reviewed tools and sources. After initialization, use target-local commands when working inside the generated repository:
 
 ```bash
 bin/governance verify .

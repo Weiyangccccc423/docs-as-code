@@ -1,0 +1,42 @@
+{
+  "environments": [
+    {
+      "allow_repository_executables": true,
+      "description": "Python standard-library runtime used by target-local governance commands.",
+      "id": "core-governance",
+      "tools": [
+        {
+          "executable": "python3",
+          "id": "python-runtime",
+          "repair": {
+            "source": {
+              "location": "scripts/check_env.py",
+              "review_evidence": "docs/agent-workflow/workflow-pack/references/project-environment-contract.md",
+              "type": "workflow-pack"
+            },
+            "strategy": "governance-env",
+            "tool": "python3"
+          },
+          "version_probe": {
+            "args": [
+              "--version"
+            ],
+            "output": "stdout",
+            "prefix": "Python "
+          },
+          "version_requirement": {
+            "maximum_exclusive": "4.0.0",
+            "minimum": "3.10.0"
+          }
+        }
+      ]
+    },
+    {
+      "allow_repository_executables": true,
+      "description": "Project runtime placeholder; register reviewed tools after stack selection.",
+      "id": "project-runtime",
+      "tools": []
+    }
+  ],
+  "schema_version": 1
+}

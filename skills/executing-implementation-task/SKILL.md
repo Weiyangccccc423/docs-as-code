@@ -15,6 +15,7 @@ Read `references/implementation-execution-checklist.md` before editing code, cha
 - `docs/development/03-verification-log.md`
 - `docs/development/04-implementation-evidence.md` when prior runs exist
 - `docs/agent-workflow/command-contract.md`
+- `docs/agent-workflow/project-environment.json`
 - linked Product, Design, API, Acceptance, and Verification sources for the selected `TASK-NNN`
 - `docs/tests/02-acceptance-matrix.md`
 - `docs/agent-workflow/task-handoff.md` when present
@@ -39,7 +40,7 @@ Read `references/implementation-execution-checklist.md` before editing code, cha
 6. Inspect existing code, tests, generated files, build scripts, and local conventions around the changed surface.
 7. Keep edits limited to the selected task. Register missing requirements, conflicting docs, missing credentials, or unsafe dependency changes in `docs/unresolved.md` instead of guessing.
 8. Implement in small coherent steps and add or update tests next to the changed behavior.
-9. Register each task verification command in `docs/agent-workflow/command-contract.md`. Preflight it with `bin/governance implementation verify . --task TASK-NNN --command command-name --check --json`, inspect `command_contract`, `environment_readiness`, `blocking_requirements`, `would_write`, and `execute_command`, then run the returned structured command. Require `environment_readiness.ok: true`. For a known missing governance tool, run its no-write `repair_preflight_command` and branch on the returned environment `repair_decision`; for an unknown project tool, stop and register an approved source and install policy without inventing package names. Do not reconstruct a shell string.
+9. Register each environment in `docs/agent-workflow/project-environment.json`, then register task commands using those environment IDs in `docs/agent-workflow/command-contract.md`. Preflight with `bin/governance implementation verify . --task TASK-NNN --command command-name --check --json`; require `environment_readiness.ok: true` and inspect `environment_contract`, `required_tools`, observed versions, `repair_actions`, `repair_decision`, `would_write`, and `execute_command`. Only allowlisted bounded version probes may execute during preflight; the task command and evidence writes remain disabled. Run `repair_preflight_command` for `governance-env`, follow reviewed manual source instructions for `manual`, and register unknown tools without inventing packages. Do not reconstruct a shell string.
 10. The evidence runner refuses `Approval Required: true` rows and requires `--allow-writes` for `Writes State: true` rows. It derives the result from the return code, enforces timeout and output bounds, appends immutable history to `docs/development/04-implementation-evidence.md`, and upserts the current `(Task, Command)` summary in `docs/development/03-verification-log.md`.
 11. Synchronize `docs/development/02-task-board.md` and `docs/development/01-roadmap.md` statuses through start and closeout apply when available.
 12. Refresh `bin/governance implementation plan . --json` and confirm the selected task state, `gate_ok`, and evidence are consistent before claiming completion.
@@ -55,6 +56,7 @@ Read `references/implementation-execution-checklist.md` before editing code, cha
 - Required local Markdown sources are missing or contradictory.
 - The acceptance ID is not mapped in `docs/tests/02-acceptance-matrix.md`.
 - A required project command is missing from `docs/agent-workflow/command-contract.md`.
+- A command environment, required tool, version probe, version constraint, or reviewed repair source is missing from `docs/agent-workflow/project-environment.json`.
 - `environment_readiness.ok` is false and its explicit repair or registration route has not completed.
 - A command-contract row with `Approval Required` set to `true` needs unapproved escalation.
 - A command-contract row writes state but explicit `--allow-writes` authorization is absent.

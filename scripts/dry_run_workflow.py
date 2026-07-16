@@ -86,6 +86,16 @@ TARGET_LOCAL_MAKE_STEP_IDS = [
     "make_check_env",
     "make_repair_env_check",
 ]
+MAKE_CLOCK_SKEW_WARNING_RES = (
+    re.compile(
+        r"^make(?:\[[0-9]+\])?: Warning: File '.+' has modification time "
+        r"[0-9]+(?:\.[0-9]+)? s in the future$"
+    ),
+    re.compile(
+        r"^make(?:\[[0-9]+\])?: warning:\s+Clock skew detected\.  "
+        r"Your build may be incomplete\.$"
+    ),
+)
 
 
 class DryRunFailure(Exception):
@@ -113,6 +123,15 @@ def _stringify_argv(argv: list[str | Path]) -> list[str]:
     return [str(item) for item in argv]
 
 
+def _make_clock_skew_warnings(command: list[str], stderr: str) -> list[str]:
+    if not stderr or not command or Path(command[0]).name != "make":
+        return []
+    lines = stderr.splitlines()
+    if lines and all(any(pattern.fullmatch(line) for pattern in MAKE_CLOCK_SKEW_WARNING_RES) for line in lines):
+        return lines
+    return []
+
+
 def _run_json(
     steps: list[dict[str, object]],
     step_id: str,
@@ -137,8 +156,11 @@ def _run_json(
         "returncode": result.returncode,
         "expected_returncode": expected_returncode,
     }
+    warnings = _make_clock_skew_warnings(command, result.stderr)
+    if warnings:
+        step["warnings"] = warnings
     steps.append(step)
-    if result.returncode != expected_returncode or result.stderr:
+    if result.returncode != expected_returncode or (result.stderr and not warnings):
         failed = {
             **step,
             "stdout": result.stdout,
@@ -184,8 +206,11 @@ def _run_text(
         "returncode": result.returncode,
         "expected_returncode": expected_returncode,
     }
+    warnings = _make_clock_skew_warnings(command, result.stderr)
+    if warnings:
+        step["warnings"] = warnings
     steps.append(step)
-    if result.returncode != expected_returncode or result.stderr:
+    if result.returncode != expected_returncode or (result.stderr and not warnings):
         failed = {
             **step,
             "stdout": result.stdout,
@@ -1405,6 +1430,16 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
             "preview_ready": implementation_verification_preview.get("verification_ready") is True,
             "environment_ready": implementation_verification_preview.get("environment_readiness", {}).get("ok")
             is True,
+            "environment_version_ready": all(
+                tool.get("version_satisfies") is True
+                for tool in implementation_verification_preview.get("environment_readiness", {}).get(
+                    "required_tools", []
+                )
+                if isinstance(tool, dict)
+            ),
+            "environment_id": implementation_verification_preview.get("environment_readiness", {})
+            .get("environment_contract", {})
+            .get("environment_id", ""),
             "executed": implementation_verification_execute.get("executed") is True,
             "evidence_recorded": implementation_verification_execute.get("evidence_recorded") is True,
             "command_passed": implementation_verification_execute.get("command_passed") is True,
@@ -1449,6 +1484,7 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
                     "bin/governance",
                     "scripts/governance_cli.py",
                     "scripts/implementation_verify.py",
+                    "scripts/project_environment.py",
                     "scripts/api_review_evidence.py",
                     "scripts/threat_review_evidence.py",
                     "scripts/reliability_review_evidence.py",
@@ -1499,7 +1535,7 @@ def _register_implementation_verification_command(target: Path) -> None:
     row = (
         f"| {IMPLEMENTATION_VERIFICATION_COMMAND} | Verify the dry-run implementation task. | `.` | "
         f"`{json.dumps(argv)}` | false | false | "
-        "`docs/development/04-implementation-evidence.md` | Python standard library |\n"
+        "`docs/development/04-implementation-evidence.md` | core-governance |\n"
     )
     path.write_text(text.replace("\n## Project Commands", f"\n{row}\n## Project Commands", 1), encoding="utf-8")
 
@@ -3092,6 +3128,14 @@ def _implementation_verification_preview_ready(payload: dict[str, object]) -> bo
         and payload.get("command_contract", {}).get("name") == IMPLEMENTATION_VERIFICATION_COMMAND
         and payload.get("environment_readiness", {}).get("ok") is True
         and payload.get("environment_readiness", {}).get("required_executable") == "python3"
+        and payload.get("environment_readiness", {}).get("environment_contract", {}).get("environment_id")
+        == "core-governance"
+        and payload.get("environment_readiness", {}).get("environment_probe_executed") is True
+        and all(
+            tool.get("version_satisfies") is True
+            for tool in payload.get("environment_readiness", {}).get("required_tools", [])
+            if isinstance(tool, dict)
+        )
         and payload.get("environment_readiness", {}).get("repair_decision", {}).get("decision")
         == "continue_execution"
         and payload.get("would_write")

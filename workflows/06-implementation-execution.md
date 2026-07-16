@@ -72,7 +72,9 @@ Load:
    bin/governance implementation verify <target> --task TASK-NNN --command command-name --json
    ```
 
-   The runner reads the exact structured `Argv` and `Cwd`; it never reconstructs a shell string. The task must be `In Progress`. `--check` performs no execution and no writes. Inspect `environment_readiness.ok`, `required_executable`, `resolution_strategy`, `resolved_path`, `blocker_code`, `repair_decision`, `repair_preflight_command`, and `refresh_command` before execution. Bare tools resolve through the effective `PATH`; relative executable paths resolve from `Cwd` and must stay inside the repository. Missing tools known to the governance inventory route to `env --repair --check --strict`; unknown project tools require approved source/install-policy registration and never receive guessed installation commands. The current `Environment` cell is a runtime label, not a machine-enforced version constraint.
+   Before adding the row, register its environment in `docs/agent-workflow/project-environment.json` using `references/project-environment-contract.md`. The `Environment` cell is a required environment ID. Declare every required external tool, an allowlisted read-only version probe, numeric version constraints, and either a `governance-env` or reviewed `manual` repair source.
+
+   The runner reads the exact structured `Argv` and `Cwd`; it never reconstructs a shell string. The task must be `In Progress`. `--check` does not execute the registered task command and writes no evidence, but after governance verification passes it executes declared version probes with no shell, a five-second timeout, and bounded output. Inspect `environment_readiness.ok`, `environment_contract`, `environment_probe_executed`, `required_tools`, `repair_actions`, `repair_decision`, `repair_preflight_command`, and `refresh_command` before execution. Bare tools resolve through the effective `PATH`; repository executable paths resolve from `Cwd` and must stay inside the repository. Missing or incompatible `governance-env` tools route to `env --repair --check --strict`; manual and undeclared tools never receive guessed installation commands.
 
    Rows marked `Approval Required: true` are refused; execute those only through an explicitly authorized external path and record the result honestly. Rows marked `Writes State: true` also require `--allow-writes`. Use `--timeout-seconds` and `--max-output-bytes` when project checks need bounds different from the defaults.
 
@@ -125,6 +127,7 @@ Implementation execution is complete when:
 - Required product, design, API, acceptance, or verification links are missing.
 - The task requires behavior that is not present in local Markdown sources.
 - The required project command is not documented in `docs/agent-workflow/command-contract.md`.
+- The command `Environment` ID, required tool, safe version probe, version constraint, or reviewed repair source is absent from `docs/agent-workflow/project-environment.json`.
 - `environment_readiness.ok` is false, or its repair decision requires environment preflight, manual tool registration, or executable-path repair.
 - A command-contract row with `Approval Required` set to `true` needs approval that has not been granted.
 - A state-writing command has not received explicit `--allow-writes` authorization.

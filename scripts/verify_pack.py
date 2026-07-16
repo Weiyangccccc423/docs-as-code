@@ -107,6 +107,17 @@ TEMPLATE_REQUIRED_GUARDRAILS = {
         "docs/development/04-implementation-evidence.md",
         "requires `--allow-writes` for state-writing rows",
     ),
+    "templates/docs/agent-workflow/project-environment.json": (
+        '"schema_version": 1',
+        '"id": "core-governance"',
+        '"id": "project-runtime"',
+        '"executable": "python3"',
+        '"minimum": "3.10.0"',
+        '"maximum_exclusive": "4.0.0"',
+        '"strategy": "governance-env"',
+        '"location": "scripts/check_env.py"',
+        '"review_evidence": "docs/agent-workflow/workflow-pack/references/project-environment-contract.md"',
+    ),
     "templates/docs/agent-workflow/task-handoff.md": (
         "# Agent Task Handoff",
         "- Product:",
@@ -2018,7 +2029,9 @@ RUNTIME_REFRESH_DOC_REQUIREMENTS = {
         "local_commands",
         "next_actions",
         "environment_readiness",
-        "must not claim runtime-version compatibility",
+        "project-environment.json",
+        "required_tools[]",
+        "No package name, source, or install command is inferred",
     ),
     "skills/initializing-governance-repo/SKILL.md": (
         "trusted source workflow-pack checkout",
@@ -2694,6 +2707,23 @@ DESIGN_PLAN_SOURCE_REQUIRED_PHRASES = (
     "review_status",
 )
 IMPLEMENTATION_VERIFY_SOURCE_PATH = "scripts/implementation_verify.py"
+PROJECT_ENVIRONMENT_SOURCE_PATH = "scripts/project_environment.py"
+PROJECT_ENVIRONMENT_SOURCE_REQUIRED_PHRASES = (
+    "PROJECT_ENVIRONMENT_REL",
+    "PROJECT_ENVIRONMENT_SCHEMA_VERSION",
+    "APPROVED_VERSION_PROBE_ARGS =",
+    "load_project_environment_contract",
+    "validate_project_environment_contract",
+    "project_environment_by_id",
+    "parse_numeric_version",
+    "extract_probed_version",
+    "version_satisfies_requirement",
+    "governance-env",
+    "manual",
+    "official-url",
+    "review_evidence",
+    "duplicate key",
+)
 IMPLEMENTATION_VERIFY_SOURCE_REQUIRED_PHRASES = (
     "build_implementation_verify",
     "run_implementation_verify",
@@ -2706,9 +2736,16 @@ IMPLEMENTATION_VERIFY_SOURCE_REQUIRED_PHRASES = (
     "run_governance_environment_repair_preflight",
     "register_project_environment_tool",
     "repair_preflight_command",
-    "argv0_executable",
+    "argv0_and_declared_environment_tools",
     "version_constraints_enforced",
     "package_source_inferred",
+    "load_project_environment_contract",
+    "environment_probe_executed",
+    "allow_probes=governance_report.ok",
+    "required_tools",
+    "_project_environment_tool_readiness",
+    "version_satisfies_requirement",
+    "complete_manual_environment_repairs",
     "verification_run_id_unique",
     "IMPLEMENTATION_VERIFY_LOCK_REL",
     "subprocess.Popen",
@@ -2731,12 +2768,16 @@ IMPLEMENTATION_VERIFY_DOC_REQUIREMENTS = {
         "one current verification-log row per `(Task, Command)`",
         "evidence_summary.all_verification_results_passing",
         "environment_readiness",
+        "project-environment.json",
+        "required_tools[]",
     ),
     "workflows/00-overview.md": (
         "implementation verify --task TASK-NNN --command command-name --check --json",
         "without a shell",
         "all_verification_results_passing",
         "environment_readiness",
+        "project-environment.json",
+        "version probes",
     ),
     "workflows/05-verification-and-drift-control.md": (
         "verification-log rows are unique by `(Task, Command)`",
@@ -2750,12 +2791,16 @@ IMPLEMENTATION_VERIFY_DOC_REQUIREMENTS = {
         "one summary row per `(Task, Command)`",
         "best-effort redaction",
         "environment_readiness",
+        "project-environment.json",
+        "required_tools",
         "evidence_summary.all_verification_results_passing",
     ),
     "skills/executing-implementation-task/SKILL.md": (
         "implementation verify . --task TASK-NNN --command command-name --check --json",
         "docs/development/04-implementation-evidence.md",
         "environment_readiness",
+        "project-environment.json",
+        "required_tools",
         "evidence_summary.all_verification_results_passing",
     ),
     "references/implementation-execution-checklist.md": (
@@ -2763,13 +2808,24 @@ IMPLEMENTATION_VERIFY_DOC_REQUIREMENTS = {
         "bounded timeout and bounded stdout/stderr capture",
         "best-effort output redaction",
         "environment_readiness",
+        "project-environment.json",
+        "version probe",
         "exactly one current summary row per `(Task, Command)`",
         "evidence_summary.all_verification_results_passing",
     ),
     "templates/docs/agent-workflow/command-contract.md": (
         "environment_readiness.ok: true",
-        "repair_preflight_command",
+        "project-environment.json",
         "instead of guessing installation commands",
+    ),
+    "references/project-environment-contract.md": (
+        "Version probes are executable metadata checks",
+        "governance-env",
+        "manual",
+        "review_evidence",
+        "five-second timeout",
+        "4096-byte output limit",
+        "never installs tools",
     ),
 }
 WORK_PACKAGE_SOURCE_PATH = "scripts/workflow_plan.py"
@@ -4934,6 +4990,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_design_scaffold_docs(root, findings)
     _check_design_plan_source(root, findings)
     _check_design_plan_docs(root, findings)
+    _check_project_environment_source(root, findings)
     _check_implementation_verify_source(root, findings)
     _check_implementation_verify_docs(root, findings)
     _check_work_package_source(root, findings)
@@ -7092,6 +7149,38 @@ def _check_design_plan_source(root: Path, findings: list[PackFinding]) -> None:
     )
 
 
+def _check_project_environment_source(root: Path, findings: list[PackFinding]) -> None:
+    path = root / PROJECT_ENVIRONMENT_SOURCE_PATH
+    if not path.is_file():
+        findings.append(
+            PackFinding(
+                "pack_project_environment_source_missing",
+                f"missing project environment contract source: {PROJECT_ENVIRONMENT_SOURCE_PATH}",
+                PROJECT_ENVIRONMENT_SOURCE_PATH,
+            )
+        )
+        return
+    text = _read_utf8_text_or_none(path)
+    if text is None:
+        return
+    missing = [
+        phrase for phrase in PROJECT_ENVIRONMENT_SOURCE_REQUIRED_PHRASES if phrase not in text
+    ]
+    if not missing:
+        return
+    findings.append(
+        PackFinding(
+            "pack_project_environment_source_incomplete",
+            (
+                f"{PROJECT_ENVIRONMENT_SOURCE_PATH} must preserve strict schema validation, safe version probes, "
+                f"numeric version constraints, reviewed repair sources, and duplicate-key rejection; "
+                f"missing phrase(s): {', '.join(missing)}"
+            ),
+            PROJECT_ENVIRONMENT_SOURCE_PATH,
+        )
+    )
+
+
 def _check_implementation_verify_source(root: Path, findings: list[PackFinding]) -> None:
     path = root / IMPLEMENTATION_VERIFY_SOURCE_PATH
     if not path.is_file():
@@ -8024,7 +8113,7 @@ def _check_command_contract_template_row(
         "Writes State": str(writes_state).lower(),
         "Approval Required": "false",
         "Evidence": _command_contract_evidence(target),
-        "Environment": "Core governance runtime",
+        "Environment": "core-governance",
     }
     for column, expected in expected_cells.items():
         actual = row.get(column, "").strip()

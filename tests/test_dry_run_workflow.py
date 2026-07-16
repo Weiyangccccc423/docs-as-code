@@ -4,6 +4,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from scripts import dry_run_workflow
 
@@ -13,6 +14,63 @@ DRY_RUN = ROOT / "scripts" / "dry_run_workflow.py"
 
 
 class DryRunWorkflowTest(unittest.TestCase):
+    def test_run_json_records_make_clock_skew_warnings_without_masking_other_stderr(self) -> None:
+        clock_skew = (
+            "make: Warning: File 'Makefile' has modification time 1.2 s in the future\n"
+            "make: warning:  Clock skew detected.  Your build may be incomplete.\n"
+        )
+        result = subprocess.CompletedProcess(
+            args=["make", "check"],
+            returncode=0,
+            stdout='{"ok": true}\n',
+            stderr=clock_skew,
+        )
+        steps: list[dict[str, object]] = []
+
+        with mock.patch.object(dry_run_workflow.subprocess, "run", return_value=result):
+            payload = dry_run_workflow._run_json(steps, "make_check", ["make", "check"], Path("."))
+
+        self.assertTrue(payload["ok"])
+        self.assertEqual(clock_skew.splitlines(), steps[0]["warnings"])
+
+        text_steps: list[dict[str, object]] = []
+        with mock.patch.object(
+            dry_run_workflow.subprocess,
+            "run",
+            return_value=subprocess.CompletedProcess(
+                args=["make", "verify-governance"],
+                returncode=0,
+                stdout="Governance verification passed.\n",
+                stderr=clock_skew,
+            ),
+        ):
+            output = dry_run_workflow._run_text(
+                text_steps,
+                "make_verify_governance",
+                ["make", "verify-governance"],
+                Path("."),
+            )
+
+        self.assertEqual("Governance verification passed.\n", output)
+        self.assertEqual(clock_skew.splitlines(), text_steps[0]["warnings"])
+
+        for argv, stderr in (
+            (["python3", "check.py"], clock_skew),
+            (["make", "check"], clock_skew + "make: *** unrelated failure\n"),
+        ):
+            with self.subTest(argv=argv, stderr=stderr), mock.patch.object(
+                dry_run_workflow.subprocess,
+                "run",
+                return_value=subprocess.CompletedProcess(
+                    args=argv,
+                    returncode=0,
+                    stdout='{"ok": true}\n',
+                    stderr=stderr,
+                ),
+            ):
+                with self.assertRaises(dry_run_workflow.DryRunFailure):
+                    dry_run_workflow._run_json([], "check", argv, Path("."))
+
     def test_product_evidence_repair_schema_requires_safe_commands(self) -> None:
         task = {
             "required_evidence": [
@@ -210,6 +268,11 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertTrue(payload["implementation_start"]["implementation_plan_in_progress"])
             self.assertTrue(payload["implementation_verification"]["preview_ready"])
             self.assertTrue(payload["implementation_verification"]["environment_ready"])
+            self.assertTrue(payload["implementation_verification"]["environment_version_ready"])
+            self.assertEqual(
+                "core-governance",
+                payload["implementation_verification"]["environment_id"],
+            )
             self.assertTrue(payload["implementation_verification"]["executed"])
             self.assertTrue(payload["implementation_verification"]["evidence_recorded"])
             self.assertTrue(payload["implementation_verification"]["command_passed"])
@@ -261,6 +324,7 @@ class DryRunWorkflowTest(unittest.TestCase):
                     "bin/governance",
                     "scripts/governance_cli.py",
                     "scripts/implementation_verify.py",
+                    "scripts/project_environment.py",
                     "scripts/api_review_evidence.py",
                     "scripts/threat_review_evidence.py",
                     "scripts/reliability_review_evidence.py",

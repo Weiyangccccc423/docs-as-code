@@ -12,9 +12,11 @@ import scripts.bootstrap_tree as bootstrap_module
 import scripts.check_env as check_env_module
 import scripts.gates as gates_module
 import scripts.implementation_verify as implementation_verify_module
+import scripts.project_environment as project_environment_module
 import scripts.phases as phases_module
 import scripts.product_import as product_import_module
 import scripts.scaffold as scaffold_module
+import scripts.state as state_module
 import scripts.verify_governance as verify_governance_module
 import scripts.workflow_actions as workflow_actions_module
 from scripts.check_env import (
@@ -544,6 +546,322 @@ def _endpoint_contract_doc(
 
 
 class GovernanceScriptsTest(unittest.TestCase):
+    def test_project_environment_numeric_version_helpers_are_deterministic(self) -> None:
+        self.assertEqual((3, 10, 0, 0), project_environment_module.parse_numeric_version("3.10"))
+        self.assertIsNone(project_environment_module.parse_numeric_version("v3.10.0"))
+        self.assertIsNone(project_environment_module.parse_numeric_version("9" * 10_000))
+        self.assertEqual(
+            "22.12.1",
+            project_environment_module.extract_probed_version("v22.12.1\n", "v"),
+        )
+        self.assertEqual("", project_environment_module.extract_probed_version("Python\n", "Python"))
+        self.assertTrue(
+            project_environment_module.version_satisfies_requirement(
+                "3.10.12",
+                {"minimum": "3.10.0", "maximum_exclusive": "4.0.0"},
+            )
+        )
+        self.assertFalse(
+            project_environment_module.version_satisfies_requirement(
+                "4.0.0",
+                {"minimum": "3.10.0", "maximum_exclusive": "4.0.0"},
+            )
+        )
+
+    def test_project_environment_rejects_unbounded_tools_and_invalid_official_source(self) -> None:
+        payload = json.loads(bootstrap_module._project_environment_contract())
+        project_runtime = next(item for item in payload["environments"] if item["id"] == "project-runtime")
+        project_runtime["tools"] = [
+            {
+                "id": f"tool-{index}",
+                "executable": f"tool-{index}",
+                "version_probe": {"args": ["--version"], "output": "stdout", "prefix": "Tool "},
+                "version_requirement": {"minimum": "1.0.0"},
+                "repair": {
+                    "strategy": "manual",
+                    "source": {
+                        "type": "official-url",
+                        "location": "https://",
+                        "review_evidence": "docs/decisions/tool-source.md",
+                    },
+                    "instructions": "Install the reviewed project tool.",
+                },
+            }
+            for index in range(17)
+        ]
+
+        errors = project_environment_module.validate_project_environment_contract(payload)
+
+        self.assertTrue(any("tools must contain no more than 16 entries" in error for error in errors))
+        self.assertTrue(any("must identify an HTTPS host" in error for error in errors))
+
+    def test_implementation_verify_probes_exact_absolute_command_executable(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            executable = root / "custom-tool"
+            executable.write_text("#!/bin/sh\nprintf 'Custom 7.2.0\\n'\n", encoding="utf-8")
+            executable.chmod(0o755)
+            tool = {
+                "id": "custom-runtime",
+                "executable": "custom-tool",
+                "version_probe": {"args": ["--version"], "output": "stdout", "prefix": "Custom "},
+                "version_requirement": {"exact": "7.2.0"},
+                "repair": {
+                    "strategy": "manual",
+                    "source": {
+                        "type": "official-url",
+                        "location": "https://example.com/custom-tool",
+                        "review_evidence": "docs/decisions/custom-tool-source.md",
+                    },
+                    "instructions": "Install the reviewed custom tool build.",
+                },
+            }
+
+            payload = implementation_verify_module._project_environment_tool_readiness(
+                root,
+                tool,
+                resolved_override=executable,
+            )
+
+        self.assertTrue(payload["ready"])
+        self.assertEqual("7.2.0", payload["observed_version"])
+        self.assertEqual(str(executable), payload["resolved_path"])
+
+    def test_implementation_verify_surfaces_additional_required_tool_blocker(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            path = root / "docs/agent-workflow/project-environment.json"
+            contract = json.loads(path.read_text(encoding="utf-8"))
+            core = next(item for item in contract["environments"] if item["id"] == "core-governance")
+            core["tools"].append(
+                {
+                    "id": "missing-companion",
+                    "executable": "docs-as-code-missing-companion",
+                    "version_probe": {"args": ["--version"], "output": "stdout", "prefix": "Tool "},
+                    "version_requirement": {"minimum": "1.0.0"},
+                    "repair": {
+                        "strategy": "manual",
+                        "source": {
+                            "type": "official-url",
+                            "location": "https://example.com/tool",
+                            "review_evidence": "docs/agent-workflow/workflow-pack/references/project-environment-contract.md",
+                        },
+                        "instructions": "Install the reviewed companion tool.",
+                    },
+                }
+            )
+            path.write_text(json.dumps(contract, indent=2) + "\n", encoding="utf-8")
+
+            payload = implementation_verify_module._command_environment_readiness(
+                root,
+                root,
+                {"argv": ["python3", "--version"], "environment": "core-governance"},
+                refresh_command={},
+            )
+
+        self.assertFalse(payload["ok"])
+        self.assertEqual("environment_tool_unavailable", payload["blocker_code"])
+        self.assertEqual("missing-companion", payload["repair_actions"][0]["tool_id"])
+
+    def test_implementation_verify_does_not_probe_before_governance_passes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            marker = root / "probe-ran"
+            executable = root / "probe-tool"
+            executable.write_text(
+                "#!/bin/sh\nprintf 'Probe 1.0.0\\n'\ntouch " + str(marker) + "\n",
+                encoding="utf-8",
+            )
+            executable.chmod(0o755)
+            environment = json.loads(bootstrap_module._project_environment_contract())
+            project_runtime = next(
+                item for item in environment["environments"] if item["id"] == "project-runtime"
+            )
+            project_runtime["tools"] = [
+                {
+                    "id": "probe-tool",
+                    "executable": "probe-tool",
+                    "version_probe": {"args": ["--version"], "output": "stdout", "prefix": "Probe "},
+                    "version_requirement": {"minimum": "1.0.0"},
+                    "repair": {
+                        "strategy": "manual",
+                        "source": {
+                            "type": "official-url",
+                            "location": "https://example.com/probe-tool",
+                            "review_evidence": "docs/decisions/missing-review.md",
+                        },
+                        "instructions": "Install the reviewed probe tool.",
+                    },
+                }
+            ]
+            path = root / "docs/agent-workflow/project-environment.json"
+            path.parent.mkdir(parents=True)
+            path.write_text(json.dumps(environment, indent=2) + "\n", encoding="utf-8")
+
+            with mock.patch.object(
+                implementation_verify_module.shutil,
+                "which",
+                return_value=str(executable),
+            ):
+                payload = implementation_verify_module._command_environment_readiness(
+                    root,
+                    root,
+                    {"argv": ["probe-tool", "test"], "environment": "project-runtime"},
+                    refresh_command={},
+                    allow_probes=False,
+                )
+
+        self.assertFalse(payload["ok"])
+        self.assertFalse(payload["environment_probe_executed"])
+        self.assertFalse(marker.exists())
+        self.assertEqual("environment_probe_blocked_by_governance", payload["blocker_code"])
+
+    def test_implementation_verify_routes_declared_missing_governance_tool(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            with mock.patch.object(implementation_verify_module.shutil, "which", return_value=None):
+                payload = implementation_verify_module._command_environment_readiness(
+                    root,
+                    root,
+                    {"argv": ["python3", "--version"], "environment": "core-governance"},
+                    refresh_command={},
+                )
+
+        self.assertFalse(payload["ok"])
+        self.assertEqual("environment_tool_unavailable", payload["blocker_code"])
+        self.assertEqual(
+            "run_governance_environment_repair_preflight",
+            payload["repair_decision"]["decision"],
+        )
+        self.assertEqual("governance-env", payload["repair_actions"][0]["strategy"])
+        self.assertFalse(payload["repair_actions"][0]["approval_required"])
+        self.assertIn("--check", payload["repair_preflight_command"]["argv"])
+
+    def test_bootstrap_creates_structured_project_environment_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+
+            bootstrap(root, product)
+
+            path = root / "docs/agent-workflow/project-environment.json"
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            template_payload = json.loads(
+                (Path(__file__).resolve().parents[1] / "templates/docs/agent-workflow/project-environment.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(template_payload, payload)
+            self.assertEqual(1, payload["schema_version"])
+            environments = {item["id"]: item for item in payload["environments"]}
+            self.assertEqual({"core-governance", "project-runtime"}, set(environments))
+            self.assertTrue(environments["core-governance"]["allow_repository_executables"])
+            self.assertEqual("python3", environments["core-governance"]["tools"][0]["executable"])
+            self.assertEqual(
+                "docs/agent-workflow/workflow-pack/references/project-environment-contract.md",
+                environments["core-governance"]["tools"][0]["repair"]["source"]["review_evidence"],
+            )
+            self.assertEqual(
+                {"minimum": "3.10.0", "maximum_exclusive": "4.0.0"},
+                environments["core-governance"]["tools"][0]["version_requirement"],
+            )
+            self.assertEqual([], environments["project-runtime"]["tools"])
+            contract = (root / "docs/agent-workflow/command-contract.md").read_text(encoding="utf-8")
+            self.assertIn("| core-governance |", contract)
+            self.assertTrue(verify(root).ok)
+
+    def test_verify_reports_missing_project_environment_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            (root / "docs/agent-workflow/project-environment.json").unlink()
+
+            report = verify(root)
+
+            self.assertIn(
+                "missing required project environment contract: docs/agent-workflow/project-environment.json",
+                report.errors,
+            )
+            self.assertIn(
+                "target_project_environment_missing",
+                {finding.code for finding in report.findings},
+            )
+
+    def test_verify_reports_command_contract_unknown_environment_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            contract = root / "docs/agent-workflow/command-contract.md"
+            contract.write_text(
+                contract.read_text(encoding="utf-8").replace("| core-governance |", "| missing-runtime |", 1),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "command contract row verify-governance Environment must reference project environment ID: missing-runtime",
+                report.errors,
+            )
+            self.assertIn(
+                "target_command_contract_environment_unknown",
+                {finding.code for finding in report.findings},
+            )
+
+    def test_verify_reports_unsafe_project_environment_version_probe(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            path = root / "docs/agent-workflow/project-environment.json"
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            payload["environments"][0]["tools"][0]["version_probe"]["args"] = [
+                "-c",
+                "print('unsafe')",
+            ]
+            path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+            report = verify(root)
+
+            self.assertTrue(any("version_probe.args must be an approved read-only version argument" in error for error in report.errors))
+            self.assertIn("target_project_environment_invalid", {finding.code for finding in report.findings})
+
+    def test_verify_reports_missing_project_environment_source_review_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            path = root / "docs/agent-workflow/project-environment.json"
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            payload["environments"][0]["tools"][0]["repair"]["source"][
+                "review_evidence"
+            ] = "docs/decisions/missing-tool-source-review.md"
+            path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+            report = verify(root)
+
+            self.assertIn(
+                "project environment repair source review evidence is missing: docs/decisions/missing-tool-source-review.md",
+                report.errors,
+            )
+            self.assertIn(
+                "target_project_environment_repair_review_missing",
+                {finding.code for finding in report.findings},
+            )
+
     @unittest.skipUnless(hasattr(Path, "symlink_to"), "path symlink support is required")
     def test_implementation_verify_reports_invalid_relative_executable_without_crashing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -551,10 +869,10 @@ class GovernanceScriptsTest(unittest.TestCase):
             (root / "loop-a").symlink_to("loop-b")
             (root / "loop-b").symlink_to("loop-a")
 
-            payload = implementation_verify_module._command_environment_readiness(
+            payload = implementation_verify_module._command_executable_readiness(
                 root,
                 root,
-                {"argv": ["./loop-a"], "environment": "Project runtime"},
+                {"argv": ["./loop-a"], "environment": "project-runtime"},
                 refresh_command={},
             )
 
@@ -569,10 +887,10 @@ class GovernanceScriptsTest(unittest.TestCase):
             "argv": ["bin/governance", "implementation", "verify", ".", "--check", "--json"],
         }
         with mock.patch.object(implementation_verify_module.shutil, "which", return_value=None):
-            payload = implementation_verify_module._command_environment_readiness(
+            payload = implementation_verify_module._command_executable_readiness(
                 root,
                 root,
-                {"argv": ["node", "--test"], "environment": "Project runtime"},
+                {"argv": ["node", "--test"], "environment": "project-runtime"},
                 refresh_command=refresh_command,
             )
 
@@ -3609,6 +3927,28 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertEqual(state_before, state)
             self.assertNotIn("local_commands", payload)
 
+    def test_phase_history_timestamp_does_not_move_backward_with_system_clock(self) -> None:
+        existing_timestamp = "2026-07-14T06:36:25+00:00"
+        state = {
+            "phase": "product-structuring",
+            "updated_at": existing_timestamp,
+            "phase_history": [
+                {
+                    "phase": "product-structuring",
+                    "from_phase": "initialized",
+                    "gate": "product-structuring",
+                    "advanced_at": existing_timestamp,
+                }
+            ],
+        }
+
+        with mock.patch.object(phases_module, "utc_now", return_value="2026-07-14T06:36:24+00:00"):
+            planned = phases_module._planned_advance_state(state, "design-derivation", True)
+
+        self.assertEqual(existing_timestamp, planned["updated_at"])
+        self.assertEqual(existing_timestamp, planned["last_gate"]["checked_at"])
+        self.assertEqual(existing_timestamp, planned["phase_history"][-1]["advanced_at"])
+
     def test_phases_main_json_failed_gate_does_not_advance(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -5759,7 +6099,7 @@ class GovernanceScriptsTest(unittest.TestCase):
                 contract.read_text(encoding="utf-8").replace(
                     "| governance-status | Print workflow state as JSON. | `.` | `"
                     '["bin/governance", "status", ".", "--json"]'
-                    "` | false | false | `docs/development/03-verification-log.md` | Core governance runtime |\n",
+                    "` | false | false | `docs/development/03-verification-log.md` | core-governance |\n",
                     "",
                     1,
                 ),
@@ -16228,6 +16568,31 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertEqual(state_path, context.exception.path)
             self.assertIn("unwritable", context.exception.reason)
             self.assertEqual(original, json.loads(state_path.read_text(encoding="utf-8")))
+
+    def test_merge_state_updated_at_does_not_move_backward_with_system_clock(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp)
+            state_path = target / ".governance/state.json"
+            state_path.parent.mkdir()
+            existing_timestamp = "2026-07-14T06:36:25+00:00"
+            state_path.write_text(
+                json.dumps(
+                    {
+                        "phase": "initialized",
+                        "updated_at": existing_timestamp,
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            with mock.patch.object(state_module, "utc_now", return_value="2026-07-14T06:36:24+00:00"):
+                state = merge_state(target, profile="service")
+
+            self.assertEqual(existing_timestamp, state["updated_at"])
+            self.assertEqual(existing_timestamp, load_state(target)["updated_at"])
 
     def test_save_state_rejects_non_object_without_overwriting_existing_state(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

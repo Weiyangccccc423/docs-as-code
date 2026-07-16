@@ -18,12 +18,17 @@ try:
         build_api_review_evidence_inventory,
     )
     from .bootstrap_tree import TARGET_LOCAL_COMMANDS, target_local_commands_payload
+    from .check_env import TOOLS
     from .design_reviews import (
         DESIGN_REVIEWS_REL,
         build_design_review_inventory,
         design_review_enforcement_ready,
     )
     from .product_dispositions import PRODUCT_DISPOSITIONS_REL, build_product_disposition_inventory
+    from .project_environment import (
+        PROJECT_ENVIRONMENT_REL,
+        load_project_environment_contract,
+    )
     from .reliability_review_evidence import (
         RELIABILITY_EVIDENCE_REL,
         build_reliability_review_evidence_inventory,
@@ -48,12 +53,17 @@ except ImportError:  # pragma: no cover - direct script execution
         build_api_review_evidence_inventory,
     )
     from bootstrap_tree import TARGET_LOCAL_COMMANDS, target_local_commands_payload
+    from check_env import TOOLS
     from design_reviews import (
         DESIGN_REVIEWS_REL,
         build_design_review_inventory,
         design_review_enforcement_ready,
     )
     from product_dispositions import PRODUCT_DISPOSITIONS_REL, build_product_disposition_inventory
+    from project_environment import (
+        PROJECT_ENVIRONMENT_REL,
+        load_project_environment_contract,
+    )
     from reliability_review_evidence import (
         RELIABILITY_EVIDENCE_REL,
         build_reliability_review_evidence_inventory,
@@ -153,6 +163,7 @@ WORKFLOW_PACK_REQUIRED_PATHS = (
     "references/implementation-readiness-checklist.md",
     "references/product-archive-checklist.md",
     "references/product-requirements-checklist.md",
+    "references/project-environment-contract.md",
     "references/release-readiness-checklist.md",
     "references/repository-initialization-checklist.md",
     "references/runtime-strategy.md",
@@ -175,6 +186,7 @@ WORKFLOW_PACK_REQUIRED_PATHS = (
     "skills/using-governance-workflow/SKILL.md",
     "skills/verifying-governance-docs/SKILL.md",
     "templates/docs/agent-workflow/command-contract.md",
+    "templates/docs/agent-workflow/project-environment.json",
     "templates/docs/agent-workflow/task-handoff.md",
     "templates/docs/api/00-conventions.md",
     "templates/docs/api/changelog.md",
@@ -243,6 +255,7 @@ RUNTIME_REQUIRED_SCRIPT_FILES = (
     "phases.py",
     "product_dispositions.py",
     "product_import.py",
+    "project_environment.py",
     "product_structure.py",
     "scaffold.py",
     "state.py",
@@ -779,6 +792,7 @@ def verify(root: Path) -> VerificationReport:
     _check_target_support_files(root, report)
     _check_target_gitignore(root, report)
     _check_target_makefile(root, report)
+    _check_project_environment_contract(root, report)
     _check_command_contract(root, report)
     _check_task_handoff(root, report)
     _check_root_agents_guardrails(root, report)
@@ -1638,6 +1652,93 @@ def _check_task_handoff(root: Path, report: VerificationReport) -> None:
     )
 
 
+def _check_project_environment_contract(root: Path, report: VerificationReport) -> None:
+    rel = PROJECT_ENVIRONMENT_REL.as_posix()
+    payload, errors = load_project_environment_contract(root)
+    if errors:
+        for error in errors:
+            code = (
+                "target_project_environment_missing"
+                if error.startswith("missing required project environment contract:")
+                else "target_project_environment_invalid"
+            )
+            report.add_error(code, error, rel)
+        return
+    environments = payload.get("environments")
+    environment_items = environments if isinstance(environments, list) else []
+    environment_ids = {
+        str(environment.get("id"))
+        for environment in environment_items if isinstance(environment, dict)
+    }
+    for required_id in ("core-governance", "project-runtime"):
+        if required_id not in environment_ids:
+            report.add_error(
+                "target_project_environment_required_id_missing",
+                f"project environment contract must declare environment ID: {required_id}",
+                rel,
+            )
+    known_governance_tools = {spec.name for spec in TOOLS}
+    for environment in environment_items:
+        if not isinstance(environment, dict):
+            continue
+        for tool in environment.get("tools", []):
+            if not isinstance(tool, dict):
+                continue
+            repair = tool.get("repair")
+            if not isinstance(repair, dict) or repair.get("strategy") != "governance-env":
+                _check_project_environment_repair_source(root, repair, rel, report)
+                continue
+            repair_tool = repair.get("tool")
+            if repair_tool not in known_governance_tools:
+                report.add_error(
+                    "target_project_environment_governance_tool_unknown",
+                    f"project environment governance-env repair tool is not registered in check_env.py: {repair_tool}",
+                    rel,
+                )
+            _check_project_environment_repair_source(root, repair, rel, report)
+
+
+def _check_project_environment_repair_source(
+    root: Path,
+    repair: object,
+    contract_rel: str,
+    report: VerificationReport,
+) -> None:
+    if not isinstance(repair, dict):
+        return
+    source = repair.get("source")
+    if not isinstance(source, dict):
+        return
+    review_evidence = source.get("review_evidence")
+    if isinstance(review_evidence, str) and not _project_environment_local_file(root, review_evidence):
+        report.add_error(
+            "target_project_environment_repair_review_missing",
+            f"project environment repair source review evidence is missing: {review_evidence}",
+            contract_rel,
+        )
+    source_type = source.get("type")
+    location = source.get("location")
+    if source_type in {"repository-doc", "workflow-pack"} and isinstance(location, str):
+        if not _project_environment_local_file(root, location):
+            report.add_error(
+                "target_project_environment_repair_source_missing",
+                f"project environment repair source is missing: {location}",
+                contract_rel,
+            )
+
+
+def _project_environment_local_file(root: Path, rel: str) -> bool:
+    candidate = root / rel
+    if candidate.is_symlink():
+        return False
+    try:
+        resolved = candidate.resolve()
+        resolved.relative_to(root.resolve())
+    except (OSError, RuntimeError, ValueError):
+        return False
+    return resolved.is_file()
+
+
 def _check_command_contract(root: Path, report: VerificationReport) -> None:
     rel = COMMAND_CONTRACT_REL.as_posix()
     path = root / COMMAND_CONTRACT_REL
@@ -1693,6 +1794,12 @@ def _check_command_contract(root: Path, report: VerificationReport) -> None:
         report.add_error("target_command_contract_no_commands", f"{rel} Command Table must list at least one command", rel)
         return
     seen_names: set[str] = set()
+    environment_payload, environment_errors = load_project_environment_contract(root)
+    known_environment_ids = {
+        str(environment.get("id"))
+        for environment in environment_payload.get("environments", [])
+        if isinstance(environment, dict) and isinstance(environment.get("id"), str)
+    }
     for row in rows:
         command_name = row["name"].strip() or "(missing name)"
         missing_fields = [
@@ -1720,6 +1827,13 @@ def _check_command_contract(root: Path, report: VerificationReport) -> None:
                 rel,
             )
         seen_names.add(command_name)
+        environment_id = row["environment"].strip().strip("`").strip()
+        if not environment_errors and environment_id not in known_environment_ids:
+            report.add_error(
+                "target_command_contract_environment_unknown",
+                f"command contract row {command_name} Environment must reference project environment ID: {environment_id}",
+                rel,
+            )
         if not _command_contract_cwd_valid(row["cwd"]):
             report.add_error(
                 "target_command_contract_cwd_invalid",
@@ -1821,7 +1935,7 @@ def _check_default_command_contract_row(
         "writes state": str(writes_state).lower(),
         "approval required": "false",
         "evidence": _default_command_contract_evidence(target),
-        "environment": "Core governance runtime",
+        "environment": "core-governance",
     }
     for column, expected in expected_cells.items():
         actual = row[column].strip()

@@ -88,7 +88,7 @@ from scaffold import (
     scaffold_continuation_payload,
     scaffold_product,
 )
-from state import STATE_REL, StateFileError, load_state, merge_state, utc_now
+from state import STATE_REL, StateFileError, load_state, merge_state, next_state_timestamp, utc_now
 from threat_review_evidence import check_threat_review_evidence, record_threat_review_evidence
 from verify_governance import verify
 from workflow_actions import next_actions_payload
@@ -216,9 +216,10 @@ def _cmd_verify(args: argparse.Namespace) -> int:
             state_error_path = str(error.path)
     elif (target / STATE_REL).exists():
         try:
-            checked_at = utc_now()
+            checked_at = next_state_timestamp(load_state(target), utc_now())
             state = merge_state(
                 target,
+                updated_at=checked_at,
                 last_verification={
                     "checked_at": checked_at,
                     **report_payload,

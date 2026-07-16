@@ -55,6 +55,7 @@ RUNTIME_SCRIPT_FILES = [
     "phases.py",
     "product_dispositions.py",
     "product_import.py",
+    "project_environment.py",
     "product_structure.py",
     "scaffold.py",
     "state.py",
@@ -606,6 +607,7 @@ def generated_file_paths(product_doc: Path | None = None) -> list[str]:
             "docs/product/core/source/source-manifest.json",
             "docs/decisions/_template.md",
             "docs/agent-workflow/command-contract.md",
+            "docs/agent-workflow/project-environment.json",
             "docs/agent-workflow/task-handoff.md",
             f"{WORKFLOW_PACK_SNAPSHOT_ROOT}/manifest.json",
             ".governance/state.json",
@@ -1432,6 +1434,7 @@ def _write_bootstrap_outputs(
 
     _safe_write(root / "docs/decisions/_template.md", _adr_template(), force)
     _safe_write(root / "docs/agent-workflow/command-contract.md", _command_contract(), force)
+    _safe_write(root / "docs/agent-workflow/project-environment.json", _project_environment_contract(), force)
     _safe_write(root / "docs/agent-workflow/task-handoff.md", _task_handoff(), force)
     workflow_pack_manifest = _install_workflow_pack_snapshot(root, force)
 
@@ -1549,6 +1552,7 @@ def _domain_readme(name: str, title: str) -> str:
             "> Governance: `AGENTS.md`.\n\n"
             "## Index\n\n"
             "- `command-contract.md` - target-local command contract and project verification command registry\n"
+            "- `project-environment.json` - structured runtime, version probe, and repair-source contract\n"
             "- `task-handoff.md` - agent task handoff and completion criteria\n"
             "- `workflow-pack/` - local workflow, skill, reference, and template snapshot\n"
         )
@@ -1654,14 +1658,15 @@ def _command_contract() -> str:
         "external services, or governance state.\n"
         "- Mark `Approval Required` as `true` for dependency installation, credential access, production access, "
         "publishing, release, destructive migration, or external state mutation commands.\n"
-        "- Link command evidence to `docs/development/03-verification-log.md` or another local Markdown evidence file.\n\n"
+        "- Link command evidence to `docs/development/03-verification-log.md` or another local Markdown evidence file.\n"
+        "- Set `Environment` to an ID declared in `project-environment.json`; register project tools, version requirements, probes, and reviewed repair sources before using `project-runtime`.\n\n"
         "## Usage Rules\n\n"
         "- Prefer command rows from this file before reconstructing commands from prose.\n"
         "- Run read-only commands before state-writing commands when both exist.\n"
         "- Do not run commands with `Approval Required` set to `true` unless the task explicitly authorizes them.\n"
         "- Record skipped, unavailable, failed, flaky, and passing commands in `docs/development/03-verification-log.md`.\n"
         "- For an `In Progress` task, preflight registered project checks with `bin/governance implementation verify . --task <task-id> --command <command-name> --check --json`.\n"
-        "- Require `environment_readiness.ok: true` before execution. Follow `repair_preflight_command` only for tools already known to the governance inventory; register approved source/install policy for unknown project tools instead of guessing installation commands.\n"
+        "- Require `environment_readiness.ok: true` before execution. Inspect `required_tools` version evidence and follow only repair actions backed by `project-environment.json`; never guess installation commands.\n"
         "- Run the returned structured command to append `docs/development/04-implementation-evidence.md` and update the current `(Task, Command)` summary without deleting prior runs.\n"
         "- `implementation verify` refuses approval-required rows and requires `--allow-writes` for state-writing rows.\n"
     )
@@ -1679,8 +1684,55 @@ def _command_contract_row(target: str, recipe: str, description: str, writes_sta
     return (
         f"| {target} | {_sentence_case(description)} | `.` | "
         f"`{argv}` | {str(writes_state).lower()} | false | "
-        f"{_command_contract_evidence(target)} | Core governance runtime |\n"
+        f"{_command_contract_evidence(target)} | core-governance |\n"
     )
+
+
+def _project_environment_contract() -> str:
+    return json.dumps(
+        {
+            "schema_version": 1,
+            "environments": [
+                {
+                    "id": "core-governance",
+                    "description": "Python standard-library runtime used by target-local governance commands.",
+                    "allow_repository_executables": True,
+                    "tools": [
+                        {
+                            "id": "python-runtime",
+                            "executable": "python3",
+                            "version_probe": {
+                                "args": ["--version"],
+                                "output": "stdout",
+                                "prefix": "Python ",
+                            },
+                            "version_requirement": {
+                                "minimum": "3.10.0",
+                                "maximum_exclusive": "4.0.0",
+                            },
+                            "repair": {
+                                "strategy": "governance-env",
+                                "source": {
+                                    "type": "workflow-pack",
+                                    "location": "scripts/check_env.py",
+                                    "review_evidence": "docs/agent-workflow/workflow-pack/references/project-environment-contract.md",
+                                },
+                                "tool": "python3",
+                            },
+                        }
+                    ],
+                },
+                {
+                    "id": "project-runtime",
+                    "description": "Project runtime placeholder; register reviewed tools after stack selection.",
+                    "allow_repository_executables": True,
+                    "tools": [],
+                },
+            ],
+        },
+        indent=2,
+        sort_keys=True,
+    ) + "\n"
 
 
 def _sentence_case(text: str) -> str:

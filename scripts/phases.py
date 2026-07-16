@@ -10,12 +10,12 @@ from typing import Any
 try:
     from .bootstrap_tree import target_local_commands_payload
     from .gates import GATE_NAMES, evaluate_gate
-    from .state import STATE_REL, StateFileError, load_state, save_state, utc_now
+    from .state import STATE_REL, StateFileError, load_state, next_state_timestamp, save_state, utc_now
     from .workflow_actions import next_actions_payload
 except ImportError:  # pragma: no cover - direct script execution
     from bootstrap_tree import target_local_commands_payload
     from gates import GATE_NAMES, evaluate_gate
-    from state import STATE_REL, StateFileError, load_state, save_state, utc_now
+    from state import STATE_REL, StateFileError, load_state, next_state_timestamp, save_state, utc_now
     from workflow_actions import next_actions_payload
 
 
@@ -228,7 +228,7 @@ def _state_output_error(root: Path) -> StateFileError | None:
 def _planned_advance_state(state: dict[str, Any], phase: str, gate_ok: bool) -> dict[str, Any]:
     planned = copy.deepcopy(state)
     previous_phase = planned.get("phase")
-    advanced_at = utc_now()
+    advanced_at = next_state_timestamp(planned, utc_now())
     history = planned.get("phase_history")
     if not isinstance(history, list):
         history = []
