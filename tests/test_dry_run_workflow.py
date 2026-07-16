@@ -218,6 +218,48 @@ class DryRunWorkflowTest(unittest.TestCase):
         payload["repair_decision"]["approval_action_ids"] = ["env-repair-apt-install"]
         self.assertFalse(dry_run_workflow._env_repair_decision_allows_workflow(payload))
 
+    def test_implementation_verification_preview_supports_registered_stack_contracts(self) -> None:
+        payload = {
+            "ok": True,
+            "check": True,
+            "verification_ready": True,
+            "writes_state": False,
+            "executed": False,
+            "evidence_recorded": False,
+            "command_contract": {"name": "node-stack-tests"},
+            "environment_readiness": {
+                "ok": True,
+                "required_executable": "node",
+                "environment_contract": {"environment_id": "project-runtime"},
+                "environment_probe_executed": True,
+                "required_tools": [{"version_satisfies": True}],
+                "repair_decision": {"decision": "continue_execution"},
+            },
+            "would_write": [
+                "docs/development/04-implementation-evidence.md",
+                "docs/development/03-verification-log.md",
+                "docs/development/02-task-board.md",
+                "docs/development/README.md",
+            ],
+        }
+
+        self.assertTrue(
+            dry_run_workflow._implementation_verification_preview_ready(
+                payload,
+                command_name="node-stack-tests",
+                executable="node",
+                environment_id="project-runtime",
+            )
+        )
+        self.assertFalse(
+            dry_run_workflow._implementation_verification_preview_ready(
+                payload,
+                command_name="dry-run-task-tests",
+                executable="python3",
+                environment_id="core-governance",
+            )
+        )
+
     def test_dry_run_reaches_design_authoring_queues(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "dry-target"
@@ -277,6 +319,28 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertTrue(payload["implementation_verification"]["evidence_recorded"])
             self.assertTrue(payload["implementation_verification"]["command_passed"])
             self.assertTrue(payload["implementation_verification"]["all_current_results_passing"])
+            stack_acceptance = payload["stack_acceptance"]
+            self.assertTrue(stack_acceptance["all_required_passed"])
+            self.assertTrue(stack_acceptance["all_available_passed"])
+            self.assertEqual(["python", "node"], stack_acceptance["required_stacks"])
+            self.assertEqual(["rust"], stack_acceptance["optional_stacks"])
+            self.assertEqual("real_runtime_no_network_no_third_party_dependencies", stack_acceptance["policy"])
+            for stack in ("python", "node"):
+                self.assertEqual("passed", stack_acceptance["stacks"][stack]["status"])
+                self.assertTrue(stack_acceptance["stacks"][stack]["runtime_available"])
+                self.assertTrue(stack_acceptance["stacks"][stack]["executed"])
+                self.assertTrue(stack_acceptance["stacks"][stack]["command_passed"])
+                self.assertRegex(stack_acceptance["stacks"][stack]["observed_version"], r"\d")
+            rust_acceptance = stack_acceptance["stacks"]["rust"]
+            self.assertIn(rust_acceptance["status"], {"passed", "unavailable"})
+            if rust_acceptance["status"] == "passed":
+                self.assertTrue(rust_acceptance["runtime_available"])
+                self.assertTrue(rust_acceptance["executed"])
+                self.assertTrue(rust_acceptance["command_passed"])
+            else:
+                self.assertFalse(rust_acceptance["runtime_available"])
+                self.assertFalse(rust_acceptance["executed"])
+                self.assertEqual("manual", rust_acceptance["repair_strategy"])
             self.assertEqual(
                 [
                     "docs/development/04-implementation-evidence.md",
@@ -437,6 +501,11 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertIn("runtime_refresh_after_complete", step_ids)
             self.assertIn("make_workflow_plan_after_runtime_refresh", step_ids)
             self.assertIn("make_workflow_resume_complete_after_runtime_refresh", step_ids)
+            self.assertIn("project_environment_node_register", step_ids)
+            self.assertIn("implementation_node_verification_preview", step_ids)
+            self.assertIn("implementation_node_verification_execute", step_ids)
+            self.assertIn("project_environment_rust_register", step_ids)
+            self.assertIn("implementation_rust_verification_preview", step_ids)
             self.assertIn("make_work_package_complete_after_runtime_refresh", step_ids)
             self.assertTrue((target / "bin/governance").is_file())
             self.assertTrue((target / "docs/product/core/chapter-dispositions.json").is_file())
@@ -504,6 +573,10 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertTrue(payload["runtime_refresh"]["check_ok"])
             self.assertTrue(payload["runtime_refresh"]["applied"])
             self.assertTrue(payload["runtime_refresh"]["workflow_plan_complete_after_refresh"])
+            self.assertTrue(payload["stack_acceptance"]["all_required_passed"])
+            self.assertEqual("passed", payload["stack_acceptance"]["stacks"]["python"]["status"])
+            self.assertEqual("passed", payload["stack_acceptance"]["stacks"]["node"]["status"])
+            self.assertIn(payload["stack_acceptance"]["stacks"]["rust"]["status"], {"passed", "unavailable"})
             self.assertTrue(payload["api_review"]["preflight_ok"])
             self.assertTrue(payload["api_review"]["applied"])
             self.assertTrue(payload["api_review"]["current_after_runtime_refresh"])

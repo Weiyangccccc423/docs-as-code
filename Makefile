@@ -1,4 +1,4 @@
-.PHONY: test dry-run dry-run-golden package artifact-smoke release-check authority-skills verify-pack check-env ci
+.PHONY: test dry-run dry-run-golden stack-acceptance package artifact-smoke release-check authority-skills verify-pack check-env ci
 
 test:
 	python3 -m unittest discover -s tests
@@ -8,6 +8,9 @@ dry-run:
 
 dry-run-golden:
 	python3 scripts/dry_run_workflow.py --product tests/fixtures/product-docs/field-service-ops.md --json
+
+stack-acceptance:
+	python3 scripts/stack_acceptance.py --json
 
 package:
 	python3 scripts/export_workflow_pack.py --output dist/docs-as-code-workflow-pack --archive dist/docs-as-code-workflow-pack.tar.gz --force --json

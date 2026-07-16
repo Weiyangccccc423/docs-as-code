@@ -154,6 +154,19 @@ def _dry_run_closeout_evidence_ok(payload: dict[str, object]) -> bool:
     )
 
 
+def _dry_run_stack_acceptance_ok(payload: dict[str, object] | None) -> bool:
+    if payload is None:
+        return False
+    summary = payload.get("stack_acceptance")
+    if not isinstance(summary, dict):
+        return False
+    stacks = summary.get("stacks")
+    return isinstance(stacks, dict) and all(
+        isinstance(stacks.get(name), dict) and stacks[name].get("status") == "passed"
+        for name in ("python", "node")
+    )
+
+
 def _dry_run_target_local_make_coverage_ok(payload: dict[str, object] | None) -> bool:
     if payload is None:
         return False
@@ -296,6 +309,23 @@ def _artifact_smoke_fresh_target_init_ok(payload: dict[str, object] | None) -> b
         and fresh_target_init.get("runtime_manifest") is True
         and fresh_target_init.get("workflow_pack_snapshot") is True
         and fresh_target_init.get("product_source_manifest") is True
+    )
+
+
+def _artifact_smoke_stack_acceptance_ok(payload: dict[str, object] | None) -> bool:
+    if payload is None:
+        return False
+    summary = payload.get("stack_acceptance")
+    return (
+        isinstance(summary, dict)
+        and summary.get("ok") is True
+        and summary.get("all_required_passed") is True
+        and isinstance(summary.get("stacks"), dict)
+        and all(
+            isinstance(summary["stacks"].get(name), dict)
+            and summary["stacks"][name].get("status") == "passed"
+            for name in ("python", "node")
+        )
     )
 
 
@@ -853,6 +883,7 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
         and bool(dry_run_payload and dry_run_payload.get("ok") is True)
         and dry_run_payload.get("final_phase") == "implementation"
         and _dry_run_closeout_evidence_ok(dry_run_payload)
+        and _dry_run_stack_acceptance_ok(dry_run_payload)
         and _dry_run_product_dispositions_ok(dry_run_payload)
         and _dry_run_api_review_ok(dry_run_payload)
         and _dry_run_threat_review_ok(dry_run_payload)
@@ -868,6 +899,7 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
             "implementation_verification": dry_run_payload.get("implementation_verification")
             if dry_run_payload
             else {},
+            "stack_acceptance": dry_run_payload.get("stack_acceptance") if dry_run_payload else {},
             "product_dispositions": dry_run_payload.get("product_dispositions") if dry_run_payload else {},
             "api_review": dry_run_payload.get("api_review") if dry_run_payload else {},
             "threat_review": dry_run_payload.get("threat_review") if dry_run_payload else {},
@@ -898,6 +930,7 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
         and bool(multi_acceptance_payload and multi_acceptance_payload.get("ok") is True)
         and multi_acceptance_payload.get("final_phase") == "implementation"
         and _dry_run_closeout_evidence_ok(multi_acceptance_payload)
+        and _dry_run_stack_acceptance_ok(multi_acceptance_payload)
         and _dry_run_product_dispositions_ok(multi_acceptance_payload)
         and _dry_run_api_review_ok(multi_acceptance_payload)
         and _dry_run_threat_review_ok(multi_acceptance_payload)
@@ -921,6 +954,9 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
             if multi_acceptance_payload
             else {},
             "implementation_verification": multi_acceptance_payload.get("implementation_verification")
+            if multi_acceptance_payload
+            else {},
+            "stack_acceptance": multi_acceptance_payload.get("stack_acceptance")
             if multi_acceptance_payload
             else {},
             "product_dispositions": multi_acceptance_payload.get("product_dispositions")
@@ -1069,6 +1105,7 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
         and artifact_smoke_payload.get("archive_sha256") == export_payload.get("archive_sha256")
         and artifact_smoke_payload.get("manifest_sha256") == export_payload.get("manifest_sha256")
         and _artifact_smoke_fresh_target_init_ok(artifact_smoke_payload)
+        and _artifact_smoke_stack_acceptance_ok(artifact_smoke_payload)
         and _artifact_smoke_product_dispositions_ok(artifact_smoke_payload)
         and _artifact_smoke_api_review_ok(artifact_smoke_payload)
         and _artifact_smoke_threat_review_ok(artifact_smoke_payload)
@@ -1109,6 +1146,9 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
             if artifact_smoke_payload
             else {},
             "implementation_verification": artifact_smoke_payload.get("implementation_verification", {})
+            if artifact_smoke_payload
+            else {},
+            "stack_acceptance": artifact_smoke_payload.get("stack_acceptance", {})
             if artifact_smoke_payload
             else {},
             "consumer_bootstrap_product_structure": artifact_smoke_payload.get(

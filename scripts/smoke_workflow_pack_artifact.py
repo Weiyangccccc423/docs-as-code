@@ -471,6 +471,12 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
             "unpacked artifact dry-run did not prove runtime refresh preserves completion state",
             payload=dry_run_payload,
         )
+        stack_acceptance = _dry_run_stack_acceptance_details(dry_run_payload)
+        _require(
+            stack_acceptance.get("ok") is True,
+            "unpacked artifact dry-run did not prove required real stack acceptance",
+            payload=dry_run_payload,
+        )
         target_local_make_coverage = _dry_run_target_local_make_details(dry_run_payload)
         _require(
             target_local_make_coverage["missing_step_ids"] == [],
@@ -527,6 +533,7 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
             "product_dispositions": product_dispositions,
             "design_reviews": design_reviews,
             "implementation_verification": dict(implementation_verification),
+            "stack_acceptance": stack_acceptance,
             "api_review": api_review,
             "threat_review": threat_review,
             "reliability_review": reliability_review,
@@ -611,6 +618,30 @@ def _dry_run_target_local_make_details(payload: dict[str, object]) -> dict[str, 
     return {
         "required_step_ids": TARGET_LOCAL_MAKE_STEP_IDS,
         "missing_step_ids": [step_id for step_id in TARGET_LOCAL_MAKE_STEP_IDS if step_id not in step_ids],
+    }
+
+
+def _dry_run_stack_acceptance_details(payload: dict[str, object]) -> dict[str, object]:
+    summary = payload.get("stack_acceptance")
+    summary_map = summary if isinstance(summary, dict) else {}
+    raw_stacks = summary_map.get("stacks")
+    stacks = dict(raw_stacks) if isinstance(raw_stacks, dict) else {}
+    required_stacks = ["python", "node"]
+    all_required_passed = all(
+        isinstance(stacks.get(name), dict) and stacks[name].get("status") == "passed"
+        for name in required_stacks
+    )
+    return {
+        "ok": all_required_passed,
+        "policy": str(summary_map.get("policy", "")),
+        "required_stacks": required_stacks,
+        "optional_stacks": ["rust"],
+        "all_required_passed": all_required_passed,
+        "all_available_passed": summary_map.get("all_available_passed") is True,
+        "strict_rust_passed": (
+            isinstance(stacks.get("rust"), dict) and stacks["rust"].get("status") == "passed"
+        ),
+        "stacks": stacks,
     }
 
 

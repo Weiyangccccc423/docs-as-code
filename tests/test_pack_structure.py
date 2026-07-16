@@ -31,7 +31,15 @@ class PackStructureTest(unittest.TestCase):
         text = (ROOT / "Makefile").read_text(encoding="utf-8")
         self.assertIn("\nverify-pack:\n", text)
         self.assertNotIn("\nverify-pack: test\n", text)
+        self.assertIn("\nstack-acceptance:\n\tpython3 scripts/stack_acceptance.py --json\n", text)
         self.assertIn("\nci: test verify-pack\n", text)
+
+    def test_ci_pins_node_for_real_stack_acceptance(self) -> None:
+        text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        self.assertIn("timeout-minutes: 30", text)
+        self.assertIn("actions/setup-node@v4", text)
+        self.assertIn("node-version: '22'", text)
+        self.assertIn("run: make stack-acceptance", text)
 
     def test_api_review_runtime_is_required_in_generated_targets(self) -> None:
         self.assertIn(Path("scripts/api_review_evidence.py"), RUNTIME_REQUIRED_PATHS)
@@ -484,6 +492,27 @@ class PackStructureTest(unittest.TestCase):
                 any(
                     finding.code == "pack_dry_run_workflow_missing"
                     and finding.path == "scripts/dry_run_workflow.py"
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_missing_stack_acceptance_script(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            (target / "scripts/stack_acceptance.py").unlink()
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_stack_acceptance_missing"
+                    and finding.path == "scripts/stack_acceptance.py"
                     for finding in report.findings
                 )
             )

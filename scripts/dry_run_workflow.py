@@ -59,6 +59,10 @@ ACCEPTANCE_ID_HEADING_RE = re.compile(r"^##[ \t]+(?P<id>A-[0-9]{3})\b", re.MULTI
 IMPLEMENTATION_TASK_ID = "TASK-001"
 IMPLEMENTATION_VERIFICATION_COMMAND = "dry-run-task-tests"
 IMPLEMENTATION_VERIFICATION_RUN_ID = "VR-20260713T120000000000Z-01234567"
+NODE_IMPLEMENTATION_VERIFICATION_COMMAND = "node-stack-tests"
+NODE_IMPLEMENTATION_VERIFICATION_RUN_ID = "VR-20260713T120001000000Z-12345678"
+RUST_IMPLEMENTATION_VERIFICATION_COMMAND = "rust-stack-tests"
+RUST_IMPLEMENTATION_VERIFICATION_RUN_ID = "VR-20260713T120002000000Z-23456789"
 DESIGN_REVIEW_REL = "docs/decisions/design-reviews.json"
 OPTIONAL_PRODUCT_CHAPTERS = {
     "background-and-problems",
@@ -1175,6 +1179,19 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
     _require(implementation_preflight.get("ok") is False, "implementation gate unexpectedly passed")
 
     _write_minimal_implementation_ready_docs(target, acceptance_ids)
+    node_runtime_registration = _register_stack_runtime(
+        target,
+        steps,
+        env=repair_env,
+        stack="node",
+        tool_id="node-runtime",
+        executable="node",
+        version_prefix="v",
+        minimum_version="18.0.0",
+        maximum_exclusive_version="24.0.0",
+        repair_source="https://nodejs.org/en/download",
+        repair_instructions="Install a reviewed Node.js LTS release from the official distribution.",
+    )
     _write_threat_review_inputs(target)
     _write_reliability_review_inputs(target)
     _write_migration_review_inputs(target)
@@ -1373,7 +1390,12 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         target,
     )
     _require(
-        _implementation_verification_preview_ready(implementation_verification_preview),
+        _implementation_verification_preview_ready(
+            implementation_verification_preview,
+            command_name=IMPLEMENTATION_VERIFICATION_COMMAND,
+            executable="python3",
+            environment_id="core-governance",
+        ),
         "implementation verification preflight did not expose an exact no-write command plan",
         payload=implementation_verification_preview,
     )
@@ -1400,6 +1422,147 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         "implementation verification did not execute and atomically record passing evidence",
         payload=implementation_verification_execute,
     )
+    node_verification_preview = _run_json(
+        steps,
+        "implementation_node_verification_preview",
+        [
+            "bin/governance",
+            "implementation",
+            "verify",
+            ".",
+            "--task",
+            IMPLEMENTATION_TASK_ID,
+            "--command",
+            NODE_IMPLEMENTATION_VERIFICATION_COMMAND,
+            "--run-id",
+            NODE_IMPLEMENTATION_VERIFICATION_RUN_ID,
+            "--check",
+            "--json",
+        ],
+        target,
+        env=repair_env,
+    )
+    _require(
+        _implementation_verification_preview_ready(
+            node_verification_preview,
+            command_name=NODE_IMPLEMENTATION_VERIFICATION_COMMAND,
+            executable="node",
+            environment_id="project-runtime",
+        ),
+        "Node.js stack verification preflight did not become ready",
+        payload=node_verification_preview,
+    )
+    node_verification_execute = _run_json(
+        steps,
+        "implementation_node_verification_execute",
+        [
+            "bin/governance",
+            "implementation",
+            "verify",
+            ".",
+            "--task",
+            IMPLEMENTATION_TASK_ID,
+            "--command",
+            NODE_IMPLEMENTATION_VERIFICATION_COMMAND,
+            "--run-id",
+            NODE_IMPLEMENTATION_VERIFICATION_RUN_ID,
+            "--json",
+        ],
+        target,
+        env=repair_env,
+    )
+    _require(
+        _implementation_verification_completed(node_verification_execute),
+        "Node.js stack tests did not execute and record passing evidence",
+        payload=node_verification_execute,
+    )
+
+    rust_runtime_registration = _register_stack_runtime(
+        target,
+        steps,
+        env=repair_env,
+        stack="rust",
+        tool_id="rust-cargo",
+        executable="cargo",
+        version_prefix="cargo ",
+        minimum_version="1.70.0",
+        maximum_exclusive_version="2.0.0",
+        repair_source="https://www.rust-lang.org/tools/install",
+        repair_instructions="Install a reviewed stable Rust toolchain with Cargo from the official distribution.",
+    )
+    cargo_available = shutil.which("cargo", path=repair_env.get("PATH")) is not None
+    rust_verification_preview = _run_json(
+        steps,
+        "implementation_rust_verification_preview",
+        [
+            "bin/governance",
+            "implementation",
+            "verify",
+            ".",
+            "--task",
+            IMPLEMENTATION_TASK_ID,
+            "--command",
+            RUST_IMPLEMENTATION_VERIFICATION_COMMAND,
+            "--run-id",
+            RUST_IMPLEMENTATION_VERIFICATION_RUN_ID,
+            "--allow-writes",
+            "--check",
+            "--json",
+        ],
+        target,
+        expected_returncode=0 if cargo_available else 1,
+        env=repair_env,
+    )
+    rust_verification_execute: dict[str, object] = {}
+    if cargo_available:
+        _require(
+            _implementation_verification_preview_ready(
+                rust_verification_preview,
+                command_name=RUST_IMPLEMENTATION_VERIFICATION_COMMAND,
+                executable="cargo",
+                environment_id="project-runtime",
+            ),
+            "Rust stack verification preflight did not become ready",
+            payload=rust_verification_preview,
+        )
+        rust_verification_execute = _run_json(
+            steps,
+            "implementation_rust_verification_execute",
+            [
+                "bin/governance",
+                "implementation",
+                "verify",
+                ".",
+                "--task",
+                IMPLEMENTATION_TASK_ID,
+                "--command",
+                RUST_IMPLEMENTATION_VERIFICATION_COMMAND,
+                "--run-id",
+                RUST_IMPLEMENTATION_VERIFICATION_RUN_ID,
+                "--allow-writes",
+                "--json",
+            ],
+            target,
+            env=repair_env,
+        )
+        _require(
+            _implementation_verification_completed(rust_verification_execute),
+            "Rust stack tests did not execute and record passing evidence",
+            payload=rust_verification_execute,
+        )
+    else:
+        _require(
+            rust_verification_preview.get("ok") is False
+            and rust_verification_preview.get("executed") is False
+            and rust_verification_preview.get("environment_readiness", {}).get("ok") is False
+            and any(
+                action.get("strategy") == "manual" and action.get("tool_id") == "rust-cargo"
+                for action in rust_verification_preview.get("environment_readiness", {}).get("repair_actions", [])
+                if isinstance(action, dict)
+            ),
+            "missing Rust did not route to reviewed manual environment repair",
+            payload=rust_verification_preview,
+        )
     closeout_with_evidence = _run_json(
         steps,
         "implementation_closeout_with_evidence",
@@ -1552,11 +1715,22 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
     )
     final_state = final_status.get("state")
     _require(isinstance(final_state, dict), "final status did not return state", payload=final_status)
+    stack_acceptance = _build_stack_acceptance_summary(
+        python_preview=implementation_verification_preview,
+        python_execute=implementation_verification_execute,
+        node_registration=node_runtime_registration,
+        node_preview=node_verification_preview,
+        node_execute=node_verification_execute,
+        rust_registration=rust_runtime_registration,
+        rust_preview=rust_verification_preview,
+        rust_execute=rust_verification_execute,
+    )
 
     return {
         "ok": True,
         "workflow": "fresh-target-governance-dry-run",
         "steps": steps,
+        "stack_acceptance": stack_acceptance,
         "final_phase": final_state.get("phase"),
         "design_tracks": track_ids,
         "acceptance_ids": acceptance_ids,
@@ -1774,19 +1948,179 @@ def _write_minimal_implementation_ready_docs(target: Path, acceptance_ids: list[
     }
     for rel, text in documents.items():
         (target / rel).write_text(text, encoding="utf-8")
+    _write_stack_acceptance_fixtures(target)
     _register_implementation_verification_command(target)
 
 
 def _register_implementation_verification_command(target: Path) -> None:
     path = target / "docs/agent-workflow/command-contract.md"
     text = path.read_text(encoding="utf-8")
-    argv = ["python3", "-c", "print('dry-run implementation verification passed')"]
-    row = (
-        f"| {IMPLEMENTATION_VERIFICATION_COMMAND} | Verify the dry-run implementation task. | `.` | "
-        f"`{json.dumps(argv)}` | false | false | "
-        "`docs/development/04-implementation-evidence.md` | core-governance |\n"
+    commands = (
+        (
+            IMPLEMENTATION_VERIFICATION_COMMAND,
+            "Run real Python stack tests without third-party dependencies.",
+            ["python3", "-m", "unittest", "discover", "-s", "stack-fixtures/python", "-p", "test_*.py"],
+            False,
+            "core-governance",
+        ),
+        (
+            NODE_IMPLEMENTATION_VERIFICATION_COMMAND,
+            "Run real Node.js stack tests with the built-in test runner.",
+            ["node", "--test", "stack-fixtures/node/stack.test.mjs"],
+            False,
+            "project-runtime",
+        ),
+        (
+            RUST_IMPLEMENTATION_VERIFICATION_COMMAND,
+            "Run real Rust stack tests offline without third-party crates.",
+            ["cargo", "test", "--offline", "--manifest-path", "stack-fixtures/rust/Cargo.toml"],
+            True,
+            "project-runtime",
+        ),
     )
-    path.write_text(text.replace("\n## Project Commands", f"\n{row}\n## Project Commands", 1), encoding="utf-8")
+    rows = "".join(
+        f"| {name} | {purpose} | `.` | `{json.dumps(argv)}` | {str(writes_state).lower()} | false | "
+        f"`docs/development/04-implementation-evidence.md` | {environment} |\n"
+        for name, purpose, argv, writes_state, environment in commands
+    )
+    path.write_text(text.replace("\n## Project Commands", f"\n{rows}\n## Project Commands", 1), encoding="utf-8")
+
+
+def _write_stack_acceptance_fixtures(target: Path) -> None:
+    fixtures = {
+        "stack-fixtures/python/stack_math.py": (
+            "def normalized_total(values):\n"
+            "    if not all(isinstance(value, int) for value in values):\n"
+            "        raise TypeError('values must contain integers')\n"
+            "    return sum(values)\n"
+        ),
+        "stack-fixtures/python/test_stack_math.py": (
+            "import unittest\n\n"
+            "from stack_math import normalized_total\n\n\n"
+            "class StackMathTest(unittest.TestCase):\n"
+            "    def test_normalized_total(self):\n"
+            "        self.assertEqual(6, normalized_total([1, 2, 3]))\n\n"
+            "    def test_rejects_non_integer_values(self):\n"
+            "        with self.assertRaises(TypeError):\n"
+            "            normalized_total([1, '2'])\n\n\n"
+            "if __name__ == '__main__':\n"
+            "    unittest.main()\n"
+        ),
+        "stack-fixtures/node/stack.mjs": (
+            "export function normalizedTotal(values) {\n"
+            "  if (!values.every(Number.isInteger)) throw new TypeError('values must contain integers');\n"
+            "  return values.reduce((total, value) => total + value, 0);\n"
+            "}\n"
+        ),
+        "stack-fixtures/node/stack.test.mjs": (
+            "import assert from 'node:assert/strict';\n"
+            "import test from 'node:test';\n"
+            "import { normalizedTotal } from './stack.mjs';\n\n"
+            "test('normalizedTotal sums integer values', () => {\n"
+            "  assert.equal(normalizedTotal([1, 2, 3]), 6);\n"
+            "});\n\n"
+            "test('normalizedTotal rejects non-integer values', () => {\n"
+            "  assert.throws(() => normalizedTotal([1, '2']), TypeError);\n"
+            "});\n"
+        ),
+        "stack-fixtures/rust/Cargo.toml": (
+            "[package]\n"
+            "name = \"docs-as-code-stack-acceptance\"\n"
+            "version = \"0.1.0\"\n"
+            "edition = \"2021\"\n"
+            "publish = false\n\n"
+            "[lib]\n"
+            "path = \"src/lib.rs\"\n"
+        ),
+        "stack-fixtures/rust/src/lib.rs": (
+            "pub fn normalized_total(values: &[i64]) -> i64 {\n"
+            "    values.iter().sum()\n"
+            "}\n\n"
+            "#[cfg(test)]\n"
+            "mod tests {\n"
+            "    use super::normalized_total;\n\n"
+            "    #[test]\n"
+            "    fn sums_integer_values() {\n"
+            "        assert_eq!(normalized_total(&[1, 2, 3]), 6);\n"
+            "    }\n"
+            "}\n"
+        ),
+    }
+    for rel, content in fixtures.items():
+        path = target / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+
+
+def _register_stack_runtime(
+    target: Path,
+    steps: list[dict[str, object]],
+    *,
+    env: dict[str, str],
+    stack: str,
+    tool_id: str,
+    executable: str,
+    version_prefix: str,
+    minimum_version: str,
+    maximum_exclusive_version: str,
+    repair_source: str,
+    repair_instructions: str,
+) -> dict[str, object]:
+    argv = [
+        "bin/governance",
+        "project-env",
+        "register",
+        ".",
+        "--tool-id",
+        tool_id,
+        "--executable",
+        executable,
+        "--version-prefix",
+        version_prefix,
+        "--minimum-version",
+        minimum_version,
+        "--maximum-exclusive-version",
+        maximum_exclusive_version,
+        "--repair-strategy",
+        "manual",
+        "--repair-source-type",
+        "official-url",
+        "--repair-source",
+        repair_source,
+        "--review-evidence",
+        "docs/architecture/02-containers.md",
+        "--repair-instructions",
+        repair_instructions,
+        "--reviewed",
+    ]
+    preview = _run_json(
+        steps,
+        f"project_environment_{stack}_register_check",
+        [*argv, "--check", "--json"],
+        target,
+        env=env,
+    )
+    _require(
+        preview.get("ok") is True
+        and preview.get("check") is True
+        and preview.get("action") in {"register", "already-registered"},
+        f"{stack} runtime registration preflight failed",
+        payload=preview,
+    )
+    applied = _run_json(
+        steps,
+        f"project_environment_{stack}_register",
+        [*argv, "--json"],
+        target,
+        env=env,
+    )
+    _require(
+        applied.get("ok") is True
+        and applied.get("action") in {"register", "already-registered"},
+        f"{stack} runtime registration failed",
+        payload=applied,
+    )
+    return applied
 
 
 def _architecture_system_context_doc() -> str:
@@ -3402,7 +3736,13 @@ def _implementation_plan_is_in_progress(payload: dict[str, object]) -> bool:
     return active_work.get("task_id") == IMPLEMENTATION_TASK_ID and active_work.get("status") == "in_progress"
 
 
-def _implementation_verification_preview_ready(payload: dict[str, object]) -> bool:
+def _implementation_verification_preview_ready(
+    payload: dict[str, object],
+    *,
+    command_name: str,
+    executable: str,
+    environment_id: str,
+) -> bool:
     return (
         payload.get("ok") is True
         and payload.get("check") is True
@@ -3410,11 +3750,11 @@ def _implementation_verification_preview_ready(payload: dict[str, object]) -> bo
         and payload.get("writes_state") is False
         and payload.get("executed") is False
         and payload.get("evidence_recorded") is False
-        and payload.get("command_contract", {}).get("name") == IMPLEMENTATION_VERIFICATION_COMMAND
+        and payload.get("command_contract", {}).get("name") == command_name
         and payload.get("environment_readiness", {}).get("ok") is True
-        and payload.get("environment_readiness", {}).get("required_executable") == "python3"
+        and payload.get("environment_readiness", {}).get("required_executable") == executable
         and payload.get("environment_readiness", {}).get("environment_contract", {}).get("environment_id")
-        == "core-governance"
+        == environment_id
         and payload.get("environment_readiness", {}).get("environment_probe_executed") is True
         and all(
             tool.get("version_satisfies") is True
@@ -3451,6 +3791,108 @@ def _implementation_verification_completed(payload: dict[str, object]) -> bool:
             "docs/development/README.md",
         ]
     )
+
+
+def _build_stack_acceptance_summary(
+    *,
+    python_preview: dict[str, object],
+    python_execute: dict[str, object],
+    node_registration: dict[str, object],
+    node_preview: dict[str, object],
+    node_execute: dict[str, object],
+    rust_registration: dict[str, object],
+    rust_preview: dict[str, object],
+    rust_execute: dict[str, object],
+) -> dict[str, object]:
+    stacks = {
+        "python": _stack_acceptance_entry(
+            command_name=IMPLEMENTATION_VERIFICATION_COMMAND,
+            run_id=IMPLEMENTATION_VERIFICATION_RUN_ID,
+            executable="python3",
+            registration_action="core-governance",
+            preview=python_preview,
+            execute=python_execute,
+        ),
+        "node": _stack_acceptance_entry(
+            command_name=NODE_IMPLEMENTATION_VERIFICATION_COMMAND,
+            run_id=NODE_IMPLEMENTATION_VERIFICATION_RUN_ID,
+            executable="node",
+            registration_action=str(node_registration.get("action", "")),
+            preview=node_preview,
+            execute=node_execute,
+        ),
+        "rust": _stack_acceptance_entry(
+            command_name=RUST_IMPLEMENTATION_VERIFICATION_COMMAND,
+            run_id=RUST_IMPLEMENTATION_VERIFICATION_RUN_ID,
+            executable="cargo",
+            registration_action=str(rust_registration.get("action", "")),
+            preview=rust_preview,
+            execute=rust_execute,
+        ),
+    }
+    required_stacks = ["python", "node"]
+    available = [item for item in stacks.values() if item.get("runtime_available") is True]
+    return {
+        "policy": "real_runtime_no_network_no_third_party_dependencies",
+        "required_stacks": required_stacks,
+        "optional_stacks": ["rust"],
+        "all_required_passed": all(stacks[name].get("status") == "passed" for name in required_stacks),
+        "all_available_passed": all(item.get("status") == "passed" for item in available),
+        "strict_rust_passed": stacks["rust"].get("status") == "passed",
+        "stacks": stacks,
+    }
+
+
+def _stack_acceptance_entry(
+    *,
+    command_name: str,
+    run_id: str,
+    executable: str,
+    registration_action: str,
+    preview: dict[str, object],
+    execute: dict[str, object],
+) -> dict[str, object]:
+    readiness = preview.get("environment_readiness")
+    readiness_map = readiness if isinstance(readiness, dict) else {}
+    required_tools = readiness_map.get("required_tools")
+    tool = next(
+        (
+            item
+            for item in required_tools
+            if isinstance(item, dict) and item.get("executable") == executable
+        ),
+        {},
+    ) if isinstance(required_tools, list) else {}
+    repair_actions = readiness_map.get("repair_actions")
+    repair_action = next(
+        (
+            item
+            for item in repair_actions
+            if isinstance(item, dict) and item.get("executable") == executable
+        ),
+        {},
+    ) if isinstance(repair_actions, list) else {}
+    executed = execute.get("executed") is True
+    command_passed = execute.get("command_passed") is True
+    evidence_recorded = execute.get("evidence_recorded") is True
+    runtime_available = tool.get("ready") is True
+    passed = executed and command_passed and evidence_recorded
+    return {
+        "status": "passed" if passed else "unavailable" if not runtime_available else "failed",
+        "command_name": command_name,
+        "run_id": run_id,
+        "executable": executable,
+        "registration_action": registration_action,
+        "runtime_available": runtime_available,
+        "environment_ready": readiness_map.get("ok") is True,
+        "observed_version": str(tool.get("observed_version", "")),
+        "version_satisfies": tool.get("version_satisfies") is True,
+        "executed": executed,
+        "command_passed": command_passed,
+        "evidence_recorded": evidence_recorded,
+        "repair_strategy": str(repair_action.get("strategy", "")),
+        "repair_action": dict(repair_action) if isinstance(repair_action, dict) else {},
+    }
 
 
 def _closeout_blocks_without_evidence(payload: dict[str, object]) -> bool:

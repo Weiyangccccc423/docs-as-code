@@ -150,9 +150,14 @@ Verification is complete when the relevant checks in the procedure pass and any 
 ```bash
 make test
 make verify-pack
+make stack-acceptance
+python3 scripts/stack_acceptance.py --json
+python3 scripts/stack_acceptance.py --strict-rust --json
 make release-check
 python3 scripts/release_readiness.py --json
 ```
+
+The default stack acceptance gate requires real dependency-free Python and Node tests. Use `--strict-rust` only when the release environment is required to provide Cargo; otherwise a missing Rust runtime must remain visible as reviewed manual repair routing.
 
 Command discipline, environment repair control, drift refresh, phase gates, repair ordering, traceability evidence, security and supply-chain sanity, and completion gates must satisfy `references/governance-verification-checklist.md`. Source workflow-pack release handoff must satisfy `references/release-readiness-checklist.md`. Single-task implementation execution must satisfy `references/implementation-execution-checklist.md` before a task is marked `Done`.
 

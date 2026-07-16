@@ -19,6 +19,9 @@ make dry-run
 make dry-run-golden
 python3 scripts/dry_run_workflow.py --json
 python3 scripts/dry_run_workflow.py --product tests/fixtures/product-docs/field-service-ops.md --json
+make stack-acceptance
+python3 scripts/stack_acceptance.py --json
+python3 scripts/stack_acceptance.py --strict-rust --json
 make package
 python3 scripts/export_workflow_pack.py --check --json
 python3 scripts/export_workflow_pack.py --output dist/docs-as-code-workflow-pack --archive dist/docs-as-code-workflow-pack.tar.gz --force --json
@@ -37,6 +40,7 @@ python3 scripts/authority_skills.py --strict-provenance --json
 
 Treat successful `--archive` artifact smoke as evidence that the exact exported tar.gz can be unpacked, verified, used to initialize a fresh target folder containing only a product document, checked through target-local `bin/governance` and Make commands, and exercised through consumer bootstrap with `--auto-repair-env --workflow-preset product-structure`, `--auto-repair-env --workflow-preset design-scaffold`, `--auto-repair-env --workflow-preset design-routing`, and `--auto-repair-env --workflow-preset implementation-routing`. Each consumer bootstrap summary must include `authority_skill_inventory.ok: true` and `env_auto_repair.ok: true` so release evidence proves the unpacked pack ran authority-routing inventory and environment repair gating before target work. Treat the implementation-routing evidence as safe routing and blocker evidence, not as proof that implementation readiness passed.
 Require default, multi-acceptance, and artifact dry-run summaries to report complete `design_reviews` coverage and current `api_review`, `threat_review`, `reliability_review`, and `migration_review` evidence; artifact smoke must report `design_reviews.ok: true`, `api_review.ok: true`, `threat_review.ok: true`, `reliability_review.ok: true`, and `migration_review.ok: true` before release evidence is accepted.
+Use stack acceptance to require real dependency-free Python and Node tests through the project-environment and implementation-evidence chain. Missing Rust is an explicit reviewed manual repair route by default; use `--strict-rust` when Cargo and offline Rust tests are mandatory.
 
 For API contract verification, run `bin/governance design api-review <target> --reviewed --min-grade B --check --json` before write mode. Treat `api_review_evidence_missing`, `api_review_evidence_invalid`, and `api_review_evidence_stale` as implementation blockers. Repair OpenAPI or authority-tool findings first, rerun machine review, and only then rerun `design review --track api-contracts --check`; never edit report hashes or `review-evidence.json` directly.
 For architecture verification, run `bin/governance design threat-review <target> --reviewed --check --json` before write mode. Treat `threat_review_evidence_missing`, `threat_review_evidence_invalid`, and `threat_review_evidence_stale` as implementation blockers. Repair scope, STRIDE coverage, mitigations, owners, or source evidence first, rerun threat review, and only then rerun `design review --track architecture --check`; never edit stored hashes directly.

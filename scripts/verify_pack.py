@@ -825,6 +825,12 @@ DRY_RUN_WORKFLOW_REQUIRED_PHRASES = (
     "implementation_start",
     "implementation_verification_preview",
     "implementation_verification_execute",
+    "NODE_IMPLEMENTATION_VERIFICATION_COMMAND",
+    "RUST_IMPLEMENTATION_VERIFICATION_COMMAND",
+    "_register_stack_runtime",
+    "_write_stack_acceptance_fixtures",
+    "_build_stack_acceptance_summary",
+    '"stack_acceptance"',
     '"implementation_verification"',
     "04-implementation-evidence.md",
     "all_current_results_passing",
@@ -934,6 +940,58 @@ DRY_RUN_DOC_REQUIREMENTS = {
         "design_reviews",
         "implementation closeout blocked without evidence",
         "passing local evidence",
+    ),
+}
+STACK_ACCEPTANCE_PATH = "scripts/stack_acceptance.py"
+STACK_ACCEPTANCE_TEST_PATH = "tests/test_stack_acceptance.py"
+STACK_ACCEPTANCE_REQUIRED_PHRASES = (
+    "run_stack_acceptance",
+    "run_dry_run",
+    "REQUIRED_STACKS",
+    "OPTIONAL_STACKS",
+    "real-stack-acceptance",
+    "dry_run_failed",
+    "stack_acceptance_missing",
+    "all_required_passed",
+    "strict_rust_passed",
+    "--strict-rust",
+)
+STACK_ACCEPTANCE_TEST_REQUIRED_PHRASES = (
+    "test_default_policy_requires_python_and_node_but_not_rust",
+    "test_strict_rust_blocks_when_rust_did_not_pass",
+    "test_required_stack_failure_is_derived_from_stack_status",
+    "test_dry_run_failure_is_preserved_as_a_blocker",
+)
+STACK_ACCEPTANCE_DOC_REQUIREMENTS = {
+    "README.md": (
+        "make stack-acceptance",
+        "python3 scripts/stack_acceptance.py --json",
+        "--strict-rust",
+        "Python and Node",
+    ),
+    "workflows/00-overview.md": (
+        "make stack-acceptance",
+        "python3 scripts/stack_acceptance.py --json",
+        "--strict-rust",
+        "Python and Node",
+    ),
+    "workflows/05-verification-and-drift-control.md": (
+        "make stack-acceptance",
+        "python3 scripts/stack_acceptance.py --json",
+        "--strict-rust",
+        "Python and Node",
+    ),
+    "skills/verifying-governance-docs/SKILL.md": (
+        "make stack-acceptance",
+        "python3 scripts/stack_acceptance.py --json",
+        "--strict-rust",
+        "Python and Node",
+    ),
+    "references/release-readiness-checklist.md": (
+        "make stack-acceptance",
+        "python3 scripts/stack_acceptance.py --json",
+        "--strict-rust",
+        "Python and Node",
     ),
 }
 SOURCE_PACK_EXPORT_PATH = "scripts/export_workflow_pack.py"
@@ -1599,6 +1657,9 @@ ARTIFACT_SMOKE_REQUIRED_PHRASES = (
     "_has_finding_code",
     "unpacked_dry_run",
     "implementation_verification",
+    "_dry_run_stack_acceptance_details",
+    "required real stack acceptance",
+    "stack_acceptance",
     "automated implementation verification evidence",
     "all_current_results_passing",
     "_write_fresh_target_product",
@@ -1803,6 +1864,9 @@ RELEASE_READINESS_REQUIRED_PHRASES = (
     "continue_workflow",
     "stop_before_workflow",
     "_dry_run_closeout_evidence_ok",
+    "_dry_run_stack_acceptance_ok",
+    "_artifact_smoke_stack_acceptance_ok",
+    "stack_acceptance",
     "implementation_verification",
     "all_current_results_passing",
     "_dry_run_product_dispositions_ok",
@@ -4770,6 +4834,7 @@ MAKEFILE_REQUIRED_TARGETS = (
     "test",
     "dry-run",
     "dry-run-golden",
+    "stack-acceptance",
     "package",
     "artifact-smoke",
     "release-check",
@@ -4785,6 +4850,9 @@ MAKEFILE_REQUIRED_TARGET_RECIPES = {
     ),
     "dry-run-golden": (
         "python3 scripts/dry_run_workflow.py --product tests/fixtures/product-docs/field-service-ops.md --json",
+    ),
+    "stack-acceptance": (
+        "python3 scripts/stack_acceptance.py --json",
     ),
     "package": (
         "python3 scripts/export_workflow_pack.py --output dist/docs-as-code-workflow-pack --archive dist/docs-as-code-workflow-pack.tar.gz --force --json",
@@ -4976,6 +5044,8 @@ SOURCE_PACK_REQUIRED_PATHS = tuple(
             "references/authority-skills.lock.json",
             "scripts/verify_pack_manifest.py",
             "scripts/verify_pack.py",
+            STACK_ACCEPTANCE_PATH,
+            STACK_ACCEPTANCE_TEST_PATH,
             CONSUMER_BOOTSTRAP_PATH,
             *(path.as_posix() for path in RUNTIME_REQUIRED_PATHS),
             *WORKFLOW_PACK_REQUIRED_PATHS,
@@ -4988,12 +5058,16 @@ CI_WORKFLOW_REQUIRED_PHRASES = (
     "on:",
     "push:",
     "pull_request:",
+    "timeout-minutes: 30",
     "actions/checkout@v4",
     "actions/setup-python@v5",
     "python-version: '3.10'",
+    "actions/setup-node@v4",
+    "node-version: '22'",
     "sudo apt-get update",
     "sudo apt-get install -y ripgrep",
     "make test",
+    "make stack-acceptance",
     "python3 scripts/verify_pack.py --json",
     "python3 scripts/check_env.py --json",
 )
@@ -5177,6 +5251,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_fresh_target_workflow_smoke_test(root, findings)
     _check_dry_run_workflow(root, findings)
     _check_dry_run_golden_fixture(root, findings)
+    _check_stack_acceptance_workflow(root, findings)
     _check_source_pack_export_workflow(root, findings)
     _check_pack_manifest_verify_workflow(root, findings)
     _check_consumer_bootstrap_workflow(root, findings)
@@ -5195,6 +5270,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_readme_quick_start(root, findings)
     _check_readme_artifact_consumer_quick_start(root, findings)
     _check_dry_run_docs(root, findings)
+    _check_stack_acceptance_docs(root, findings)
     _check_source_pack_export_docs(root, findings)
     _check_pack_manifest_verify_docs(root, findings)
     _check_consumer_bootstrap_docs(root, findings)
@@ -5398,6 +5474,56 @@ def _check_dry_run_golden_fixture(root: Path, findings: list[PackFinding]) -> No
             DRY_RUN_GOLDEN_TEST_PATH,
         )
     )
+
+
+def _check_stack_acceptance_workflow(root: Path, findings: list[PackFinding]) -> None:
+    path = root / STACK_ACCEPTANCE_PATH
+    if not path.is_file():
+        findings.append(
+            PackFinding(
+                "pack_stack_acceptance_missing",
+                f"missing stack acceptance script: {STACK_ACCEPTANCE_PATH}",
+                STACK_ACCEPTANCE_PATH,
+            )
+        )
+        return
+    text = _read_utf8_text_or_none(path)
+    if text is not None:
+        missing = [phrase for phrase in STACK_ACCEPTANCE_REQUIRED_PHRASES if phrase not in text]
+        if missing:
+            findings.append(
+                PackFinding(
+                    "pack_stack_acceptance_incomplete",
+                    (
+                        f"{STACK_ACCEPTANCE_PATH} must gate real Python and Node acceptance with optional "
+                        f"strict Rust enforcement; missing phrase(s): {', '.join(missing)}"
+                    ),
+                    STACK_ACCEPTANCE_PATH,
+                )
+            )
+
+    test = root / STACK_ACCEPTANCE_TEST_PATH
+    if not test.is_file():
+        findings.append(
+            PackFinding(
+                "pack_stack_acceptance_test_missing",
+                f"missing stack acceptance test: {STACK_ACCEPTANCE_TEST_PATH}",
+                STACK_ACCEPTANCE_TEST_PATH,
+            )
+        )
+        return
+    test_text = _read_utf8_text_or_none(test)
+    if test_text is None:
+        return
+    missing = [phrase for phrase in STACK_ACCEPTANCE_TEST_REQUIRED_PHRASES if phrase not in test_text]
+    if missing:
+        findings.append(
+            PackFinding(
+                "pack_stack_acceptance_test_incomplete",
+                f"{STACK_ACCEPTANCE_TEST_PATH} must cover default and strict stack policy; missing phrase(s): {', '.join(missing)}",
+                STACK_ACCEPTANCE_TEST_PATH,
+            )
+        )
 
 
 def _check_source_pack_export_workflow(root: Path, findings: list[PackFinding]) -> None:
@@ -6860,6 +6986,23 @@ def _check_dry_run_docs(root: Path, findings: list[PackFinding]) -> None:
                 PackFinding(
                     "pack_dry_run_doc_missing",
                     f"{rel} must document source-pack dry-run command or behavior: {phrase}",
+                    rel,
+                )
+            )
+
+
+def _check_stack_acceptance_docs(root: Path, findings: list[PackFinding]) -> None:
+    for rel, required_phrases in STACK_ACCEPTANCE_DOC_REQUIREMENTS.items():
+        text = _read_utf8_text_or_none(root / rel)
+        if text is None:
+            continue
+        for phrase in required_phrases:
+            if phrase in text:
+                continue
+            findings.append(
+                PackFinding(
+                    "pack_stack_acceptance_doc_missing",
+                    f"{rel} must document real stack acceptance command or behavior: {phrase}",
                     rel,
                 )
             )

@@ -31,6 +31,16 @@ python3 scripts/dry_run_workflow.py --product tests/fixtures/product-docs/field-
 The dry run creates a temporary target, imports a sample product document, executes every fixed target-local Make entry exposed to agents, advances through product structuring and design derivation, builds the architecture, API, backend, data-model, UI interaction, frontend, test, implementation-planning, and ADR authoring queues, records complete source/evidence/authority-bound `design_reviews`, confirms the implementation gate remains blocked until design scaffold placeholders and reviews are complete, then writes minimal source-backed design and delivery docs, advances to implementation, claims one Ready task as `In Progress`, proves implementation closeout blocks `Done` until passing local evidence is linked, applies synchronized closeout status updates through the CLI, confirms implementation/workflow plans report `complete`, and proves runtime refresh preserves that completion state.
 The explicit product fixture command runs the same workflow against a realistic multi-acceptance product document so queue counts prove they scale beyond the one-criterion sample.
 
+Use the compact source-pack implementation gate when only the real runtime matrix is needed:
+
+```bash
+make stack-acceptance
+python3 scripts/stack_acceptance.py --json
+python3 scripts/stack_acceptance.py --strict-rust --json
+```
+
+The default policy requires dependency-free Python and Node tests to pass through project-environment registration and implementation evidence. Rust runs offline when Cargo is available and otherwise returns reviewed manual repair routing; `--strict-rust` makes Rust mandatory.
+
 When the source workflow pack needs to move to another workspace or agent environment, export it instead of copying ad hoc files:
 
 ```bash

@@ -59,7 +59,9 @@ class ExportWorkflowPackTest(unittest.TestCase):
             self.assertTrue((output / "scripts/migration_review_evidence.py").is_file())
             self.assertTrue((output / "scripts/export_workflow_pack.py").is_file())
             self.assertTrue((output / "scripts/dry_run_workflow.py").is_file())
+            self.assertTrue((output / "scripts/stack_acceptance.py").is_file())
             self.assertTrue((output / "tests/test_export_workflow_pack.py").is_file())
+            self.assertTrue((output / "tests/test_stack_acceptance.py").is_file())
             self.assertTrue((output / ".github/workflows/ci.yml").is_file())
 
             manifest = json.loads((output / "pack-manifest.json").read_text(encoding="utf-8"))
@@ -75,6 +77,8 @@ class ExportWorkflowPackTest(unittest.TestCase):
             self.assertIn("scripts/reliability_review_evidence.py", manifest_paths)
             self.assertIn("scripts/migration_review_evidence.py", manifest_paths)
             self.assertIn("scripts/export_workflow_pack.py", manifest_paths)
+            self.assertIn("scripts/stack_acceptance.py", manifest_paths)
+            self.assertIn("tests/test_stack_acceptance.py", manifest_paths)
             self.assertIn("tests/test_export_workflow_pack.py", manifest_paths)
             self.assertNotIn("pack-manifest.json", manifest_paths)
 
