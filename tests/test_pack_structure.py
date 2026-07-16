@@ -53,6 +53,7 @@ class PackStructureTest(unittest.TestCase):
         }
         expected_make_commands = tuple(f"make {target}" for target in expected_targets)
 
+        self.assertIn("project-env-plan", expected_targets)
         self.assertEqual(expected_targets, TARGET_MAKEFILE_REQUIRED_TARGETS)
         self.assertEqual(expected_recipes, TARGET_MAKEFILE_REQUIRED_TARGET_RECIPES)
         self.assertEqual(expected_make_commands, TARGET_MAKEFILE_REQUIRED_COMMANDS)

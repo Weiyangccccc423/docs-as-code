@@ -79,6 +79,11 @@ from product_dispositions import (
 )
 from product_import import check_product_import_ready, mark_product_import_ready
 from product_structure import build_product_plan, check_structure_product, structure_product
+from project_environment import (
+    build_project_environment_plan,
+    check_project_environment_tool_registration,
+    register_project_environment_tool,
+)
 from scaffold import (
     PRODUCT_CHAPTER_CHOICES,
     ScaffoldResult,
@@ -519,6 +524,92 @@ def _cmd_env(args: argparse.Namespace) -> int:
             )
         )
     return 0 if ok else 1
+
+
+def _project_environment_tool_from_args(args: argparse.Namespace) -> dict[str, object]:
+    probe_args = {
+        "double-dash-version": ["--version"],
+        "capital-v": ["-V"],
+        "single-dash-version": ["-version"],
+        "version-subcommand": ["version"],
+    }
+    requirement: dict[str, object] = {}
+    if args.exact_version:
+        requirement["exact"] = args.exact_version
+    if args.minimum_version:
+        requirement["minimum"] = args.minimum_version
+    if args.maximum_exclusive_version:
+        requirement["maximum_exclusive"] = args.maximum_exclusive_version
+    return {
+        "id": args.tool_id,
+        "executable": args.executable,
+        "version_probe": {
+            "args": probe_args[args.version_probe],
+            "output": args.probe_output,
+            "prefix": args.version_prefix,
+        },
+        "version_requirement": requirement,
+        "repair": {
+            "strategy": "manual",
+            "source": {
+                "type": args.repair_source_type,
+                "location": args.repair_source,
+                "review_evidence": args.review_evidence,
+            },
+            "instructions": args.repair_instructions,
+        },
+    }
+
+
+def _cmd_project_environment_plan(args: argparse.Namespace) -> int:
+    payload = build_project_environment_plan(Path(args.target))
+    if args.json:
+        _print_json(payload)
+        return 0 if payload.get("ok") else 1
+    if not payload.get("ok"):
+        print("Project environment plan failed:")
+        for error in payload.get("errors", []):
+            print(f"- {error}")
+        return 1
+    print(f"Project environment: {payload['environment_id']}")
+    print(f"- status: {payload['status']}")
+    print(f"- tools: {payload['tool_count']}")
+    print(f"- next: {payload['active_work']['next_action']}")
+    return 0
+
+
+def _cmd_project_environment_register(args: argparse.Namespace) -> int:
+    tool = _project_environment_tool_from_args(args)
+    result = (
+        check_project_environment_tool_registration(
+            Path(args.target),
+            tool,
+            reviewed=args.reviewed,
+            replace=args.replace,
+        )
+        if args.check
+        else register_project_environment_tool(
+            Path(args.target),
+            tool,
+            reviewed=args.reviewed,
+            replace=args.replace,
+        )
+    )
+    payload = result.to_dict()
+    if args.json:
+        _print_json(payload)
+        return 0 if result.ok else 1
+    if not result.ok:
+        print("Project environment registration failed:")
+        for error in result.errors:
+            print(f"- {error}")
+        return 1
+    print(f"Project environment tool {result.action}: {result.tool_id}")
+    if result.check:
+        print(f"- would update: {', '.join(result.would_update) or 'none'}")
+    else:
+        print(f"- updated: {', '.join(result.updated) or 'none'}")
+    return 0
 
 
 def _cmd_runtime_refresh(args: argparse.Namespace) -> int:
@@ -1451,6 +1542,60 @@ def build_parser() -> argparse.ArgumentParser:
     env.add_argument("--target", default=".")
     env.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     env.set_defaults(func=_cmd_env)
+
+    project_environment = sub.add_parser(
+        "project-env",
+        help="Inspect or register reviewed project runtime tools.",
+    )
+    project_environment_sub = project_environment.add_subparsers(
+        dest="project_environment_command",
+        required=True,
+    )
+    project_environment_plan = project_environment_sub.add_parser(
+        "plan",
+        help="Show project runtime tools and the reviewed registration route.",
+    )
+    project_environment_plan.add_argument("target", nargs="?", default=".")
+    project_environment_plan.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    project_environment_plan.set_defaults(func=_cmd_project_environment_plan)
+    project_environment_register = project_environment_sub.add_parser(
+        "register",
+        help="Register one reviewed project runtime tool without guessing its repair path.",
+    )
+    project_environment_register.add_argument("target", nargs="?", default=".")
+    project_environment_register.add_argument("--tool-id", required=True)
+    project_environment_register.add_argument("--executable", required=True)
+    project_environment_register.add_argument(
+        "--version-probe",
+        choices=("double-dash-version", "capital-v", "single-dash-version", "version-subcommand"),
+        default="double-dash-version",
+    )
+    project_environment_register.add_argument("--probe-output", choices=("stdout", "stderr", "combined"), default="stdout")
+    project_environment_register.add_argument("--version-prefix", required=True)
+    project_environment_register.add_argument("--exact-version")
+    project_environment_register.add_argument("--minimum-version")
+    project_environment_register.add_argument("--maximum-exclusive-version")
+    project_environment_register.add_argument(
+        "--repair-source-type",
+        choices=("official-url", "repository-doc", "workflow-pack"),
+        required=True,
+    )
+    project_environment_register.add_argument("--repair-source", required=True)
+    project_environment_register.add_argument("--review-evidence", required=True)
+    project_environment_register.add_argument("--repair-instructions", required=True)
+    project_environment_register.add_argument(
+        "--reviewed",
+        action="store_true",
+        help="Confirm that stack choice, source, version, and repair guidance were reviewed.",
+    )
+    project_environment_register.add_argument("--replace", action="store_true")
+    project_environment_register.add_argument(
+        "--check",
+        action="store_true",
+        help="Preview registration without writing the project environment contract.",
+    )
+    project_environment_register.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    project_environment_register.set_defaults(func=_cmd_project_environment_register)
 
     runtime = sub.add_parser("runtime", help="Repair or inspect target-local governance runtime.")
     runtime_sub = runtime.add_subparsers(dest="runtime_command", required=True)

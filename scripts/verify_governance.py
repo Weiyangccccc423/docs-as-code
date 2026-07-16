@@ -172,6 +172,7 @@ WORKFLOW_PACK_REQUIRED_PATHS = (
     "references/workflow-routing-checklist.md",
     "skills/archiving-product-document/SKILL.md",
     "skills/capturing-architecture-decisions/SKILL.md",
+    "skills/configuring-project-runtime/SKILL.md",
     "skills/designing-api-contracts/SKILL.md",
     "skills/designing-backend-modules/SKILL.md",
     "skills/designing-data-models/SKILL.md",

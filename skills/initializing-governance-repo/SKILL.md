@@ -66,6 +66,7 @@ Create the minimum structure needed for reliable docs-as-code work.
    make implementation-plan
    make check-env
    make repair-env-check
+   make project-env-plan
    ```
 
 9. If generated runtime or workflow-pack snapshot integrity fails, repair it from a trusted source workflow-pack checkout:

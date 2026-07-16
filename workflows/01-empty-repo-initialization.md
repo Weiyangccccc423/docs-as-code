@@ -112,6 +112,7 @@ make design-plan
 make implementation-plan
 make check-env
 make repair-env-check
+make project-env-plan
 ```
 
 If runtime or workflow-pack snapshot verification fails, run the refresh command from a trusted source workflow-pack checkout:

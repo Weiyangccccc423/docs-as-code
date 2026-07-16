@@ -44,6 +44,16 @@ Use `manual` for project-specific tools. Record a reviewed `official-url`, `repo
 
 `implementation verify` never installs tools. It reports ordered `repair_actions` and stops before the task command until every required tool is available and version-compatible.
 
+## Registration Workflow
+
+After architecture and ADR review selects the implementation stack, load `configuring-project-runtime`, `tech-stack-evaluator`, `senior-architect`, and the owning specialist. Inspect the target with:
+
+```bash
+bin/governance project-env plan <target> --json
+```
+
+During `design-derivation` or `implementation`, use `project-env register --reviewed --check --json` with explicit tool ID, executable, version-probe style/output/prefix, exact or ranged numeric version requirement, source type/location, repository-local Markdown review evidence, and repair instructions. Repeat without `--check` only after reviewing `action`, `tool`, `environment`, and `would_update`. The apply is atomic and idempotent. A changed existing tool ID fails until `--replace` is explicitly supplied. Registration writes configuration only; it does not install, upgrade, or execute the registered tool.
+
 ## Review Basis
 
 The contract follows the preview-before-apply and provenance boundaries in `references/runtime-strategy.md`, NIST SP 800-218 SSDF environment protection, SLSA provenance principles, and OpenSSF Scorecard pinned-dependency guidance listed in `references/community-practices.md`.

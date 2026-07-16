@@ -1238,6 +1238,96 @@ def _record_all_test_design_reviews(case: unittest.TestCase, target: Path) -> No
 
 
 class GovernanceCliTest(unittest.TestCase):
+    def test_project_environment_plan_and_register_cli_are_previewable_and_safe(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _design_scaffold_target(self, tmp)
+            evidence = target / "docs/decisions/001-stack.md"
+            evidence.write_text("# Stack Decision\n\nReviewed Node.js runtime selection.\n", encoding="utf-8")
+            command = [
+                sys.executable,
+                str(CLI),
+                "project-env",
+                "register",
+                str(target),
+                "--tool-id",
+                "node-runtime",
+                "--executable",
+                "node",
+                "--version-probe",
+                "double-dash-version",
+                "--probe-output",
+                "stdout",
+                "--version-prefix",
+                "v",
+                "--minimum-version",
+                "20.0.0",
+                "--maximum-exclusive-version",
+                "26.0.0",
+                "--repair-source-type",
+                "official-url",
+                "--repair-source",
+                "https://nodejs.org/en/download",
+                "--review-evidence",
+                "docs/decisions/001-stack.md",
+                "--repair-instructions",
+                "Install the reviewed Node.js runtime from the official source.",
+                "--reviewed",
+                "--check",
+                "--json",
+            ]
+            plan = subprocess.run(
+                [sys.executable, str(CLI), "project-env", "plan", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            preview = subprocess.run(command, text=True, capture_output=True, check=False)
+            self.assertEqual(0, plan.returncode, plan.stderr)
+            self.assertEqual(0, preview.returncode, preview.stderr)
+            self.assertEqual("registration_required", json.loads(plan.stdout)["status"])
+            self.assertEqual(
+                ["docs/agent-workflow/project-environment.json"],
+                json.loads(preview.stdout)["would_update"],
+            )
+            self.assertEqual([], json.loads(preview.stdout)["updated"])
+            self.assertEqual([], json.loads((target / "docs/agent-workflow/project-environment.json").read_text())["environments"][1]["tools"])
+
+            applied = subprocess.run(
+                command[:-2] + ["--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, applied.returncode, applied.stderr)
+            applied_payload = json.loads(applied.stdout)
+            self.assertTrue(applied_payload["applied"])
+            self.assertEqual(
+                ["docs/agent-workflow/project-environment.json"],
+                applied_payload["updated"],
+            )
+            registered_plan = subprocess.run(
+                [sys.executable, str(CLI), "project-env", "plan", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, registered_plan.returncode, registered_plan.stderr)
+            registered_payload = json.loads(registered_plan.stdout)
+            self.assertEqual("registered_tools_present", registered_payload["status"])
+            self.assertEqual(1, registered_payload["tool_count"])
+
+            conflict_command = command[:-2]
+            prefix_index = conflict_command.index("--version-prefix")
+            conflict_command[prefix_index + 1] = "Node "
+            conflict = subprocess.run(
+                conflict_command + ["--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(1, conflict.returncode)
+            self.assertIn("--replace", json.loads(conflict.stdout)["errors"][0])
+
     def test_env_json_uses_shared_payload_builder(self) -> None:
         scripts_dir = str(ROOT / "scripts")
         if scripts_dir not in sys.path:
@@ -7136,6 +7226,7 @@ class GovernanceCliTest(unittest.TestCase):
                         "designing-backend-modules",
                         "designing-data-models",
                         "capturing-architecture-decisions",
+                        "configuring-project-runtime",
                         "designing-frontend-modules",
                         "designing-test-strategy",
                         "planning-implementation-work",

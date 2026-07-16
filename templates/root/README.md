@@ -22,3 +22,4 @@ One-sentence project summary.
 - `make implementation-plan` - print Ready implementation task execution plan as JSON.
 - `make check-env` - inventory local governance tools as JSON.
 - `make repair-env-check` - preview environment repair without writing files.
+- `make project-env-plan` - print reviewed project runtime tool registration plan as JSON.

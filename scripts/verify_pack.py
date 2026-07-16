@@ -589,6 +589,7 @@ TARGET_LOCAL_COMMAND_REQUIRED_TARGETS = (
     "implementation-plan",
     "check-env",
     "repair-env-check",
+    "project-env-plan",
 )
 FRESH_TARGET_SMOKE_TEST_PATH = "tests/test_fresh_target_workflow.py"
 FRESH_TARGET_SMOKE_TEST_REQUIRED_PHRASES = (
@@ -2718,6 +2719,18 @@ PROJECT_ENVIRONMENT_SOURCE_REQUIRED_PHRASES = (
     "parse_numeric_version",
     "extract_probed_version",
     "version_satisfies_requirement",
+    "ProjectEnvironmentRegistrationResult",
+    "build_project_environment_plan",
+    "check_project_environment_tool_registration",
+    "register_project_environment_tool",
+    "PROJECT_ENVIRONMENT_LOCK_REL",
+    "ProjectEnvironmentLockUnavailable",
+    "_project_environment_lock",
+    "fcntl.flock",
+    "already-registered",
+    "rerun with --replace",
+    "_write_project_environment_contract",
+    "temp_path.replace(path)",
     "governance-env",
     "manual",
     "official-url",
@@ -2770,6 +2783,7 @@ IMPLEMENTATION_VERIFY_DOC_REQUIREMENTS = {
         "environment_readiness",
         "project-environment.json",
         "required_tools[]",
+        "project-env register --reviewed --check",
     ),
     "workflows/00-overview.md": (
         "implementation verify --task TASK-NNN --command command-name --check --json",
@@ -2794,6 +2808,7 @@ IMPLEMENTATION_VERIFY_DOC_REQUIREMENTS = {
         "project-environment.json",
         "required_tools",
         "evidence_summary.all_verification_results_passing",
+        "project-env register --reviewed --check",
     ),
     "skills/executing-implementation-task/SKILL.md": (
         "implementation verify . --task TASK-NNN --command command-name --check --json",
@@ -2802,6 +2817,7 @@ IMPLEMENTATION_VERIFY_DOC_REQUIREMENTS = {
         "project-environment.json",
         "required_tools",
         "evidence_summary.all_verification_results_passing",
+        "project-env register --reviewed --check",
     ),
     "references/implementation-execution-checklist.md": (
         "implementation verify --task TASK-NNN --command command-name --check --json",
@@ -2817,6 +2833,7 @@ IMPLEMENTATION_VERIFY_DOC_REQUIREMENTS = {
         "environment_readiness.ok: true",
         "project-environment.json",
         "instead of guessing installation commands",
+        "project-env register --reviewed --check",
     ),
     "references/project-environment-contract.md": (
         "Version probes are executable metadata checks",
@@ -2826,6 +2843,30 @@ IMPLEMENTATION_VERIFY_DOC_REQUIREMENTS = {
         "five-second timeout",
         "4096-byte output limit",
         "never installs tools",
+        "project-env register --reviewed --check --json",
+        "--replace",
+        "atomic",
+    ),
+    "references/runtime-strategy.md": (
+        "project-env plan",
+        "project-env register --reviewed --check",
+        "idempotent",
+        "--replace",
+    ),
+    "workflows/04-design-derivation.md": (
+        "configuring-project-runtime",
+        "tech-stack-evaluator",
+        "senior-architect",
+        "project-env plan",
+        "project-env register --reviewed --check",
+    ),
+    "skills/configuring-project-runtime/SKILL.md": (
+        "configuring-project-runtime",
+        "tech-stack-evaluator",
+        "senior-architect",
+        "project-env plan",
+        "project-env register --reviewed --check",
+        "--replace",
     ),
 }
 WORK_PACKAGE_SOURCE_PATH = "scripts/workflow_plan.py"
@@ -4588,6 +4629,7 @@ GOVERNANCE_CLI_REQUIRED_COMMANDS = (
     "verify",
     "status",
     "env",
+    "project-env",
     "workflow",
     "runtime",
     "gate",
@@ -4599,6 +4641,7 @@ GOVERNANCE_CLI_REQUIRED_COMMANDS = (
 )
 GOVERNANCE_CLI_REQUIRED_SUBCOMMANDS = {
     "runtime": ("refresh",),
+    "project-env": ("plan", "register"),
     "workflow": ("plan", "work-package"),
     "product": ("mark-ready", "plan", "disposition", "structure"),
     "design": (
@@ -4621,6 +4664,7 @@ GOVERNANCE_CLI_REQUIRED_SUBCOMMANDS = {
 GOVERNANCE_CLI_PARSER_VARIABLES = {
     "top-level": "sub",
     "runtime": "runtime_sub",
+    "project-env": "project_environment_sub",
     "workflow": "workflow_sub",
     "product": "product_sub",
     "design": "design_sub",

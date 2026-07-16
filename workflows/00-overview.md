@@ -142,6 +142,7 @@ make design-plan
 make implementation-plan
 make check-env
 make repair-env-check
+make project-env-plan
 ```
 
 Machine-readable `local_commands` entries include `cwd`, a human-readable `command`, structured `argv`, `writes_state`, and `approval_required`; agents should run `argv` from `cwd` instead of reparsing `command`, prefer `writes_state: false` entries for read-only inspection, and stop before any `approval_required: true` command unless the task explicitly authorizes it.
@@ -170,7 +171,7 @@ Node.js tooling is an optional project-specific enhancement layer. Rust is reser
 | 01 | Empty repository initialization | `initializing-governance-repo` |
 | 02 | Product document archiving | `archiving-product-document` |
 | 03 | Product structuring | `structuring-product-requirements` |
-| 04 | Design derivation | `designing-system-architecture`, `designing-ui-interactions`, `designing-api-contracts`, `designing-backend-modules`, `designing-data-models`, `capturing-architecture-decisions`, `designing-frontend-modules`, `designing-test-strategy`, `planning-implementation-work` |
+| 04 | Design derivation | `designing-system-architecture`, `designing-ui-interactions`, `designing-api-contracts`, `designing-backend-modules`, `designing-data-models`, `capturing-architecture-decisions`, `configuring-project-runtime`, `designing-frontend-modules`, `designing-test-strategy`, `planning-implementation-work` |
 | 05 | Verification and drift control | `verifying-governance-docs` |
 | 06 | Implementation execution | `executing-implementation-task` |
 

@@ -397,6 +397,7 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertIn("make_implementation_plan", step_ids)
             self.assertIn("make_check_env", step_ids)
             self.assertIn("make_repair_env_check", step_ids)
+            self.assertIn("make_project_env_plan", step_ids)
             self.assertIn("implementation_start_preview", step_ids)
             self.assertIn("implementation_start_apply", step_ids)
             self.assertIn("implementation_plan_after_start", step_ids)

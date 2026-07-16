@@ -17,6 +17,7 @@ Load according to the design track:
 - Backend modules: `designing-backend-modules`
 - Data model: `designing-data-models`
 - Architecture decisions: `capturing-architecture-decisions`
+- Project runtime contract: `configuring-project-runtime`
 - Frontend modules: `designing-frontend-modules`
 - Test strategy: `designing-test-strategy`
 - Implementation planning: `planning-implementation-work`
@@ -141,8 +142,9 @@ Load according to the design track:
 13. Create or complete `docs/development/02-task-board.md` with Task Table, Status Policy, and Traceability Rules sections; task IDs must use `TASK-NNN`, match roadmap milestone IDs, `Product`, `Design`, and `API` fields must link to matching source domains, `Acceptance` fields must include `A-NNN` IDs defined in referenced product acceptance chapters and mapped in `docs/tests/02-acceptance-matrix.md` with matching link fragments when present, and `Ready`/`Done` transitions must satisfy `references/implementation-readiness-checklist.md`.
 14. Create or initialize `docs/development/03-verification-log.md` so Done task evidence has a stable local Markdown target.
 15. Read `references/architecture-decision-record-checklist.md`, then create ADRs in `docs/decisions/` for cross-module or high-cost decisions, named as unique `NNN-<slug>.md` files.
-16. Keep all design and planning documents linked to product and acceptance sources.
-17. Update the same-directory `README.md` for every new Markdown document, except underscore-prefixed templates such as `_template.md`.
+16. After an accepted architecture or ADR source selects the implementation stack, load `configuring-project-runtime`, `tech-stack-evaluator`, `senior-architect`, and the owning implementation specialist. Run `bin/governance project-env plan <target> --json`, then register each explicit executable, safe version probe, numeric version constraint, reviewed source, local Markdown evidence, and manual repair instruction with `project-env register --reviewed --check --json` before apply. Do not use `--replace` without reviewing the existing and proposed contracts. Registration does not install tools and must stop when any field would be guessed.
+17. Keep all design and planning documents linked to product and acceptance sources.
+18. Update the same-directory `README.md` for every new Markdown document, except underscore-prefixed templates such as `_template.md`.
 
 ## Output
 

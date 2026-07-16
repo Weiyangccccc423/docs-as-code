@@ -40,6 +40,7 @@ Reference: `https://dora.dev/capabilities/trunk-based-development/`
 - Was `implementation verify --task TASK-NNN --command command-name --check --json` run before execution, with no registered task-command execution or evidence writes during preflight?
 - Does `environment_readiness.ok` prove the exact `Argv[0]` is available and executable, with repository-relative paths resolved from `Cwd` and confined to the repository?
 - Does the command `Environment` reference `docs/agent-workflow/project-environment.json`, and do `required_tools[]` prove every allowlisted version probe passed and each observed numeric version satisfies its constraint?
+- Was each project runtime tool previewed and applied through `project-env register` from a reviewed architecture or ADR source, without guessed versions, packages, or repair instructions?
 - For a missing or incompatible `governance-env` tool, was the returned no-write environment repair preflight inspected; for a manual or undeclared tool, was its reviewed source followed without guessing a package or install command?
 - Was the returned structured command executed without a shell string, with a bounded timeout and bounded stdout/stderr capture?
 - Was best-effort output redaction applied, while secret-bearing command arguments and intentionally printed credentials remained prohibited?

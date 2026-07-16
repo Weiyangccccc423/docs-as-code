@@ -14,6 +14,7 @@
 | implementation-plan | Print Ready implementation task execution plan as JSON. | `.` | `["bin/governance", "implementation", "plan", ".", "--json"]` | false | false | `docs/development/03-verification-log.md` | core-governance |
 | check-env | Inventory local governance tools as JSON. | `.` | `["bin/governance", "env", "--target", ".", "--json"]` | false | false | `docs/development/03-verification-log.md` | core-governance |
 | repair-env-check | Preview environment repair without writing files. | `.` | `["bin/governance", "env", "--repair", "--check", "--target", ".", "--json"]` | false | false | `.governance/env-repair.md` when repair is written | core-governance |
+| project-env-plan | Print reviewed project runtime tool registration plan as JSON. | `.` | `["bin/governance", "project-env", "plan", ".", "--json"]` | false | false | `docs/development/03-verification-log.md` | core-governance |
 
 ## Project Commands
 
@@ -23,7 +24,7 @@
 - Mark `Writes State` as `true` when the command changes files, databases, caches, generated artifacts, external services, or governance state.
 - Mark `Approval Required` as `true` for dependency installation, credential access, production access, publishing, release, destructive migration, or external state mutation commands.
 - Link command evidence to `docs/development/03-verification-log.md` or another local Markdown evidence file.
-- Set `Environment` to an ID declared in `project-environment.json`; register project tools, version requirements, probes, and reviewed repair sources before using `project-runtime`.
+- Set `Environment` to an ID declared in `project-environment.json`; use `project-env register --reviewed --check` plus apply for reviewed tools, version requirements, probes, and repair sources before using `project-runtime`.
 
 ## Usage Rules
 

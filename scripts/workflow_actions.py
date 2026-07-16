@@ -75,6 +75,7 @@ PHASE_ACTIONS: dict[str, dict[str, object]] = {
             "designing-backend-modules",
             "designing-data-models",
             "capturing-architecture-decisions",
+            "configuring-project-runtime",
             "designing-frontend-modules",
             "designing-test-strategy",
             "planning-implementation-work",

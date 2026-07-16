@@ -158,6 +158,12 @@ TARGET_LOCAL_COMMANDS = (
         "preview environment repair without writing files",
         False,
     ),
+    (
+        "project-env-plan",
+        "bin/governance project-env plan . --json",
+        "print reviewed project runtime tool registration plan as JSON",
+        False,
+    ),
 )
 
 
@@ -1659,7 +1665,7 @@ def _command_contract() -> str:
         "- Mark `Approval Required` as `true` for dependency installation, credential access, production access, "
         "publishing, release, destructive migration, or external state mutation commands.\n"
         "- Link command evidence to `docs/development/03-verification-log.md` or another local Markdown evidence file.\n"
-        "- Set `Environment` to an ID declared in `project-environment.json`; register project tools, version requirements, probes, and reviewed repair sources before using `project-runtime`.\n\n"
+        "- Set `Environment` to an ID declared in `project-environment.json`; use `project-env register --reviewed --check` plus apply for reviewed tools, version requirements, probes, and repair sources before using `project-runtime`.\n\n"
         "## Usage Rules\n\n"
         "- Prefer command rows from this file before reconstructing commands from prose.\n"
         "- Run read-only commands before state-writing commands when both exist.\n"

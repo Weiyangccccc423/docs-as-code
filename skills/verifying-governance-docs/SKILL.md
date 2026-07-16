@@ -254,6 +254,7 @@ make design-plan
 make implementation-plan
 make check-env
 make repair-env-check
+make project-env-plan
 make ci
 ```
 

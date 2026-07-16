@@ -85,6 +85,7 @@ TARGET_LOCAL_MAKE_STEP_IDS = [
     "make_implementation_plan",
     "make_check_env",
     "make_repair_env_check",
+    "make_project_env_plan",
 ]
 MAKE_CLOCK_SKEW_WARNING_RES = (
     re.compile(
@@ -487,6 +488,20 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         _env_repair_decision_allows_workflow(make_repair_env_check),
         "make repair-env-check did not expose a continue-workflow repair decision",
         payload=make_repair_env_check,
+    )
+
+    make_project_env_plan = _run_json(
+        steps,
+        "make_project_env_plan",
+        ["make", "project-env-plan"],
+        target,
+    )
+    _require(make_project_env_plan.get("ok") is True, "make project-env-plan failed", payload=make_project_env_plan)
+    _require(
+        make_project_env_plan.get("status") == "registration_required"
+        and make_project_env_plan.get("tool_count") == 0,
+        "make project-env-plan did not report an empty reviewed project runtime",
+        payload=make_project_env_plan,
     )
 
     product_advanced = _run_json(

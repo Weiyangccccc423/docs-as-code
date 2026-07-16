@@ -1,9 +1,24 @@
 from __future__ import annotations
 
+import copy
 import json
 import re
+import time
+from contextlib import contextmanager
+from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath, PureWindowsPath
+from typing import Iterator
 from urllib.parse import urlsplit
+
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - target runtime uses POSIX wrappers
+    fcntl = None  # type: ignore[assignment]
+
+try:
+    from .state import StateFileError, load_state
+except ImportError:  # pragma: no cover - direct script execution
+    from state import StateFileError, load_state
 
 
 PROJECT_ENVIRONMENT_REL = Path("docs/agent-workflow/project-environment.json")
@@ -32,6 +47,23 @@ MAX_DESCRIPTION_LENGTH = 1000
 MAX_SOURCE_LOCATION_LENGTH = 2048
 MAX_REVIEW_EVIDENCE_LENGTH = 512
 MAX_REPAIR_INSTRUCTIONS_LENGTH = 4000
+PROJECT_RUNTIME_ID = "project-runtime"
+PROJECT_ENVIRONMENT_WORKFLOW = "workflows/04-design-derivation.md"
+PROJECT_ENVIRONMENT_DECISION_POLICY = "register_only_reviewed_project_runtime_tools"
+PROJECT_ENVIRONMENT_LOCAL_SKILLS = (
+    "configuring-project-runtime",
+    "capturing-architecture-decisions",
+    "verifying-governance-docs",
+)
+PROJECT_ENVIRONMENT_SPECIALIST_SKILLS = ("tech-stack-evaluator", "senior-architect")
+PROJECT_ENVIRONMENT_ALLOWED_PHASES = {"design-derivation", "implementation"}
+PROJECT_ENVIRONMENT_TEMP_REL = PROJECT_ENVIRONMENT_REL.with_name(f".{PROJECT_ENVIRONMENT_REL.name}.tmp")
+PROJECT_ENVIRONMENT_LOCK_REL = Path(".governance/project-environment.lock")
+PROJECT_ENVIRONMENT_LOCK_WAIT_SECONDS = 0.5
+
+
+class ProjectEnvironmentLockUnavailable(RuntimeError):
+    pass
 
 
 def load_project_environment_contract(root: Path) -> tuple[dict[str, object], list[str]]:
@@ -62,6 +94,438 @@ def load_project_environment_contract(root: Path) -> tuple[dict[str, object], li
         return {}, ["project environment contract root must be an object"]
     errors = validate_project_environment_contract(payload)
     return payload, errors
+
+
+@dataclass
+class ProjectEnvironmentRegistrationResult:
+    target: str
+    ok: bool
+    tool_id: str
+    check: bool
+    reviewed: bool
+    replace: bool = False
+    errors: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    updated: list[str] = field(default_factory=list)
+    would_update: list[str] = field(default_factory=list)
+    action: str = "blocked"
+    tool: dict[str, object] = field(default_factory=dict)
+    environment: dict[str, object] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "target": self.target,
+            "ok": self.ok,
+            "workflow": PROJECT_ENVIRONMENT_WORKFLOW,
+            "decision_policy": PROJECT_ENVIRONMENT_DECISION_POLICY,
+            "operation": "register",
+            "environment_id": PROJECT_RUNTIME_ID,
+            "contract_path": PROJECT_ENVIRONMENT_REL.as_posix(),
+            "tool_id": self.tool_id,
+            "check": self.check,
+            "reviewed": self.reviewed,
+            "replace_requested": self.replace,
+            "apply_requested": not self.check,
+            "applied": bool(self.updated),
+            "writes_state": not self.check,
+            "action": self.action,
+            "errors": list(self.errors),
+            "warnings": list(self.warnings),
+            "updated": list(self.updated),
+            "would_update": list(self.would_update),
+            "tool": copy.deepcopy(self.tool),
+            "environment": copy.deepcopy(self.environment),
+            "verify_command": {
+                "argv": ["bin/governance", "verify", ".", "--check", "--json"],
+                "cwd": ".",
+                "writes_state": False,
+            },
+            "refresh_command": {
+                "argv": ["bin/governance", "project-env", "plan", ".", "--json"],
+                "cwd": ".",
+                "writes_state": False,
+            },
+        }
+
+
+def build_project_environment_plan(root: Path) -> dict[str, object]:
+    root = root.resolve()
+    payload, errors = load_project_environment_contract(root)
+    if errors:
+        return {
+            "target": str(root),
+            "ok": False,
+            "workflow": PROJECT_ENVIRONMENT_WORKFLOW,
+            "decision_policy": PROJECT_ENVIRONMENT_DECISION_POLICY,
+            "environment_id": PROJECT_RUNTIME_ID,
+            "contract_path": PROJECT_ENVIRONMENT_REL.as_posix(),
+            "status": "blocked",
+            "tool_count": 0,
+            "tools": [],
+            "errors": errors,
+        }
+
+    environment = project_environment_by_id(payload, PROJECT_RUNTIME_ID)
+    if environment is None:
+        return {
+            "target": str(root),
+            "ok": False,
+            "workflow": PROJECT_ENVIRONMENT_WORKFLOW,
+            "decision_policy": PROJECT_ENVIRONMENT_DECISION_POLICY,
+            "environment_id": PROJECT_RUNTIME_ID,
+            "contract_path": PROJECT_ENVIRONMENT_REL.as_posix(),
+            "status": "blocked",
+            "tool_count": 0,
+            "tools": [],
+            "errors": [f"project environment contract must declare environment ID: {PROJECT_RUNTIME_ID}"],
+        }
+
+    tools = environment.get("tools")
+    tool_items = [copy.deepcopy(tool) for tool in tools if isinstance(tool, dict)] if isinstance(tools, list) else []
+    phase = "unknown"
+    try:
+        phase = str(load_state(root).get("phase", "unknown"))
+    except StateFileError:
+        pass
+    status = "registration_required" if not tool_items else "registered_tools_present"
+    return {
+        "target": str(root),
+        "ok": True,
+        "workflow": PROJECT_ENVIRONMENT_WORKFLOW,
+        "decision_policy": PROJECT_ENVIRONMENT_DECISION_POLICY,
+        "environment_id": PROJECT_RUNTIME_ID,
+        "contract_path": PROJECT_ENVIRONMENT_REL.as_posix(),
+        "workflow_phase": phase,
+        "phase_allows_registration": phase in PROJECT_ENVIRONMENT_ALLOWED_PHASES,
+        "status": status,
+        "tool_count": len(tool_items),
+        "tools": tool_items,
+        "specialist_skills": list(PROJECT_ENVIRONMENT_SPECIALIST_SKILLS),
+        "skill_requirements": [
+            {
+                "type": "local-workflow",
+                "name": name,
+                "available_in_workflow_pack": True,
+                "missing_policy": "stop_before_guessing",
+            }
+            for name in PROJECT_ENVIRONMENT_LOCAL_SKILLS
+        ]
+        + [
+            {
+                "type": "authority-routing",
+                "name": name,
+                "available_in_workflow_pack": False,
+                "missing_policy": "load_from_agent_environment_or_stop_before_guessing",
+            }
+            for name in PROJECT_ENVIRONMENT_SPECIALIST_SKILLS
+        ],
+        "read_order": [
+            PROJECT_ENVIRONMENT_REL.as_posix(),
+            "docs/agent-workflow/command-contract.md",
+            "docs/architecture/README.md",
+            "docs/decisions/README.md",
+        ],
+        "active_work": {
+            "status": status,
+            "next_action": "review-stack-decision-and-register-tool",
+            "stop_condition": "Do not register a project runtime tool without a local reviewed stack decision.",
+        },
+        "register_command": {
+            "argv_prefix": [
+                "bin/governance",
+                "project-env",
+                "register",
+                ".",
+                "--tool-id",
+                "<tool-id>",
+                "--executable",
+                "<executable>",
+            ],
+            "cwd": ".",
+            "writes_state": True,
+            "approval_required": False,
+        },
+        "errors": [],
+    }
+
+
+def check_project_environment_tool_registration(
+    root: Path,
+    tool: dict[str, object],
+    *,
+    reviewed: bool,
+    replace: bool = False,
+) -> ProjectEnvironmentRegistrationResult:
+    return _project_environment_tool_registration(
+        root,
+        tool,
+        check=True,
+        reviewed=reviewed,
+        replace=replace,
+    )
+
+
+def register_project_environment_tool(
+    root: Path,
+    tool: dict[str, object],
+    *,
+    reviewed: bool,
+    replace: bool = False,
+) -> ProjectEnvironmentRegistrationResult:
+    root = root.resolve()
+    try:
+        with _project_environment_lock(root):
+            return _project_environment_tool_registration(
+                root,
+                tool,
+                check=False,
+                reviewed=reviewed,
+                replace=replace,
+            )
+    except (OSError, ProjectEnvironmentLockUnavailable) as error:
+        tool_id = str(tool.get("id", "")) if isinstance(tool, dict) else ""
+        return ProjectEnvironmentRegistrationResult(
+            target=str(root),
+            ok=False,
+            tool_id=tool_id,
+            check=False,
+            reviewed=reviewed,
+            replace=replace,
+            errors=[f"project environment registration lock is unavailable: {error}"],
+            tool=tool,
+        )
+
+
+def _project_environment_tool_registration(
+    root: Path,
+    tool: dict[str, object],
+    *,
+    check: bool,
+    reviewed: bool,
+    replace: bool,
+) -> ProjectEnvironmentRegistrationResult:
+    root = root.resolve()
+    tool_id = str(tool.get("id", "")) if isinstance(tool, dict) else ""
+    base = {
+        "target": str(root),
+        "tool_id": tool_id,
+        "check": check,
+        "reviewed": reviewed,
+        "replace": replace,
+    }
+    payload, errors = load_project_environment_contract(root)
+    if errors:
+        return ProjectEnvironmentRegistrationResult(**base, ok=False, errors=errors)
+    environment = project_environment_by_id(payload, PROJECT_RUNTIME_ID)
+    if environment is None:
+        return ProjectEnvironmentRegistrationResult(
+            **base,
+            ok=False,
+            errors=[f"project environment contract must declare environment ID: {PROJECT_RUNTIME_ID}"],
+        )
+    registration_errors: list[str] = []
+    try:
+        phase = str(load_state(root).get("phase", "unknown"))
+    except StateFileError as error:
+        phase = "unknown"
+        registration_errors.append(str(error))
+    if phase not in PROJECT_ENVIRONMENT_ALLOWED_PHASES:
+        registration_errors.append(
+            "project runtime registration requires workflow phase design-derivation or implementation"
+        )
+    if not reviewed:
+        registration_errors.append("project runtime registration requires explicit --reviewed confirmation")
+    if registration_errors:
+        return ProjectEnvironmentRegistrationResult(
+            **base,
+            ok=False,
+            errors=registration_errors,
+            tool=tool,
+            environment=environment,
+        )
+    if not isinstance(tool, dict):
+        return ProjectEnvironmentRegistrationResult(
+            **base,
+            ok=False,
+            errors=["project environment registration tool must be an object"],
+            environment=environment,
+        )
+
+    tools = environment.get("tools")
+    if not isinstance(tools, list):
+        return ProjectEnvironmentRegistrationResult(
+            **base,
+            ok=False,
+            errors=["project runtime environment tools must be an array"],
+            environment=environment,
+        )
+    existing_index = next(
+        (index for index, item in enumerate(tools) if isinstance(item, dict) and item.get("id") == tool_id),
+        None,
+    )
+    action = "register"
+    prospective = copy.deepcopy(payload)
+    prospective_environment = project_environment_by_id(prospective, PROJECT_RUNTIME_ID)
+    if prospective_environment is None:
+        return ProjectEnvironmentRegistrationResult(
+            **base,
+            ok=False,
+            errors=[f"project environment contract must declare environment ID: {PROJECT_RUNTIME_ID}"],
+            tool=tool,
+            environment=environment,
+        )
+    prospective_tools = prospective_environment.get("tools")
+    if not isinstance(prospective_tools, list):
+        return ProjectEnvironmentRegistrationResult(
+            **base,
+            ok=False,
+            errors=["project runtime environment tools must be an array"],
+            tool=tool,
+            environment=environment,
+        )
+    if existing_index is not None:
+        existing = tools[existing_index]
+        if existing == tool:
+            action = "already-registered"
+        elif not replace:
+            return ProjectEnvironmentRegistrationResult(
+                **base,
+                ok=False,
+                errors=[
+                    f"project environment tool {tool_id} already exists with a different definition; "
+                    "rerun with --replace after reviewing the change"
+                ],
+                action="conflict",
+                tool=tool,
+                environment=environment,
+            )
+        else:
+            action = "replace"
+            prospective_tools[existing_index] = copy.deepcopy(tool)
+    else:
+        prospective_tools.append(copy.deepcopy(tool))
+
+    errors = validate_project_environment_contract(prospective)
+    errors.extend(_project_environment_source_errors(root, tool))
+    if errors:
+        return ProjectEnvironmentRegistrationResult(
+            **base,
+            ok=False,
+            errors=errors,
+            action=action,
+            tool=tool,
+            environment=environment,
+        )
+    if action == "already-registered":
+        return ProjectEnvironmentRegistrationResult(
+            **base,
+            ok=True,
+            action=action,
+            tool=tool,
+            environment=environment,
+        )
+
+    would_update = [PROJECT_ENVIRONMENT_REL.as_posix()]
+    if check:
+        return ProjectEnvironmentRegistrationResult(
+            **base,
+            ok=True,
+            action=action,
+            would_update=would_update,
+            tool=tool,
+            environment=prospective_environment,
+        )
+    try:
+        _write_project_environment_contract(root, prospective)
+    except OSError as error:
+        return ProjectEnvironmentRegistrationResult(
+            **base,
+            ok=False,
+            errors=[f"project environment contract is not writable: {error.strerror or error}"],
+            action=action,
+            tool=tool,
+            environment=environment,
+        )
+    return ProjectEnvironmentRegistrationResult(
+        **base,
+        ok=True,
+        action=action,
+        updated=would_update,
+        tool=tool,
+        environment=prospective_environment,
+    )
+
+
+def _project_environment_source_errors(root: Path, tool: dict[str, object]) -> list[str]:
+    repair = tool.get("repair")
+    if not isinstance(repair, dict):
+        return []
+    source = repair.get("source")
+    if not isinstance(source, dict):
+        return []
+    errors: list[str] = []
+    review_evidence = source.get("review_evidence")
+    if isinstance(review_evidence, str) and not _project_environment_local_file(root, review_evidence):
+        errors.append(f"project environment repair source review evidence is missing: {review_evidence}")
+    source_type = source.get("type")
+    location = source.get("location")
+    if source_type in {"repository-doc", "workflow-pack"} and isinstance(location, str):
+        if not _project_environment_local_file(root, location):
+            errors.append(f"project environment repair source is missing: {location}")
+    return errors
+
+
+def _project_environment_local_file(root: Path, rel: str) -> bool:
+    candidate = root / rel
+    if candidate.is_symlink() or not candidate.is_file():
+        return False
+    try:
+        candidate.resolve().relative_to(root.resolve())
+    except (OSError, RuntimeError, ValueError):
+        return False
+    return True
+
+
+def _write_project_environment_contract(root: Path, payload: dict[str, object]) -> None:
+    path = root / PROJECT_ENVIRONMENT_REL
+    temp_path = root / PROJECT_ENVIRONMENT_TEMP_REL
+    if temp_path.is_symlink() or (temp_path.exists() and not temp_path.is_file()):
+        raise OSError(f"temporary path is not a regular file: {PROJECT_ENVIRONMENT_TEMP_REL.as_posix()}")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temp_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        temp_path.replace(path)
+    except OSError:
+        if temp_path.is_file() and not temp_path.is_symlink():
+            try:
+                temp_path.unlink()
+            except OSError:
+                pass
+        raise
+
+
+@contextmanager
+def _project_environment_lock(root: Path) -> Iterator[None]:
+    if fcntl is None:
+        raise ProjectEnvironmentLockUnavailable("POSIX advisory file locking is unavailable")
+    path = root / PROJECT_ENVIRONMENT_LOCK_REL
+    path.parent.mkdir(parents=True, exist_ok=True)
+    deadline = time.monotonic() + PROJECT_ENVIRONMENT_LOCK_WAIT_SECONDS
+    with path.open("a+b") as lock:
+        while True:
+            try:
+                fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError as error:
+                if time.monotonic() >= deadline:
+                    raise ProjectEnvironmentLockUnavailable(
+                        f"timed out after {PROJECT_ENVIRONMENT_LOCK_WAIT_SECONDS} seconds waiting for {path}"
+                    ) from error
+                time.sleep(0.05)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
 
 
 def validate_project_environment_contract(payload: dict[str, object]) -> list[str]:

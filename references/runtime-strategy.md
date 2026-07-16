@@ -49,6 +49,7 @@ make design-plan
 make implementation-plan
 make check-env
 make repair-env-check
+make project-env-plan
 ```
 
 Target-local direct scripts under `scripts/` should mirror the same machine-readable continuation fields as the `bin/governance` wrapper when they can read workflow state.
@@ -119,6 +120,8 @@ Environment repair may create local governance directories and write repair plan
 Authority skill repair is a separate trust domain. It is always planning-only in this pack; it must not download code or modify `CODEX_HOME` without explicit approval.
 
 Project-command verification is a separate scope governed by `docs/agent-workflow/project-environment.json`. Each command-contract `Environment` cell references an environment ID. After governance verification passes, `implementation verify --check` resolves `Argv[0]`, confines repository-relative executables, and runs each declared tool's version probe without a shell, with a five-second timeout and bounded output. Version probes accept only the parser's fixed read-only argument forms; parsed numeric versions must satisfy `exact`, `minimum`, and/or `maximum_exclusive` constraints. `environment_readiness`, `required_tools[]`, and `environment_probe_executed` make that evidence explicit. Missing or incompatible tools route only through the declared repair strategy: `governance-env` delegates to `env --repair --check --strict`, while `manual` returns a reviewed source, local review evidence, and instructions. Undeclared tools stop for registration. No package name, source, or install command is inferred. The registered task command itself is never executed by preflight.
+
+Project runtime registration is also separate from installation. After stack review, run `project-env plan`, then `project-env register --reviewed --check` and apply with explicit tool, version, probe, source, evidence, and instruction fields. The command accepts writes only during `design-derivation` or `implementation`, atomically updates only `project-environment.json`, is idempotent for an unchanged tool, and requires `--replace` for a reviewed conflicting tool ID.
 
 Repair scope follows strictness:
 

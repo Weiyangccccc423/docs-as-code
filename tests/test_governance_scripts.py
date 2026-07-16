@@ -54,6 +54,36 @@ def _append_product_meta_chapter(root: Path, filename: str) -> None:
     meta.write_text(meta.read_text(encoding="utf-8") + f"\n- [{filename}](../{filename})\n", encoding="utf-8")
 
 
+def _set_design_derivation_phase(root: Path) -> None:
+    state = load_state(root)
+    timestamp = str(state["updated_at"])
+    state.update(
+        {
+            "phase": "design-derivation",
+            "phase_history": [
+                {
+                    "phase": "product-structuring",
+                    "from_phase": "initialized",
+                    "gate": "product-structuring",
+                    "advanced_at": timestamp,
+                },
+                {
+                    "phase": "design-derivation",
+                    "from_phase": "product-structuring",
+                    "gate": "design-derivation",
+                    "advanced_at": timestamp,
+                },
+            ],
+            "last_gate": {
+                "name": "design-derivation",
+                "ok": True,
+                "checked_at": timestamp,
+            },
+        }
+    )
+    save_state(root, state)
+
+
 def _write_product_chapter(root: Path, filename: str, title: str) -> None:
     _write_indexed_doc(root, f"docs/product/{filename}", f"# {title}\n\nSource: [PRD](core/PRD.md).\n")
     _append_product_meta_chapter(root, filename)
@@ -594,6 +624,205 @@ class GovernanceScriptsTest(unittest.TestCase):
 
         self.assertTrue(any("tools must contain no more than 16 entries" in error for error in errors))
         self.assertTrue(any("must identify an HTTPS host" in error for error in errors))
+
+    def test_project_environment_registration_is_reviewed_previewable_and_idempotent(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            evidence = root / "docs/decisions/001-stack.md"
+            evidence.write_text(
+                "# Stack Decision\n\n"
+                "The reviewed project runtime uses the approved Node.js toolchain.\n",
+                encoding="utf-8",
+            )
+            tool = {
+                "id": "node-runtime",
+                "executable": "node",
+                "version_probe": {"args": ["--version"], "output": "stdout", "prefix": "v"},
+                "version_requirement": {"minimum": "20.0.0", "maximum_exclusive": "26.0.0"},
+                "repair": {
+                    "strategy": "manual",
+                    "source": {
+                        "type": "official-url",
+                        "location": "https://nodejs.org/en/download",
+                        "review_evidence": "docs/decisions/001-stack.md",
+                    },
+                    "instructions": "Install the reviewed Node.js runtime from the official source.",
+                },
+            }
+            contract_path = root / "docs/agent-workflow/project-environment.json"
+            before = contract_path.read_text(encoding="utf-8")
+
+            plan = project_environment_module.build_project_environment_plan(root)
+            blocked_phase = project_environment_module.check_project_environment_tool_registration(
+                root, tool, reviewed=True
+            )
+            _set_design_derivation_phase(root)
+            unreviewed = project_environment_module.check_project_environment_tool_registration(
+                root, tool, reviewed=False
+            )
+            preview = project_environment_module.check_project_environment_tool_registration(
+                root, tool, reviewed=True
+            )
+
+            self.assertTrue(plan["ok"])
+            self.assertEqual("registration_required", plan["status"])
+            self.assertEqual(0, plan["tool_count"])
+            self.assertFalse(plan["phase_allows_registration"])
+            self.assertIn("tech-stack-evaluator", plan["specialist_skills"])
+            self.assertIn("senior-architect", plan["specialist_skills"])
+            self.assertFalse(blocked_phase.ok)
+            self.assertTrue(any("requires workflow phase" in error for error in blocked_phase.errors))
+            self.assertFalse(unreviewed.ok)
+            self.assertTrue(any("--reviewed" in error for error in unreviewed.errors))
+            self.assertTrue(preview.ok)
+            self.assertTrue(preview.check)
+            self.assertEqual(["docs/agent-workflow/project-environment.json"], preview.would_update)
+            self.assertEqual(before, contract_path.read_text(encoding="utf-8"))
+
+            applied = project_environment_module.register_project_environment_tool(root, tool, reviewed=True)
+            repeated = project_environment_module.register_project_environment_tool(root, tool, reviewed=True)
+
+            self.assertTrue(applied.ok)
+            self.assertEqual(["docs/agent-workflow/project-environment.json"], applied.updated)
+            self.assertTrue(repeated.ok)
+            self.assertEqual([], repeated.updated)
+            contract, errors = project_environment_module.load_project_environment_contract(root)
+            self.assertEqual([], errors)
+            project_runtime = project_environment_module.project_environment_by_id(contract, "project-runtime")
+            self.assertIsNotNone(project_runtime)
+            self.assertEqual([tool], project_runtime["tools"])
+
+    def test_project_environment_registration_requires_replace_for_conflicts_and_local_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            evidence = root / "docs/decisions/001-stack.md"
+            evidence.write_text("# Stack Decision\n", encoding="utf-8")
+            _set_design_derivation_phase(root)
+            tool = {
+                "id": "node-runtime",
+                "executable": "node",
+                "version_probe": {"args": ["--version"], "output": "stdout", "prefix": "v"},
+                "version_requirement": {"exact": "22.0.0"},
+                "repair": {
+                    "strategy": "manual",
+                    "source": {
+                        "type": "official-url",
+                        "location": "https://nodejs.org/en/download",
+                        "review_evidence": "docs/decisions/001-stack.md",
+                    },
+                    "instructions": "Install the reviewed Node.js runtime.",
+                },
+            }
+            project_environment_module.register_project_environment_tool(root, tool, reviewed=True)
+            replacement = dict(tool)
+            replacement["version_requirement"] = {"minimum": "22.0.0", "maximum_exclusive": "26.0.0"}
+
+            blocked = project_environment_module.check_project_environment_tool_registration(
+                root, replacement, reviewed=True
+            )
+            replaced = project_environment_module.check_project_environment_tool_registration(
+                root, replacement, reviewed=True, replace=True
+            )
+            missing_evidence = dict(replacement)
+            missing_evidence["id"] = "missing-evidence"
+            missing_evidence["repair"] = dict(replacement["repair"])
+            missing_evidence["repair"]["source"] = dict(replacement["repair"]["source"])
+            missing_evidence["repair"]["source"]["review_evidence"] = "docs/decisions/missing.md"
+            missing = project_environment_module.check_project_environment_tool_registration(
+                root, missing_evidence, reviewed=True
+            )
+
+            self.assertFalse(blocked.ok)
+            self.assertTrue(any("--replace" in error for error in blocked.errors))
+            self.assertTrue(replaced.ok)
+            self.assertEqual(["docs/agent-workflow/project-environment.json"], replaced.would_update)
+            self.assertFalse(missing.ok)
+            self.assertTrue(any("review evidence is missing" in error for error in missing.errors))
+
+    def test_project_environment_registration_preserves_contract_when_temp_path_is_blocked(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            evidence = root / "docs/decisions/001-stack.md"
+            evidence.write_text("# Stack Decision\n", encoding="utf-8")
+            _set_design_derivation_phase(root)
+            contract_path = root / "docs/agent-workflow/project-environment.json"
+            before = contract_path.read_text(encoding="utf-8")
+            temp_path = contract_path.with_name(f".{contract_path.name}.tmp")
+            temp_path.mkdir()
+            tool = {
+                "id": "node-runtime",
+                "executable": "node",
+                "version_probe": {"args": ["--version"], "output": "stdout", "prefix": "v"},
+                "version_requirement": {"minimum": "20.0.0"},
+                "repair": {
+                    "strategy": "manual",
+                    "source": {
+                        "type": "official-url",
+                        "location": "https://nodejs.org/en/download",
+                        "review_evidence": "docs/decisions/001-stack.md",
+                    },
+                    "instructions": "Install the reviewed Node.js runtime.",
+                },
+            }
+
+            result = project_environment_module.register_project_environment_tool(root, tool, reviewed=True)
+
+            self.assertFalse(result.ok)
+            self.assertTrue(any("temporary path" in error for error in result.errors))
+            self.assertEqual(before, contract_path.read_text(encoding="utf-8"))
+
+    def test_project_environment_registration_reports_busy_lock_without_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _set_design_derivation_phase(root)
+            evidence = root / "docs/decisions/001-stack.md"
+            evidence.write_text("# Stack Decision\n", encoding="utf-8")
+            contract_path = root / "docs/agent-workflow/project-environment.json"
+            before = contract_path.read_text(encoding="utf-8")
+            tool = {
+                "id": "node-runtime",
+                "executable": "node",
+                "version_probe": {"args": ["--version"], "output": "stdout", "prefix": "v"},
+                "version_requirement": {"minimum": "20.0.0"},
+                "repair": {
+                    "strategy": "manual",
+                    "source": {
+                        "type": "official-url",
+                        "location": "https://nodejs.org/en/download",
+                        "review_evidence": "docs/decisions/001-stack.md",
+                    },
+                    "instructions": "Install the reviewed Node.js runtime.",
+                },
+            }
+
+            with mock.patch.object(
+                project_environment_module,
+                "_project_environment_lock",
+                side_effect=project_environment_module.ProjectEnvironmentLockUnavailable(
+                    "simulated project environment lock contention"
+                ),
+            ):
+                result = project_environment_module.register_project_environment_tool(
+                    root,
+                    tool,
+                    reviewed=True,
+                )
+
+            self.assertFalse(result.ok)
+            self.assertTrue(any("lock contention" in error for error in result.errors))
+            self.assertEqual(before, contract_path.read_text(encoding="utf-8"))
 
     def test_implementation_verify_probes_exact_absolute_command_executable(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
