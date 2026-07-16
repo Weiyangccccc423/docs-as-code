@@ -325,6 +325,7 @@ class DryRunWorkflowTest(unittest.TestCase):
                     "scripts/governance_cli.py",
                     "scripts/implementation_verify.py",
                     "scripts/project_environment.py",
+                    "scripts/bounded_process.py",
                     "scripts/api_review_evidence.py",
                     "scripts/threat_review_evidence.py",
                     "scripts/reliability_review_evidence.py",
@@ -355,6 +356,12 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertEqual(0, payload["design_reviews"]["missing_count"])
             self.assertEqual(0, payload["design_reviews"]["stale_count"])
             self.assertTrue(payload["design_reviews"]["work_package_complete"])
+            self.assertTrue(payload["project_environment_repair"]["registered"])
+            self.assertTrue(payload["project_environment_repair"]["preview_approval_required"])
+            self.assertTrue(payload["project_environment_repair"]["unapproved_blocked"])
+            self.assertTrue(payload["project_environment_repair"]["applied"])
+            self.assertTrue(payload["project_environment_repair"]["environment_ready"])
+            self.assertEqual(0, payload["project_environment_repair"]["pending_count"])
             step_ids = {step["id"] for step in payload["steps"]}
             self.assertIn("make_verify_governance", step_ids)
             self.assertIn("make_verify_check", step_ids)
@@ -398,6 +405,11 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertIn("make_check_env", step_ids)
             self.assertIn("make_repair_env_check", step_ids)
             self.assertIn("make_project_env_plan", step_ids)
+            self.assertIn("project_environment_reviewed_repair_register", step_ids)
+            self.assertIn("project_environment_reviewed_repair_preview", step_ids)
+            self.assertIn("project_environment_reviewed_repair_unapproved", step_ids)
+            self.assertIn("project_environment_reviewed_repair_apply", step_ids)
+            self.assertIn("project_environment_repaired_plan", step_ids)
             self.assertIn("implementation_start_preview", step_ids)
             self.assertIn("implementation_start_apply", step_ids)
             self.assertIn("implementation_plan_after_start", step_ids)
@@ -417,6 +429,7 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertTrue((target / "docs/decisions/design-reviews.json").is_file())
             self.assertTrue((target / "docs/api/endpoints/01-endpoint-contract.md").is_file())
             self.assertTrue((target / "docs/development/04-implementation-evidence.md").is_file())
+            self.assertTrue((target / ".governance/project-environment-repairs.json").is_file())
 
     def test_dry_run_handles_realistic_multi_acceptance_product_fixture(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

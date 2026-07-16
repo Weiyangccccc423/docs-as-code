@@ -40,9 +40,11 @@ Only numeric versions with one to four components are accepted. Prerelease/chann
 
 Use `governance-env` only when the executable is already registered by `scripts/check_env.py`; its source must be the workflow-pack path `scripts/check_env.py`. This strategy returns the existing no-write repair preflight and preserves its approval and auto-apply boundaries.
 
-Use `manual` for project-specific tools. Record a reviewed `official-url`, `repository-doc`, or `workflow-pack` source, a repository-local Markdown `review_evidence` path, and concrete instructions. Official URLs must use HTTPS. Local source and review-evidence files must exist in the target repository. Placeholders, undeclared tools, unregistered environment IDs, unknown fields, duplicate JSON keys, and inferred package names are invalid.
+Use `manual` when no deterministic project repair command has been accepted. Record a reviewed `official-url`, `repository-doc`, or `workflow-pack` source, a repository-local Markdown `review_evidence` path, and concrete instructions.
 
-`implementation verify` never installs tools. It reports ordered `repair_actions` and stops before the task command until every required tool is available and version-compatible.
+Use `reviewed-command` only when the accepted architecture or ADR evidence proves the exact repair `command.argv` and repository-local `command.cwd`. The command is stored as an argv array and is executed with `shell=False`; shell and privilege wrappers, inline interpreter code, placeholders, control characters, and secret-bearing arguments are rejected. Repository-relative repair executables must already exist, be executable, stay inside the repository, and not be symlinks. Registration automatically stores their SHA-256 in `command.executable_sha256`; any later digest drift blocks preview and execution. Bare repair executables must resolve from the effective `PATH` and their observed executable digest is bound into execution evidence. Official URLs must use HTTPS. Local source and review-evidence files must exist in the target repository. Undeclared tools, unregistered environment IDs, unknown fields, duplicate JSON keys, and inferred package names remain invalid.
+
+`implementation verify` never installs tools. It reports ordered `repair_actions` and stops before the task command until every required tool is available and version-compatible. A failed `reviewed-command` tool routes to `project-env repair --check`; it never runs the repair from implementation preflight.
 
 ## Registration Workflow
 
@@ -52,7 +54,23 @@ After architecture and ADR review selects the implementation stack, load `config
 bin/governance project-env plan <target> --json
 ```
 
-During `design-derivation` or `implementation`, use `project-env register --reviewed --check --json` with explicit tool ID, executable, version-probe style/output/prefix, exact or ranged numeric version requirement, source type/location, repository-local Markdown review evidence, and repair instructions. Repeat without `--check` only after reviewing `action`, `tool`, `environment`, and `would_update`. The apply is atomic and idempotent. A changed existing tool ID fails until `--replace` is explicitly supplied. Registration writes configuration only; it does not install, upgrade, or execute the registered tool.
+During `design-derivation` or `implementation`, use `project-env register --reviewed --check --json` with explicit tool ID, executable, version-probe style/output/prefix, exact or ranged numeric version requirement, source type/location, repository-local Markdown review evidence, and repair instructions. For `reviewed-command`, also repeat `--repair-command-arg` in exact argv order and set `--repair-command-cwd`; arguments beginning with `-` use the `--repair-command-arg=<value>` form. Repeat registration without `--check` only after reviewing `action`, `tool`, `environment`, and `would_update`. The apply is atomic and idempotent. A changed existing tool ID fails until `--replace` is explicitly supplied. Registration writes configuration only; it does not install, upgrade, or execute the registered tool.
+
+## Reviewed Repair Workflow
+
+Preview one registered repair without executing or writing evidence:
+
+```bash
+bin/governance project-env repair <target> --tool-id <tool-id> --check --json
+```
+
+Inspect `readiness_before`, `repair_action.command`, `repair_action.source`, `repair_ready`, `stop_before_workflow`, and `apply_command`. The apply action always has `approval_required: true`. After explicit approval, run its exact argv or:
+
+```bash
+bin/governance project-env repair <target> --tool-id <tool-id> --approved --json
+```
+
+Execution uses a bounded timeout, bounded stdout/stderr capture, process-group termination, and best-effort credential redaction. Before execution, the runtime atomically appends a `pending` record to `.governance/project-environment-repairs.json`; after execution it records a sanitized result and repeats the allowlisted version probe. Success requires command return code zero, a compatible observed version, and unchanged contract, review-evidence, local-source, and repair-executable SHA-256 inputs. Failed, timed-out, unavailable, integrity-drifted, or applied-but-unresolved commands keep `stop_before_workflow: true`. Pending evidence blocks governance verification and must be investigated rather than treated as successful repair. The evidence ledger stores exact non-secret argv, source and review-evidence identity, SHA-256 bindings for local evidence and repair executables, execution metadata without stdout/stderr text, and before/after readiness.
 
 ## Review Basis
 

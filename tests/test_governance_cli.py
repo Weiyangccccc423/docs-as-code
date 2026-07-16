@@ -1298,7 +1298,7 @@ class GovernanceCliTest(unittest.TestCase):
                 capture_output=True,
                 check=False,
             )
-            self.assertEqual(0, applied.returncode, applied.stderr)
+            self.assertEqual(0, applied.returncode, f"{applied.stderr}\n{applied.stdout}")
             applied_payload = json.loads(applied.stdout)
             self.assertTrue(applied_payload["applied"])
             self.assertEqual(
@@ -1315,6 +1315,20 @@ class GovernanceCliTest(unittest.TestCase):
             registered_payload = json.loads(registered_plan.stdout)
             self.assertEqual("registered_tools_present", registered_payload["status"])
             self.assertEqual(1, registered_payload["tool_count"])
+            self.assertEqual("node-runtime", registered_payload["repair_routes"][0]["tool_id"])
+            self.assertEqual(
+                [
+                    "bin/governance",
+                    "project-env",
+                    "repair",
+                    ".",
+                    "--tool-id",
+                    "node-runtime",
+                    "--check",
+                    "--json",
+                ],
+                registered_payload["repair_routes"][0]["preflight_command"]["argv"],
+            )
 
             conflict_command = command[:-2]
             prefix_index = conflict_command.index("--version-prefix")
@@ -1327,6 +1341,128 @@ class GovernanceCliTest(unittest.TestCase):
             )
             self.assertEqual(1, conflict.returncode)
             self.assertIn("--replace", json.loads(conflict.stdout)["errors"][0])
+
+    def test_project_environment_reviewed_repair_cli_requires_approval_and_rechecks_version(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _design_scaffold_target(self, tmp)
+            evidence = target / "docs/decisions/001-stack.md"
+            evidence.write_text("# Stack Decision\n\nReviewed demo runtime repair command.\n", encoding="utf-8")
+            installer = target / "tools/install-demo-runtime"
+            installer.parent.mkdir()
+            installer.write_text(
+                "#!/bin/sh\n"
+                "set -eu\n"
+                "mkdir -p tools-bin\n"
+                "printf '%s\\n' '#!/bin/sh' 'printf \"Demo 2.1.0\\n\"' > tools-bin/demo-runtime\n"
+                "chmod +x tools-bin/demo-runtime\n",
+                encoding="utf-8",
+            )
+            installer.chmod(0o755)
+            env = _agent_env()
+            env["PATH"] = os.pathsep.join([str(target / "tools-bin"), env.get("PATH", "")])
+            register = [
+                sys.executable,
+                str(CLI),
+                "project-env",
+                "register",
+                str(target),
+                "--tool-id",
+                "demo-runtime",
+                "--executable",
+                "demo-runtime",
+                "--version-prefix",
+                "Demo ",
+                "--minimum-version",
+                "2.0.0",
+                "--maximum-exclusive-version",
+                "3.0.0",
+                "--repair-strategy",
+                "reviewed-command",
+                "--repair-source-type",
+                "official-url",
+                "--repair-source",
+                "https://example.com/demo-runtime",
+                "--review-evidence",
+                "docs/decisions/001-stack.md",
+                "--repair-instructions",
+                "Run the reviewed repository installer.",
+                "--repair-command-cwd",
+                ".",
+                "--repair-command-arg",
+                "tools/install-demo-runtime",
+                "--reviewed",
+                "--json",
+            ]
+            registered = subprocess.run(register, env=env, text=True, capture_output=True, check=False)
+            self.assertEqual(0, registered.returncode, registered.stderr)
+
+            preview = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "project-env",
+                    "repair",
+                    str(target),
+                    "--tool-id",
+                    "demo-runtime",
+                    "--check",
+                    "--json",
+                ],
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            blocked = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "project-env",
+                    "repair",
+                    str(target),
+                    "--tool-id",
+                    "demo-runtime",
+                    "--json",
+                ],
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, preview.returncode, preview.stderr)
+            self.assertEqual(1, blocked.returncode)
+            preview_payload = json.loads(preview.stdout)
+            self.assertEqual("approval-required", preview_payload["action"])
+            self.assertTrue(preview_payload["apply_command"]["approval_required"])
+            self.assertFalse((target / "tools-bin/demo-runtime").exists())
+
+            applied = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "project-env",
+                    "repair",
+                    str(target),
+                    "--tool-id",
+                    "demo-runtime",
+                    "--approved",
+                    "--json",
+                ],
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, applied.returncode, f"{applied.stderr}\n{applied.stdout}")
+            applied_payload = json.loads(applied.stdout)
+            self.assertTrue(applied_payload["ok"])
+            self.assertEqual("repaired", applied_payload["action"])
+            self.assertTrue(applied_payload["environment_ready"])
+            self.assertEqual("pass", applied_payload["execution"]["result"])
+            self.assertTrue(
+                (target / ".governance/project-environment-repairs.json").is_file()
+            )
 
     def test_env_json_uses_shared_payload_builder(self) -> None:
         scripts_dir = str(ROOT / "scripts")

@@ -23,3 +23,4 @@ One-sentence project summary.
 - `make check-env` - inventory local governance tools as JSON.
 - `make repair-env-check` - preview environment repair without writing files.
 - `make project-env-plan` - print reviewed project runtime tool registration plan as JSON.
+- `bin/governance project-env repair . --tool-id <tool-id> --check --json` - preview one registered reviewed-command repair before requesting approval.

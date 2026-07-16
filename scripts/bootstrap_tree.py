@@ -44,6 +44,7 @@ RUNTIME_SCRIPT_FILES = [
     "threat_review_evidence.py",
     "reliability_review_evidence.py",
     "migration_review_evidence.py",
+    "bounded_process.py",
     "bootstrap_tree.py",
     "check_env.py",
     "design_reviews.py",
@@ -1355,7 +1356,10 @@ def _write_bootstrap_outputs(
         "- Open questions: `docs/unresolved.md`\n"
         "- Delivery plan: `docs/development/README.md`\n\n"
         "## Local Commands\n\n"
-        + _target_local_commands_readme(),
+        + _target_local_commands_readme()
+        + "\nPreview one registered reviewed-command repair with "
+        "`bin/governance project-env repair . --tool-id <tool-id> --check --json`; "
+        "run its apply action only after explicit approval.\n",
         force,
     )
     _safe_write(
@@ -1673,6 +1677,7 @@ def _command_contract() -> str:
         "- Record skipped, unavailable, failed, flaky, and passing commands in `docs/development/03-verification-log.md`.\n"
         "- For an `In Progress` task, preflight registered project checks with `bin/governance implementation verify . --task <task-id> --command <command-name> --check --json`.\n"
         "- Require `environment_readiness.ok: true` before execution. Inspect `required_tools` version evidence and follow only repair actions backed by `project-environment.json`; never guess installation commands.\n"
+        "- Preview a `reviewed-command` repair with `project-env repair --tool-id <tool-id> --check`; request approval for its apply action and require completed repair evidence plus a passing post-repair version probe.\n"
         "- Run the returned structured command to append `docs/development/04-implementation-evidence.md` and update the current `(Task, Command)` summary without deleting prior runs.\n"
         "- `implementation verify` refuses approval-required rows and requires `--allow-writes` for state-writing rows.\n"
     )

@@ -1,4 +1,4 @@
-.PHONY: test dry-run dry-run-golden package artifact-smoke release-check authority-skills verify-pack check-env
+.PHONY: test dry-run dry-run-golden package artifact-smoke release-check authority-skills verify-pack check-env ci
 
 test:
 	python3 -m unittest discover -s tests
@@ -21,9 +21,11 @@ release-check:
 authority-skills:
 	python3 scripts/authority_skills.py --json
 
-verify-pack: test
+verify-pack:
 	python3 scripts/verify_pack.py
 	python3 scripts/check_env.py
 
 check-env:
 	python3 scripts/check_env.py
+
+ci: test verify-pack

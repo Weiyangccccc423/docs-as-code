@@ -27,7 +27,10 @@ try:
     from .product_dispositions import PRODUCT_DISPOSITIONS_REL, build_product_disposition_inventory
     from .project_environment import (
         PROJECT_ENVIRONMENT_REL,
+        PROJECT_ENVIRONMENT_REPAIR_EVIDENCE_REL,
         load_project_environment_contract,
+        load_project_environment_repair_evidence,
+        project_environment_repair_command_errors,
     )
     from .reliability_review_evidence import (
         RELIABILITY_EVIDENCE_REL,
@@ -62,7 +65,10 @@ except ImportError:  # pragma: no cover - direct script execution
     from product_dispositions import PRODUCT_DISPOSITIONS_REL, build_product_disposition_inventory
     from project_environment import (
         PROJECT_ENVIRONMENT_REL,
+        PROJECT_ENVIRONMENT_REPAIR_EVIDENCE_REL,
         load_project_environment_contract,
+        load_project_environment_repair_evidence,
+        project_environment_repair_command_errors,
     )
     from reliability_review_evidence import (
         RELIABILITY_EVIDENCE_REL,
@@ -245,6 +251,7 @@ RUNTIME_REQUIRED_SCRIPT_FILES = (
     "threat_review_evidence.py",
     "reliability_review_evidence.py",
     "migration_review_evidence.py",
+    "bounded_process.py",
     "bootstrap_tree.py",
     "check_env.py",
     "design_reviews.py",
@@ -794,6 +801,7 @@ def verify(root: Path) -> VerificationReport:
     _check_target_gitignore(root, report)
     _check_target_makefile(root, report)
     _check_project_environment_contract(root, report)
+    _check_project_environment_repair_evidence(root, report)
     _check_command_contract(root, report)
     _check_task_handoff(root, report)
     _check_root_agents_guardrails(root, report)
@@ -1688,6 +1696,16 @@ def _check_project_environment_contract(root: Path, report: VerificationReport) 
             repair = tool.get("repair")
             if not isinstance(repair, dict) or repair.get("strategy") != "governance-env":
                 _check_project_environment_repair_source(root, repair, rel, report)
+                if isinstance(repair, dict) and repair.get("strategy") == "reviewed-command":
+                    for error in project_environment_repair_command_errors(
+                        root,
+                        repair.get("command"),
+                    ):
+                        report.add_error(
+                            "target_project_environment_repair_command_invalid",
+                            error,
+                            rel,
+                        )
                 continue
             repair_tool = repair.get("tool")
             if repair_tool not in known_governance_tools:
@@ -1697,6 +1715,37 @@ def _check_project_environment_contract(root: Path, report: VerificationReport) 
                     rel,
                 )
             _check_project_environment_repair_source(root, repair, rel, report)
+
+
+def _check_project_environment_repair_evidence(
+    root: Path,
+    report: VerificationReport,
+) -> None:
+    path = root / PROJECT_ENVIRONMENT_REPAIR_EVIDENCE_REL
+    if not path.exists():
+        return
+    rel = PROJECT_ENVIRONMENT_REPAIR_EVIDENCE_REL.as_posix()
+    payload, errors = load_project_environment_repair_evidence(root)
+    if errors:
+        for error in errors:
+            report.add_error(
+                "target_project_environment_repair_evidence_invalid",
+                error,
+                rel,
+            )
+        return
+    repairs = payload.get("repairs")
+    if not isinstance(repairs, list):
+        return
+    for record in repairs:
+        if not isinstance(record, dict) or record.get("status") != "pending":
+            continue
+        record_id = str(record.get("id", ""))
+        report.add_error(
+            "target_project_environment_repair_pending",
+            f"project environment repair evidence contains pending record: {record_id}",
+            rel,
+        )
 
 
 def _check_project_environment_repair_source(

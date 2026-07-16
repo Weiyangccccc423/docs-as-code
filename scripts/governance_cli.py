@@ -80,8 +80,12 @@ from product_dispositions import (
 from product_import import check_product_import_ready, mark_product_import_ready
 from product_structure import build_product_plan, check_structure_product, structure_product
 from project_environment import (
+    DEFAULT_REPAIR_MAX_OUTPUT_BYTES,
+    DEFAULT_REPAIR_TIMEOUT_SECONDS,
     build_project_environment_plan,
+    check_project_environment_tool_repair,
     check_project_environment_tool_registration,
+    repair_project_environment_tool,
     register_project_environment_tool,
 )
 from scaffold import (
@@ -540,6 +544,20 @@ def _project_environment_tool_from_args(args: argparse.Namespace) -> dict[str, o
         requirement["minimum"] = args.minimum_version
     if args.maximum_exclusive_version:
         requirement["maximum_exclusive"] = args.maximum_exclusive_version
+    repair: dict[str, object] = {
+        "strategy": args.repair_strategy,
+        "source": {
+            "type": args.repair_source_type,
+            "location": args.repair_source,
+            "review_evidence": args.review_evidence,
+        },
+        "instructions": args.repair_instructions,
+    }
+    if args.repair_strategy == "reviewed-command" or args.repair_command_arg:
+        repair["command"] = {
+            "argv": list(args.repair_command_arg),
+            "cwd": args.repair_command_cwd,
+        }
     return {
         "id": args.tool_id,
         "executable": args.executable,
@@ -549,15 +567,7 @@ def _project_environment_tool_from_args(args: argparse.Namespace) -> dict[str, o
             "prefix": args.version_prefix,
         },
         "version_requirement": requirement,
-        "repair": {
-            "strategy": "manual",
-            "source": {
-                "type": args.repair_source_type,
-                "location": args.repair_source,
-                "review_evidence": args.review_evidence,
-            },
-            "instructions": args.repair_instructions,
-        },
+        "repair": repair,
     }
 
 
@@ -609,6 +619,38 @@ def _cmd_project_environment_register(args: argparse.Namespace) -> int:
         print(f"- would update: {', '.join(result.would_update) or 'none'}")
     else:
         print(f"- updated: {', '.join(result.updated) or 'none'}")
+    return 0
+
+
+def _cmd_project_environment_repair(args: argparse.Namespace) -> int:
+    result = (
+        check_project_environment_tool_repair(
+            Path(args.target),
+            args.tool_id,
+            timeout_seconds=args.timeout_seconds,
+            max_output_bytes=args.max_output_bytes,
+        )
+        if args.check
+        else repair_project_environment_tool(
+            Path(args.target),
+            args.tool_id,
+            approved=args.approved,
+            timeout_seconds=args.timeout_seconds,
+            max_output_bytes=args.max_output_bytes,
+        )
+    )
+    payload = result.to_dict()
+    if args.json:
+        _print_json(payload)
+        return 0 if result.ok else 1
+    if not result.ok:
+        print(f"Project environment repair blocked: {result.tool_id}")
+        for error in result.errors:
+            print(f"- {error}")
+        return 1
+    print(f"Project environment repair {result.action}: {result.tool_id}")
+    if result.evidence_id:
+        print(f"- evidence: {result.evidence_id}")
     return 0
 
 
@@ -1576,6 +1618,12 @@ def build_parser() -> argparse.ArgumentParser:
     project_environment_register.add_argument("--minimum-version")
     project_environment_register.add_argument("--maximum-exclusive-version")
     project_environment_register.add_argument(
+        "--repair-strategy",
+        choices=("manual", "reviewed-command"),
+        default="manual",
+        help="Use manual guidance or an exact reviewed command that still requires execution approval.",
+    )
+    project_environment_register.add_argument(
         "--repair-source-type",
         choices=("official-url", "repository-doc", "workflow-pack"),
         required=True,
@@ -1583,6 +1631,17 @@ def build_parser() -> argparse.ArgumentParser:
     project_environment_register.add_argument("--repair-source", required=True)
     project_environment_register.add_argument("--review-evidence", required=True)
     project_environment_register.add_argument("--repair-instructions", required=True)
+    project_environment_register.add_argument(
+        "--repair-command-cwd",
+        default=".",
+        help="Repository-relative working directory for a reviewed repair command.",
+    )
+    project_environment_register.add_argument(
+        "--repair-command-arg",
+        action="append",
+        default=[],
+        help="One exact reviewed repair argv item; repeat in order and use = for values beginning with '-'.",
+    )
     project_environment_register.add_argument(
         "--reviewed",
         action="store_true",
@@ -1596,6 +1655,36 @@ def build_parser() -> argparse.ArgumentParser:
     )
     project_environment_register.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     project_environment_register.set_defaults(func=_cmd_project_environment_register)
+    project_environment_repair = project_environment_sub.add_parser(
+        "repair",
+        help="Preview or execute one exact reviewed project runtime repair command.",
+    )
+    project_environment_repair.add_argument("target", nargs="?", default=".")
+    project_environment_repair.add_argument("--tool-id", required=True)
+    project_environment_repair.add_argument(
+        "--approved",
+        action="store_true",
+        help="Confirm approval to execute the exact registered repair command.",
+    )
+    project_environment_repair.add_argument(
+        "--check",
+        action="store_true",
+        help="Preview resolution, command, source, and required approval without executing or writing evidence.",
+    )
+    project_environment_repair.add_argument(
+        "--timeout-seconds",
+        type=float,
+        default=DEFAULT_REPAIR_TIMEOUT_SECONDS,
+        help="Kill the reviewed repair command when this timeout is reached.",
+    )
+    project_environment_repair.add_argument(
+        "--max-output-bytes",
+        type=int,
+        default=DEFAULT_REPAIR_MAX_OUTPUT_BYTES,
+        help="Maximum captured bytes per repair stdout/stderr stream.",
+    )
+    project_environment_repair.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    project_environment_repair.set_defaults(func=_cmd_project_environment_repair)
 
     runtime = sub.add_parser("runtime", help="Repair or inspect target-local governance runtime.")
     runtime_sub = runtime.add_subparsers(dest="runtime_command", required=True)

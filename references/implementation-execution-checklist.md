@@ -41,7 +41,8 @@ Reference: `https://dora.dev/capabilities/trunk-based-development/`
 - Does `environment_readiness.ok` prove the exact `Argv[0]` is available and executable, with repository-relative paths resolved from `Cwd` and confined to the repository?
 - Does the command `Environment` reference `docs/agent-workflow/project-environment.json`, and do `required_tools[]` prove every allowlisted version probe passed and each observed numeric version satisfies its constraint?
 - Was each project runtime tool previewed and applied through `project-env register` from a reviewed architecture or ADR source, without guessed versions, packages, or repair instructions?
-- For a missing or incompatible `governance-env` tool, was the returned no-write environment repair preflight inspected; for a manual or undeclared tool, was its reviewed source followed without guessing a package or install command?
+- For a missing or incompatible tool, was the returned strategy-specific preflight followed: `env --repair --check` for `governance-env`, reviewed instructions for `manual`, or `project-env repair --check` plus explicit approval for `reviewed-command`?
+- Before an approved project repair, were exact argv, cwd, source, local review evidence, write scope, timeout, and output bounds inspected, and did `.governance/project-environment-repairs.json` finish without a pending record?
 - Was the returned structured command executed without a shell string, with a bounded timeout and bounded stdout/stderr capture?
 - Was best-effort output redaction applied, while secret-bearing command arguments and intentionally printed credentials remained prohibited?
 - Were command-contract rows with `Approval Required` set to `true` refused and routed to explicit external authorization?

@@ -27,6 +27,12 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class PackStructureTest(unittest.TestCase):
+    def test_makefile_avoids_duplicate_tests_while_preserving_combined_ci_gate(self) -> None:
+        text = (ROOT / "Makefile").read_text(encoding="utf-8")
+        self.assertIn("\nverify-pack:\n", text)
+        self.assertNotIn("\nverify-pack: test\n", text)
+        self.assertIn("\nci: test verify-pack\n", text)
+
     def test_api_review_runtime_is_required_in_generated_targets(self) -> None:
         self.assertIn(Path("scripts/api_review_evidence.py"), RUNTIME_REQUIRED_PATHS)
 
@@ -44,6 +50,9 @@ class PackStructureTest(unittest.TestCase):
 
     def test_project_environment_runtime_is_required_in_generated_targets(self) -> None:
         self.assertIn(Path("scripts/project_environment.py"), RUNTIME_REQUIRED_PATHS)
+
+    def test_bounded_process_runtime_is_required_in_generated_targets(self) -> None:
+        self.assertIn(Path("scripts/bounded_process.py"), RUNTIME_REQUIRED_PATHS)
 
     def test_target_local_command_contracts_stay_aligned(self) -> None:
         expected_targets = tuple(target for target, _recipe, _description, _writes_state in TARGET_LOCAL_COMMANDS)
@@ -1783,7 +1792,7 @@ class PackStructureTest(unittest.TestCase):
             makefile = target / "Makefile"
             makefile.write_text(
                 makefile.read_text(encoding="utf-8").replace(
-                    "\nverify-pack: test\n\tpython3 scripts/verify_pack.py\n\tpython3 scripts/check_env.py\n",
+                    "\nverify-pack:\n\tpython3 scripts/verify_pack.py\n\tpython3 scripts/check_env.py\n",
                     "\n",
                     1,
                 ),
@@ -5621,7 +5630,7 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
-    def test_verify_pack_reports_incomplete_implementation_verify_source_contract(self) -> None:
+    def test_verify_pack_reports_incomplete_bounded_process_source_contract(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
             shutil.copytree(
@@ -5629,7 +5638,7 @@ class PackStructureTest(unittest.TestCase):
                 target,
                 ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
             )
-            script = target / "scripts/implementation_verify.py"
+            script = target / "scripts/bounded_process.py"
             text = script.read_text(encoding="utf-8")
             self.assertIn("shell=False", text)
             script.write_text(text.replace("shell=False", "shell=0", 1), encoding="utf-8")
@@ -5639,8 +5648,8 @@ class PackStructureTest(unittest.TestCase):
             self.assertFalse(report.ok)
             self.assertTrue(
                 any(
-                    finding.code == "pack_implementation_verify_source_incomplete"
-                    and finding.path == "scripts/implementation_verify.py"
+                    finding.code == "pack_bounded_process_source_incomplete"
+                    and finding.path == "scripts/bounded_process.py"
                     and "shell=False" in finding.message
                     for finding in report.findings
                 )

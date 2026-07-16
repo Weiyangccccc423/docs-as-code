@@ -34,5 +34,6 @@
 - Record skipped, unavailable, failed, flaky, and passing commands in `docs/development/03-verification-log.md`.
 - For an `In Progress` task, preflight registered project checks with `bin/governance implementation verify . --task TASK-NNN --command command-name --check --json`.
 - Require `environment_readiness.ok: true` before execution. Inspect `required_tools` version evidence and follow only repair actions backed by `project-environment.json`; register unknown tools instead of guessing installation commands.
+- Preview a `reviewed-command` repair with `project-env repair --tool-id <tool-id> --check`; request approval for its apply action and require completed repair evidence plus a passing post-repair version probe.
 - Run the returned structured command to append `docs/development/04-implementation-evidence.md` and update the current `(Task, Command)` summary without deleting prior runs.
 - `implementation verify` refuses approval-required rows and requires `--allow-writes` for state-writing rows.

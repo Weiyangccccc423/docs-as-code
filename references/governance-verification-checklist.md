@@ -22,6 +22,8 @@ Reference: `https://dora.dev/capabilities/test-automation/`
 - Are `repair_actions` sorted by `sequence`, with `manual-repair` actions escalated to the user instead of treated as shell commands?
 - Are package-manager commands blocked until explicit approval when `needs_escalation` is true?
 - Are missing recommended tools reported without hiding required-tool failures?
+- Does each project `reviewed-command` repair use `project-env repair --check` before its approval-required apply action?
+- Does `.governance/project-environment-repairs.json` contain no pending record, and does successful repair evidence include a passing post-repair version probe?
 
 ## Drift and Refresh
 

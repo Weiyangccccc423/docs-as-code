@@ -44,6 +44,7 @@ Reference: `https://docs.github.com/en/repositories/managing-your-repositorys-se
 - Does `docs/agent-workflow/runtime-manifest.json` cover target-local runtime files?
 - Does `docs/agent-workflow/workflow-pack/manifest.json` cover the copied workflow-pack snapshot?
 - Does `docs/agent-workflow/project-environment.json` validate, provide a usable `core-governance` version contract, and leave project-specific tools unguessed until stack selection?
+- Does the target runtime include the shared bounded process runner used by implementation verification and approved project environment repair?
 - Does the snapshot contain `references/authority-skills.lock.json` and does its manifest bind the file hash?
 - Are `make verify-governance`, `make verify-check`, `make governance-status`, `make workflow-plan`, `make product-plan`, `make design-plan`, `make check-env`, `make repair-env-check`, and `make project-env-plan` available after initialization?
 

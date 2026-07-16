@@ -4,11 +4,8 @@ import json
 import os
 import re
 import shutil
-import signal
 import stat
-import subprocess
 import tempfile
-import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
@@ -23,6 +20,7 @@ except ImportError:  # pragma: no cover - target runtime uses POSIX wrappers
     fcntl = None  # type: ignore[assignment]
 
 try:
+    from .bounded_process import run_bounded_command as _run_bounded_command
     from .check_env import TOOLS
     from .implementation_plan import (
         IMPLEMENTATION_PHASE,
@@ -34,10 +32,9 @@ try:
     )
     from .project_environment import (
         PROJECT_ENVIRONMENT_REL,
-        extract_probed_version,
+        inspect_project_environment_tool as _project_environment_tool_readiness,
         load_project_environment_contract,
         project_environment_by_id,
-        version_satisfies_requirement,
     )
     from .state import load_state
     from .verify_governance import (
@@ -57,6 +54,7 @@ try:
         verify,
     )
 except ImportError:  # pragma: no cover - direct script execution
+    from bounded_process import run_bounded_command as _run_bounded_command
     from check_env import TOOLS
     from implementation_plan import (
         IMPLEMENTATION_PHASE,
@@ -68,10 +66,9 @@ except ImportError:  # pragma: no cover - direct script execution
     )
     from project_environment import (
         PROJECT_ENVIRONMENT_REL,
-        extract_probed_version,
+        inspect_project_environment_tool as _project_environment_tool_readiness,
         load_project_environment_contract,
         project_environment_by_id,
-        version_satisfies_requirement,
     )
     from state import load_state
     from verify_governance import (
@@ -106,20 +103,6 @@ MAX_CONFIGURED_OUTPUT_BYTES = 1_048_576
 RUN_ID_RE = re.compile(r"^VR-[0-9]{8}T[0-9]{12}Z-[0-9a-f]{8}$")
 IMPLEMENTATION_VERIFY_LOCK_REL = Path(".governance/implementation-verify.lock")
 IMPLEMENTATION_VERIFY_LOCK_WAIT_SECONDS = 0.5
-ENVIRONMENT_PROBE_TIMEOUT_SECONDS = 5.0
-ENVIRONMENT_PROBE_MAX_OUTPUT_BYTES = 4096
-SENSITIVE_OUTPUT_PATTERNS = (
-    re.compile(
-        r"(?i)\b(?P<prefix>authorization\s*:\s*(?:bearer|basic)\s+)(?P<secret>[^\s]+)"
-    ),
-    re.compile(
-        r"(?i)\b(?P<prefix>(?:api[_-]?(?:key|token)|access[_-]?token|refresh[_-]?token|"
-        r"password|passwd|secret|private[_-]?key)\s*[=:]\s*)(?P<secret>[^\s,;]+)"
-    ),
-)
-SENSITIVE_TOKEN_PATTERN = re.compile(r"\b(?:gh[pousr]_[A-Za-z0-9]{20,}|sk-[A-Za-z0-9_-]{16,})\b")
-
-
 class ImplementationVerifyLockUnavailable(OSError):
     pass
 
@@ -693,6 +676,9 @@ def _command_environment_readiness(
     manual_actions = [
         action for action in repair_actions if action.get("strategy") in {"manual", "register"}
     ]
+    reviewed_command_actions = [
+        action for action in repair_actions if action.get("strategy") == "reviewed-command"
+    ]
     if manual_actions:
         readiness["repair_decision"] = _environment_repair_decision(
             "complete_manual_environment_repairs",
@@ -703,6 +689,20 @@ def _command_environment_readiness(
             next_step="complete the reviewed manual repair_actions, then refresh this preflight",
         )
         readiness["repair_preflight_command"] = {}
+    elif reviewed_command_actions:
+        readiness["repair_decision"] = _environment_repair_decision(
+            "run_reviewed_project_environment_repair_preflight",
+            status="reviewed_repair_preflight_required",
+            stop_before_execution=True,
+            requires_approval=False,
+            manual_repair_required=False,
+            next_step="run repair_preflight_command, request approval for its apply action, then refresh this preflight",
+        )
+        first_tool_id = str(reviewed_command_actions[0].get("tool_id", ""))
+        readiness["repair_preflight_command"] = _project_environment_repair_preflight_command(
+            root,
+            first_tool_id,
+        )
     elif governance_actions:
         readiness["repair_decision"] = _environment_repair_decision(
             "run_governance_environment_repair_preflight",
@@ -915,102 +915,6 @@ def _command_executable_readiness(
     return base
 
 
-def _project_environment_tool_readiness(
-    command_cwd: Path | None,
-    tool: dict[str, object],
-    *,
-    resolved_override: Path | None = None,
-) -> dict[str, object]:
-    executable = str(tool.get("executable", ""))
-    result: dict[str, object] = {
-        "id": str(tool.get("id", "")),
-        "executable": executable,
-        "resolved_path": "",
-        "available": False,
-        "executable_ready": False,
-        "probe_executed": False,
-        "probe_passed": False,
-        "observed_version": "",
-        "version_requirement": dict(tool.get("version_requirement", {}))
-        if isinstance(tool.get("version_requirement"), dict)
-        else {},
-        "version_satisfies": False,
-        "ready": False,
-        "blocker_code": "environment_tool_unavailable",
-        "repair": dict(tool.get("repair", {})) if isinstance(tool.get("repair"), dict) else {},
-    }
-    if command_cwd is None:
-        result["blocker_code"] = "environment_tool_cwd_unavailable"
-        return result
-    if resolved_override is not None:
-        found = str(resolved_override)
-    else:
-        try:
-            found = shutil.which(executable, path=_command_search_path(command_cwd))
-        except (OSError, RuntimeError, ValueError):
-            found = None
-    if not found:
-        return result
-    try:
-        resolved = Path(found).resolve()
-    except (OSError, RuntimeError, ValueError):
-        resolved = Path(found)
-    available, executable_ready = _executable_path_status(resolved)
-    result["resolved_path"] = str(resolved)
-    result["available"] = available
-    result["executable_ready"] = executable_ready
-    if not available or not executable_ready:
-        result["blocker_code"] = "environment_tool_not_executable"
-        return result
-
-    probe = tool.get("version_probe")
-    if not isinstance(probe, dict):
-        result["blocker_code"] = "environment_tool_probe_invalid"
-        return result
-    args = probe.get("args")
-    if not isinstance(args, list) or any(not isinstance(arg, str) for arg in args):
-        result["blocker_code"] = "environment_tool_probe_invalid"
-        return result
-    execution = _run_bounded_command(
-        [str(resolved), *args],
-        cwd=command_cwd,
-        timeout_seconds=ENVIRONMENT_PROBE_TIMEOUT_SECONDS,
-        max_output_bytes=ENVIRONMENT_PROBE_MAX_OUTPUT_BYTES,
-    )
-    result["probe_executed"] = execution.get("started") is True
-    output_name = str(probe.get("output", ""))
-    stdout = str(execution.get("stdout", ""))
-    stderr = str(execution.get("stderr", ""))
-    output = stdout if output_name == "stdout" else stderr
-    if output_name == "combined":
-        output = "\n".join(item for item in (stdout, stderr) if item)
-    observed_version = extract_probed_version(output, str(probe.get("prefix", "")))
-    probe_passed = execution.get("result") == "pass" and bool(observed_version)
-    requirement = tool.get("version_requirement")
-    version_satisfies = (
-        probe_passed
-        and isinstance(requirement, dict)
-        and version_satisfies_requirement(observed_version, requirement)
-    )
-    result["probe_passed"] = probe_passed
-    result["observed_version"] = observed_version
-    result["version_satisfies"] = version_satisfies
-    result["probe_result"] = {
-        "returncode": execution.get("returncode"),
-        "timed_out": execution.get("timed_out") is True,
-        "output_redacted": execution.get("output_redacted") is True,
-    }
-    if not probe_passed:
-        result["blocker_code"] = "environment_tool_version_probe_failed"
-        return result
-    if not version_satisfies:
-        result["blocker_code"] = "environment_tool_version_unsatisfied"
-        return result
-    result["ready"] = True
-    result["blocker_code"] = ""
-    return result
-
-
 def _environment_tool_repair_action(root: Path, tool: dict[str, object]) -> dict[str, object]:
     repair = tool.get("repair")
     repair_payload = repair if isinstance(repair, dict) else {}
@@ -1029,6 +933,17 @@ def _environment_tool_repair_action(root: Path, tool: dict[str, object]) -> dict
     }
     if strategy == "governance-env":
         action["repair_preflight_command"] = _environment_repair_preflight_command(root)
+    elif strategy == "reviewed-command":
+        action["command"] = (
+            dict(repair_payload.get("command", {}))
+            if isinstance(repair_payload.get("command"), dict)
+            else {}
+        )
+        action["instructions"] = str(repair_payload.get("instructions", ""))
+        action["repair_preflight_command"] = _project_environment_repair_preflight_command(
+            root,
+            str(tool.get("id", "")),
+        )
     else:
         action["instructions"] = str(repair_payload.get("instructions", ""))
     return action
@@ -1098,6 +1013,29 @@ def _environment_repair_preflight_command(root: Path) -> dict[str, object]:
             "--strict",
             "--target",
             ".",
+            "--json",
+        ],
+        "writes_state": False,
+        "approval_required": False,
+    }
+
+
+def _project_environment_repair_preflight_command(
+    root: Path,
+    tool_id: str,
+) -> dict[str, object]:
+    return {
+        "id": f"preflight-project-environment-repair-{tool_id}",
+        "description": "Preview one exact reviewed project runtime repair without writing or installing.",
+        "cwd": str(root),
+        "argv": [
+            "bin/governance",
+            "project-env",
+            "repair",
+            ".",
+            "--tool-id",
+            tool_id,
+            "--check",
             "--json",
         ],
         "writes_state": False,
@@ -1214,149 +1152,6 @@ def _verification_preflight_command_payload(
         "writes_state": False,
         "approval_required": False,
     }
-
-
-def _run_bounded_command(
-    argv: list[str],
-    *,
-    cwd: Path,
-    timeout_seconds: float,
-    max_output_bytes: int,
-) -> dict[str, object]:
-    started_at = datetime.now(timezone.utc)
-    start = time.monotonic()
-    try:
-        process = subprocess.Popen(
-            argv,
-            cwd=cwd,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            shell=False,
-            start_new_session=os.name == "posix",
-        )
-    except OSError as error:
-        return {
-            "started": False,
-            "argv": argv,
-            "cwd": str(cwd),
-            "started_at": _utc_timestamp(started_at),
-            "finished_at": _utc_timestamp(datetime.now(timezone.utc)),
-            "duration_seconds": round(time.monotonic() - start, 6),
-            "returncode": None,
-            "result": "unavailable",
-            "timed_out": False,
-            "stdout": "",
-            "stderr": error.strerror or str(error),
-            "stdout_truncated": False,
-            "stderr_truncated": False,
-            "max_output_bytes_per_stream": max_output_bytes,
-        }
-
-    buffers = {"stdout": bytearray(), "stderr": bytearray()}
-    truncated = {"stdout": False, "stderr": False}
-
-    def drain(name: str, stream: Any) -> None:
-        try:
-            while True:
-                chunk = stream.read(65_536)
-                if not chunk:
-                    return
-                remaining = max_output_bytes - len(buffers[name])
-                if remaining > 0:
-                    buffers[name].extend(chunk[:remaining])
-                if len(chunk) > remaining:
-                    truncated[name] = True
-        except (OSError, ValueError):
-            return
-
-    threads = [
-        threading.Thread(target=drain, args=("stdout", process.stdout), daemon=True),
-        threading.Thread(target=drain, args=("stderr", process.stderr), daemon=True),
-    ]
-    for thread in threads:
-        thread.start()
-
-    timed_out = False
-    try:
-        process.wait(timeout=timeout_seconds)
-    except subprocess.TimeoutExpired:
-        timed_out = True
-        _kill_process_group(process)
-        try:
-            process.wait(timeout=2)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            process.wait(timeout=2)
-    finally:
-        for thread in threads:
-            thread.join(timeout=2)
-        for stream in (process.stdout, process.stderr):
-            if stream is not None:
-                stream.close()
-
-    finished_at = datetime.now(timezone.utc)
-    stdout, stdout_decode_truncated, stdout_redaction_count = _safe_output_text(
-        bytes(buffers["stdout"]), max_output_bytes
-    )
-    stderr, stderr_decode_truncated, stderr_redaction_count = _safe_output_text(
-        bytes(buffers["stderr"]), max_output_bytes
-    )
-    truncated["stdout"] = truncated["stdout"] or stdout_decode_truncated
-    truncated["stderr"] = truncated["stderr"] or stderr_decode_truncated
-    passed = process.returncode == 0 and not timed_out
-    return {
-        "started": True,
-        "argv": argv,
-        "cwd": str(cwd),
-        "started_at": _utc_timestamp(started_at),
-        "finished_at": _utc_timestamp(finished_at),
-        "duration_seconds": round(time.monotonic() - start, 6),
-        "returncode": process.returncode,
-        "result": "pass" if passed else "fail",
-        "timed_out": timed_out,
-        "stdout": stdout,
-        "stderr": stderr,
-        "stdout_truncated": truncated["stdout"],
-        "stderr_truncated": truncated["stderr"],
-        "output_redacted": stdout_redaction_count > 0 or stderr_redaction_count > 0,
-        "stdout_redaction_count": stdout_redaction_count,
-        "stderr_redaction_count": stderr_redaction_count,
-        "max_output_bytes_per_stream": max_output_bytes,
-    }
-
-
-def _kill_process_group(process: subprocess.Popen[bytes]) -> None:
-    try:
-        if os.name == "posix":
-            os.killpg(process.pid, signal.SIGKILL)
-        else:  # pragma: no cover - target runtime uses POSIX wrappers
-            process.kill()
-        return
-    except OSError:
-        try:
-            process.kill()
-        except OSError:
-            pass
-
-
-def _safe_output_text(value: bytes, max_output_bytes: int) -> tuple[str, bool, int]:
-    text = value.decode("utf-8", errors="replace")
-    text, redaction_count = _redact_sensitive_output(text)
-    encoded = text.encode("utf-8")
-    if len(encoded) <= max_output_bytes:
-        return text, False, redaction_count
-    bounded = encoded[:max_output_bytes].decode("utf-8", errors="ignore")
-    return bounded, True, redaction_count
-
-
-def _redact_sensitive_output(value: str) -> tuple[str, int]:
-    redaction_count = 0
-    for pattern in SENSITIVE_OUTPUT_PATTERNS:
-        value, count = pattern.subn(lambda match: f"{match.group('prefix')}[REDACTED]", value)
-        redaction_count += count
-    value, count = SENSITIVE_TOKEN_PATTERN.subn("[REDACTED]", value)
-    return value, redaction_count + count
 
 
 @contextmanager

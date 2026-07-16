@@ -140,12 +140,13 @@ def _run_json(
     cwd: Path,
     *,
     expected_returncode: int = 0,
+    env: dict[str, str] | None = None,
 ) -> dict[str, object]:
     command = _stringify_argv(argv)
     result = subprocess.run(
         command,
         cwd=cwd,
-        env=_agent_env(),
+        env=env or _agent_env(),
         text=True,
         capture_output=True,
         check=False,
@@ -804,6 +805,150 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
     _require(isinstance(design_state, dict), "design advance did not return state", payload=design_advanced)
     _require(design_state.get("phase") == "design-derivation", "design phase mismatch", payload=design_advanced)
 
+    repair_installer = target / "tools/install-dry-run-runtime"
+    repair_installer.parent.mkdir(parents=True, exist_ok=True)
+    repair_installer.write_text(
+        "#!/bin/sh\n"
+        "set -eu\n"
+        "mkdir -p tools-bin\n"
+        "printf '%s\\n' '#!/bin/sh' 'printf \"Dry 1.2.0\\n\"' > tools-bin/dry-run-runtime\n"
+        "chmod +x tools-bin/dry-run-runtime\n",
+        encoding="utf-8",
+    )
+    repair_installer.chmod(0o755)
+    repair_env = _agent_env()
+    repair_env["PATH"] = os.pathsep.join(
+        [str(target / "tools-bin"), repair_env.get("PATH", "")]
+    )
+    project_runtime_registered = _run_json(
+        steps,
+        "project_environment_reviewed_repair_register",
+        [
+            "bin/governance",
+            "project-env",
+            "register",
+            ".",
+            "--tool-id",
+            "dry-run-runtime",
+            "--executable",
+            "dry-run-runtime",
+            "--version-prefix",
+            "Dry ",
+            "--minimum-version",
+            "1.0.0",
+            "--maximum-exclusive-version",
+            "2.0.0",
+            "--repair-strategy",
+            "reviewed-command",
+            "--repair-source-type",
+            "official-url",
+            "--repair-source",
+            "https://example.com/dry-run-runtime",
+            "--review-evidence",
+            "docs/agent-workflow/workflow-pack/references/project-environment-contract.md",
+            "--repair-instructions",
+            "Run the reviewed dry-run runtime installer.",
+            "--repair-command-cwd",
+            ".",
+            "--repair-command-arg",
+            "tools/install-dry-run-runtime",
+            "--reviewed",
+            "--json",
+        ],
+        target,
+        env=repair_env,
+    )
+    _require(
+        project_runtime_registered.get("ok") is True
+        and project_runtime_registered.get("action") == "register",
+        "reviewed project runtime registration failed",
+        payload=project_runtime_registered,
+    )
+    project_repair_preview = _run_json(
+        steps,
+        "project_environment_reviewed_repair_preview",
+        [
+            "bin/governance",
+            "project-env",
+            "repair",
+            ".",
+            "--tool-id",
+            "dry-run-runtime",
+            "--check",
+            "--json",
+        ],
+        target,
+        env=repair_env,
+    )
+    _require(
+        project_repair_preview.get("ok") is True
+        and project_repair_preview.get("action") == "approval-required"
+        and project_repair_preview.get("repair_ready") is True
+        and project_repair_preview.get("environment_ready") is False,
+        "reviewed project runtime repair preview did not expose approval gating",
+        payload=project_repair_preview,
+    )
+    project_repair_blocked = _run_json(
+        steps,
+        "project_environment_reviewed_repair_unapproved",
+        [
+            "bin/governance",
+            "project-env",
+            "repair",
+            ".",
+            "--tool-id",
+            "dry-run-runtime",
+            "--json",
+        ],
+        target,
+        expected_returncode=1,
+        env=repair_env,
+    )
+    _require(
+        project_repair_blocked.get("action") == "approval-required"
+        and not (target / "tools-bin/dry-run-runtime").exists(),
+        "unapproved project runtime repair was not blocked",
+        payload=project_repair_blocked,
+    )
+    project_repaired = _run_json(
+        steps,
+        "project_environment_reviewed_repair_apply",
+        [
+            "bin/governance",
+            "project-env",
+            "repair",
+            ".",
+            "--tool-id",
+            "dry-run-runtime",
+            "--approved",
+            "--json",
+        ],
+        target,
+        env=repair_env,
+    )
+    _require(
+        project_repaired.get("ok") is True
+        and project_repaired.get("action") == "repaired"
+        and project_repaired.get("environment_ready") is True,
+        "approved project runtime repair did not pass post-repair readiness",
+        payload=project_repaired,
+    )
+    repaired_project_plan = _run_json(
+        steps,
+        "project_environment_repaired_plan",
+        ["bin/governance", "project-env", "plan", ".", "--json"],
+        target,
+        env=repair_env,
+    )
+    repair_summary = repaired_project_plan.get("repair_evidence_summary")
+    _require(
+        isinstance(repair_summary, dict)
+        and repair_summary.get("record_count") == 1
+        and repair_summary.get("pending_count") == 0,
+        "project runtime repair evidence summary is incomplete",
+        payload=repaired_project_plan,
+    )
+
     design_scaffold_check = _run_json(
         steps,
         "design_scaffold_check",
@@ -1414,6 +1559,17 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
                 and make_design_complete_work_package.get("status") == "complete"
             ),
         },
+        "project_environment_repair": {
+            "registered": project_runtime_registered.get("action") == "register",
+            "preview_approval_required": project_repair_preview.get("action") == "approval-required",
+            "unapproved_blocked": project_repair_blocked.get("action") == "approval-required",
+            "applied": project_repaired.get("action") == "repaired",
+            "environment_ready": project_repaired.get("environment_ready") is True,
+            "pending_count": repair_summary.get("pending_count", -1)
+            if isinstance(repair_summary, dict)
+            else -1,
+            "evidence_path": ".governance/project-environment-repairs.json",
+        },
         "target_local_make_coverage": _target_local_make_coverage_details(steps),
         "implementation_gate": {
             "placeholder_blocked_ok": implementation_preflight.get("ok"),
@@ -1500,6 +1656,7 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
                     "scripts/governance_cli.py",
                     "scripts/implementation_verify.py",
                     "scripts/project_environment.py",
+                    "scripts/bounded_process.py",
                     "scripts/api_review_evidence.py",
                     "scripts/threat_review_evidence.py",
                     "scripts/reliability_review_evidence.py",

@@ -145,6 +145,7 @@ A verification report and a list of fixes, or a clean governance baseline.
 Verification is complete when the relevant checks in the procedure pass and any state-changing command was preceded by its `--check --json` preflight. Source workflow-pack maintainers must also run:
 
 ```bash
+make test
 make verify-pack
 make release-check
 python3 scripts/release_readiness.py --json

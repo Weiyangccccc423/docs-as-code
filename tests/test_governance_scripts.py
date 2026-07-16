@@ -1,6 +1,7 @@
 import contextlib
 import io
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -673,6 +674,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertFalse(plan["phase_allows_registration"])
             self.assertIn("tech-stack-evaluator", plan["specialist_skills"])
             self.assertIn("senior-architect", plan["specialist_skills"])
+            self.assertIn("senior-devops", plan["specialist_skills"])
             self.assertFalse(blocked_phase.ok)
             self.assertTrue(any("requires workflow phase" in error for error in blocked_phase.errors))
             self.assertFalse(unreviewed.ok)
@@ -685,7 +687,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             applied = project_environment_module.register_project_environment_tool(root, tool, reviewed=True)
             repeated = project_environment_module.register_project_environment_tool(root, tool, reviewed=True)
 
-            self.assertTrue(applied.ok)
+            self.assertTrue(applied.ok, applied.to_dict())
             self.assertEqual(["docs/agent-workflow/project-environment.json"], applied.updated)
             self.assertTrue(repeated.ok)
             self.assertEqual([], repeated.updated)
@@ -823,6 +825,382 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertFalse(result.ok)
             self.assertTrue(any("lock contention" in error for error in result.errors))
             self.assertEqual(before, contract_path.read_text(encoding="utf-8"))
+
+    def test_project_environment_reviewed_repair_is_previewed_approved_and_audited(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _set_design_derivation_phase(root)
+            evidence = root / "docs/decisions/001-stack.md"
+            evidence.write_text("# Stack Decision\n\nReviewed demo runtime repair command.\n", encoding="utf-8")
+            installer = root / "tools/install-demo-runtime"
+            installer.parent.mkdir()
+            installer.write_text(
+                "#!/bin/sh\n"
+                "set -eu\n"
+                "mkdir -p tools-bin\n"
+                "printf '%s\\n' '#!/bin/sh' 'printf \"Demo 2.1.0\\n\"' > tools-bin/demo-runtime\n"
+                "chmod +x tools-bin/demo-runtime\n"
+                "printf 'api_key=repair-secret\\n'\n",
+                encoding="utf-8",
+            )
+            installer.chmod(0o755)
+            runtime = root / "tools-bin/demo-runtime"
+            tool = {
+                "id": "demo-runtime",
+                "executable": "demo-runtime",
+                "version_probe": {"args": ["--version"], "output": "stdout", "prefix": "Demo "},
+                "version_requirement": {"minimum": "2.0.0", "maximum_exclusive": "3.0.0"},
+                "repair": {
+                    "strategy": "reviewed-command",
+                    "source": {
+                        "type": "official-url",
+                        "location": "https://example.com/demo-runtime",
+                        "review_evidence": "docs/decisions/001-stack.md",
+                    },
+                    "instructions": "Run the reviewed repository installer for the demo runtime.",
+                    "command": {"argv": ["tools/install-demo-runtime"], "cwd": "."},
+                },
+            }
+            registered = project_environment_module.register_project_environment_tool(
+                root,
+                tool,
+                reviewed=True,
+            )
+            self.assertTrue(registered.ok)
+            registered_command = registered.tool["repair"]["command"]
+            self.assertRegex(registered_command["executable_sha256"], r"^[0-9a-f]{64}$")
+            path = os.pathsep.join([str(root / "tools-bin"), os.environ.get("PATH", "")])
+
+            with mock.patch.dict(os.environ, {"PATH": path}):
+                preview = project_environment_module.check_project_environment_tool_repair(
+                    root,
+                    "demo-runtime",
+                )
+                blocked = project_environment_module.repair_project_environment_tool(
+                    root,
+                    "demo-runtime",
+                    approved=False,
+                )
+
+                self.assertTrue(preview.ok)
+                self.assertTrue(preview.check)
+                self.assertEqual("approval-required", preview.action)
+                self.assertFalse(preview.environment_ready)
+                self.assertTrue(preview.repair_ready)
+                self.assertTrue(preview.apply_command["approval_required"])
+                self.assertIn("--approved", preview.apply_command["argv"])
+                self.assertFalse(blocked.ok)
+                self.assertEqual("approval-required", blocked.action)
+                self.assertFalse(runtime.exists())
+                self.assertFalse((root / project_environment_module.PROJECT_ENVIRONMENT_REPAIR_EVIDENCE_REL).exists())
+
+                applied = project_environment_module.repair_project_environment_tool(
+                    root,
+                    "demo-runtime",
+                    approved=True,
+                    timeout_seconds=10.0,
+                    max_output_bytes=4096,
+                )
+                repeated = project_environment_module.check_project_environment_tool_repair(
+                    root,
+                    "demo-runtime",
+                )
+
+            self.assertTrue(applied.ok, applied.to_dict())
+            self.assertEqual("repaired", applied.action)
+            self.assertTrue(applied.environment_ready)
+            self.assertEqual("pass", applied.execution["result"])
+            self.assertIn("[REDACTED]", applied.execution["stdout"])
+            self.assertTrue(runtime.is_file())
+            self.assertTrue(repeated.ok)
+            self.assertEqual("already-ready", repeated.action)
+            ledger_path = root / project_environment_module.PROJECT_ENVIRONMENT_REPAIR_EVIDENCE_REL
+            ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
+            self.assertEqual(1, ledger["schema_version"])
+            self.assertEqual(1, len(ledger["repairs"]))
+            repair_record = ledger["repairs"][0]
+            self.assertEqual("completed", repair_record["status"])
+            self.assertEqual("pass", repair_record["execution"]["result"])
+            self.assertEqual("demo-runtime", repair_record["tool_id"])
+            self.assertNotIn("stdout", repair_record["execution"])
+            self.assertNotIn("stderr", repair_record["execution"])
+            tampered = json.loads(json.dumps(ledger))
+            tampered["repairs"][0]["execution"]["stdout"] = "secret output must not persist"
+            tampered_errors = project_environment_module.validate_project_environment_repair_evidence(
+                tampered
+            )
+            self.assertTrue(any("must not store stdout or stderr" in error for error in tampered_errors))
+
+    def test_project_environment_repair_blocks_registered_executable_digest_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _set_design_derivation_phase(root)
+            evidence = root / "docs/decisions/001-stack.md"
+            evidence.write_text("# Stack Decision\n", encoding="utf-8")
+            installer = root / "tools/install-runtime"
+            installer.parent.mkdir()
+            installer.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            installer.chmod(0o755)
+            tool = {
+                "id": "digest-runtime",
+                "executable": "digest-runtime",
+                "version_probe": {"args": ["--version"], "output": "stdout", "prefix": "Runtime "},
+                "version_requirement": {"exact": "1.0.0"},
+                "repair": {
+                    "strategy": "reviewed-command",
+                    "source": {
+                        "type": "official-url",
+                        "location": "https://example.com/runtime",
+                        "review_evidence": "docs/decisions/001-stack.md",
+                    },
+                    "instructions": "Run the reviewed installer.",
+                    "command": {"argv": ["tools/install-runtime"], "cwd": "."},
+                },
+            }
+            registered = project_environment_module.register_project_environment_tool(
+                root,
+                tool,
+                reviewed=True,
+            )
+            self.assertTrue(registered.ok)
+            installer.write_text("#!/bin/sh\nprintf 'changed\\n'\n", encoding="utf-8")
+            installer.chmod(0o755)
+
+            preview = project_environment_module.check_project_environment_tool_repair(
+                root,
+                "digest-runtime",
+            )
+
+            self.assertFalse(preview.ok)
+            self.assertEqual("blocked", preview.action)
+            self.assertTrue(any("SHA-256 does not match" in error for error in preview.errors))
+            self.assertFalse(
+                (root / project_environment_module.PROJECT_ENVIRONMENT_REPAIR_EVIDENCE_REL).exists()
+            )
+
+    def test_project_environment_repair_fails_when_command_mutates_review_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _set_design_derivation_phase(root)
+            evidence = root / "docs/decisions/001-stack.md"
+            evidence.write_text("# Stack Decision\n", encoding="utf-8")
+            installer = root / "tools/mutating-installer"
+            installer.parent.mkdir()
+            installer.write_text(
+                "#!/bin/sh\n"
+                "set -eu\n"
+                "printf '# Stack Decision\\n\\nmutated\\n' > docs/decisions/001-stack.md\n"
+                "mkdir -p tools-bin\n"
+                "printf '%s\\n' '#!/bin/sh' 'printf \"Runtime 1.0.0\\n\"' > tools-bin/mutated-runtime\n"
+                "chmod +x tools-bin/mutated-runtime\n",
+                encoding="utf-8",
+            )
+            installer.chmod(0o755)
+            tool = {
+                "id": "mutated-runtime",
+                "executable": "mutated-runtime",
+                "version_probe": {"args": ["--version"], "output": "stdout", "prefix": "Runtime "},
+                "version_requirement": {"exact": "1.0.0"},
+                "repair": {
+                    "strategy": "reviewed-command",
+                    "source": {
+                        "type": "official-url",
+                        "location": "https://example.com/runtime",
+                        "review_evidence": "docs/decisions/001-stack.md",
+                    },
+                    "instructions": "Run the reviewed installer.",
+                    "command": {"argv": ["tools/mutating-installer"], "cwd": "."},
+                },
+            }
+            self.assertTrue(
+                project_environment_module.register_project_environment_tool(root, tool, reviewed=True).ok
+            )
+            path = os.pathsep.join([str(root / "tools-bin"), os.environ.get("PATH", "")])
+
+            with mock.patch.dict(os.environ, {"PATH": path}):
+                result = project_environment_module.repair_project_environment_tool(
+                    root,
+                    "mutated-runtime",
+                    approved=True,
+                )
+
+            self.assertFalse(result.ok)
+            self.assertEqual("repair-integrity-failed", result.action)
+            self.assertTrue(result.environment_ready)
+            self.assertTrue(any("integrity input changed" in error for error in result.errors))
+            ledger = json.loads(
+                (root / project_environment_module.PROJECT_ENVIRONMENT_REPAIR_EVIDENCE_REL).read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual("failed", ledger["repairs"][0]["status"])
+            self.assertFalse(ledger["repairs"][0]["execution"]["integrity_inputs_unchanged"])
+
+    def test_project_environment_reviewed_repair_failure_is_audited_and_blocks_readiness(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _set_design_derivation_phase(root)
+            evidence = root / "docs/decisions/001-stack.md"
+            evidence.write_text("# Stack Decision\n", encoding="utf-8")
+            installer = root / "tools/failing-installer"
+            installer.parent.mkdir()
+            installer.write_text("#!/bin/sh\nprintf 'repair failed\\n' >&2\nexit 7\n", encoding="utf-8")
+            installer.chmod(0o755)
+            tool = {
+                "id": "missing-runtime",
+                "executable": "missing-runtime",
+                "version_probe": {"args": ["--version"], "output": "stdout", "prefix": "Runtime "},
+                "version_requirement": {"exact": "1.0.0"},
+                "repair": {
+                    "strategy": "reviewed-command",
+                    "source": {
+                        "type": "official-url",
+                        "location": "https://example.com/missing-runtime",
+                        "review_evidence": "docs/decisions/001-stack.md",
+                    },
+                    "instructions": "Run the reviewed installer.",
+                    "command": {"argv": ["tools/failing-installer"], "cwd": "."},
+                },
+            }
+            self.assertTrue(
+                project_environment_module.register_project_environment_tool(root, tool, reviewed=True).ok
+            )
+
+            result = project_environment_module.repair_project_environment_tool(
+                root,
+                "missing-runtime",
+                approved=True,
+                timeout_seconds=10.0,
+                max_output_bytes=4096,
+            )
+
+            self.assertFalse(result.ok)
+            self.assertEqual("repair-failed", result.action)
+            self.assertFalse(result.environment_ready)
+            self.assertEqual(7, result.execution["returncode"])
+            ledger = json.loads(
+                (root / project_environment_module.PROJECT_ENVIRONMENT_REPAIR_EVIDENCE_REL).read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual("failed", ledger["repairs"][0]["status"])
+            self.assertEqual("fail", ledger["repairs"][0]["execution"]["result"])
+
+    def test_project_environment_reviewed_repair_timeout_is_audited(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _set_design_derivation_phase(root)
+            evidence = root / "docs/decisions/001-stack.md"
+            evidence.write_text("# Stack Decision\n", encoding="utf-8")
+            installer = root / "tools/slow-installer"
+            installer.parent.mkdir()
+            installer.write_text("#!/bin/sh\nsleep 5\n", encoding="utf-8")
+            installer.chmod(0o755)
+            tool = {
+                "id": "slow-runtime",
+                "executable": "slow-runtime",
+                "version_probe": {"args": ["--version"], "output": "stdout", "prefix": "Runtime "},
+                "version_requirement": {"exact": "1.0.0"},
+                "repair": {
+                    "strategy": "reviewed-command",
+                    "source": {
+                        "type": "official-url",
+                        "location": "https://example.com/runtime",
+                        "review_evidence": "docs/decisions/001-stack.md",
+                    },
+                    "instructions": "Run the reviewed installer.",
+                    "command": {"argv": ["tools/slow-installer"], "cwd": "."},
+                },
+            }
+            self.assertTrue(
+                project_environment_module.register_project_environment_tool(root, tool, reviewed=True).ok
+            )
+
+            result = project_environment_module.repair_project_environment_tool(
+                root,
+                "slow-runtime",
+                approved=True,
+                timeout_seconds=0.05,
+                max_output_bytes=1024,
+            )
+
+            self.assertFalse(result.ok)
+            self.assertEqual("repair-failed", result.action)
+            self.assertTrue(result.execution["timed_out"])
+            ledger = json.loads(
+                (root / project_environment_module.PROJECT_ENVIRONMENT_REPAIR_EVIDENCE_REL).read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual("failed", ledger["repairs"][0]["status"])
+            self.assertTrue(ledger["repairs"][0]["execution"]["timed_out"])
+
+    def test_project_environment_reviewed_repair_lock_contention_executes_nothing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with mock.patch.object(
+                project_environment_module,
+                "_project_environment_lock",
+                side_effect=project_environment_module.ProjectEnvironmentLockUnavailable(
+                    "simulated repair lock contention"
+                ),
+            ):
+                result = project_environment_module.repair_project_environment_tool(
+                    root,
+                    "demo-runtime",
+                    approved=True,
+                )
+
+            self.assertFalse(result.ok)
+            self.assertTrue(any("lock contention" in error for error in result.errors))
+            self.assertFalse((root / project_environment_module.PROJECT_ENVIRONMENT_REPAIR_EVIDENCE_REL).exists())
+
+    def test_project_environment_rejects_unsafe_reviewed_repair_commands(self) -> None:
+        payload = json.loads(bootstrap_module._project_environment_contract())
+        project_runtime = next(item for item in payload["environments"] if item["id"] == "project-runtime")
+        base_tool = {
+            "id": "unsafe-runtime",
+            "executable": "unsafe-runtime",
+            "version_probe": {"args": ["--version"], "output": "stdout", "prefix": "Runtime "},
+            "version_requirement": {"minimum": "1.0.0"},
+            "repair": {
+                "strategy": "reviewed-command",
+                "source": {
+                    "type": "official-url",
+                    "location": "https://example.com/runtime",
+                    "review_evidence": "docs/decisions/001-stack.md",
+                },
+                "instructions": "Run the reviewed repair command.",
+                "command": {"argv": ["sh", "-c", "install runtime"], "cwd": "."},
+            },
+        }
+        project_runtime["tools"] = [base_tool]
+        shell_errors = project_environment_module.validate_project_environment_contract(payload)
+        payload = json.loads(json.dumps(payload))
+        payload["environments"][1]["tools"][0]["repair"]["command"]["argv"] = [
+            "runtime-installer",
+            "--token",
+            "repair-secret",
+        ]
+        secret_errors = project_environment_module.validate_project_environment_contract(payload)
+
+        self.assertTrue(any("shell or privilege wrapper" in error for error in shell_errors))
+        self.assertTrue(any("sensitive command argument" in error for error in secret_errors))
 
     def test_implementation_verify_probes_exact_absolute_command_executable(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -972,6 +1350,134 @@ class GovernanceScriptsTest(unittest.TestCase):
         self.assertFalse(payload["repair_actions"][0]["approval_required"])
         self.assertIn("--check", payload["repair_preflight_command"]["argv"])
 
+    def test_implementation_verify_routes_reviewed_project_repair_preflight(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            evidence = root / "docs/decisions/001-stack.md"
+            evidence.write_text("# Stack Decision\n", encoding="utf-8")
+            installer = root / "tools/install-runtime"
+            installer.parent.mkdir()
+            installer.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            installer.chmod(0o755)
+            path = root / "docs/agent-workflow/project-environment.json"
+            contract = json.loads(path.read_text(encoding="utf-8"))
+            project_runtime = next(
+                item for item in contract["environments"] if item["id"] == "project-runtime"
+            )
+            project_runtime["tools"] = [
+                {
+                    "id": "missing-runtime",
+                    "executable": "missing-runtime",
+                    "version_probe": {"args": ["--version"], "output": "stdout", "prefix": "Runtime "},
+                    "version_requirement": {"minimum": "1.0.0"},
+                    "repair": {
+                        "strategy": "reviewed-command",
+                        "source": {
+                            "type": "official-url",
+                            "location": "https://example.com/runtime",
+                            "review_evidence": "docs/decisions/001-stack.md",
+                        },
+                        "instructions": "Run the reviewed installer.",
+                        "command": {
+                            "argv": ["tools/install-runtime"],
+                            "cwd": ".",
+                            "executable_sha256": project_environment_module._sha256_file(installer),
+                        },
+                    },
+                }
+            ]
+            path.write_text(json.dumps(contract, indent=2) + "\n", encoding="utf-8")
+            with mock.patch.object(implementation_verify_module.shutil, "which", return_value=None):
+                payload = implementation_verify_module._command_environment_readiness(
+                    root,
+                    root,
+                    {"argv": ["missing-runtime", "test"], "environment": "project-runtime"},
+                    refresh_command={},
+                )
+
+        self.assertFalse(payload["ok"])
+        self.assertEqual(
+            "run_reviewed_project_environment_repair_preflight",
+            payload["repair_decision"]["decision"],
+        )
+        self.assertFalse(payload["repair_decision"]["manual_repair_required"])
+        self.assertEqual(
+            [
+                "bin/governance",
+                "project-env",
+                "repair",
+                ".",
+                "--tool-id",
+                "missing-runtime",
+                "--check",
+                "--json",
+            ],
+            payload["repair_preflight_command"]["argv"],
+        )
+        self.assertTrue(payload["repair_actions"][0]["approval_required"])
+
+    def test_verify_blocks_pending_project_environment_repair_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            evidence_path = root / project_environment_module.PROJECT_ENVIRONMENT_REPAIR_EVIDENCE_REL
+            evidence_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "repairs": [
+                            {
+                                "id": "PER-20260716T120000000000Z-1234abcd",
+                                "status": "pending",
+                                "tool_id": "demo-runtime",
+                                "contract_sha256": "0" * 64,
+                                "source": {},
+                                "review_evidence": {
+                                    "path": "docs/decisions/001-stack.md",
+                                    "sha256": "1" * 64,
+                                },
+                                "repair_command": {
+                                    "argv": ["tools/install-runtime"],
+                                    "cwd": ".",
+                                    "resolved_executable": "/tmp/install-runtime",
+                                    "executable_sha256": "2" * 64,
+                                },
+                                "readiness_before": {},
+                                "readiness_after": {},
+                                "execution": {},
+                            }
+                        ],
+                    },
+                    indent=2,
+                ) + "\n",
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+            plan = project_environment_module.build_project_environment_plan(root)
+            repair = project_environment_module.check_project_environment_tool_repair(
+                root,
+                "demo-runtime",
+            )
+
+            self.assertIn(
+                "project environment repair evidence contains pending record: PER-20260716T120000000000Z-1234abcd",
+                report.errors,
+            )
+            self.assertIn(
+                "target_project_environment_repair_pending",
+                {finding.code for finding in report.findings},
+            )
+            self.assertEqual("repair_evidence_pending", plan["status"])
+            self.assertEqual(1, plan["repair_evidence_summary"]["pending_count"])
+            self.assertFalse(repair.ok)
+            self.assertEqual("repair-evidence-pending", repair.action)
+
     def test_bootstrap_creates_structured_project_environment_contract(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -1088,6 +1594,54 @@ class GovernanceScriptsTest(unittest.TestCase):
             )
             self.assertIn(
                 "target_project_environment_repair_review_missing",
+                {finding.code for finding in report.findings},
+            )
+
+    def test_verify_rejects_missing_reviewed_project_environment_repair_executable(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            evidence = root / "docs/decisions/001-stack.md"
+            evidence.write_text("# Stack Decision\n", encoding="utf-8")
+            path = root / "docs/agent-workflow/project-environment.json"
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            project_runtime = next(
+                item for item in payload["environments"] if item["id"] == "project-runtime"
+            )
+            project_runtime["tools"] = [
+                {
+                    "id": "missing-runtime",
+                    "executable": "missing-runtime",
+                    "version_probe": {"args": ["--version"], "output": "stdout", "prefix": "Runtime "},
+                    "version_requirement": {"minimum": "1.0.0"},
+                    "repair": {
+                        "strategy": "reviewed-command",
+                        "source": {
+                            "type": "official-url",
+                            "location": "https://example.com/runtime",
+                            "review_evidence": "docs/decisions/001-stack.md",
+                        },
+                        "instructions": "Run the reviewed installer.",
+                        "command": {
+                            "argv": ["tools/missing-installer"],
+                            "cwd": ".",
+                            "executable_sha256": "0" * 64,
+                        },
+                    },
+                }
+            ]
+            path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+            report = verify(root)
+
+            self.assertIn(
+                "project environment repair executable is missing or unsafe: tools/missing-installer",
+                report.errors,
+            )
+            self.assertIn(
+                "target_project_environment_repair_command_invalid",
                 {finding.code for finding in report.findings},
             )
 

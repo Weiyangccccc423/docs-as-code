@@ -154,6 +154,8 @@ After successful write-mode `runtime refresh --json`, use returned `local_comman
 
 ## Repair Order
 
+Treat `target_project_environment_repair_evidence_invalid` and `target_project_environment_repair_pending` as stop conditions. Inspect the exact reviewed command, approval, execution interruption, and post-repair probe before reconciling evidence; never rewrite a pending record to successful merely to clear verification.
+
 Fix document-integrity findings first: `required_file_not_file`, `required_directory_not_directory`, `docs_readme_not_file`, `markdown_not_file`, and `markdown_invalid_encoding`. When these findings affect a referenced source, acceptance chapter, task board, unresolved registry, README, or verification evidence file, repair that file and rerun verification before interpreting downstream traceability findings for the same area.
 
 Do not invent missing acceptance IDs, unresolved IDs, links, or evidence just to satisfy secondary findings while their referenced Markdown source is not readable. Restore the expected file shape and UTF-8 Markdown first, then use the next verification report as the source of repair work.

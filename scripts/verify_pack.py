@@ -824,6 +824,15 @@ DRY_RUN_WORKFLOW_REQUIRED_PHRASES = (
     "all_current_results_passing",
     "make_check_env",
     "make_repair_env_check",
+    "project_environment_reviewed_repair_register",
+    "project_environment_reviewed_repair_preview",
+    "project_environment_reviewed_repair_unapproved",
+    "project_environment_reviewed_repair_apply",
+    "project_environment_repaired_plan",
+    "project-environment-repairs.json",
+    "reviewed-command",
+    "--approved",
+    "scripts/bounded_process.py",
     "_env_repair_decision_allows_workflow",
     "repair_decision",
     "continue_workflow",
@@ -2709,6 +2718,21 @@ DESIGN_PLAN_SOURCE_REQUIRED_PHRASES = (
 )
 IMPLEMENTATION_VERIFY_SOURCE_PATH = "scripts/implementation_verify.py"
 PROJECT_ENVIRONMENT_SOURCE_PATH = "scripts/project_environment.py"
+BOUNDED_PROCESS_SOURCE_PATH = "scripts/bounded_process.py"
+BOUNDED_PROCESS_SOURCE_REQUIRED_PHRASES = (
+    "run_bounded_command",
+    "subprocess.Popen",
+    "shell=False",
+    "start_new_session",
+    "timeout_seconds",
+    "max_output_bytes",
+    "stdout_truncated",
+    "stderr_truncated",
+    "output_redacted",
+    "_redact_sensitive_output",
+    "SENSITIVE_OUTPUT_PATTERNS",
+    "_kill_process_group",
+)
 PROJECT_ENVIRONMENT_SOURCE_REQUIRED_PHRASES = (
     "PROJECT_ENVIRONMENT_REL",
     "PROJECT_ENVIRONMENT_SCHEMA_VERSION",
@@ -2723,6 +2747,17 @@ PROJECT_ENVIRONMENT_SOURCE_REQUIRED_PHRASES = (
     "build_project_environment_plan",
     "check_project_environment_tool_registration",
     "register_project_environment_tool",
+    "ProjectEnvironmentRepairResult",
+    "check_project_environment_tool_repair",
+    "repair_project_environment_tool",
+    "reviewed-command",
+    "--approved",
+    "PROJECT_ENVIRONMENT_REPAIR_EVIDENCE_REL",
+    "load_project_environment_repair_evidence",
+    "validate_project_environment_repair_evidence",
+    "pending",
+    "inspect_project_environment_tool",
+    "run_bounded_command",
     "PROJECT_ENVIRONMENT_LOCK_REL",
     "ProjectEnvironmentLockUnavailable",
     "_project_environment_lock",
@@ -2757,18 +2792,17 @@ IMPLEMENTATION_VERIFY_SOURCE_REQUIRED_PHRASES = (
     "allow_probes=governance_report.ok",
     "required_tools",
     "_project_environment_tool_readiness",
-    "version_satisfies_requirement",
     "complete_manual_environment_repairs",
+    "run_reviewed_project_environment_repair_preflight",
+    "project-env",
+    "repair",
     "verification_run_id_unique",
     "IMPLEMENTATION_VERIFY_LOCK_REL",
-    "subprocess.Popen",
-    "shell=False",
     "timeout_seconds",
     "max_output_bytes",
     "stdout_truncated",
     "stderr_truncated",
     "output_redacted",
-    "_redact_sensitive_output",
     "_upsert_verification_log",
     "_update_task_evidence_link",
     "_write_outputs_atomically",
@@ -2784,6 +2818,8 @@ IMPLEMENTATION_VERIFY_DOC_REQUIREMENTS = {
         "project-environment.json",
         "required_tools[]",
         "project-env register --reviewed --check",
+        "project-env repair --tool-id <tool-id> --check --json",
+        ".governance/project-environment-repairs.json",
     ),
     "workflows/00-overview.md": (
         "implementation verify --task TASK-NNN --command command-name --check --json",
@@ -2792,6 +2828,8 @@ IMPLEMENTATION_VERIFY_DOC_REQUIREMENTS = {
         "environment_readiness",
         "project-environment.json",
         "version probes",
+        "reviewed-command",
+        "project-env repair --check",
     ),
     "workflows/05-verification-and-drift-control.md": (
         "verification-log rows are unique by `(Task, Command)`",
@@ -2809,6 +2847,8 @@ IMPLEMENTATION_VERIFY_DOC_REQUIREMENTS = {
         "required_tools",
         "evidence_summary.all_verification_results_passing",
         "project-env register --reviewed --check",
+        "project-env repair --check",
+        "approval-required apply action",
     ),
     "skills/executing-implementation-task/SKILL.md": (
         "implementation verify . --task TASK-NNN --command command-name --check --json",
@@ -2818,6 +2858,8 @@ IMPLEMENTATION_VERIFY_DOC_REQUIREMENTS = {
         "required_tools",
         "evidence_summary.all_verification_results_passing",
         "project-env register --reviewed --check",
+        "project-env repair --check",
+        ".governance/project-environment-repairs.json",
     ),
     "references/implementation-execution-checklist.md": (
         "implementation verify --task TASK-NNN --command command-name --check --json",
@@ -2828,12 +2870,16 @@ IMPLEMENTATION_VERIFY_DOC_REQUIREMENTS = {
         "version probe",
         "exactly one current summary row per `(Task, Command)`",
         "evidence_summary.all_verification_results_passing",
+        "project-env repair --check",
+        ".governance/project-environment-repairs.json",
     ),
     "templates/docs/agent-workflow/command-contract.md": (
         "environment_readiness.ok: true",
         "project-environment.json",
         "instead of guessing installation commands",
         "project-env register --reviewed --check",
+        "reviewed-command",
+        "project-env repair --tool-id <tool-id> --check",
     ),
     "references/project-environment-contract.md": (
         "Version probes are executable metadata checks",
@@ -2846,19 +2892,30 @@ IMPLEMENTATION_VERIFY_DOC_REQUIREMENTS = {
         "project-env register --reviewed --check --json",
         "--replace",
         "atomic",
+        "reviewed-command",
+        "shell=False",
+        "project-env repair <target> --tool-id <tool-id> --check --json",
+        "--approved",
+        ".governance/project-environment-repairs.json",
+        "pending",
     ),
     "references/runtime-strategy.md": (
         "project-env plan",
         "project-env register --reviewed --check",
         "idempotent",
         "--replace",
+        "reviewed-command",
+        "project-env repair --check",
+        ".governance/project-environment-repairs.json",
     ),
     "workflows/04-design-derivation.md": (
         "configuring-project-runtime",
         "tech-stack-evaluator",
         "senior-architect",
+        "senior-devops",
         "project-env plan",
         "project-env register --reviewed --check",
+        "project-env repair --tool-id <tool-id> --check --json",
     ),
     "skills/configuring-project-runtime/SKILL.md": (
         "configuring-project-runtime",
@@ -2866,6 +2923,9 @@ IMPLEMENTATION_VERIFY_DOC_REQUIREMENTS = {
         "senior-architect",
         "project-env plan",
         "project-env register --reviewed --check",
+        "project-env repair <target> --tool-id <tool-id> --check --json",
+        "approval-required",
+        ".governance/project-environment-repairs.json",
         "--replace",
     ),
 }
@@ -4641,7 +4701,7 @@ GOVERNANCE_CLI_REQUIRED_COMMANDS = (
 )
 GOVERNANCE_CLI_REQUIRED_SUBCOMMANDS = {
     "runtime": ("refresh",),
-    "project-env": ("plan", "register"),
+    "project-env": ("plan", "register", "repair"),
     "workflow": ("plan", "work-package"),
     "product": ("mark-ready", "plan", "disposition", "structure"),
     "design": (
@@ -5035,6 +5095,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_design_plan_source(root, findings)
     _check_design_plan_docs(root, findings)
     _check_project_environment_source(root, findings)
+    _check_bounded_process_source(root, findings)
     _check_implementation_verify_source(root, findings)
     _check_implementation_verify_docs(root, findings)
     _check_work_package_source(root, findings)
@@ -7221,6 +7282,38 @@ def _check_project_environment_source(root: Path, findings: list[PackFinding]) -
                 f"missing phrase(s): {', '.join(missing)}"
             ),
             PROJECT_ENVIRONMENT_SOURCE_PATH,
+        )
+    )
+
+
+def _check_bounded_process_source(root: Path, findings: list[PackFinding]) -> None:
+    path = root / BOUNDED_PROCESS_SOURCE_PATH
+    if not path.is_file():
+        findings.append(
+            PackFinding(
+                "pack_bounded_process_source_missing",
+                f"missing shared bounded process source: {BOUNDED_PROCESS_SOURCE_PATH}",
+                BOUNDED_PROCESS_SOURCE_PATH,
+            )
+        )
+        return
+    text = _read_utf8_text_or_none(path)
+    if text is None:
+        return
+    missing = [
+        phrase for phrase in BOUNDED_PROCESS_SOURCE_REQUIRED_PHRASES if phrase not in text
+    ]
+    if not missing:
+        return
+    findings.append(
+        PackFinding(
+            "pack_bounded_process_source_incomplete",
+            (
+                f"{BOUNDED_PROCESS_SOURCE_PATH} must preserve no-shell bounded execution, "
+                f"process-group timeout handling, output limits, and credential redaction; "
+                f"missing phrase(s): {', '.join(missing)}"
+            ),
+            BOUNDED_PROCESS_SOURCE_PATH,
         )
     )
 

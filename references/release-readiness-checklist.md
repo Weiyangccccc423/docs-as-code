@@ -5,7 +5,7 @@ Use this checklist before tagging, exporting, or handing off this source workflo
 ## Source Pack Verification
 
 - Confirm `.github/workflows/ci.yml` runs the fast source-pack CI baseline: `make test`, `python3 scripts/verify_pack.py --json`, and `python3 scripts/check_env.py --json`.
-- Run `make verify-pack`.
+- Run `make test` and `make verify-pack`, or run their combined `make ci` gate.
 - Run `python3 scripts/verify_pack.py --json` and require `ok: true` with no `findings`.
 - Run `make authority-skills` or `python3 scripts/authority_skills.py --json` and confirm the inventory lists the authority-routing specialist skills required by design and implementation routing.
 - Run `python3 scripts/authority_skills.py --repair --check --json`; require a valid, routing-aligned `references/authority-skills.lock.json`, `writes_state: false`, and no guessed argv for source-unregistered skills.
