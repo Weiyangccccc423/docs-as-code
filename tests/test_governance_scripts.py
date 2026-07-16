@@ -10246,12 +10246,14 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertTrue((root / "scripts/scaffold.py").exists())
             self.assertTrue((root / "scripts/verify_governance.py").exists())
             self.assertTrue((root / "scripts/workflow_actions.py").exists())
+            self.assertTrue((root / "scripts/workflow_resume.py").exists())
             self.assertTrue((root / "docs/agent-workflow/workflow-pack/manifest.json").exists())
             makefile_text = (root / "Makefile").read_text(encoding="utf-8")
             self.assertIn("bin/governance verify .", makefile_text)
             self.assertIn("bin/governance verify . --check --json", makefile_text)
             self.assertIn("bin/governance status . --json", makefile_text)
             self.assertIn("bin/governance env --repair --check --target . --json", makefile_text)
+            self.assertIn("bin/governance workflow resume . --json", makefile_text)
 
             verify_result = subprocess.run(
                 ["make", "verify-governance"],

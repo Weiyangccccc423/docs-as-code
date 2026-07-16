@@ -326,6 +326,7 @@ class DryRunWorkflowTest(unittest.TestCase):
                     "scripts/implementation_verify.py",
                     "scripts/project_environment.py",
                     "scripts/bounded_process.py",
+                    "scripts/workflow_resume.py",
                     "scripts/api_review_evidence.py",
                     "scripts/threat_review_evidence.py",
                     "scripts/reliability_review_evidence.py",
@@ -336,6 +337,12 @@ class DryRunWorkflowTest(unittest.TestCase):
                 ],
                 payload["runtime_refresh"]["refreshed_required_paths"],
             )
+            self.assertEqual("action_ready", payload["workflow_resume"]["initialized_status"])
+            self.assertEqual("work_ready", payload["workflow_resume"]["product_status"])
+            self.assertEqual("work_ready", payload["workflow_resume"]["design_status"])
+            self.assertEqual("work_ready", payload["workflow_resume"]["implementation_status"])
+            self.assertEqual("complete", payload["workflow_resume"]["complete_status"])
+            self.assertTrue(payload["workflow_resume"]["stale_guard"])
             self.assertEqual(
                 [
                     "verification_log_row_present",
@@ -346,6 +353,8 @@ class DryRunWorkflowTest(unittest.TestCase):
                 payload["implementation_closeout"]["blocking_codes_without_evidence"],
             )
             self.assertEqual([], payload["target_local_make_coverage"]["missing_step_ids"])
+            self.assertEqual("complete", payload["workflow_resume"]["complete_status"])
+            self.assertTrue(payload["workflow_resume"]["stale_guard"])
             self.assertEqual(4, payload["product_dispositions"]["recorded_count"])
             self.assertEqual(4, payload["product_dispositions"]["omit_unsupported_count"])
             self.assertEqual(0, payload["product_dispositions"]["unresolved_decision_count"])
@@ -367,11 +376,13 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertIn("make_verify_check", step_ids)
             self.assertIn("make_governance_status", step_ids)
             self.assertIn("make_workflow_plan_initialized", step_ids)
+            self.assertIn("make_workflow_resume_initialized", step_ids)
             self.assertIn("make_work_package_initialized", step_ids)
             self.assertIn("product_plan", step_ids)
             self.assertIn("make_product_plan", step_ids)
             self.assertIn("workflow_plan_product_structuring", step_ids)
             self.assertIn("make_workflow_plan_product_structuring", step_ids)
+            self.assertIn("make_workflow_resume_product_structuring", step_ids)
             self.assertIn("make_work_package_product_structuring", step_ids)
             self.assertIn("product_structure", step_ids)
             self.assertIn("product_disposition_background_and_problems_check", step_ids)
@@ -390,6 +401,7 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertIn("make_design_plan", step_ids)
             self.assertIn("workflow_plan_design_derivation", step_ids)
             self.assertIn("make_workflow_plan_design_derivation", step_ids)
+            self.assertIn("make_workflow_resume_design_derivation", step_ids)
             self.assertIn("make_work_package_design_derivation", step_ids)
             self.assertIn("design_review_architecture_a_001_check", step_ids)
             self.assertIn("design_review_architecture_a_001_apply", step_ids)
@@ -399,6 +411,7 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertIn("implementation_advance_check", step_ids)
             self.assertIn("implementation_ready_verify_check", step_ids)
             self.assertIn("make_workflow_plan_implementation", step_ids)
+            self.assertIn("make_workflow_resume_implementation", step_ids)
             self.assertIn("make_work_package_implementation", step_ids)
             self.assertIn("implementation_plan", step_ids)
             self.assertIn("make_implementation_plan", step_ids)
@@ -423,6 +436,7 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertIn("runtime_refresh_check_after_complete", step_ids)
             self.assertIn("runtime_refresh_after_complete", step_ids)
             self.assertIn("make_workflow_plan_after_runtime_refresh", step_ids)
+            self.assertIn("make_workflow_resume_complete_after_runtime_refresh", step_ids)
             self.assertIn("make_work_package_complete_after_runtime_refresh", step_ids)
             self.assertTrue((target / "bin/governance").is_file())
             self.assertTrue((target / "docs/product/core/chapter-dispositions.json").is_file())

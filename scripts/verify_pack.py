@@ -755,16 +755,22 @@ DRY_RUN_WORKFLOW_REQUIRED_PHRASES = (
     "make_governance_status",
     "make_workflow_plan_initialized",
     "make_work_package_initialized",
+    "make_workflow_resume_initialized",
     "make_workflow_plan_product_structuring",
     "make_work_package_product_structuring",
+    "make_workflow_resume_product_structuring",
     "make_workflow_plan_design_derivation",
     "make_work_package_design_derivation",
+    "make_workflow_resume_design_derivation",
     "make_work_package_design_complete",
     "make_workflow_plan_implementation",
     "make_work_package_implementation",
+    "make_workflow_resume_implementation",
     "make_work_package_complete_after_runtime_refresh",
+    "make_workflow_resume_complete_after_runtime_refresh",
     '["make", "workflow-plan"]',
     '["make", "work-package"]',
+    '["make", "workflow-resume"]',
     '"scaffold"',
     '"product"',
     "product_plan",
@@ -838,6 +844,8 @@ DRY_RUN_WORKFLOW_REQUIRED_PHRASES = (
     "continue_workflow",
     "stop_before_workflow",
     "target_local_make_coverage",
+    "workflow_resume",
+    "_require_workflow_resume",
     "implementation_closeout_without_evidence",
     "implementation_closeout_with_evidence",
     "implementation_closeout_apply",
@@ -2957,6 +2965,98 @@ WORK_PACKAGE_SOURCE_REQUIRED_PHRASES = (
     "record-design-review",
     "design_review_orphan",
 )
+WORKFLOW_RESUME_SOURCE_PATH = "scripts/workflow_resume.py"
+WORKFLOW_RESUME_SOURCE_REQUIRED_PHRASES = (
+    "build_workflow_resume",
+    "build_workflow_plan",
+    "build_work_package",
+    "sha256-canonical-json-v1",
+    "execute_exactly_one_selected_action_then_refresh",
+    "refresh_after_action",
+    "reject_stale_snapshot",
+    "never_guess_missing_decisions",
+    "expect_snapshot",
+    "expected_snapshot_invalid",
+    "workflow_snapshot_changed",
+    "selected_action",
+    "guarded-sequence",
+    "run_preflight_then_apply_only_when_preflight_succeeds",
+    "continuation_preflight_apply_pair_invalid",
+    "action_count",
+    "stop_before_action",
+    "BASELINE_INPUT_PATHS",
+    "_path_evidence",
+    "is_symlink",
+    "approval_required",
+)
+WORKFLOW_RESUME_DOC_REQUIREMENTS = {
+    "README.md": (
+        "workflow resume <target> --json",
+        "make workflow-resume",
+        "snapshot.id",
+        "assert_snapshot_command.argv",
+        "status: stale",
+        "selected_action",
+        "can_continue: true",
+        "stop_before_action: false",
+        "refresh_command.argv",
+        "approval_required",
+        "action_count: 0",
+        "not a repository lock",
+    ),
+    "workflows/00-overview.md": (
+        "workflow resume . --json",
+        "make workflow-resume",
+        "snapshot.id",
+        "assert_snapshot_command.argv",
+        "status: stale",
+        "selected_action",
+        "refresh_command.argv",
+        "action_count: 0",
+        "not a repository lock",
+    ),
+    "workflows/05-verification-and-drift-control.md": (
+        "make workflow-resume",
+        "snapshot.id",
+        "assert_snapshot_command.argv",
+        "selected_action",
+        "refresh_command.argv",
+        "status: stale",
+    ),
+    "skills/using-governance-workflow/SKILL.md": (
+        "workflow resume <target> --json",
+        "make workflow-resume",
+        "snapshot.id",
+        "assert_snapshot_command.argv",
+        "selected_action",
+        "stop_before_action",
+        "refresh_command.argv",
+        "action_count",
+        "not a concurrency lock",
+    ),
+    "references/workflow-routing-checklist.md": (
+        "workflow resume --json",
+        "make workflow-resume",
+        "snapshot.id",
+        "assert_snapshot_command.argv",
+        "status: stale",
+        "selected_action",
+        "can_continue: true",
+        "stop_before_action: false",
+        "refresh_command.argv",
+        "action_count: 0",
+        "repository lock",
+    ),
+    "templates/root/README.md": (
+        "make workflow-resume",
+        "stale-snapshot guard",
+    ),
+    "templates/docs/agent-workflow/command-contract.md": (
+        "workflow-resume",
+        '["bin/governance", "workflow", "resume", ".", "--json"]',
+        "stale-snapshot guard",
+    ),
+}
 WORK_PACKAGE_DOC_REQUIREMENTS = {
     "README.md": (
         "workflow work-package",
@@ -4702,7 +4802,7 @@ GOVERNANCE_CLI_REQUIRED_COMMANDS = (
 GOVERNANCE_CLI_REQUIRED_SUBCOMMANDS = {
     "runtime": ("refresh",),
     "project-env": ("plan", "register", "repair"),
-    "workflow": ("plan", "work-package"),
+    "workflow": ("plan", "work-package", "resume"),
     "product": ("mark-ready", "plan", "disposition", "structure"),
     "design": (
         "plan",
@@ -5100,6 +5200,8 @@ def verify_pack(root: Path) -> PackReport:
     _check_implementation_verify_docs(root, findings)
     _check_work_package_source(root, findings)
     _check_work_package_docs(root, findings)
+    _check_workflow_resume_source(root, findings)
+    _check_workflow_resume_docs(root, findings)
     _check_api_candidates_docs(root, findings)
     _check_architecture_authoring_docs(root, findings)
     _check_api_authoring_docs(root, findings)
@@ -7407,6 +7509,52 @@ def _check_work_package_docs(root: Path, findings: list[PackFinding]) -> None:
             PackFinding(
                 "pack_work_package_doc_missing",
                 f"{rel} must document workflow work-package phrase(s): {', '.join(missing)}",
+                rel,
+            )
+        )
+
+
+def _check_workflow_resume_source(root: Path, findings: list[PackFinding]) -> None:
+    path = root / WORKFLOW_RESUME_SOURCE_PATH
+    if not path.is_file():
+        findings.append(
+            PackFinding(
+                "pack_workflow_resume_source_missing",
+                f"missing workflow resume source script: {WORKFLOW_RESUME_SOURCE_PATH}",
+                WORKFLOW_RESUME_SOURCE_PATH,
+            )
+        )
+        return
+    text = _read_utf8_text_or_none(path)
+    if text is None:
+        return
+    missing = [phrase for phrase in WORKFLOW_RESUME_SOURCE_REQUIRED_PHRASES if phrase not in text]
+    if not missing:
+        return
+    findings.append(
+        PackFinding(
+            "pack_workflow_resume_source_incomplete",
+            (
+                f"{WORKFLOW_RESUME_SOURCE_PATH} must preserve single-action routing, stale-snapshot rejection, "
+                f"declared-input evidence, and approval stop conditions; missing phrase(s): {', '.join(missing)}"
+            ),
+            WORKFLOW_RESUME_SOURCE_PATH,
+        )
+    )
+
+
+def _check_workflow_resume_docs(root: Path, findings: list[PackFinding]) -> None:
+    for rel, required_phrases in WORKFLOW_RESUME_DOC_REQUIREMENTS.items():
+        text = _read_utf8_text_or_none(root / rel)
+        if text is None:
+            continue
+        missing = [phrase for phrase in required_phrases if phrase not in text]
+        if not missing:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_workflow_resume_doc_missing",
+                f"{rel} must document workflow resume phrase(s): {', '.join(missing)}",
                 rel,
             )
         )

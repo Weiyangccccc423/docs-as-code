@@ -54,6 +54,10 @@ class PackStructureTest(unittest.TestCase):
     def test_bounded_process_runtime_is_required_in_generated_targets(self) -> None:
         self.assertIn(Path("scripts/bounded_process.py"), RUNTIME_REQUIRED_PATHS)
 
+    def test_workflow_resume_runtime_and_target_entry_are_required(self) -> None:
+        self.assertIn(Path("scripts/workflow_resume.py"), RUNTIME_REQUIRED_PATHS)
+        self.assertIn("workflow-resume", [target for target, *_rest in TARGET_LOCAL_COMMANDS])
+
     def test_target_local_command_contracts_stay_aligned(self) -> None:
         expected_targets = tuple(target for target, _recipe, _description, _writes_state in TARGET_LOCAL_COMMANDS)
         expected_recipes = {
@@ -5651,6 +5655,62 @@ class PackStructureTest(unittest.TestCase):
                     finding.code == "pack_bounded_process_source_incomplete"
                     and finding.path == "scripts/bounded_process.py"
                     and "shell=False" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_incomplete_workflow_resume_source_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/workflow_resume.py"
+            text = script.read_text(encoding="utf-8")
+            self.assertIn("reject_stale_snapshot", text)
+            script.write_text(
+                text.replace("reject_stale_snapshot", "accept_stale_snapshot", 1),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_workflow_resume_source_incomplete"
+                    and finding.path == "scripts/workflow_resume.py"
+                    and "reject_stale_snapshot" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_missing_workflow_resume_doc_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            reference = target / "references/workflow-routing-checklist.md"
+            text = reference.read_text(encoding="utf-8")
+            self.assertIn("assert_snapshot_command.argv", text)
+            reference.write_text(
+                text.replace("assert_snapshot_command.argv", "snapshot_assertion.argv", 1),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_workflow_resume_doc_missing"
+                    and finding.path == "references/workflow-routing-checklist.md"
+                    and "assert_snapshot_command.argv" in finding.message
                     for finding in report.findings
                 )
             )

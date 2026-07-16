@@ -114,6 +114,8 @@ The default artifact smoke exports a temporary archive before checking it. Use `
 
 At any initialized phase, run `bin/governance workflow work-package . --json` or `make work-package` to select one evidence-backed unit for the next agent session. The command automatically scans target-local `.agents/skills` and `.codex/skills`; use `--skill-root <path>` for another agent skill root. Inspect `package_available`, `status`, `can_start`, `stop_before_work`, `work_package.read_order`, `work_package.write_scope`, `skill_readiness`, `next_action`, and `refresh_command`; checklist entries in `read_order` resolve under target-local `docs/agent-workflow/workflow-pack/references/`, and missing authority-routing skills must stop work under `load_from_agent_environment_or_stop_before_guessing`. Product `next_action.kind: decide-product-chapter` must be resolved through reviewed, PRD-hash-bound `product disposition` commands. Design work follows `work_stage` in authoring, integration, threat-review, machine-review, reliability-review, migration-review, review order: `author-design-documents` completes track files, next_action.kind run-threat-review records architecture STRIDE/DREAD evidence, next_action.kind run-api-review records API tool evidence, next_action.kind run-reliability-review records a source-backed backend SLO applicability decision and required tool evidence, next_action.kind run-migration-review records schema compatibility, migration, and rollback evidence, and `record-design-review` records authority judgment in `docs/decisions/design-reviews.json`.
 
+Use `bin/governance workflow resume . --json` or `make workflow-resume` as the primary Agent start/resume controller. It composes the current workflow plan and one work package, returns exactly one `selected_action`, and binds that route to canonical SHA-256 `snapshot.id` evidence. A phase transition is represented as one logical `guarded-sequence`; run preflight first and apply only when preflight succeeds. Run `assert_snapshot_command.argv` immediately before acting; `status: stale` means repository evidence changed and the old action must be discarded. Continue only with `can_continue: true` and `stop_before_action: false`, execute one selected action, then run `refresh_command.argv`. Stop on `blocked`, `approval_required`, or `failed`; `complete` must expose `action_count: 0`. This stale-context guard is not a repository lock, so implementation still requires current codebase mapping.
+
 Before tagging or handing off a source workflow-pack release, run the release readiness gate and use `references/release-readiness-checklist.md` as the rubric:
 
 ```bash
@@ -137,6 +139,7 @@ make verify-check
 make governance-status
 make workflow-plan
 make work-package
+make workflow-resume
 make product-plan
 make design-plan
 make implementation-plan

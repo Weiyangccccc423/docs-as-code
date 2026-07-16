@@ -54,6 +54,7 @@ make verify-check
 make governance-status
 make workflow-plan
 make work-package
+make workflow-resume
 make product-plan
 make design-plan
 make implementation-plan
@@ -63,6 +64,8 @@ make project-env-plan
 ```
 
    `governance-status` runs `bin/governance status . --json`; `workflow-plan` runs `bin/governance workflow plan . --json` and adds current queue summaries, top-level/per-queue `active_work`, read-only phase commands, local/authority skill routing summaries, and ordered skill loading plans. On success, both payloads include `local_commands` with `cwd`, `argv`, `writes_state`, and `approval_required` so resumed agents can rediscover and execute the target-local `make` command contract without re-running initialization. Use `active_work.inspect_command`, `active_work.next_repair_action`, and embedded verify/refresh commands to resume the first blocked queue before manually scanning every task. Readable-state `gate --json` payloads include the same `local_commands` contract, and passing gates also include `next_actions`. Successful state-writing `product mark-ready --json` and `advance --json` payloads include both fields for the next state transition. Each `next_actions` entry includes `sequence`, `success_condition`, and either `preflight_for` or `requires_action`; resumed agents must sort by `sequence` and run apply actions only after the named preflight returns `ok: true`.
+
+   For resumed work, run `workflow-resume`, assert `snapshot.id` through `assert_snapshot_command.argv`, execute exactly one `selected_action`, and then run `refresh_command.argv`. Discard any action that returns `status: stale`; stop on `blocked`, `approval_required`, or `failed` instead of reconstructing a command from memory.
 
 5. If verification reports target-local runtime or workflow-pack snapshot drift, inspect the refresh plan from a trusted source workflow-pack checkout before writing repairs:
 

@@ -9,6 +9,7 @@
 | governance-status | Print workflow state as JSON. | `.` | `["bin/governance", "status", ".", "--json"]` | false | false | `docs/development/03-verification-log.md` | core-governance |
 | workflow-plan | Print current workflow route plus active queue and skill summaries as JSON. | `.` | `["bin/governance", "workflow", "plan", ".", "--json"]` | false | false | `docs/development/03-verification-log.md` | core-governance |
 | work-package | Print one evidence-selected agent work package with skill readiness as JSON. | `.` | `["bin/governance", "workflow", "work-package", ".", "--json"]` | false | false | `docs/development/03-verification-log.md` | core-governance |
+| workflow-resume | Select one evidence-derived next action with a stale-snapshot guard as JSON. | `.` | `["bin/governance", "workflow", "resume", ".", "--json"]` | false | false | `docs/development/03-verification-log.md` | core-governance |
 | product-plan | Print product structuring plan as JSON. | `.` | `["bin/governance", "product", "plan", ".", "--json"]` | false | false | `docs/development/03-verification-log.md` | core-governance |
 | design-plan | Print design derivation plan as JSON. | `.` | `["bin/governance", "design", "plan", ".", "--json"]` | false | false | `docs/development/03-verification-log.md` | core-governance |
 | implementation-plan | Print Ready implementation task execution plan as JSON. | `.` | `["bin/governance", "implementation", "plan", ".", "--json"]` | false | false | `docs/development/03-verification-log.md` | core-governance |

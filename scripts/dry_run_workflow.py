@@ -72,14 +72,19 @@ TARGET_LOCAL_MAKE_STEP_IDS = [
     "make_governance_status",
     "make_workflow_plan_initialized",
     "make_work_package_initialized",
+    "make_workflow_resume_initialized",
     "make_workflow_plan_product_structuring",
     "make_work_package_product_structuring",
+    "make_workflow_resume_product_structuring",
     "make_workflow_plan_design_derivation",
     "make_work_package_design_derivation",
+    "make_workflow_resume_design_derivation",
     "make_work_package_design_complete",
     "make_workflow_plan_implementation",
     "make_work_package_implementation",
+    "make_workflow_resume_implementation",
     "make_work_package_complete_after_runtime_refresh",
+    "make_workflow_resume_complete_after_runtime_refresh",
     "make_product_plan",
     "make_design_plan",
     "make_implementation_plan",
@@ -458,6 +463,19 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         "initialized",
         "advance-product-structuring-check",
     )
+    make_initialized_workflow_resume = _run_json(
+        steps,
+        "make_workflow_resume_initialized",
+        ["make", "workflow-resume"],
+        target,
+    )
+    _require_workflow_resume(
+        make_initialized_workflow_resume,
+        phase="initialized",
+        status="action_ready",
+        action_field="id",
+        action_value="advance-product-structuring",
+    )
 
     make_check_env = _run_json(
         steps,
@@ -635,6 +653,19 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         phase="product-structuring",
         kind="product-authoring",
         queue_id="product-plan",
+    )
+    make_product_workflow_resume = _run_json(
+        steps,
+        "make_workflow_resume_product_structuring",
+        ["make", "workflow-resume"],
+        target,
+    )
+    _require_workflow_resume(
+        make_product_workflow_resume,
+        phase="product-structuring",
+        status="work_ready",
+        action_field="kind",
+        action_value="decide-product-chapter",
     )
 
     product_scaffold_check = _run_json(
@@ -1120,6 +1151,19 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         kind="design-authoring",
         queue_id="architecture-authoring",
     )
+    make_design_workflow_resume = _run_json(
+        steps,
+        "make_workflow_resume_design_derivation",
+        ["make", "workflow-resume"],
+        target,
+    )
+    _require_workflow_resume(
+        make_design_workflow_resume,
+        phase="design-derivation",
+        status="work_ready",
+        action_field="kind",
+        action_value="author-design-documents",
+    )
 
     implementation_preflight = _run_json(
         steps,
@@ -1224,6 +1268,19 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         phase="implementation",
         kind="implementation-task",
         queue_id="implementation-plan",
+    )
+    make_implementation_workflow_resume = _run_json(
+        steps,
+        "make_workflow_resume_implementation",
+        ["make", "workflow-resume"],
+        target,
+    )
+    _require_workflow_resume(
+        make_implementation_workflow_resume,
+        phase="implementation",
+        status="work_ready",
+        action_field="kind",
+        action_value="claim-implementation-task",
     )
 
     implementation_plan = _run_json(
@@ -1475,6 +1532,17 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         target,
     )
     _require_complete_work_package(make_work_package_after_runtime_refresh, "implementation")
+    make_workflow_resume_after_runtime_refresh = _run_json(
+        steps,
+        "make_workflow_resume_complete_after_runtime_refresh",
+        ["make", "workflow-resume"],
+        target,
+    )
+    _require_workflow_resume(
+        make_workflow_resume_after_runtime_refresh,
+        phase="implementation",
+        status="complete",
+    )
 
     final_status = _run_json(
         steps,
@@ -1571,6 +1639,14 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
             "evidence_path": ".governance/project-environment-repairs.json",
         },
         "target_local_make_coverage": _target_local_make_coverage_details(steps),
+        "workflow_resume": {
+            "initialized_status": make_initialized_workflow_resume.get("status"),
+            "product_status": make_product_workflow_resume.get("status"),
+            "design_status": make_design_workflow_resume.get("status"),
+            "implementation_status": make_implementation_workflow_resume.get("status"),
+            "complete_status": make_workflow_resume_after_runtime_refresh.get("status"),
+            "stale_guard": make_workflow_resume_after_runtime_refresh.get("stale") is False,
+        },
         "implementation_gate": {
             "placeholder_blocked_ok": implementation_preflight.get("ok"),
             "placeholder_expected_blocked": True,
@@ -1657,6 +1733,7 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
                     "scripts/implementation_verify.py",
                     "scripts/project_environment.py",
                     "scripts/bounded_process.py",
+                    "scripts/workflow_resume.py",
                     "scripts/api_review_evidence.py",
                     "scripts/threat_review_evidence.py",
                     "scripts/reliability_review_evidence.py",
@@ -3081,6 +3158,42 @@ def _require_complete_work_package(payload: dict[str, object], phase: str) -> No
     _require(payload.get("package_available") is False, f"{phase} complete package unexpectedly available", payload=payload)
     _require(payload.get("status") == "complete", f"{phase} work package did not report complete", payload=payload)
     _require(payload.get("stop_before_work") is False, f"{phase} complete work package reported stop", payload=payload)
+
+
+def _require_workflow_resume(
+    payload: dict[str, object],
+    *,
+    phase: str,
+    status: str,
+    action_field: str = "",
+    action_value: str = "",
+) -> None:
+    _require(payload.get("ok") is True, f"{phase} workflow resume failed", payload=payload)
+    _require(payload.get("workflow") == "workflow-resume", "workflow resume identity mismatch", payload=payload)
+    _require(payload.get("phase") == phase, f"{phase} workflow resume phase mismatch", payload=payload)
+    _require(payload.get("status") == status, f"{phase} workflow resume status mismatch", payload=payload)
+    _require(payload.get("stale") is False, f"{phase} workflow resume unexpectedly stale", payload=payload)
+    snapshot = payload.get("snapshot")
+    _require(
+        isinstance(snapshot, dict)
+        and isinstance(snapshot.get("id"), str)
+        and re.fullmatch(r"[0-9a-f]{64}", snapshot["id"]) is not None,
+        f"{phase} workflow resume snapshot missing",
+        payload=payload,
+    )
+    selected_action = payload.get("selected_action")
+    if action_field:
+        _require(
+            payload.get("action_count") == 1
+            and isinstance(selected_action, dict)
+            and selected_action.get(action_field) == action_value,
+            f"{phase} workflow resume selected action mismatch",
+            payload=payload,
+        )
+        _require(payload.get("can_continue") is True, f"{phase} workflow resume cannot continue", payload=payload)
+    else:
+        _require(payload.get("action_count") == 0, f"{phase} workflow resume exposed an action", payload=payload)
+        _require(selected_action == {}, f"{phase} workflow resume selected action was not empty", payload=payload)
 
 
 def _require_product_workflow_plan(payload: dict[str, object], label: str) -> None:

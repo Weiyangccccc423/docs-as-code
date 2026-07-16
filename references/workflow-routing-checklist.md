@@ -18,6 +18,14 @@ Reference: `https://www.omg.org/spec/BPMN/2.0.2/`
 
 ## Machine-Readable Continuation
 
+- Is `workflow resume --json` or `make workflow-resume` used as the primary start/resume controller instead of selecting an action from conversation memory?
+- Is `snapshot.id` asserted through `assert_snapshot_command.argv` immediately before the selected action?
+- Does `status: stale` cause the old `selected_action` to be discarded and `refresh_command.argv` to be run?
+- Is work allowed only when `can_continue: true` and `stop_before_action: false`?
+- Is exactly one `selected_action` executed before refreshing the controller payload?
+- When `selected_action.kind` is `guarded-sequence`, is preflight run first and apply run only after preflight succeeds?
+- Are `blocked`, `approval_required`, and `failed` treated as stop states, and is `complete` required to have `action_count: 0`?
+- Is the SHA-256 snapshot treated as a stale-context guard rather than a repository lock or substitute for implementation codebase mapping?
 - Are `--json` payloads treated as structured JSON data, not display text?
 - Are `local_commands[].argv` and `next_actions[].argv` executed from their reported `cwd`?
 - Are `writes_state: false` commands preferred for inspection before state-changing actions?

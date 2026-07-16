@@ -1238,6 +1238,218 @@ def _record_all_test_design_reviews(case: unittest.TestCase, target: Path) -> No
 
 
 class GovernanceCliTest(unittest.TestCase):
+    def test_workflow_resume_returns_one_snapshot_guarded_action(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text(
+                "# Product\n\n"
+                "## Goals and Requirements\n\n"
+                "- Build a governed workspace.\n\n"
+                "## Acceptance Criteria\n\n"
+                "- The workflow exposes one resumable next action.\n",
+                encoding="utf-8",
+            )
+            _run_governance_json(self, ["init", "--target", str(target), "--product", str(product)])
+
+            payload = _run_governance_json(self, ["workflow", "resume", str(target)])
+
+            self.assertTrue(payload["ok"])
+            self.assertEqual(1, payload["schema_version"])
+            self.assertEqual("workflow-resume", payload["workflow"])
+            self.assertEqual("initialized", payload["phase"])
+            self.assertEqual("action_ready", payload["status"])
+            self.assertTrue(payload["can_continue"])
+            self.assertFalse(payload["stop_before_action"])
+            self.assertFalse(payload["stale"])
+            self.assertEqual("advance-product-structuring", payload["selected_action"]["id"])
+            self.assertEqual("guarded-sequence", payload["selected_action"]["kind"])
+            self.assertTrue(payload["selected_action"]["writes_state"])
+            self.assertEqual(
+                ["advance-product-structuring-check", "advance-product-structuring"],
+                [step["id"] for step in payload["selected_action"]["steps"]],
+            )
+            self.assertEqual(
+                "run_preflight_then_apply_only_when_preflight_succeeds",
+                payload["selected_action"]["execution_policy"],
+            )
+            self.assertRegex(payload["snapshot"]["id"], r"^[0-9a-f]{64}$")
+            self.assertEqual("sha256-canonical-json-v1", payload["snapshot"]["algorithm"])
+            self.assertRegex(payload["snapshot"]["state_sha256"], r"^[0-9a-f]{64}$")
+            self.assertTrue(payload["snapshot"]["inputs"])
+            self.assertEqual(
+                [
+                    "bin/governance",
+                    "workflow",
+                    "resume",
+                    ".",
+                    "--expect-snapshot",
+                    payload["snapshot"]["id"],
+                    "--json",
+                ],
+                payload["assert_snapshot_command"]["argv"],
+            )
+            self.assertEqual(
+                "execute_exactly_one_selected_action_then_refresh",
+                payload["decision_policy"],
+            )
+
+            repeated = _run_governance_json(
+                self,
+                [
+                    "workflow",
+                    "resume",
+                    str(target),
+                    "--expect-snapshot",
+                    payload["snapshot"]["id"],
+                ],
+            )
+            self.assertTrue(repeated["ok"])
+            self.assertFalse(repeated["stale"])
+            self.assertEqual(payload["snapshot"]["id"], repeated["snapshot"]["id"])
+
+            for step in payload["selected_action"]["steps"]:
+                result = subprocess.run(
+                    step["argv"],
+                    cwd=step["cwd"],
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                self.assertEqual(0, result.returncode, f"{result.stderr}\n{result.stdout}")
+                self.assertTrue(json.loads(result.stdout)["ok"])
+
+            advanced = _run_governance_json(self, ["workflow", "resume", str(target)])
+            self.assertEqual("product-structuring", advanced["phase"])
+            self.assertEqual("work_ready", advanced["status"])
+            self.assertEqual("decide-product-chapter", advanced["selected_action"]["kind"])
+
+    def test_workflow_resume_rejects_stale_snapshot_after_source_change(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text("# Product\n\n## Goals\n\n- Govern changes.\n", encoding="utf-8")
+            _run_governance_json(self, ["init", "--target", str(target), "--product", str(product)])
+            initial = _run_governance_json(self, ["workflow", "resume", str(target)])
+
+            prd = target / "docs/product/core/PRD.md"
+            prd.write_text(prd.read_text(encoding="utf-8") + "\nChanged after routing.\n", encoding="utf-8")
+            stale = _run_governance_json(
+                self,
+                [
+                    "workflow",
+                    "resume",
+                    str(target),
+                    "--expect-snapshot",
+                    initial["snapshot"]["id"],
+                ],
+                expected_returncode=1,
+            )
+
+            self.assertFalse(stale["ok"])
+            self.assertTrue(stale["stale"])
+            self.assertEqual("stale", stale["status"])
+            self.assertFalse(stale["can_continue"])
+            self.assertTrue(stale["stop_before_action"])
+            self.assertEqual({}, stale["selected_action"])
+            self.assertEqual(initial["snapshot"]["id"], stale["expected_snapshot"])
+            self.assertNotEqual(initial["snapshot"]["id"], stale["snapshot"]["id"])
+            self.assertIn("workflow_snapshot_changed", stale["stop_reasons"])
+
+    def test_workflow_resume_rejects_malformed_expected_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+            _run_governance_json(self, ["init", "--target", str(target), "--product", str(product)])
+
+            payload = _run_governance_json(
+                self,
+                ["workflow", "resume", str(target), "--expect-snapshot", "not-a-sha256"],
+                expected_returncode=1,
+            )
+
+            self.assertFalse(payload["ok"])
+            self.assertEqual("failed", payload["status"])
+            self.assertFalse(payload["stale"])
+            self.assertEqual({}, payload["selected_action"])
+            self.assertIn("expected_snapshot_invalid", payload["stop_reasons"])
+
+    def test_workflow_resume_routes_one_startable_work_package(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text(
+                "# Product\n\n"
+                "## Goals and Requirements\n\n"
+                "- Build governed output.\n\n"
+                "## Acceptance Criteria\n\n"
+                "- Product evidence is traceable.\n",
+                encoding="utf-8",
+            )
+            _run_governance_json(self, ["init", "--target", str(target), "--product", str(product)])
+            _run_governance_json(self, ["advance", "product-structuring", str(target)])
+
+            payload = _run_governance_json(self, ["workflow", "resume", str(target)])
+
+            self.assertTrue(payload["ok"])
+            self.assertEqual("work_ready", payload["status"])
+            self.assertTrue(payload["can_continue"])
+            self.assertEqual("PRODUCT-AUTHOR-001", payload["work_package"]["work_package"]["work_id"])
+            self.assertEqual("decide-product-chapter", payload["selected_action"]["kind"])
+            self.assertEqual(1, payload["action_count"])
+            self.assertIn("docs/product/core/PRD.md", payload["snapshot"]["input_paths"])
+            self.assertEqual(
+                ["refresh_after_action", "reject_stale_snapshot", "never_guess_missing_decisions"],
+                payload["invariants"],
+            )
+
+    def test_workflow_resume_reports_snapshot_build_failure_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            product = Path(tmp) / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+            _run_governance_json(self, ["init", "--target", str(target), "--product", str(product)])
+            module = importlib.import_module("scripts.workflow_resume")
+
+            with mock.patch.object(module, "_build_snapshot", side_effect=OSError("snapshot unreadable")):
+                payload = module.build_workflow_resume(target)
+
+            self.assertFalse(payload["ok"])
+            self.assertEqual("failed", payload["status"])
+            self.assertEqual(["workflow_resume_build_failed"], payload["stop_reasons"])
+            self.assertEqual(["snapshot unreadable"], payload["errors"])
+
+    def test_workflow_resume_blocks_malformed_preflight_apply_pair(self) -> None:
+        module = importlib.import_module("scripts.workflow_resume")
+        preflight = {
+            "id": "advance-product-structuring-check",
+            "kind": "preflight",
+            "preflight_for": "advance-product-structuring",
+            "argv": ["bin/governance", "advance", "product-structuring", ".", "--check", "--json"],
+            "cwd": "/tmp/target",
+            "writes_state": False,
+            "approval_required": False,
+        }
+
+        route = module._route(
+            {"ok": True, "errors": []},
+            {
+                "ok": True,
+                "package_available": False,
+                "status": "phase_action_required",
+                "next_action": preflight,
+                "next_actions": [preflight],
+                "errors": [],
+            },
+        )
+
+        self.assertEqual("blocked", route["status"])
+        self.assertFalse(route["can_continue"])
+        self.assertTrue(route["stop_before_action"])
+        self.assertEqual(["continuation_preflight_apply_pair_invalid"], route["stop_reasons"])
+        self.assertFalse(route["selected_action"]["valid"])
+
     def test_project_environment_plan_and_register_cli_are_previewable_and_safe(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = _design_scaffold_target(self, tmp)
@@ -2666,6 +2878,7 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertTrue(payload["ok"])
             self.assertIn("bin/governance", payload["refreshed"])
             self.assertIn("scripts/scaffold.py", payload["refreshed"])
+            self.assertIn("scripts/workflow_resume.py", payload["refreshed"])
             self.assertIn(
                 "docs/agent-workflow/workflow-pack/workflows/00-overview.md",
                 payload["refreshed"],
@@ -2717,7 +2930,7 @@ class GovernanceCliTest(unittest.TestCase):
                 payload["next_actions"],
             )
             runtime_local_commands = {command["make_target"]: command for command in payload["local_commands"]}
-            for make_target in ("verify-check", "workflow-plan", "work-package"):
+            for make_target in ("verify-check", "workflow-plan", "work-package", "workflow-resume"):
                 command = runtime_local_commands[make_target]
                 self.assertFalse(command["writes_state"])
                 self.assertFalse(command["approval_required"])
@@ -2744,6 +2957,12 @@ class GovernanceCliTest(unittest.TestCase):
                     self.assertFalse(command_payload["package_available"])
                     self.assertEqual("phase_action_required", command_payload["status"])
                     self.assertEqual("advance-product-structuring-check", command_payload["next_action"]["id"])
+                if make_target == "workflow-resume":
+                    self.assertEqual("workflow-resume", command_payload["workflow"])
+                    self.assertEqual("initialized", command_payload["phase"])
+                    self.assertEqual("action_ready", command_payload["status"])
+                    self.assertEqual("advance-product-structuring", command_payload["selected_action"]["id"])
+                    self.assertEqual("guarded-sequence", command_payload["selected_action"]["kind"])
 
             self.assertTrue((target / "scripts/authority_skills.py").is_file())
 

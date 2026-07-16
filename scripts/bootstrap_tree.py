@@ -62,6 +62,7 @@ RUNTIME_SCRIPT_FILES = [
     "state.py",
     "verify_governance.py",
     "workflow_plan.py",
+    "workflow_resume.py",
     "workflow_actions.py",
 ]
 RUNTIME_MANIFEST_REL = "docs/agent-workflow/runtime-manifest.json"
@@ -127,6 +128,12 @@ TARGET_LOCAL_COMMANDS = (
         "work-package",
         "bin/governance workflow work-package . --json",
         "print one evidence-selected agent work package with skill readiness as JSON",
+        False,
+    ),
+    (
+        "workflow-resume",
+        "bin/governance workflow resume . --json",
+        "select one evidence-derived next action with a stale-snapshot guard as JSON",
         False,
     ),
     (

@@ -32,6 +32,8 @@ Stop on `ok: false` when missing required tools block the current phase. Inspect
 
 ## Phase Gates
 
+For normal start or resume, prefer `bin/governance workflow resume <target> --json` or `make workflow-resume`. Inspect `status`, `snapshot.id`, `selected_action`, `can_continue`, `stop_before_action`, and `stop_reasons`. Treat `selected_action.kind: guarded-sequence` as one logical transition: run its preflight step, require success, then run its apply step. Run `assert_snapshot_command.argv` immediately before the selected action; if it returns `status: stale`, discard the previous action and use the refreshed payload. Execute exactly one selected action, then run `refresh_command.argv`. Stop on `blocked`, `approval_required`, or `failed`; do not invent an action when `action_count` is zero. Treat `complete` as terminal for the current workflow. The snapshot binds governance state, routing payloads, and declared work-package inputs, but it is not a concurrency lock and does not remove the implementation requirement to map current code before editing.
+
 Before loading downstream skills or changing phase, run the target-local gate when available:
 
 ```bash

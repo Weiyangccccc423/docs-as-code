@@ -269,6 +269,7 @@ RUNTIME_REQUIRED_SCRIPT_FILES = (
     "state.py",
     "verify_governance.py",
     "workflow_plan.py",
+    "workflow_resume.py",
     "workflow_actions.py",
 )
 RUNTIME_REQUIRED_PATHS = tuple(
