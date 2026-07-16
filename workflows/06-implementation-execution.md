@@ -3,7 +3,7 @@
 ## Input
 
 - Generated governance repository whose implementation gate has passed
-- One `Ready` `TASK-NNN` row in `docs/development/02-task-board.md`
+- One `Ready` `TASK-NNN` row whose Verification cell binds every required check as `command:<registered-name>`
 - Local product, design, API, acceptance, and verification sources linked from the task
 - Target-local command contract at `docs/agent-workflow/command-contract.md`
 - Optional `docs/agent-workflow/task-handoff.md`
@@ -38,11 +38,11 @@ Load:
    make work-package
    ```
 
-   The implementation work package must select the same `TASK-NNN`, expose `requires_codebase_mapping: true`, resolve all required local and authority skills, and return `claim-implementation-task` before a Ready task is edited.
+   The implementation work package must select the same `TASK-NNN`, expose `requires_codebase_mapping: true`, resolve all required local and authority skills, and return `claim-implementation-task` before a Ready task is edited. Inspect `verification_command_names`, `verification_commands`, `verification_command_summary`, and `execution_contract`; every binding must be registered, non-approval, and ready before work starts.
 
    Stop on `ok: false`; route repair through `verifying-governance-docs` and the owning design or planning skill before editing code. When these checks come from consumer bootstrap `implementation_readiness_preview`, follow its ordered `blockers[]`, `readiness_summary`, `next_blocker`, and `next_repair_action` instead of independently reordering verify findings, gate requirements, and implementation-plan errors.
 
-3. Use `implementation plan --json` before editing code. Its `decision_policy` is `execute_exactly_one_ready_task`; inspect `implementation_summary`, `gate_ok`, `active_work`, `tasks[]`, `source_references`, `read_order`, `skill_requirements`, `authority_skill_requirements`, `skill_loading_plan`, and embedded `gate_command`, `start_command`, `verify_command`, `closeout_command`, and `refresh_command`. Stop successfully when `active_work.status` is `complete`. Stop for repair when `active_work.status` is not `ready`, `in_progress`, or `complete`, when `active_work.next_repair_action` is non-empty, or when a required authority-routing skill cannot be loaded from the agent environment.
+3. Use `implementation plan --json` before editing code. Its `decision_policy` is `execute_exactly_one_ready_task`; inspect `implementation_summary`, `gate_ok`, `active_work`, `tasks[]`, `source_references`, `read_order`, `verification_command_names`, `verification_commands`, `verification_command_summary`, `skill_requirements`, `authority_skill_requirements`, `skill_loading_plan`, and embedded `gate_command`, `start_command`, `verify_command`, `closeout_command`, and `refresh_command`. Stop successfully when `active_work.status` is `complete`. Stop for repair when `active_work.status` is not `ready`, `in_progress`, or `complete`, when any required verification command is missing, invalid, or approval-required, when `active_work.next_repair_action` is non-empty, or when a required authority-routing skill cannot be loaded from the agent environment.
 
 4. Select exactly one `Ready` or `In Progress` `TASK-NNN` from `active_work.task_id` or the first actionable `tasks[]` item. Do not start multiple task rows in one implementation pass unless the task board explicitly groups them and their verification evidence is shared.
 
@@ -65,7 +65,7 @@ Load:
    - update generated clients, schemas, migrations, fixtures, snapshots, or lockfiles only when task scope and repository tooling require them
    - register missing or conflicting requirements in `docs/unresolved.md` instead of guessing
 
-9. Register each project verification command in `docs/agent-workflow/command-contract.md`, then execute it through the target-local evidence runner:
+9. Confirm each `command:<registered-name>` binding resolves in `docs/agent-workflow/command-contract.md`, then execute every entry through the target-local evidence runner. Prefer each work-package `verification_commands[].preflight_command.argv`, followed only on readiness by `verification_commands[].execute_command.argv`; these preserve the exact task ID, command name, and required `--allow-writes` flag:
 
    ```bash
    bin/governance implementation verify <target> --task TASK-NNN --command command-name --check --json
@@ -89,7 +89,7 @@ Load:
    bin/governance implementation closeout <target> --task TASK-NNN --apply --json
    ```
 
-11. Before marking `Done`, run `implementation closeout --task TASK-NNN --json`. Its `decision_policy` is `do_not_mark_done_without_passing_evidence`; inspect `closeout_ready`, `requirements[]`, `blocking_requirements[]`, `evidence_summary.all_verification_results_passing`, and `status_update_plan`. Do not mark `Done` unless every current verification command for the task passes. When `status_update_plan.can_auto_apply` is true, run the returned `status_update_plan.apply_command.argv` or `implementation closeout --task TASK-NNN --apply --json` so the CLI updates `docs/development/02-task-board.md` and `docs/development/01-roadmap.md` together.
+11. Before marking `Done`, run `implementation closeout --task TASK-NNN --json`. Its `decision_policy` is `do_not_mark_done_without_passing_evidence`; inspect `closeout_ready`, `requirements[]`, `blocking_requirements[]`, `evidence_summary.required_verification_commands`, `missing_verification_commands`, `failing_verification_commands`, `verification_commands_registered`, `required_verification_commands_passing`, `evidence_summary.all_verification_results_passing`, and `status_update_plan`. Do not mark `Done` unless every bound command is registered and passing, and every additional current verification row also passes. When `status_update_plan.can_auto_apply` is true, run the returned `status_update_plan.apply_command.argv` or `implementation closeout --task TASK-NNN --apply --json` so the CLI updates `docs/development/02-task-board.md` and `docs/development/01-roadmap.md` together.
 
 12. Keep `docs/development/02-task-board.md` and `docs/development/01-roadmap.md` statuses synchronized:
    - `In Progress` only through `implementation start --apply` when one Ready task is claimed or resumed
@@ -114,6 +114,8 @@ Implementation execution is complete when:
 
 - `bin/governance verify <target> --check --json` reports `ok: true`
 - task-specific verification commands have been run through `implementation verify` or honestly recorded as unavailable
+- every Ready or In Progress task binds required checks as `command:<registered-name>` and the work package resolves exact preflight and execute `argv`
+- closeout reports both `required_verification_commands_registered` and `required_verification_commands_passing` satisfied
 - every current `(Task, Command)` summary result is passing before closeout
 - project-specific verification commands are documented in `docs/agent-workflow/command-contract.md` before agents rely on them
 - `docs/development/03-verification-log.md` contains matching `TASK-NNN` evidence
@@ -126,7 +128,7 @@ Implementation execution is complete when:
 - The implementation gate or governance verification fails.
 - Required product, design, API, acceptance, or verification links are missing.
 - The task requires behavior that is not present in local Markdown sources.
-- The required project command is not documented in `docs/agent-workflow/command-contract.md`.
+- A required `command:<registered-name>` binding is missing, unknown, malformed, approval-required, or not documented in `docs/agent-workflow/command-contract.md`.
 - The command `Environment` ID, required tool, safe version probe, version constraint, or reviewed repair source is absent from `docs/agent-workflow/project-environment.json`.
 - `environment_readiness.ok` is false, or its repair decision requires environment preflight, manual tool registration, or executable-path repair.
 - A command-contract row with `Approval Required` set to `true` needs approval that has not been granted.

@@ -154,6 +154,45 @@ def _dry_run_closeout_evidence_ok(payload: dict[str, object]) -> bool:
     )
 
 
+def _dry_run_implementation_task_package_ok(payload: dict[str, object] | None) -> bool:
+    if payload is None:
+        return False
+    package = payload.get("implementation_task_package")
+    if not isinstance(package, dict):
+        return False
+    names = package.get("verification_command_names")
+    commands = package.get("verification_commands")
+    summary = package.get("verification_command_summary")
+    contract = package.get("execution_contract")
+    if (
+        not isinstance(names, list)
+        or not names
+        or any(not isinstance(name, str) or not name for name in names)
+        or len(names) != len(set(names))
+        or not isinstance(commands, list)
+        or len(commands) != len(names)
+        or not isinstance(summary, dict)
+        or not isinstance(contract, dict)
+    ):
+        return False
+    for name, command in zip(names, commands):
+        if not isinstance(command, dict) or command.get("name") != name or command.get("ready") is not True:
+            return False
+        for key in ("preflight_command", "execute_command"):
+            embedded = command.get(key)
+            if not isinstance(embedded, dict) or not isinstance(embedded.get("argv"), list) or not embedded["argv"]:
+                return False
+    return (
+        summary.get("required_count") == len(names)
+        and summary.get("ready_count") == len(names)
+        and summary.get("blocked_count") == 0
+        and summary.get("all_ready") is True
+        and contract.get("decision_policy")
+        == "claim_then_execute_all_required_verification_commands_then_closeout"
+        and contract.get("verification_commands") == commands
+    )
+
+
 def _dry_run_stack_acceptance_ok(payload: dict[str, object] | None) -> bool:
     if payload is None:
         return False
@@ -883,6 +922,7 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
         and bool(dry_run_payload and dry_run_payload.get("ok") is True)
         and dry_run_payload.get("final_phase") == "implementation"
         and _dry_run_closeout_evidence_ok(dry_run_payload)
+        and _dry_run_implementation_task_package_ok(dry_run_payload)
         and _dry_run_stack_acceptance_ok(dry_run_payload)
         and _dry_run_product_dispositions_ok(dry_run_payload)
         and _dry_run_api_review_ok(dry_run_payload)
@@ -897,6 +937,9 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
             "api_candidate_count": dry_run_payload.get("api_candidate_count") if dry_run_payload else 0,
             "implementation_closeout": dry_run_payload.get("implementation_closeout") if dry_run_payload else {},
             "implementation_verification": dry_run_payload.get("implementation_verification")
+            if dry_run_payload
+            else {},
+            "implementation_task_package": dry_run_payload.get("implementation_task_package")
             if dry_run_payload
             else {},
             "stack_acceptance": dry_run_payload.get("stack_acceptance") if dry_run_payload else {},
@@ -930,6 +973,7 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
         and bool(multi_acceptance_payload and multi_acceptance_payload.get("ok") is True)
         and multi_acceptance_payload.get("final_phase") == "implementation"
         and _dry_run_closeout_evidence_ok(multi_acceptance_payload)
+        and _dry_run_implementation_task_package_ok(multi_acceptance_payload)
         and _dry_run_stack_acceptance_ok(multi_acceptance_payload)
         and _dry_run_product_dispositions_ok(multi_acceptance_payload)
         and _dry_run_api_review_ok(multi_acceptance_payload)
@@ -954,6 +998,9 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
             if multi_acceptance_payload
             else {},
             "implementation_verification": multi_acceptance_payload.get("implementation_verification")
+            if multi_acceptance_payload
+            else {},
+            "implementation_task_package": multi_acceptance_payload.get("implementation_task_package")
             if multi_acceptance_payload
             else {},
             "stack_acceptance": multi_acceptance_payload.get("stack_acceptance")
@@ -1146,6 +1193,9 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
             if artifact_smoke_payload
             else {},
             "implementation_verification": artifact_smoke_payload.get("implementation_verification", {})
+            if artifact_smoke_payload
+            else {},
+            "implementation_task_package": artifact_smoke_payload.get("implementation_task_package", {})
             if artifact_smoke_payload
             else {},
             "stack_acceptance": artifact_smoke_payload.get("stack_acceptance", {})

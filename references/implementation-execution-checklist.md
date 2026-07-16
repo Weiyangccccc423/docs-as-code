@@ -10,6 +10,7 @@ Calibrate execution against DORA small-batch integration and test automation, Go
 - Before first code edit, was exactly one `Ready` `TASK-NNN` claimed as `In Progress`?
 - If the task was `Ready`, did the agent run `implementation start --task TASK-NNN --json` and apply only the returned safe `In Progress` status update before editing code?
 - Does the task link existing local Product, Design, API, Acceptance, and Verification sources before any code is edited?
+- Does the Verification cell bind every required check as `command:<registered-name>` before the task becomes Ready or In Progress?
 - Is the matching `A-NNN` acceptance criterion defined in a product acceptance chapter and mapped in `docs/tests/02-acceptance-matrix.md`?
 - Has the agent read the target-local `docs/agent-workflow/task-handoff.md` when present?
 
@@ -36,6 +37,7 @@ Reference: `https://dora.dev/capabilities/trunk-based-development/`
 ## Verification Execution
 
 - Is each task verification command registered with structured `Argv` and `Cwd` in `docs/agent-workflow/command-contract.md`?
+- Does the implementation work package resolve every binding into `verification_commands[]` with exact `preflight_command.argv` and `execute_command.argv`, with no invalid or approval-required entry?
 - Are exact task commands selected by preferring target-local `local_commands[].argv` when a machine-readable payload already provides them?
 - Was `implementation verify --task TASK-NNN --command command-name --check --json` run before execution, with no registered task-command execution or evidence writes during preflight?
 - Does `environment_readiness.ok` prove the exact `Argv[0]` is available and executable, with repository-relative paths resolved from `Cwd` and confined to the repository?
@@ -77,5 +79,6 @@ Reference: `https://openssf.org/projects/scorecard/`
 
 - Does the task satisfy `references/implementation-readiness-checklist.md` plus this execution checklist before being marked `Done`?
 - Does `implementation closeout` report `evidence_summary.all_verification_results_passing: true`, proving every current command result passes rather than only one?
+- Are `required_verification_commands_registered` and `required_verification_commands_passing` satisfied, with empty `missing_verification_commands` and `failing_verification_commands`?
 - Are failing checks, unresolved questions, or out-of-scope discoveries reflected as `Blocked`, `Deferred`, or follow-up tasks instead of hidden in prose?
 - Are all source-of-truth docs, implementation files, tests, and evidence committed as one coherent change when the repository uses Git?

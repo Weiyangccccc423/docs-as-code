@@ -432,6 +432,7 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
         )
         start = dry_run_payload.get("implementation_start")
         implementation_verification = dry_run_payload.get("implementation_verification")
+        implementation_task_package = _dry_run_implementation_task_package_details(dry_run_payload)
         closeout = dry_run_payload.get("implementation_closeout")
         runtime_refresh = dry_run_payload.get("runtime_refresh")
         _require(
@@ -451,6 +452,11 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
             and implementation_verification.get("command_passed") is True
             and implementation_verification.get("all_current_results_passing") is True,
             "unpacked artifact dry-run did not prove automated implementation verification evidence",
+            payload=dry_run_payload,
+        )
+        _require(
+            implementation_task_package.get("ok") is True,
+            "unpacked artifact dry-run did not preserve implementation task command bindings",
             payload=dry_run_payload,
         )
         _require(
@@ -533,6 +539,7 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
             "product_dispositions": product_dispositions,
             "design_reviews": design_reviews,
             "implementation_verification": dict(implementation_verification),
+            "implementation_task_package": implementation_task_package,
             "stack_acceptance": stack_acceptance,
             "api_review": api_review,
             "threat_review": threat_review,
@@ -619,6 +626,66 @@ def _dry_run_target_local_make_details(payload: dict[str, object]) -> dict[str, 
         "required_step_ids": TARGET_LOCAL_MAKE_STEP_IDS,
         "missing_step_ids": [step_id for step_id in TARGET_LOCAL_MAKE_STEP_IDS if step_id not in step_ids],
     }
+
+
+def _dry_run_implementation_task_package_details(payload: dict[str, object]) -> dict[str, object]:
+    package = payload.get("implementation_task_package")
+    if not isinstance(package, dict):
+        return {"ok": False, "verification_command_names": [], "decision_policy": ""}
+    names = package.get("verification_command_names")
+    commands = package.get("verification_commands")
+    summary = package.get("verification_command_summary")
+    contract = package.get("execution_contract")
+    valid_names = (
+        isinstance(names, list)
+        and bool(names)
+        and all(isinstance(name, str) and name for name in names)
+        and len(names) == len(set(names))
+    )
+    valid_commands = (
+        isinstance(commands, list)
+        and valid_names
+        and [command.get("name") for command in commands if isinstance(command, dict)] == names
+        and all(_implementation_binding_command_ready(command) for command in commands)
+    )
+    valid_summary = (
+        isinstance(summary, dict)
+        and valid_names
+        and summary.get("required_count") == len(names)
+        and summary.get("ready_count") == len(names)
+        and summary.get("blocked_count") == 0
+        and summary.get("all_ready") is True
+    )
+    decision_policy = (
+        str(contract.get("decision_policy", "")) if isinstance(contract, dict) else ""
+    )
+    valid_contract = (
+        isinstance(contract, dict)
+        and decision_policy == "claim_then_execute_all_required_verification_commands_then_closeout"
+        and contract.get("verification_commands") == commands
+    )
+    return {
+        "ok": valid_names and valid_commands and valid_summary and valid_contract,
+        "verification_command_names": list(names) if isinstance(names, list) else [],
+        "required_count": summary.get("required_count", 0) if isinstance(summary, dict) else 0,
+        "decision_policy": decision_policy,
+    }
+
+
+def _implementation_binding_command_ready(command: object) -> bool:
+    if not isinstance(command, dict):
+        return False
+    preflight = command.get("preflight_command")
+    execute = command.get("execute_command")
+    return (
+        command.get("ready") is True
+        and isinstance(preflight, dict)
+        and isinstance(preflight.get("argv"), list)
+        and bool(preflight["argv"])
+        and isinstance(execute, dict)
+        and isinstance(execute.get("argv"), list)
+        and bool(execute["argv"])
+    )
 
 
 def _dry_run_stack_acceptance_details(payload: dict[str, object]) -> dict[str, object]:

@@ -684,7 +684,7 @@ def _implementation_work_package(root: Path) -> tuple[dict[str, object], list[st
     )
     source_documents = _string_list(task.get("read_order"))
     read_order = _dedupe_strings([*source_documents, *references])
-    return {
+    package = {
         "package_id": _package_id(IMPLEMENTATION_PHASE, "implementation-plan", str(task.get("task_id", ""))),
         "kind": "implementation-task",
         "phase": IMPLEMENTATION_PHASE,
@@ -710,6 +710,9 @@ def _implementation_work_package(root: Path) -> tuple[dict[str, object], list[st
             "requires_codebase_mapping": True,
         },
         "source_references": _dict_value(task.get("source_references")),
+        "verification_command_names": _string_list(task.get("verification_command_names")),
+        "verification_commands": _dict_items(task.get("verification_commands")),
+        "verification_command_summary": _dict_value(task.get("verification_command_summary")),
         "open_decisions": _string_list(task.get("open_decisions")),
         "blockers": blockers,
         "repair_actions": repair_actions,
@@ -723,7 +726,64 @@ def _implementation_work_package(root: Path) -> tuple[dict[str, object], list[st
         "verify_command": _dict_value(active_work.get("verify_command")),
         "closeout_command": _dict_value(active_work.get("closeout_command")),
         "refresh_command": _dict_value(active_work.get("refresh_command")),
-    }, [], ""
+    }
+    package["execution_contract"] = _implementation_execution_contract(root, package)
+    return package, [], ""
+
+
+def _implementation_execution_contract(root: Path, package: dict[str, object]) -> dict[str, object]:
+    task_id = str(package.get("work_id", ""))
+    start_apply = _command(
+        root,
+        "apply-implementation-start",
+        "Claim the selected task after the start preflight reports start_ready:true.",
+        [
+            "bin/governance",
+            "implementation",
+            "start",
+            ".",
+            "--task",
+            task_id,
+            "--apply",
+            "--json",
+        ],
+    )
+    start_apply["writes_state"] = True
+    closeout_apply = _command(
+        root,
+        "apply-implementation-closeout",
+        "Synchronize Done status after closeout preflight reports closeout_ready:true.",
+        [
+            "bin/governance",
+            "implementation",
+            "closeout",
+            ".",
+            "--task",
+            task_id,
+            "--apply",
+            "--json",
+        ],
+    )
+    closeout_apply["writes_state"] = True
+    return {
+        "schema_version": 1,
+        "task_id": task_id,
+        "decision_policy": "claim_then_execute_all_required_verification_commands_then_closeout",
+        "start": {
+            "preflight_command": _dict_value(package.get("start_command")),
+            "apply_command": start_apply,
+            "apply_condition": "start_ready:true and status_update_plan.can_auto_apply:true",
+        },
+        "verification_commands": _dict_items(package.get("verification_commands")),
+        "verification_policy": "run_each_preflight_then_execute_only_when_verification_ready_true",
+        "closeout": {
+            "preflight_command": _dict_value(package.get("closeout_command")),
+            "apply_command": closeout_apply,
+            "apply_condition": "closeout_ready:true and status_update_plan.can_auto_apply:true",
+        },
+        "refresh_command": _dict_value(package.get("refresh_command")),
+        "success_condition": "all registered task commands pass and implementation closeout is applied",
+    }
 
 
 def _work_package_skill_readiness(

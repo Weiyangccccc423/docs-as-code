@@ -28,6 +28,10 @@
 
 ## Verification Record
 
+- Required command bindings: `command:<registered-name>` from the selected task's Verification cell.
+- Resolve exact preflight and execute `argv` from `workflow work-package`; do not reconstruct commands from prose.
+- Every required binding must have a current passing row in `docs/development/03-verification-log.md` before closeout.
+
 | Command | Result | Evidence |
 | --- | --- | --- |
 | - | - | - |

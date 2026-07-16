@@ -50,6 +50,15 @@ class ArtifactSmokeTest(unittest.TestCase):
         self.assertTrue(payload["implementation_verification"]["evidence_recorded"])
         self.assertTrue(payload["implementation_verification"]["command_passed"])
         self.assertTrue(payload["implementation_verification"]["all_current_results_passing"])
+        self.assertTrue(payload["implementation_task_package"]["ok"])
+        self.assertEqual(
+            ["dry-run-task-tests", "node-stack-tests"],
+            payload["implementation_task_package"]["verification_command_names"],
+        )
+        self.assertEqual(
+            "claim_then_execute_all_required_verification_commands_then_closeout",
+            payload["implementation_task_package"]["decision_policy"],
+        )
         self.assertTrue(payload["stack_acceptance"]["ok"])
         self.assertTrue(payload["stack_acceptance"]["all_required_passed"])
         self.assertEqual("passed", payload["stack_acceptance"]["stacks"]["python"]["status"])

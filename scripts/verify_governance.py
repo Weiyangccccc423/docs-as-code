@@ -1790,6 +1790,79 @@ def _project_environment_local_file(root: Path, rel: str) -> bool:
     return resolved.is_file()
 
 
+def load_command_contract_entry(root: Path, command_name: str) -> tuple[dict[str, object], list[str]]:
+    path = root / COMMAND_CONTRACT_REL
+    try:
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return {}, [f"command contract is missing: {COMMAND_CONTRACT_REL.as_posix()}"]
+    except UnicodeDecodeError:
+        return {}, [f"command contract must be UTF-8: {COMMAND_CONTRACT_REL.as_posix()}"]
+    except OSError as error:
+        return {}, [f"command contract cannot be read: {error.strerror or error}"]
+
+    sections = _markdown_sections(text, min_level=2)
+    table = _markdown_table(sections.get("command table", ""))
+    if not table:
+        return {}, ["command contract Command Table is missing"]
+    header = [_normalize_cell(cell) for cell in table[0]]
+    missing = [column for column in COMMAND_CONTRACT_REQUIRED_COLUMNS if column not in header]
+    if missing:
+        return {}, [f"command contract is missing columns: {', '.join(missing)}"]
+    matching: list[dict[str, str]] = []
+    for data in table[1:]:
+        if _is_separator_row(data):
+            continue
+        row = {
+            column: _table_cell(data, header.index(column))
+            for column in COMMAND_CONTRACT_REQUIRED_COLUMNS
+        }
+        if row["name"].strip() == command_name:
+            matching.append(row)
+    if not matching:
+        return {}, [f"command contract command not found: {command_name}"]
+    if len(matching) != 1:
+        return {}, [f"command contract command must be unique: {command_name}"]
+
+    row = matching[0]
+    errors: list[str] = []
+    try:
+        argv = json.loads(row["argv"].strip().strip("`"))
+    except json.JSONDecodeError:
+        argv = None
+    if not isinstance(argv, list) or not argv or any(not isinstance(item, str) or not item for item in argv):
+        errors.append(f"command contract Argv must be a non-empty JSON string array: {command_name}")
+        argv = []
+    cwd = row["cwd"].strip().strip("`").strip()
+    if not _command_contract_cwd_valid(row["cwd"]):
+        errors.append(f"command contract Cwd is invalid: {command_name}")
+    writes_state = _command_contract_boolean(row["writes state"])
+    approval_required = _command_contract_boolean(row["approval required"])
+    if writes_state is None:
+        errors.append(f"command contract Writes State must be true or false: {command_name}")
+    if approval_required is None:
+        errors.append(f"command contract Approval Required must be true or false: {command_name}")
+    return {
+        "name": row["name"].strip(),
+        "purpose": row["purpose"].strip(),
+        "cwd": cwd,
+        "argv": argv,
+        "writes_state": writes_state,
+        "approval_required": approval_required,
+        "evidence": row["evidence"].strip(),
+        "environment": row["environment"].strip().strip("`").strip(),
+    }, errors
+
+
+def _command_contract_boolean(value: str) -> bool | None:
+    normalized = _normalize_cell(value)
+    if normalized == "true":
+        return True
+    if normalized == "false":
+        return False
+    return None
+
+
 def _check_command_contract(root: Path, report: VerificationReport) -> None:
     rel = COMMAND_CONTRACT_REL.as_posix()
     path = root / COMMAND_CONTRACT_REL

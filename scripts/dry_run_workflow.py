@@ -1826,6 +1826,7 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
             "placeholder_expected_blocked": True,
             "ready_ok": implementation_gate.get("ok"),
         },
+        "implementation_task_package": dict(make_implementation_work_package.get("work_package", {})),
         "implementation_start": {
             "task_id": IMPLEMENTATION_TASK_ID,
             "ready": implementation_start_preview.get("start_ready") is True,
@@ -1943,7 +1944,13 @@ def _write_minimal_implementation_ready_docs(target: Path, acceptance_ids: list[
         "docs/tests/01-strategy.md": _test_strategy_doc(),
         "docs/tests/02-acceptance-matrix.md": _acceptance_matrix_doc(acceptance_ids),
         "docs/development/01-roadmap.md": _roadmap_doc(),
-        "docs/development/02-task-board.md": _task_board_doc(selected_acceptance, verification="make test"),
+        "docs/development/02-task-board.md": _task_board_doc(
+            selected_acceptance,
+            verification=(
+                f"command:{IMPLEMENTATION_VERIFICATION_COMMAND} "
+                f"command:{NODE_IMPLEMENTATION_VERIFICATION_COMMAND}"
+            ),
+        ),
         "docs/development/03-verification-log.md": _verification_log_doc(),
     }
     for rel, text in documents.items():
@@ -3910,6 +3917,7 @@ def _closeout_blocks_without_evidence(payload: dict[str, object]) -> bool:
     required_codes = {
         "verification_log_row_present",
         "verification_result_passing",
+        "required_verification_commands_passing",
         "verification_results_all_passing",
         "task_verification_links_local_evidence",
     }
@@ -3921,6 +3929,10 @@ def _closeout_blocks_without_evidence(payload: dict[str, object]) -> bool:
     return (
         evidence.get("verification_logged") is False
         and evidence.get("passing_verification_logged") is False
+        and evidence.get("required_verification_commands")
+        == [IMPLEMENTATION_VERIFICATION_COMMAND, NODE_IMPLEMENTATION_VERIFICATION_COMMAND]
+        and evidence.get("missing_verification_commands")
+        == [IMPLEMENTATION_VERIFICATION_COMMAND, NODE_IMPLEMENTATION_VERIFICATION_COMMAND]
         and evidence.get("verification_links_local_evidence") is False
     )
 
@@ -3940,6 +3952,14 @@ def _closeout_ready_with_evidence(payload: dict[str, object]) -> bool:
     if evidence.get("passing_verification_logged") is not True:
         return False
     if evidence.get("all_verification_results_passing") is not True:
+        return False
+    if evidence.get("verification_commands_registered") is not True:
+        return False
+    if evidence.get("required_verification_commands_passing") is not True:
+        return False
+    if evidence.get("missing_verification_commands") != []:
+        return False
+    if evidence.get("failing_verification_commands") != []:
         return False
     if evidence.get("verification_links_local_evidence") is not True:
         return False

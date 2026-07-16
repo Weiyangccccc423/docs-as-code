@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +11,7 @@ try:
     from .state import load_state
     from .verify_governance import (
         ACCEPTANCE_MATRIX_REL,
+        COMMAND_CONTRACT_REL,
         ROADMAP_MILESTONE_REQUIRED_COLUMNS,
         SCAFFOLD_PLACEHOLDER,
         TASK_BOARD_ALLOWED_STATUSES,
@@ -22,6 +24,7 @@ try:
         _acceptance_matrix_mapped_acceptance_ids,
         _is_separator_row,
         _is_empty_task_board_value,
+        load_command_contract_entry,
         _normalize_cell,
         _roadmap_milestone_rows,
         _task_board_acceptance_id,
@@ -41,6 +44,7 @@ except ImportError:  # pragma: no cover - direct script execution
     from state import load_state
     from verify_governance import (
         ACCEPTANCE_MATRIX_REL,
+        COMMAND_CONTRACT_REL,
         ROADMAP_MILESTONE_REQUIRED_COLUMNS,
         SCAFFOLD_PLACEHOLDER,
         TASK_BOARD_ALLOWED_STATUSES,
@@ -53,6 +57,7 @@ except ImportError:  # pragma: no cover - direct script execution
         _acceptance_matrix_mapped_acceptance_ids,
         _is_separator_row,
         _is_empty_task_board_value,
+        load_command_contract_entry,
         _normalize_cell,
         _roadmap_milestone_rows,
         _task_board_acceptance_id,
@@ -89,6 +94,11 @@ OPTIONAL_SOURCE_DOCUMENTS = (
 )
 ROADMAP_REL = Path("docs/development/01-roadmap.md")
 PASSING_VERIFICATION_RESULTS = {"ok", "pass", "passed", "success", "succeeded", "green"}
+VERIFICATION_COMMAND_REFERENCE_RE = re.compile(
+    r"(?<![a-z0-9-])command:(?P<token>[^\s|;,]*)",
+    re.IGNORECASE,
+)
+VERIFICATION_COMMAND_NAME_RE = re.compile(r"[a-z0-9][a-z0-9-]*")
 
 
 def build_implementation_plan(root: Path) -> dict[str, object]:
@@ -248,8 +258,25 @@ def build_implementation_closeout(root: Path, task_id: str) -> dict[str, object]
     gate = evaluate_gate(root, IMPLEMENTATION_PHASE).to_dict() if state else {}
     verification_rows = _verification_rows_for_task(root, task_id)
     roadmap_row = _roadmap_row_for_task(root, task_id)
-    requirements = _closeout_requirements(root, row, task_id, gate, verification_report, verification_rows, roadmap_row)
-    evidence_summary = _closeout_evidence_summary(root, row, task_id, verification_rows, roadmap_row)
+    required_verification = _required_verification_evidence(root, row, verification_rows)
+    requirements = _closeout_requirements(
+        root,
+        row,
+        task_id,
+        gate,
+        verification_report,
+        verification_rows,
+        roadmap_row,
+        required_verification,
+    )
+    evidence_summary = _closeout_evidence_summary(
+        root,
+        row,
+        task_id,
+        verification_rows,
+        roadmap_row,
+        required_verification,
+    )
     ready = not errors and all(requirement["status"] == "satisfied" for requirement in requirements)
     status_update_plan = _status_update_plan(root, row, roadmap_row, "Done", can_auto_apply=ready) if row is not None else {}
     payload: dict[str, object] = {
@@ -562,6 +589,7 @@ def _closeout_requirements(
     verification_report: Any,
     verification_rows: list[dict[str, str]],
     roadmap_row: dict[str, str] | None,
+    required_verification: dict[str, object],
 ) -> list[dict[str, object]]:
     task_status_done = row is not None and _normalize_cell(row.get("status", "")) == "done"
     roadmap_status_done = roadmap_row is not None and _normalize_cell(roadmap_row.get("status", "")) == "done"
@@ -620,6 +648,20 @@ def _closeout_requirements(
                 repair_strategy="map_task_acceptance_in_acceptance_matrix_before_marking_done",
             ),
             _closeout_requirement(
+                "required_verification_commands_registered",
+                required_verification.get("verification_commands_registered") is True,
+                "every command:<name> task binding must resolve to a valid non-approval command contract row",
+                path=COMMAND_CONTRACT_REL.as_posix(),
+                detail="; ".join(
+                    f"{item.get('name', '(missing command)')}: "
+                    + "; ".join(str(error) for error in item.get("errors", []))
+                    for item in required_verification.get("invalid_verification_commands", [])
+                    if isinstance(item, dict)
+                )
+                or "task Verification must declare at least one command:<registered-name>",
+                repair_strategy="register_or_repair_each_required_non_approval_verification_command",
+            ),
+            _closeout_requirement(
                 "verification_log_row_present",
                 bool(verification_rows),
                 "verification log must contain a row for the task",
@@ -633,6 +675,14 @@ def _closeout_requirements(
                 path=VERIFICATION_LOG_REL.as_posix(),
                 detail=", ".join(row.get("result", "").strip() for row in verification_rows),
                 repair_strategy="run_required_task_checks_and_record_passing_result",
+            ),
+            _closeout_requirement(
+                "required_verification_commands_passing",
+                required_verification.get("required_verification_commands_passing") is True,
+                "every command:<name> task binding must have a current passing verification-log row",
+                path=VERIFICATION_LOG_REL.as_posix(),
+                detail=_required_verification_result_detail(required_verification),
+                repair_strategy="run_each_required_command_through_implementation_verify_until_passing",
             ),
             _closeout_requirement(
                 "verification_results_all_passing",
@@ -811,6 +861,7 @@ def _closeout_evidence_summary(
     task_id: str,
     verification_rows: list[dict[str, str]],
     roadmap_row: dict[str, str] | None,
+    required_verification: dict[str, object],
 ) -> dict[str, object]:
     verification_refs = _task_board_local_references(root, row.get("verification", "")) if row is not None else []
     return {
@@ -821,6 +872,7 @@ def _closeout_evidence_summary(
         "passing_verification_logged": any(_verification_row_passed(item) for item in verification_rows),
         "all_verification_results_passing": bool(verification_rows)
         and all(_verification_row_passed(item) for item in verification_rows),
+        **required_verification,
         "verification_results": [
             {
                 "command": item.get("command", "").strip(),
@@ -834,6 +886,69 @@ def _closeout_evidence_summary(
         "verification_references": _references_payload(verification_refs),
         "verification_links_local_evidence": any(reference.exists for reference in verification_refs),
     }
+
+
+def _required_verification_evidence(
+    root: Path,
+    row: dict[str, str] | None,
+    verification_rows: list[dict[str, str]],
+) -> dict[str, object]:
+    if row is None:
+        return {
+            "required_verification_commands": [],
+            "invalid_verification_commands": [],
+            "missing_verification_commands": [],
+            "failing_verification_commands": [],
+            "verification_commands_registered": False,
+            "required_verification_commands_passing": False,
+        }
+
+    task_id = row.get("id", "").strip()
+    commands = _task_verification_commands(root, task_id, row.get("verification", ""))
+    required_names = [str(command.get("name", "")) for command in commands]
+    invalid_commands = [
+        {
+            "name": str(command.get("name", "")),
+            "status": str(command.get("status", "invalid")),
+            "errors": [str(error) for error in command.get("errors", [])],
+        }
+        for command in commands
+        if command.get("ready") is not True
+    ]
+    rows_by_command: dict[str, list[dict[str, str]]] = {}
+    for verification_row in verification_rows:
+        command_name = _normalize_cell(verification_row.get("command", ""))
+        if command_name:
+            rows_by_command.setdefault(command_name, []).append(verification_row)
+    missing_names: list[str] = []
+    failing_names: list[str] = []
+    for name in required_names:
+        command_rows = rows_by_command.get(_normalize_cell(name), [])
+        if not command_rows:
+            missing_names.append(name)
+        elif not all(_verification_row_passed(item) for item in command_rows):
+            failing_names.append(name)
+    return {
+        "required_verification_commands": required_names,
+        "invalid_verification_commands": invalid_commands,
+        "missing_verification_commands": missing_names,
+        "failing_verification_commands": failing_names,
+        "verification_commands_registered": bool(commands) and not invalid_commands,
+        "required_verification_commands_passing": bool(required_names)
+        and not missing_names
+        and not failing_names,
+    }
+
+
+def _required_verification_result_detail(required_verification: dict[str, object]) -> str:
+    missing = [str(name) for name in required_verification.get("missing_verification_commands", [])]
+    failing = [str(name) for name in required_verification.get("failing_verification_commands", [])]
+    details: list[str] = []
+    if missing:
+        details.append("missing=" + ", ".join(missing))
+    if failing:
+        details.append("failing=" + ", ".join(failing))
+    return "; ".join(details) or "all required verification commands have passing evidence"
 
 
 def _closeout_task_payload(root: Path, row: dict[str, str]) -> dict[str, object]:
@@ -1077,7 +1192,18 @@ def _implementation_task(
     task_id = row.get("id", "").strip()
     normalized_status = _normalize_cell(row.get("status", ""))
     acceptance_id = _task_board_acceptance_id(row.get("acceptance", ""))
-    blockers = _task_blockers(root, row, task_id, normalized_status, acceptance_id, matrix_ids, seen_ids)
+    verification_commands = _task_verification_commands(root, task_id, row.get("verification", ""))
+    verification_command_summary = _verification_command_summary(verification_commands)
+    blockers = _task_blockers(
+        root,
+        row,
+        task_id,
+        normalized_status,
+        acceptance_id,
+        matrix_ids,
+        seen_ids,
+        verification_commands,
+    )
     source_references = _source_references(root, row)
     specialist_skills = _task_specialist_skills(source_references)
     actionable = normalized_status in TASK_BOARD_EXECUTABLE_STATUSES and not blockers
@@ -1099,6 +1225,9 @@ def _implementation_task(
         "acceptance_id": acceptance_id or "",
         "source_references": source_references,
         "verification": row.get("verification", "").strip(),
+        "verification_command_names": [str(item.get("name", "")) for item in verification_commands],
+        "verification_commands": verification_commands,
+        "verification_command_summary": verification_command_summary,
         "verification_logged": task_id in verification_task_ids if verification_task_ids is not None else False,
         "passing_verification_logged": task_id in passing_verification_task_ids if passing_verification_task_ids is not None else False,
         "all_verification_results_passing": task_id in all_passing_verification_task_ids
@@ -1124,6 +1253,7 @@ def _task_blockers(
     acceptance_id: str | None,
     matrix_ids: set[str] | None,
     seen_ids: set[str],
+    verification_commands: list[dict[str, object]],
 ) -> list[dict[str, object]]:
     blockers: list[dict[str, object]] = []
     missing_fields = [
@@ -1156,7 +1286,145 @@ def _task_blockers(
                 acceptance_id or "missing acceptance ID",
             )
         )
+    if normalized_status in TASK_BOARD_EXECUTABLE_STATUSES:
+        if not verification_commands:
+            blockers.append(
+                _blocker(
+                    root,
+                    "task_verification_command_binding_missing",
+                    TASK_BOARD_REL.as_posix(),
+                    f"{task_id or '(missing id)'} Verification must declare command:<registered-name>",
+                )
+            )
+        for command in verification_commands:
+            if command.get("ready") is True:
+                continue
+            blockers.append(
+                _blocker(
+                    root,
+                    str(command.get("blocker_code", "task_verification_command_invalid")),
+                    "docs/agent-workflow/command-contract.md",
+                    f"{command.get('name', '(missing command)')}: "
+                    + "; ".join(str(error) for error in command.get("errors", [])),
+                )
+            )
     return blockers
+
+
+def _task_verification_command_references(value: str) -> list[tuple[str, str | None]]:
+    references: list[tuple[str, str | None]] = []
+    seen: set[str] = set()
+    for match in VERIFICATION_COMMAND_REFERENCE_RE.finditer(value):
+        token = match.group("token")
+        normalized = token.lower()
+        dedupe_key = normalized or "(missing)"
+        if dedupe_key in seen:
+            continue
+        seen.add(dedupe_key)
+        references.append(
+            (
+                token or "(missing)",
+                normalized if VERIFICATION_COMMAND_NAME_RE.fullmatch(normalized) is not None else None,
+            )
+        )
+    return references
+
+
+def _task_verification_commands(root: Path, task_id: str, value: str) -> list[dict[str, object]]:
+    commands: list[dict[str, object]] = []
+    for token, name in _task_verification_command_references(value):
+        if name is None:
+            commands.append(
+                {
+                    "name": token,
+                    "ready": False,
+                    "status": "malformed",
+                    "blocker_code": "task_verification_command_binding_malformed",
+                    "purpose": "",
+                    "cwd": "",
+                    "argv": [],
+                    "writes_state": False,
+                    "approval_required": False,
+                    "evidence": "",
+                    "environment": "",
+                    "preflight_command": {},
+                    "execute_command": {},
+                    "errors": [
+                        f"verification binding must match command:<registered-name>: command:{token}"
+                    ],
+                }
+            )
+            continue
+        contract, contract_errors = load_command_contract_entry(root, name)
+        errors = list(contract_errors)
+        approval_required = contract.get("approval_required") is True
+        if approval_required:
+            errors.append("approval-required commands cannot run through implementation verify")
+        writes_state = contract.get("writes_state") is True
+        base_argv = [
+            "bin/governance",
+            "implementation",
+            "verify",
+            ".",
+            "--task",
+            task_id,
+            "--command",
+            name,
+        ]
+        if writes_state:
+            base_argv.append("--allow-writes")
+        preflight_command = _embedded_command(
+            root,
+            f"preflight-{task_id.lower()}-{name}",
+            f"Preflight registered verification command {name} without execution or evidence writes.",
+            [*base_argv, "--check", "--json"],
+        )
+        execute_command = _embedded_command(
+            root,
+            f"execute-{task_id.lower()}-{name}",
+            f"Execute registered verification command {name} and atomically record evidence.",
+            [*base_argv, "--json"],
+        )
+        execute_command["writes_state"] = True
+        execute_command["approval_required"] = approval_required
+        ready = bool(contract) and not errors
+        commands.append(
+            {
+                "name": name,
+                "ready": ready,
+                "status": "ready" if ready else "approval_required" if approval_required else "invalid",
+                "blocker_code": (
+                    "task_verification_command_requires_approval"
+                    if approval_required
+                    else "task_verification_command_invalid"
+                ),
+                "purpose": str(contract.get("purpose", "")),
+                "cwd": str(contract.get("cwd", "")),
+                "argv": list(contract.get("argv", [])) if isinstance(contract.get("argv"), list) else [],
+                "writes_state": writes_state,
+                "approval_required": approval_required,
+                "evidence": str(contract.get("evidence", "")),
+                "environment": str(contract.get("environment", "")),
+                "preflight_command": preflight_command,
+                "execute_command": execute_command,
+                "errors": errors,
+            }
+        )
+    return commands
+
+
+def _verification_command_summary(commands: list[dict[str, object]]) -> dict[str, object]:
+    ready_count = sum(1 for command in commands if command.get("ready") is True)
+    return {
+        "required_count": len(commands),
+        "ready_count": ready_count,
+        "blocked_count": len(commands) - ready_count,
+        "approval_required_count": sum(
+            1 for command in commands if command.get("approval_required") is True
+        ),
+        "writes_state_count": sum(1 for command in commands if command.get("writes_state") is True),
+        "all_ready": bool(commands) and ready_count == len(commands),
+    }
 
 
 def _blocker(root: Path, code: str, path: str, detail: str) -> dict[str, object]:
@@ -1191,6 +1459,14 @@ def _repair_strategy(code: str) -> str:
         return "restore_acceptance_matrix_with_product_design_api_test_mapping"
     if code == "task_board_trace_incomplete":
         return "fill_product_design_api_acceptance_and_verification_cells_from_local_sources"
+    if code == "task_verification_command_binding_missing":
+        return "bind_each_executable_task_to_command_contract_rows_with_command_name_syntax"
+    if code == "task_verification_command_binding_malformed":
+        return "replace_malformed_binding_with_exact_command_registered_name_syntax"
+    if code == "task_verification_command_requires_approval":
+        return "replace_with_non_approval_task_check_or_route_external_authorized_evidence"
+    if code == "task_verification_command_invalid":
+        return "repair_or_register_the_named_structured_command_before_editing_code"
     return "repair_task_board_row_before_editing_code"
 
 

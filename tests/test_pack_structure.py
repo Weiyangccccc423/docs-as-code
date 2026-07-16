@@ -1387,6 +1387,10 @@ class PackStructureTest(unittest.TestCase):
         cases = (
             ("unpacked_dry_run", "unpacked_preview"),
             ("_dry_run_target_local_make_details", "_dry_run_local_command_details"),
+            (
+                "_dry_run_implementation_task_package_details",
+                "_dry_run_implementation_task_details",
+            ),
             ("_dry_run_design_review_details", "_dry_run_design_approval_details"),
             ("_dry_run_reliability_review_details", "_dry_run_service_level_details"),
             ("_dry_run_migration_review_details", "_dry_run_schema_migration_details"),
@@ -1551,6 +1555,10 @@ class PackStructureTest(unittest.TestCase):
             ("_artifact_smoke_reliability_review_ok", "_artifact_smoke_service_level_ok"),
             ("_dry_run_migration_review_ok", "_dry_run_schema_migration_ok"),
             ("_artifact_smoke_migration_review_ok", "_artifact_smoke_schema_migration_ok"),
+            (
+                "_dry_run_implementation_task_package_ok",
+                "_dry_run_implementation_task_ok",
+            ),
         )
         for required_phrase, replacement in cases:
             with self.subTest(required_phrase=required_phrase):
@@ -6835,6 +6843,94 @@ class PackStructureTest(unittest.TestCase):
                     finding.code == "pack_template_guardrail_missing"
                     and finding.path == "templates/docs/development/02-task-board.md"
                     and "Done tasks must link Verification" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_task_board_command_binding_guardrail_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            template = target / "templates/docs/development/02-task-board.md"
+            template.write_text(
+                template.read_text(encoding="utf-8").replace(
+                    "command:<registered-name>",
+                    "project test command",
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_template_guardrail_missing"
+                    and finding.path == "templates/docs/development/02-task-board.md"
+                    and "command:<registered-name>" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_implementation_command_work_package_source_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            source = target / "scripts/workflow_plan.py"
+            source.write_text(
+                source.read_text(encoding="utf-8").replace(
+                    "claim_then_execute_all_required_verification_commands_then_closeout",
+                    "claim_then_closeout",
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_work_package_source_incomplete"
+                    and finding.path == "scripts/workflow_plan.py"
+                    and "claim_then_execute_all_required_verification_commands_then_closeout"
+                    in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_implementation_command_binding_doc_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            workflow = target / "workflows/06-implementation-execution.md"
+            workflow.write_text(
+                workflow.read_text(encoding="utf-8").replace(
+                    "required_verification_commands_passing",
+                    "required commands pass",
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_work_package_doc_missing"
+                    and finding.path == "workflows/06-implementation-execution.md"
+                    and "required_verification_commands_passing" in finding.message
                     for finding in report.findings
                 )
             )

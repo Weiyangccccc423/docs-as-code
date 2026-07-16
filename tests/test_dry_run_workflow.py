@@ -342,6 +342,11 @@ class DryRunWorkflowTest(unittest.TestCase):
                 self.assertFalse(rust_acceptance["executed"])
                 self.assertEqual("manual", rust_acceptance["repair_strategy"])
             self.assertEqual(
+                ["dry-run-task-tests", "node-stack-tests"],
+                payload["implementation_task_package"]["verification_command_names"],
+            )
+            self.assertTrue(payload["implementation_task_package"]["verification_command_summary"]["all_ready"])
+            self.assertEqual(
                 [
                     "docs/development/04-implementation-evidence.md",
                     "docs/development/03-verification-log.md",
@@ -411,6 +416,7 @@ class DryRunWorkflowTest(unittest.TestCase):
                 [
                     "verification_log_row_present",
                     "verification_result_passing",
+                    "required_verification_commands_passing",
                     "verification_results_all_passing",
                     "task_verification_links_local_evidence",
                 ],

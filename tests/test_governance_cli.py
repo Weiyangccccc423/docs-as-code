@@ -196,6 +196,9 @@ def _append_project_command(
         f"{str(writes_state).lower()} | {str(approval_required).lower()} | "
         f"`docs/development/04-implementation-evidence.md` | {environment} |\n"
     )
+    lines = text.splitlines(keepends=True)
+    prefix = f"| {name} |"
+    text = "".join(line for line in lines if not line.startswith(prefix))
     path.write_text(text.replace("\n## Project Commands", f"\n{row}\n## Project Commands", 1), encoding="utf-8")
 
 
@@ -479,13 +482,25 @@ def _implementation_ready_target(
         _task_board_doc(
             "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | "
             "docs/architecture/01-system-context.md | docs/api/00-conventions.md | "
-            "docs/product/08-acceptance-criteria.md | make test |\n"
+            "docs/product/08-acceptance-criteria.md | command:task-tests |\n"
         ),
         encoding="utf-8",
     )
     _append_index(target / "docs/development/README.md", "02-task-board.md")
     (target / "docs/development/03-verification-log.md").write_text(_verification_log_doc(), encoding="utf-8")
     _append_index(target / "docs/development/README.md", "03-verification-log.md")
+    command_contract = target / "docs/agent-workflow/command-contract.md"
+    command_contract.write_text(
+        command_contract.read_text(encoding="utf-8").replace(
+            "\n## Project Commands",
+            "\n| task-tests | Run task unit tests. | `.` | "
+            "`[\"python3\", \"-m\", \"unittest\", \"discover\"]` | false | false | "
+            "`docs/development/04-implementation-evidence.md` | core-governance |\n\n"
+            "## Project Commands",
+            1,
+        ),
+        encoding="utf-8",
+    )
     _write_test_openapi(target)
 
     if advance_implementation:
@@ -5804,6 +5819,52 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual([], task["blockers"])
             self.assertEqual("implementation-execution", task["execution"]["stage"])
             self.assertEqual("executing-implementation-task", task["execution"]["primary_skill"])
+            self.assertEqual(["task-tests"], task["verification_command_names"])
+            self.assertEqual(
+                {
+                    "required_count": 1,
+                    "ready_count": 1,
+                    "blocked_count": 0,
+                    "approval_required_count": 0,
+                    "writes_state_count": 0,
+                    "all_ready": True,
+                },
+                task["verification_command_summary"],
+            )
+            verification_command = task["verification_commands"][0]
+            self.assertTrue(verification_command["ready"])
+            self.assertEqual("task-tests", verification_command["name"])
+            self.assertEqual(["python3", "-m", "unittest", "discover"], verification_command["argv"])
+            self.assertEqual("core-governance", verification_command["environment"])
+            self.assertEqual(
+                [
+                    "bin/governance",
+                    "implementation",
+                    "verify",
+                    ".",
+                    "--task",
+                    "TASK-001",
+                    "--command",
+                    "task-tests",
+                    "--check",
+                    "--json",
+                ],
+                verification_command["preflight_command"]["argv"],
+            )
+            self.assertEqual(
+                [
+                    "bin/governance",
+                    "implementation",
+                    "verify",
+                    ".",
+                    "--task",
+                    "TASK-001",
+                    "--command",
+                    "task-tests",
+                    "--json",
+                ],
+                verification_command["execute_command"]["argv"],
+            )
             self.assertIn("docs/development/02-task-board.md", task["read_order"])
             self.assertIn("docs/product/01-goals.md", task["read_order"])
             self.assertIn("docs/api/00-conventions.md", task["read_order"])
@@ -5864,6 +5925,17 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual("implementation-plan", package["queue_id"])
             self.assertEqual("TASK-001", package["work_id"])
             self.assertTrue(package["write_scope"]["requires_codebase_mapping"])
+            self.assertEqual(["task-tests"], package["verification_command_names"])
+            self.assertTrue(package["verification_command_summary"]["all_ready"])
+            self.assertEqual("task-tests", package["verification_commands"][0]["name"])
+            self.assertEqual(
+                "claim_then_execute_all_required_verification_commands_then_closeout",
+                package["execution_contract"]["decision_policy"],
+            )
+            self.assertEqual(
+                package["verification_commands"],
+                package["execution_contract"]["verification_commands"],
+            )
             self.assertIn(
                 "docs/agent-workflow/workflow-pack/references/implementation-execution-checklist.md",
                 package["read_order"],
@@ -5875,6 +5947,110 @@ class GovernanceCliTest(unittest.TestCase):
                 ["bin/governance", "implementation", "start", ".", "--task", "TASK-001", "--json"],
                 work_package_payload["next_action"]["command"]["argv"],
             )
+
+    def test_implementation_plan_blocks_ready_task_without_registered_command_binding(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp)
+            task_board = target / "docs/development/02-task-board.md"
+            task_board.write_text(
+                task_board.read_text(encoding="utf-8").replace("command:task-tests", "make test"),
+                encoding="utf-8",
+            )
+
+            payload = _run_governance_json(self, ["implementation", "plan", str(target)])
+
+            self.assertTrue(payload["ok"])
+            self.assertTrue(payload["blocked"])
+            self.assertFalse(payload["tasks"][0]["actionable"])
+            self.assertEqual([], payload["tasks"][0]["verification_command_names"])
+            self.assertIn(
+                "task_verification_command_binding_missing",
+                {item["code"] for item in payload["tasks"][0]["blockers"]},
+            )
+
+    def test_implementation_plan_blocks_unknown_command_binding(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp)
+            task_board = target / "docs/development/02-task-board.md"
+            task_board.write_text(
+                task_board.read_text(encoding="utf-8").replace("command:task-tests", "command:missing-tests"),
+                encoding="utf-8",
+            )
+
+            payload = _run_governance_json(self, ["implementation", "plan", str(target)])
+
+            self.assertTrue(payload["ok"])
+            self.assertTrue(payload["blocked"])
+            command = payload["tasks"][0]["verification_commands"][0]
+            self.assertFalse(command["ready"])
+            self.assertEqual("missing-tests", command["name"])
+            self.assertIn("command contract command not found", command["errors"][0])
+            self.assertIn(
+                "task_verification_command_invalid",
+                {item["code"] for item in payload["tasks"][0]["blockers"]},
+            )
+
+    def test_implementation_plan_blocks_malformed_command_binding(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp)
+            task_board = target / "docs/development/02-task-board.md"
+            task_board.write_text(
+                task_board.read_text(encoding="utf-8").replace(
+                    "command:task-tests",
+                    "command:task-tests/extra",
+                ),
+                encoding="utf-8",
+            )
+
+            payload = _run_governance_json(self, ["implementation", "plan", str(target)])
+
+            self.assertTrue(payload["blocked"])
+            command = payload["tasks"][0]["verification_commands"][0]
+            self.assertEqual("malformed", command["status"])
+            self.assertEqual("task-tests/extra", command["name"])
+            self.assertIn("must match command:<registered-name>", command["errors"][0])
+            self.assertIn(
+                "task_verification_command_binding_malformed",
+                {item["code"] for item in payload["tasks"][0]["blockers"]},
+            )
+
+    def test_implementation_plan_blocks_approval_required_command_binding(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp)
+            _append_project_command(
+                target,
+                name="task-tests",
+                argv=["python3", "-c", "print('approval')"],
+                approval_required=True,
+            )
+
+            payload = _run_governance_json(self, ["implementation", "plan", str(target)])
+
+            self.assertTrue(payload["blocked"])
+            command = payload["tasks"][0]["verification_commands"][0]
+            self.assertEqual("approval_required", command["status"])
+            self.assertTrue(command["approval_required"])
+            self.assertIn(
+                "task_verification_command_requires_approval",
+                {item["code"] for item in payload["tasks"][0]["blockers"]},
+            )
+
+    def test_implementation_plan_adds_allow_writes_to_state_writing_verification_command(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp)
+            _append_project_command(
+                target,
+                name="task-tests",
+                argv=["python3", "-c", "print('writes')"],
+                writes_state=True,
+            )
+
+            payload = _run_governance_json(self, ["implementation", "plan", str(target)])
+
+            command = payload["tasks"][0]["verification_commands"][0]
+            self.assertTrue(command["ready"])
+            self.assertIn("--allow-writes", command["preflight_command"]["argv"])
+            self.assertIn("--allow-writes", command["execute_command"]["argv"])
 
     def test_implementation_start_reports_in_progress_status_sync_plan(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -6008,13 +6184,57 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual("satisfied", requirements["governance_verify_passed"]["status"])
             self.assertEqual("missing", requirements["verification_log_row_present"]["status"])
             self.assertEqual("missing", requirements["verification_result_passing"]["status"])
+            self.assertEqual("missing", requirements["required_verification_commands_passing"]["status"])
             self.assertEqual("missing", requirements["task_verification_links_local_evidence"]["status"])
             self.assertFalse(payload["evidence_summary"]["verification_logged"])
+            self.assertEqual(["task-tests"], payload["evidence_summary"]["required_verification_commands"])
+            self.assertEqual(["task-tests"], payload["evidence_summary"]["missing_verification_commands"])
             self.assertFalse(payload["evidence_summary"]["verification_links_local_evidence"])
             self.assertEqual(
                 ["bin/governance", "implementation", "closeout", ".", "--task", "TASK-001", "--json"],
                 payload["refresh_command"]["argv"],
             )
+
+    def test_implementation_closeout_blocks_unknown_required_verification_command(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp)
+            task_board = target / "docs/development/02-task-board.md"
+            task_board.write_text(
+                task_board.read_text(encoding="utf-8").replace(
+                    "command:task-tests",
+                    "command:missing-tests docs/development/03-verification-log.md",
+                ),
+                encoding="utf-8",
+            )
+            (target / "docs/development/03-verification-log.md").write_text(
+                _verification_log_doc(
+                    "| TASK-001 | missing-tests | pass | 2026-07-08 | Unregistered evidence. |\n"
+                ),
+                encoding="utf-8",
+            )
+
+            payload = _run_governance_json(
+                self,
+                ["implementation", "closeout", str(target), "--task", "TASK-001"],
+            )
+
+            requirements = {item["code"]: item for item in payload["requirements"]}
+            self.assertFalse(payload["closeout_ready"])
+            self.assertEqual(
+                "missing",
+                requirements["required_verification_commands_registered"]["status"],
+            )
+            self.assertEqual(
+                "satisfied",
+                requirements["required_verification_commands_passing"]["status"],
+            )
+            self.assertEqual(
+                ["missing-tests"],
+                payload["evidence_summary"]["required_verification_commands"],
+            )
+            self.assertEqual([], payload["evidence_summary"]["missing_verification_commands"])
+            self.assertEqual([], payload["evidence_summary"]["failing_verification_commands"])
+            self.assertFalse(payload["evidence_summary"]["verification_commands_registered"])
 
     def test_implementation_verify_check_previews_registered_command_without_execution(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -6777,7 +6997,7 @@ class GovernanceCliTest(unittest.TestCase):
                 _task_board_doc(
                     "| TASK-001 | In Progress | Implement goal flow | docs/product/01-goals.md | "
                     "docs/architecture/01-system-context.md | docs/api/00-conventions.md | "
-                    "docs/product/08-acceptance-criteria.md | docs/development/03-verification-log.md |\n"
+                    "docs/product/08-acceptance-criteria.md | command:task-tests docs/development/03-verification-log.md |\n"
                 ),
                 encoding="utf-8",
             )
@@ -6787,7 +7007,7 @@ class GovernanceCliTest(unittest.TestCase):
             )
             (target / "docs/development/03-verification-log.md").write_text(
                 _verification_log_doc(
-                    "| TASK-001 | unit-tests | pass | 2026-07-13 | unit evidence |\n"
+                    "| TASK-001 | task-tests | pass | 2026-07-13 | unit evidence |\n"
                     "| TASK-001 | integration-tests | fail | 2026-07-13 | integration evidence |\n"
                 ),
                 encoding="utf-8",
@@ -6814,13 +7034,13 @@ class GovernanceCliTest(unittest.TestCase):
                 _task_board_doc(
                     "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | "
                     "docs/architecture/01-system-context.md | docs/api/00-conventions.md | "
-                    "docs/product/08-acceptance-criteria.md | docs/development/03-verification-log.md |\n"
+                    "docs/product/08-acceptance-criteria.md | command:task-tests docs/development/03-verification-log.md |\n"
                 ),
                 encoding="utf-8",
             )
             (target / "docs/development/03-verification-log.md").write_text(
                 _verification_log_doc(
-                    "| TASK-001 | make test | pass | 2026-07-08 | Local verification passed. |\n"
+                    "| TASK-001 | task-tests | pass | 2026-07-08 | Local verification passed. |\n"
                 ),
                 encoding="utf-8",
             )
@@ -6852,6 +7072,8 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual([], payload["blocking_requirements"])
             self.assertTrue(payload["evidence_summary"]["verification_logged"])
             self.assertTrue(payload["evidence_summary"]["passing_verification_logged"])
+            self.assertEqual([], payload["evidence_summary"]["missing_verification_commands"])
+            self.assertEqual([], payload["evidence_summary"]["failing_verification_commands"])
             self.assertTrue(payload["evidence_summary"]["verification_links_local_evidence"])
             self.assertEqual("pass", payload["evidence_summary"]["verification_results"][0]["result"])
             self.assertEqual("docs/development/03-verification-log.md", payload["evidence_summary"]["verification_references"][0]["path"])
@@ -6923,13 +7145,13 @@ class GovernanceCliTest(unittest.TestCase):
                 _task_board_doc(
                     "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | "
                     "docs/architecture/01-system-context.md | docs/api/00-conventions.md | "
-                    "docs/product/08-acceptance-criteria.md | docs/development/03-verification-log.md |\n"
+                    "docs/product/08-acceptance-criteria.md | command:task-tests docs/development/03-verification-log.md |\n"
                 ),
                 encoding="utf-8",
             )
             (target / "docs/development/03-verification-log.md").write_text(
                 _verification_log_doc(
-                    "| TASK-001 | make test | pass | 2026-07-08 | Local verification passed. |\n"
+                    "| TASK-001 | task-tests | pass | 2026-07-08 | Local verification passed. |\n"
                 ),
                 encoding="utf-8",
             )
@@ -6977,13 +7199,13 @@ class GovernanceCliTest(unittest.TestCase):
                 _task_board_doc(
                     "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | "
                     "docs/architecture/01-system-context.md | docs/api/00-conventions.md | "
-                    "docs/product/08-acceptance-criteria.md | docs/development/03-verification-log.md |\n"
+                    "docs/product/08-acceptance-criteria.md | command:task-tests docs/development/03-verification-log.md |\n"
                 ),
                 encoding="utf-8",
             )
             (target / "docs/development/03-verification-log.md").write_text(
                 _verification_log_doc(
-                    "| TASK-001 | make test | pass | 2026-07-08 | Local verification passed. |\n"
+                    "| TASK-001 | task-tests | pass | 2026-07-08 | Local verification passed. |\n"
                 ),
                 encoding="utf-8",
             )
@@ -7045,13 +7267,13 @@ class GovernanceCliTest(unittest.TestCase):
                 _task_board_doc(
                     "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | "
                     "docs/architecture/01-system-context.md | docs/api/00-conventions.md | "
-                    "docs/product/08-acceptance-criteria.md | docs/development/03-verification-log.md |\n"
+                    "docs/product/08-acceptance-criteria.md | command:task-tests docs/development/03-verification-log.md |\n"
                 ),
                 encoding="utf-8",
             )
             (target / "docs/development/03-verification-log.md").write_text(
                 _verification_log_doc(
-                    "| TASK-001 | make test | pass | 2026-07-08 | Local verification passed. |\n"
+                    "| TASK-001 | task-tests | pass | 2026-07-08 | Local verification passed. |\n"
                 ),
                 encoding="utf-8",
             )
@@ -7100,13 +7322,13 @@ class GovernanceCliTest(unittest.TestCase):
                 _task_board_doc(
                     "| TASK-001 | Ready | Implement goal flow | docs/product/01-goals.md | "
                     "docs/architecture/01-system-context.md | docs/api/00-conventions.md | "
-                    "docs/product/08-acceptance-criteria.md | docs/development/03-verification-log.md |\n"
+                    "docs/product/08-acceptance-criteria.md | command:task-tests docs/development/03-verification-log.md |\n"
                 ),
                 encoding="utf-8",
             )
             (target / "docs/development/03-verification-log.md").write_text(
                 _verification_log_doc(
-                    "| TASK-001 | make test | pass | 2026-07-08 | Local verification passed. |\n"
+                    "| TASK-001 | task-tests | pass | 2026-07-08 | Local verification passed. |\n"
                 ),
                 encoding="utf-8",
             )

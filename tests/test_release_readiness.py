@@ -7,6 +7,7 @@ from pathlib import Path
 from scripts.release_readiness import (
     _artifact_smoke_design_authoring_summary_ok,
     _artifact_smoke_work_package_ok,
+    _dry_run_implementation_task_package_ok,
 )
 
 
@@ -15,6 +16,45 @@ RELEASE = ROOT / "scripts" / "release_readiness.py"
 
 
 class ReleaseReadinessTest(unittest.TestCase):
+    def test_dry_run_implementation_task_package_check_requires_bound_commands(self) -> None:
+        command_names = ["task-tests", "node-tests"]
+        payload = {
+            "implementation_task_package": {
+                "verification_command_names": command_names,
+                "verification_commands": [
+                    {
+                        "name": name,
+                        "ready": True,
+                        "preflight_command": {"argv": ["bin/governance", "implementation", "verify"]},
+                        "execute_command": {"argv": ["bin/governance", "implementation", "verify"]},
+                    }
+                    for name in command_names
+                ],
+                "verification_command_summary": {
+                    "required_count": 2,
+                    "ready_count": 2,
+                    "blocked_count": 0,
+                    "all_ready": True,
+                },
+                "execution_contract": {
+                    "decision_policy": "claim_then_execute_all_required_verification_commands_then_closeout",
+                    "verification_commands": [
+                        {
+                            "name": name,
+                            "ready": True,
+                            "preflight_command": {"argv": ["bin/governance", "implementation", "verify"]},
+                            "execute_command": {"argv": ["bin/governance", "implementation", "verify"]},
+                        }
+                        for name in command_names
+                    ],
+                },
+            }
+        }
+
+        self.assertTrue(_dry_run_implementation_task_package_ok(payload))
+        payload["implementation_task_package"]["verification_command_summary"]["all_ready"] = False
+        self.assertFalse(_dry_run_implementation_task_package_ok(payload))
+
     def test_artifact_smoke_work_package_check_requires_expected_identity(self) -> None:
         summary = {
             "work_package": {
@@ -192,6 +232,12 @@ class ReleaseReadinessTest(unittest.TestCase):
                 "all_current_results_passing"
             ]
         )
+        self.assertEqual(
+            ["dry-run-task-tests", "node-stack-tests"],
+            criteria["fresh-target-dry-run"]["details"]["implementation_task_package"][
+                "verification_command_names"
+            ],
+        )
         self.assertTrue(criteria["fresh-target-dry-run"]["details"]["stack_acceptance"]["all_required_passed"])
         self.assertEqual(
             "passed",
@@ -227,6 +273,11 @@ class ReleaseReadinessTest(unittest.TestCase):
             criteria["multi-acceptance-dry-run"]["details"]["implementation_verification"]["evidence_recorded"]
         )
         self.assertTrue(
+            criteria["multi-acceptance-dry-run"]["details"]["implementation_task_package"][
+                "verification_command_summary"
+            ]["all_ready"]
+        )
+        self.assertTrue(
             criteria["multi-acceptance-dry-run"]["details"]["stack_acceptance"]["all_required_passed"]
         )
         self.assertTrue(criteria["release-artifact-smoke"]["details"]["fresh_target_init"]["ok"])
@@ -247,6 +298,9 @@ class ReleaseReadinessTest(unittest.TestCase):
         self.assertTrue(criteria["release-artifact-smoke"]["details"]["threat_review"]["ok"])
         self.assertTrue(
             criteria["release-artifact-smoke"]["details"]["implementation_verification"]["ok"]
+        )
+        self.assertTrue(
+            criteria["release-artifact-smoke"]["details"]["implementation_task_package"]["ok"]
         )
         self.assertTrue(criteria["release-artifact-smoke"]["details"]["stack_acceptance"]["ok"])
         self.assertTrue(
