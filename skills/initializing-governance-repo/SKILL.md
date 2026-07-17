@@ -37,6 +37,8 @@ Create the minimum structure needed for reliable docs-as-code work.
 
    For automation, use `--json` and inspect `product.selection`; `auto-discovered` means exactly one root product document was imported. Use `local_commands[].argv` from `local_commands[].cwd` for routine checks; inspect `writes_state` and `approval_required` before running returned commands. Follow `next_actions`: sort by `sequence`, run each action's `argv` from its reported `cwd`, use `preflight_for` and `requires_action` to pair commands, and run the matching state-writing `apply` command only after the referenced preflight reports the declared `success_condition` of `ok:true`.
 
+   Inspect generated root `AGENTS.md` and require its `Workflow Startup` section. It must route the next Agent through `make workflow-resume`, `assert_snapshot_command.argv`, `work_package.read_order`, and ordered `skill_loading_plan.steps[]`. Load local workflow skills from exact paths under `docs/agent-workflow/workflow-pack/skills/`; load authority-routing skills from the Agent environment and stop when `missing_policy` requires it. Run `refresh_command.argv` after exactly one selected action.
+
 6. Verify:
 
    ```bash

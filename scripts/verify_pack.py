@@ -606,6 +606,10 @@ FRESH_TARGET_SMOKE_TEST_REQUIRED_PHRASES = (
     "TemporaryDirectory",
     "product.md",
     "auto-discovered",
+    "Workflow Startup",
+    "skill_loading_plan.steps[]",
+    "docs/agent-workflow/workflow-pack/skills/",
+    "load_authority_routing_skill",
     '"env"',
     '"--repair"',
     '"--check"',
@@ -5092,6 +5096,64 @@ RUNTIME_WRAPPER_REQUIRED_COMMANDS = {
     "bin/governance-verify": 'python3 "$ROOT_DIR/scripts/governance_cli.py" verify "$@"',
 }
 BOOTSTRAP_TREE_PATH = Path("scripts/bootstrap_tree.py")
+GENERATED_ROOT_AGENTS_REQUIRED_PHRASES = (
+    "## Workflow Startup",
+    "Read `docs/agent-workflow/workflow-pack/workflows/00-overview.md`",
+    "Run `make workflow-resume` before selecting work",
+    "can_continue: true",
+    "stop_before_action: false",
+    "assert_snapshot_command.argv",
+    "work_package.read_order",
+    "skill_loading_plan.steps[]",
+    "load_local_workflow_skill",
+    "docs/agent-workflow/workflow-pack/skills/",
+    "load_authority_routing_skill",
+    "missing_policy",
+    "refresh_command.argv",
+)
+GENERATED_ROOT_AGENTS_DOC_REQUIREMENTS = {
+    "README.md": (
+        "Generated root `AGENTS.md`",
+        "`Workflow Startup`",
+        "`make workflow-resume`",
+        "`work_package.read_order`",
+        "`skill_loading_plan.steps[]`",
+        "`docs/agent-workflow/workflow-pack/skills/`",
+        "`missing_policy`",
+        "`refresh_command.argv`",
+    ),
+    "workflows/01-empty-repo-initialization.md": (
+        "root `AGENTS.md`",
+        "`Workflow Startup`",
+        "`make workflow-resume`",
+        "`assert_snapshot_command.argv`",
+        "`work_package.read_order`",
+        "`skill_loading_plan.steps[]`",
+        "`docs/agent-workflow/workflow-pack/skills/`",
+        "`missing_policy`",
+        "`refresh_command.argv`",
+    ),
+    "skills/initializing-governance-repo/SKILL.md": (
+        "root `AGENTS.md`",
+        "`Workflow Startup`",
+        "`make workflow-resume`",
+        "`assert_snapshot_command.argv`",
+        "`work_package.read_order`",
+        "`skill_loading_plan.steps[]`",
+        "`docs/agent-workflow/workflow-pack/skills/`",
+        "`missing_policy`",
+        "`refresh_command.argv`",
+    ),
+    "references/repository-initialization-checklist.md": (
+        "root `AGENTS.md`",
+        "`make workflow-resume`",
+        "snapshot assertion",
+        "work-package read order",
+        "ordered local/authority skill loading",
+        "one selected action",
+        "refresh before the next action",
+    ),
+}
 GOVERNANCE_CLI_PATH = Path("scripts/governance_cli.py")
 WORKFLOW_ACTIONS_PATH = Path("scripts/workflow_actions.py")
 GOVERNANCE_CLI_REQUIRED_COMMANDS = (
@@ -5462,6 +5524,8 @@ def verify_pack(root: Path) -> PackReport:
     _check_workflow_pack_file_encoding(root, findings)
     _check_runtime_python_syntax(root, findings)
     _check_runtime_file_list_alignment(root, findings)
+    _check_generated_root_agents_contract(root, findings)
+    _check_generated_root_agents_docs(root, findings)
     _check_governance_cli_commands(root, findings)
     _check_fresh_target_workflow_smoke_test(root, findings)
     _check_dry_run_workflow(root, findings)
@@ -6351,6 +6415,42 @@ def _check_runtime_continuation_calls(root: Path, findings: list[PackFinding]) -
                     rel,
                 )
             )
+
+
+def _check_generated_root_agents_contract(root: Path, findings: list[PackFinding]) -> None:
+    rel = BOOTSTRAP_TREE_PATH.as_posix()
+    text = _read_utf8_text_or_none(root / BOOTSTRAP_TREE_PATH)
+    if text is None:
+        return
+    missing = [phrase for phrase in GENERATED_ROOT_AGENTS_REQUIRED_PHRASES if phrase not in text]
+    if not missing:
+        return
+    findings.append(
+        PackFinding(
+            "pack_generated_root_agents_contract_incomplete",
+            f"scripts/bootstrap_tree.py must generate the Agent workflow startup contract; missing phrase(s): "
+            f"{', '.join(missing)}",
+            rel,
+        )
+    )
+
+
+def _check_generated_root_agents_docs(root: Path, findings: list[PackFinding]) -> None:
+    for rel, required_phrases in GENERATED_ROOT_AGENTS_DOC_REQUIREMENTS.items():
+        text = _read_utf8_text_or_none(root / rel)
+        if text is None:
+            continue
+        missing = [phrase for phrase in required_phrases if phrase not in text]
+        if not missing:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_generated_root_agents_doc_missing",
+                f"{rel} must document the generated Agent workflow startup contract; missing phrase(s): "
+                f"{', '.join(missing)}",
+                rel,
+            )
+        )
 
 
 def _check_target_local_command_source(root: Path, findings: list[PackFinding]) -> None:

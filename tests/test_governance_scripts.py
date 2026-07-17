@@ -1746,6 +1746,16 @@ class GovernanceScriptsTest(unittest.TestCase):
 
             self.assertTrue((root / "README.md").exists())
             self.assertTrue((root / "AGENTS.md").exists())
+            root_agents = (root / "AGENTS.md").read_text(encoding="utf-8")
+            self.assertIn("## Workflow Startup", root_agents)
+            self.assertIn("`make workflow-resume`", root_agents)
+            self.assertIn("`assert_snapshot_command.argv`", root_agents)
+            self.assertIn("`work_package.read_order`", root_agents)
+            self.assertIn("`skill_loading_plan.steps[]`", root_agents)
+            self.assertIn("`load_local_workflow_skill`", root_agents)
+            self.assertIn("`docs/agent-workflow/workflow-pack/skills/`", root_agents)
+            self.assertIn("`load_authority_routing_skill`", root_agents)
+            self.assertIn("`refresh_command.argv`", root_agents)
             self.assertTrue((root / "docs/product/core/PRD.md").exists())
             self.assertTrue((root / "docs/product/core/source/input-product.md").exists())
             self.assertTrue((root / "docs/agent-workflow/workflow-pack/workflows/00-overview.md").exists())
@@ -7616,6 +7626,41 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "severity": "error",
                     "path": "AGENTS.md",
                     "message": "AGENTS.md Agent Rules section must preserve guardrail: do not silently modify upstream product meaning",
+                },
+                [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_missing_root_agents_workflow_startup_guardrail(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            agents = root / "AGENTS.md"
+            agents.write_text(
+                agents.read_text(encoding="utf-8").replace(
+                    "- Run `make workflow-resume` before selecting work.\n",
+                    "",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertIn(
+                "AGENTS.md Workflow Startup section must preserve guardrail: make workflow-resume",
+                report.errors,
+            )
+            self.assertIn(
+                {
+                    "code": "root_agents_guardrail_missing",
+                    "severity": "error",
+                    "path": "AGENTS.md",
+                    "message": (
+                        "AGENTS.md Workflow Startup section must preserve guardrail: make workflow-resume"
+                    ),
                 },
                 [finding.to_dict() for finding in report.findings],
             )

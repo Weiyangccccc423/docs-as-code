@@ -74,6 +74,8 @@ Load:
    - `docs/agent-workflow/workflow-pack/manifest.json`
    - `docs/agent-workflow/workflow-pack/references/authority-skills.lock.json`
 
+   In root `AGENTS.md`, require the `Workflow Startup` contract: read the target-local workflow overview, run `make workflow-resume`, enforce `assert_snapshot_command.argv`, read `work_package.read_order`, and follow `skill_loading_plan.steps[]`. Local workflow skills must be read from their exact path under `docs/agent-workflow/workflow-pack/skills/`; authority-routing skills must be loaded from the Agent environment or stop under `missing_policy`. Execute one selected action, run `refresh_command.argv`, then resume.
+
 7. Inspect generated docs domains:
 
    - `docs/product/`

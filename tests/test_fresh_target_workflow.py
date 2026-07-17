@@ -136,6 +136,12 @@ class FreshTargetWorkflowTest(unittest.TestCase):
             self.assertTrue((target / "docs/agent-workflow/workflow-pack/manifest.json").is_file())
             self.assertTrue((target / "docs/product/core/PRD.md").is_file())
             self.assertTrue((target / "docs/product/core/source/source-manifest.json").is_file())
+            agents = (target / "AGENTS.md").read_text(encoding="utf-8")
+            self.assertIn("## Workflow Startup", agents)
+            self.assertIn("`make workflow-resume`", agents)
+            self.assertIn("`skill_loading_plan.steps[]`", agents)
+            self.assertIn("`docs/agent-workflow/workflow-pack/skills/`", agents)
+            self.assertIn("`load_authority_routing_skill`", agents)
 
             verify_check = _run_json(
                 self,

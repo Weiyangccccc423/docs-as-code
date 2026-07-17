@@ -1378,19 +1378,7 @@ def _write_bootstrap_outputs(
     )
     _safe_write(
         root / "AGENTS.md",
-        "# AGENTS.md\n\n"
-        "> Scope: repository root and all subdirectories.\n\n"
-        "## Source-of-Truth Priority\n\n"
-        "1. `docs/product/core/PRD.md`\n"
-        "2. `docs/product/core/product-meta.md`\n"
-        "3. `docs/product/NN-*.md`\n"
-        "4. `docs/api/`, `docs/architecture/`, `docs/ui/`, `docs/backend/`, `docs/frontend/`\n"
-        "5. `docs/tests/`, `docs/development/`\n\n"
-        "## Agent Rules\n\n"
-        "- Read `docs/development/README.md` before implementation planning.\n"
-        "- Register unresolved product, API, DB, or cross-module questions in `docs/unresolved.md` and ask.\n"
-        "- Do not silently modify upstream product meaning in derived documents.\n"
-        "- Keep generated code, task plans, and verification evidence traceable to specs.\n",
+        _root_agents(),
         force,
     )
     _safe_write(
@@ -1565,6 +1553,34 @@ def _docs_agents() -> str:
         "- Remove any reserved marker once a directory contains real content.\n"
         "- Keep links relative and stable.\n"
         "- When documents conflict, follow repository source-of-truth priority in root `AGENTS.md`.\n"
+    )
+
+
+def _root_agents() -> str:
+    return (
+        "# AGENTS.md\n\n"
+        "> Scope: repository root and all subdirectories.\n\n"
+        "## Source-of-Truth Priority\n\n"
+        "1. `docs/product/core/PRD.md`\n"
+        "2. `docs/product/core/product-meta.md`\n"
+        "3. `docs/product/NN-*.md`\n"
+        "4. `docs/api/`, `docs/architecture/`, `docs/ui/`, `docs/backend/`, `docs/frontend/`\n"
+        "5. `docs/tests/`, `docs/development/`\n\n"
+        "## Workflow Startup\n\n"
+        "- Read `docs/agent-workflow/workflow-pack/workflows/00-overview.md`.\n"
+        "- Run `make workflow-resume` before selecting work.\n"
+        "- Continue only with `can_continue: true` and `stop_before_action: false`, then run "
+        "`assert_snapshot_command.argv` before the selected action.\n"
+        "- Read every path in `work_package.read_order` before editing.\n"
+        "- Follow `skill_loading_plan.steps[]` in sequence. For `load_local_workflow_skill`, read the exact "
+        "`path` under `docs/agent-workflow/workflow-pack/skills/`. For `load_authority_routing_skill`, load "
+        "the skill from the Agent environment and obey its `missing_policy`.\n"
+        "- Execute exactly one selected work package or action, then run `refresh_command.argv` and resume.\n\n"
+        "## Agent Rules\n\n"
+        "- Read `docs/development/README.md` before implementation planning.\n"
+        "- Register unresolved product, API, DB, or cross-module questions in `docs/unresolved.md` and ask.\n"
+        "- Do not silently modify upstream product meaning in derived documents.\n"
+        "- Keep generated code, task plans, and verification evidence traceable to specs.\n"
     )
 
 

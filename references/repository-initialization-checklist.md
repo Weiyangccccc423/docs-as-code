@@ -34,6 +34,7 @@ Reference: `https://git-scm.com/book/en/v2/Git-Basics-Getting-a-Git-Repository`
 
 - Are root `README.md`, `AGENTS.md`, `SPEC.md`, `CONTRIBUTING.md`, `GOVERNANCE.md`, `SECURITY.md`, and `Makefile` generated or intentionally preserved?
 - Do root docs explain repository purpose, source-of-truth order, verification commands, contribution rules, and security reporting enough for agents and humans to start safely?
+- Does root `AGENTS.md` require `make workflow-resume`, snapshot assertion, work-package read order, ordered local/authority skill loading, one selected action, and refresh before the next action?
 - Are same-directory `README.md` and `AGENTS.md` files present for non-empty documentation domains?
 
 Reference: `https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-readmes`

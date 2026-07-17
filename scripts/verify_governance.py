@@ -488,6 +488,20 @@ ROOT_AGENTS_SOURCE_OF_TRUTH_GUARDRAILS = (
     "docs/tests/",
     "docs/development/",
 )
+ROOT_AGENTS_WORKFLOW_STARTUP_GUARDRAILS = (
+    "docs/agent-workflow/workflow-pack/workflows/00-overview.md",
+    "make workflow-resume",
+    "can_continue: true",
+    "stop_before_action: false",
+    "assert_snapshot_command.argv",
+    "work_package.read_order",
+    "skill_loading_plan.steps[]",
+    "load_local_workflow_skill",
+    "docs/agent-workflow/workflow-pack/skills/",
+    "load_authority_routing_skill",
+    "missing_policy",
+    "refresh_command.argv",
+)
 ROOT_AGENTS_AGENT_RULE_GUARDRAILS = (
     "read docs/development/readme.md before implementation planning",
     "register unresolved product, api, db, or cross-module questions in docs/unresolved.md and ask",
@@ -2343,6 +2357,13 @@ def _check_root_agents_guardrails(root: Path, report: VerificationReport) -> Non
         "source-of-truth priority",
         "Source-of-Truth Priority",
         ROOT_AGENTS_SOURCE_OF_TRUTH_GUARDRAILS,
+    )
+    _check_agents_section_guardrails(
+        report,
+        sections,
+        "workflow startup",
+        "Workflow Startup",
+        ROOT_AGENTS_WORKFLOW_STARTUP_GUARDRAILS,
     )
     _check_agents_section_guardrails(
         report,

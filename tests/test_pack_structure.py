@@ -2872,6 +2872,66 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_generated_root_agents_startup_contract_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/bootstrap_tree.py"
+            script.write_text(
+                script.read_text(encoding="utf-8").replace(
+                    "- Run `make workflow-resume` before selecting work.\\n",
+                    "- Select work from chat context.\\n",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_generated_root_agents_contract_incomplete"
+                    and finding.path == "scripts/bootstrap_tree.py"
+                    and "make workflow-resume" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_generated_root_agents_startup_doc_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            workflow = target / "workflows/01-empty-repo-initialization.md"
+            workflow.write_text(
+                workflow.read_text(encoding="utf-8").replace(
+                    "`skill_loading_plan.steps[]`",
+                    "the reported skill list",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_generated_root_agents_doc_missing"
+                    and finding.path == "workflows/01-empty-repo-initialization.md"
+                    and "skill_loading_plan.steps[]" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_missing_target_local_command_approval_schema_key(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
