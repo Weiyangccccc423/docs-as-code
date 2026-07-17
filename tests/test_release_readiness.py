@@ -8,6 +8,7 @@ from scripts.release_readiness import (
     _artifact_smoke_design_authoring_summary_ok,
     _artifact_smoke_work_package_ok,
     _dry_run_implementation_task_package_ok,
+    _dry_run_implementation_runner_ok,
 )
 
 
@@ -16,6 +17,26 @@ RELEASE = ROOT / "scripts" / "release_readiness.py"
 
 
 class ReleaseReadinessTest(unittest.TestCase):
+    def test_dry_run_implementation_runner_check_requires_guarded_complete_execution(self) -> None:
+        payload = {
+            "implementation_run": {
+                "ready_check": True,
+                "snapshot_guarded_start": True,
+                "start_applied": True,
+                "verification_ready": True,
+                "required_count": 2,
+                "passed_count": 2,
+                "executed_all_required": True,
+                "snapshot_guarded_closeout": True,
+                "closeout_applied": True,
+                "complete": True,
+            }
+        }
+
+        self.assertTrue(_dry_run_implementation_runner_ok(payload))
+        payload["implementation_run"]["snapshot_guarded_closeout"] = False
+        self.assertFalse(_dry_run_implementation_runner_ok(payload))
+
     def test_dry_run_implementation_task_package_check_requires_bound_commands(self) -> None:
         command_names = ["task-tests", "node-tests"]
         payload = {
@@ -232,6 +253,10 @@ class ReleaseReadinessTest(unittest.TestCase):
                 "all_current_results_passing"
             ]
         )
+        self.assertTrue(criteria["fresh-target-dry-run"]["details"]["implementation_run"]["complete"])
+        self.assertTrue(
+            criteria["fresh-target-dry-run"]["details"]["implementation_run"]["executed_all_required"]
+        )
         self.assertEqual(
             ["dry-run-task-tests", "node-stack-tests"],
             criteria["fresh-target-dry-run"]["details"]["implementation_task_package"][
@@ -272,6 +297,7 @@ class ReleaseReadinessTest(unittest.TestCase):
         self.assertTrue(
             criteria["multi-acceptance-dry-run"]["details"]["implementation_verification"]["evidence_recorded"]
         )
+        self.assertTrue(criteria["multi-acceptance-dry-run"]["details"]["implementation_run"]["complete"])
         self.assertTrue(
             criteria["multi-acceptance-dry-run"]["details"]["implementation_task_package"][
                 "verification_command_summary"
@@ -302,6 +328,7 @@ class ReleaseReadinessTest(unittest.TestCase):
         self.assertTrue(
             criteria["release-artifact-smoke"]["details"]["implementation_task_package"]["ok"]
         )
+        self.assertTrue(criteria["release-artifact-smoke"]["details"]["implementation_run"]["complete"])
         self.assertTrue(criteria["release-artifact-smoke"]["details"]["stack_acceptance"]["ok"])
         self.assertTrue(
             criteria["release-artifact-smoke"]["details"]["stack_acceptance"]["all_required_passed"]

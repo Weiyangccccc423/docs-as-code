@@ -308,6 +308,16 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertTrue(payload["implementation_start"]["ready"])
             self.assertTrue(payload["implementation_start"]["applied_status_updates"])
             self.assertTrue(payload["implementation_start"]["implementation_plan_in_progress"])
+            self.assertTrue(payload["implementation_run"]["ready_check"])
+            self.assertTrue(payload["implementation_run"]["snapshot_guarded_start"])
+            self.assertTrue(payload["implementation_run"]["start_applied"])
+            self.assertTrue(payload["implementation_run"]["verification_ready"])
+            self.assertTrue(payload["implementation_run"]["executed_all_required"])
+            self.assertEqual(2, payload["implementation_run"]["required_count"])
+            self.assertEqual(2, payload["implementation_run"]["passed_count"])
+            self.assertTrue(payload["implementation_run"]["snapshot_guarded_closeout"])
+            self.assertTrue(payload["implementation_run"]["closeout_applied"])
+            self.assertTrue(payload["implementation_run"]["complete"])
             self.assertTrue(payload["implementation_verification"]["preview_ready"])
             self.assertTrue(payload["implementation_verification"]["environment_ready"])
             self.assertTrue(payload["implementation_verification"]["environment_version_ready"])
@@ -392,6 +402,7 @@ class DryRunWorkflowTest(unittest.TestCase):
                 [
                     "bin/governance",
                     "scripts/governance_cli.py",
+                    "scripts/implementation_run.py",
                     "scripts/implementation_verify.py",
                     "scripts/project_environment.py",
                     "scripts/bounded_process.py",
@@ -485,6 +496,11 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertIn("make_work_package_implementation", step_ids)
             self.assertIn("implementation_plan", step_ids)
             self.assertIn("make_implementation_plan", step_ids)
+            self.assertIn("make_implementation_run_check", step_ids)
+            self.assertIn("implementation_run_apply_start", step_ids)
+            self.assertIn("implementation_run_check_in_progress", step_ids)
+            self.assertIn("implementation_run_execute", step_ids)
+            self.assertIn("implementation_run_closeout", step_ids)
             self.assertIn("make_check_env", step_ids)
             self.assertIn("make_repair_env_check", step_ids)
             self.assertIn("make_project_env_plan", step_ids)
@@ -494,13 +510,11 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertIn("project_environment_reviewed_repair_apply", step_ids)
             self.assertIn("project_environment_repaired_plan", step_ids)
             self.assertIn("implementation_start_preview", step_ids)
-            self.assertIn("implementation_start_apply", step_ids)
             self.assertIn("implementation_plan_after_start", step_ids)
             self.assertIn("implementation_closeout_without_evidence", step_ids)
             self.assertIn("implementation_verification_preview", step_ids)
             self.assertIn("implementation_verification_execute", step_ids)
             self.assertIn("implementation_closeout_with_evidence", step_ids)
-            self.assertIn("implementation_closeout_apply", step_ids)
             self.assertIn("implementation_plan_after_closeout_apply", step_ids)
             self.assertIn("workflow_plan_after_closeout_apply", step_ids)
             self.assertIn("runtime_refresh_check_after_complete", step_ids)

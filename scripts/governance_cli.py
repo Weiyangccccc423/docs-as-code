@@ -62,6 +62,7 @@ from implementation_plan import (
     build_implementation_plan,
     build_implementation_start,
 )
+from implementation_run import run_implementation_task
 from implementation_verify import build_implementation_verify, run_implementation_verify
 from reliability_review_evidence import (
     check_reliability_review_evidence,
@@ -1548,6 +1549,36 @@ def _cmd_implementation_verify(args: argparse.Namespace) -> int:
     return 0 if payload.get("ok") is True else 1
 
 
+def _cmd_implementation_run(args: argparse.Namespace) -> int:
+    payload = run_implementation_task(
+        Path(args.target),
+        task_id=args.task,
+        check=args.check,
+        apply_start=args.apply_start,
+        execute=args.execute,
+        closeout=args.closeout,
+        auto_repair=args.auto_repair,
+        approve_repairs=args.approve_repairs,
+        expect_snapshot=args.expect_snapshot,
+        timeout_seconds=args.timeout_seconds,
+        max_output_bytes=args.max_output_bytes,
+    )
+    if args.json:
+        _print_json(payload)
+    elif payload.get("ok") is not True:
+        print(f"Implementation run {payload.get('status', 'failed')}:")
+        for reason in payload.get("stop_reasons", []):
+            print(f"- STOP: {reason}")
+        for error in payload.get("errors", []):
+            print(f"- ERROR: {error}")
+    else:
+        print(f"Implementation run: {payload.get('task_id', '')}")
+        print(f"- status: {payload.get('status', '')}")
+        print(f"- executed: {str(payload.get('executed') is True).lower()}")
+        print(f"- closeout_applied: {str(payload.get('closeout_applied') is True).lower()}")
+    return 0 if payload.get("ok") is True else 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="docs-as-code governance workflow CLI")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -2081,6 +2112,65 @@ def build_parser() -> argparse.ArgumentParser:
     )
     implementation_verify.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     implementation_verify.set_defaults(func=_cmd_implementation_verify)
+    implementation_run = implementation_sub.add_parser(
+        "run",
+        help="Run a snapshot-guarded task claim, verification, repair, and closeout controller.",
+    )
+    implementation_run.add_argument("target", nargs="?", default=".")
+    implementation_run.add_argument(
+        "--task",
+        default="",
+        help="Expected selected TASK-NNN; omit to use the current implementation work package.",
+    )
+    implementation_run.add_argument(
+        "--check",
+        action="store_true",
+        help="Build the next run stage and preflight commands without writing or executing task checks.",
+    )
+    implementation_run.add_argument(
+        "--apply-start",
+        action="store_true",
+        help="Claim the selected Ready task and stop so implementation edits can be made.",
+    )
+    implementation_run.add_argument(
+        "--execute",
+        action="store_true",
+        help="Preflight and execute every bound verification command for an In Progress task.",
+    )
+    implementation_run.add_argument(
+        "--closeout",
+        action="store_true",
+        help="Apply synchronized Done status only after current closeout evidence passes.",
+    )
+    implementation_run.add_argument(
+        "--auto-repair",
+        action="store_true",
+        help="Apply only environment repairs whose preflight explicitly reports can_auto_apply.",
+    )
+    implementation_run.add_argument(
+        "--approve-repairs",
+        action="store_true",
+        help="Explicitly approve registered reviewed-command environment repairs during auto repair.",
+    )
+    implementation_run.add_argument(
+        "--expect-snapshot",
+        default="",
+        help="Reject execution unless current workflow evidence matches this SHA-256 snapshot.",
+    )
+    implementation_run.add_argument(
+        "--timeout-seconds",
+        type=float,
+        default=300.0,
+        help="Per-command execution and repair timeout (default: 300).",
+    )
+    implementation_run.add_argument(
+        "--max-output-bytes",
+        type=int,
+        default=65536,
+        help="Maximum captured bytes per stdout/stderr stream (default: 65536).",
+    )
+    implementation_run.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    implementation_run.set_defaults(func=_cmd_implementation_run)
     implementation_closeout = implementation_sub.add_parser(
         "closeout",
         help="Check whether one implementation task has enough evidence to mark Done.",

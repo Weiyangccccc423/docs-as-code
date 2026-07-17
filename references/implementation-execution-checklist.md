@@ -8,7 +8,8 @@ Calibrate execution against DORA small-batch integration and test automation, Go
 
 - Is exactly one `Ready` or `In Progress` `TASK-NNN` selected from `docs/development/02-task-board.md`?
 - Before first code edit, was exactly one `Ready` `TASK-NNN` claimed as `In Progress`?
-- If the task was `Ready`, did the agent run `implementation start --task TASK-NNN --json` and apply only the returned safe `In Progress` status update before editing code?
+- If the task was `Ready`, did the agent use `implementation run --check`, execute the returned snapshot-guarded `--apply-start` action, and stop for code edits with `executed: false`?
+- Was claim kept separate from verification, with no invocation combining `--apply-start` and `--execute` or `--closeout`?
 - Does the task link existing local Product, Design, API, Acceptance, and Verification sources before any code is edited?
 - Does the Verification cell bind every required check as `command:<registered-name>` before the task becomes Ready or In Progress?
 - Is the matching `A-NNN` acceptance criterion defined in a product acceptance chapter and mapped in `docs/tests/02-acceptance-matrix.md`?
@@ -38,12 +39,15 @@ Reference: `https://dora.dev/capabilities/trunk-based-development/`
 
 - Is each task verification command registered with structured `Argv` and `Cwd` in `docs/agent-workflow/command-contract.md`?
 - Does the implementation work package resolve every binding into `verification_commands[]` with exact `preflight_command.argv` and `execute_command.argv`, with no invalid or approval-required entry?
+- After code edits, did `implementation run --check` preflight every binding before any task command executed, with `ready_count == required_count` and `all_ready: true`?
+- Was runner execution bound to the current workflow snapshot, serialized by its repository-local lock, and stopped on stale context or the first failed command?
 - Are exact task commands selected by preferring target-local `local_commands[].argv` when a machine-readable payload already provides them?
 - Was `implementation verify --task TASK-NNN --command command-name --check --json` run before execution, with no registered task-command execution or evidence writes during preflight?
 - Does `environment_readiness.ok` prove the exact `Argv[0]` is available and executable, with repository-relative paths resolved from `Cwd` and confined to the repository?
 - Does the command `Environment` reference `docs/agent-workflow/project-environment.json`, and do `required_tools[]` prove every allowlisted version probe passed and each observed numeric version satisfies its constraint?
 - Was each project runtime tool previewed and applied through `project-env register` from a reviewed architecture or ADR source, without guessed versions, packages, or repair instructions?
 - For a missing or incompatible tool, was the returned strategy-specific preflight followed: `env --repair --check` for `governance-env`, reviewed instructions for `manual`, or `project-env repair --check` plus explicit approval for `reviewed-command`?
+- If runner `--auto-repair` was used, were only `can_auto_apply: true` governance repairs applied automatically, with `--approve-repairs` required for every reviewed-command apply?
 - Before an approved project repair, were exact argv, cwd, source, local review evidence, write scope, timeout, and output bounds inspected, and did `.governance/project-environment-repairs.json` finish without a pending record?
 - Was the returned structured command executed without a shell string, with a bounded timeout and bounded stdout/stderr capture?
 - Was best-effort output redaction applied, while secret-bearing command arguments and intentionally printed credentials remained prohibited?
@@ -79,6 +83,7 @@ Reference: `https://openssf.org/projects/scorecard/`
 
 - Does the task satisfy `references/implementation-readiness-checklist.md` plus this execution checklist before being marked `Done`?
 - Does `implementation closeout` report `evidence_summary.all_verification_results_passing: true`, proving every current command result passes rather than only one?
+- Did the runner closeout use the post-execution snapshot and return `status: complete` plus `closeout_applied: true`?
 - Are `required_verification_commands_registered` and `required_verification_commands_passing` satisfied, with empty `missing_verification_commands` and `failing_verification_commands`?
 - Are failing checks, unresolved questions, or out-of-scope discoveries reflected as `Blocked`, `Deferred`, or follow-up tasks instead of hidden in prose?
 - Are all source-of-truth docs, implementation files, tests, and evidence committed as one coherent change when the repository uses Git?

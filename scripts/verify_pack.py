@@ -92,6 +92,8 @@ TEMPLATE_REQUIRED_GUARDRAILS = {
         '`["bin/governance", "design", "plan", ".", "--json"]`',
         "| implementation-plan |",
         '`["bin/governance", "implementation", "plan", ".", "--json"]`',
+        "| implementation-run-check |",
+        '`["bin/governance", "implementation", "run", ".", "--check", "--json"]`',
         "| check-env |",
         '`["bin/governance", "env", "--target", ".", "--json"]`',
         "| repair-env-check |",
@@ -593,6 +595,7 @@ TARGET_LOCAL_COMMAND_REQUIRED_TARGETS = (
     "product-plan",
     "design-plan",
     "implementation-plan",
+    "implementation-run-check",
     "check-env",
     "repair-env-check",
     "project-env-plan",
@@ -825,6 +828,16 @@ DRY_RUN_WORKFLOW_REQUIRED_PHRASES = (
     "implementation_plan",
     "make_implementation_plan",
     '["make", "implementation-plan"]',
+    "make_implementation_run_check",
+    '["make", "implementation-run-check"]',
+    "implementation_run_apply_start",
+    "implementation_run_check_in_progress",
+    "implementation_run_execute",
+    "implementation_run_closeout",
+    '"implementation_run"',
+    "snapshot_guarded_start",
+    "executed_all_required",
+    "snapshot_guarded_closeout",
     "implementation_start_preview",
     "implementation_start_apply",
     "implementation_plan_after_start",
@@ -862,7 +875,6 @@ DRY_RUN_WORKFLOW_REQUIRED_PHRASES = (
     "_require_workflow_resume",
     "implementation_closeout_without_evidence",
     "implementation_closeout_with_evidence",
-    "implementation_closeout_apply",
     "implementation_plan_after_closeout_apply",
     "workflow_plan_after_closeout_apply",
     "implementation_closeout",
@@ -1665,6 +1677,8 @@ ARTIFACT_SMOKE_REQUIRED_PHRASES = (
     "_has_finding_code",
     "unpacked_dry_run",
     "implementation_verification",
+    "implementation_run",
+    "guarded implementation runner completion",
     "implementation_task_package",
     "_dry_run_implementation_task_package_details",
     "claim_then_execute_all_required_verification_commands_then_closeout",
@@ -1807,6 +1821,7 @@ ARTIFACT_SMOKE_REQUIRED_PHRASES = (
     "make_product_plan",
     "make_design_plan",
     "make_implementation_plan",
+    "make_implementation_run_check",
     "make_check_env",
     "make_repair_env_check",
 )
@@ -1876,11 +1891,13 @@ RELEASE_READINESS_REQUIRED_PHRASES = (
     "stop_before_workflow",
     "_dry_run_closeout_evidence_ok",
     "_dry_run_implementation_task_package_ok",
+    "_dry_run_implementation_runner_ok",
     "_dry_run_stack_acceptance_ok",
     "_artifact_smoke_stack_acceptance_ok",
     "stack_acceptance",
     "implementation_verification",
     "implementation_task_package",
+    "implementation_run",
     "all_current_results_passing",
     "_dry_run_product_dispositions_ok",
     "_dry_run_design_reviews_ok",
@@ -1981,6 +1998,7 @@ RELEASE_READINESS_REQUIRED_PHRASES = (
     "make_product_plan",
     "make_design_plan",
     "make_implementation_plan",
+    "make_implementation_run_check",
     "make_check_env",
     "make_repair_env_check",
     "fresh_target_dry_run",
@@ -2828,6 +2846,7 @@ DESIGN_PLAN_SOURCE_REQUIRED_PHRASES = (
     "review_summary",
     "review_status",
 )
+IMPLEMENTATION_RUN_SOURCE_PATH = "scripts/implementation_run.py"
 IMPLEMENTATION_VERIFY_SOURCE_PATH = "scripts/implementation_verify.py"
 PROJECT_ENVIRONMENT_SOURCE_PATH = "scripts/project_environment.py"
 BOUNDED_PROCESS_SOURCE_PATH = "scripts/bounded_process.py"
@@ -2920,6 +2939,65 @@ IMPLEMENTATION_VERIFY_SOURCE_REQUIRED_PHRASES = (
     "_write_outputs_atomically",
     "post-write governance verification failed",
 )
+IMPLEMENTATION_RUN_SOURCE_REQUIRED_PHRASES = (
+    "run_implementation_task",
+    "DECISION_POLICY",
+    "IMPLEMENTATION_RUN_LOCK_REL",
+    "_implementation_run_lock",
+    "build_workflow_resume",
+    "apply_implementation_start",
+    "claim_task_then_edit_implementation_before_verification",
+    "_verification_preflights",
+    "_all_preflights_ready",
+    "_execute_verifications",
+    "_attempt_environment_repairs",
+    "can_auto_apply",
+    "approve_repairs",
+    "apply_implementation_closeout",
+    "run_bounded_command",
+)
+IMPLEMENTATION_RUN_DOC_REQUIREMENTS = {
+    "README.md": (
+        "implementation run <target> --check --json",
+        "make implementation-run-check",
+        "--apply-start",
+        "--execute",
+        "--closeout",
+        "--approve-repairs",
+    ),
+    "workflows/00-overview.md": (
+        "implementation run --check",
+        "status: implementation_required",
+        "closeout_applied: true",
+    ),
+    "workflows/06-implementation-execution.md": (
+        "implementation run <target> --task TASK-NNN --check --json",
+        "--apply-start --expect-snapshot",
+        "verification_summary.all_ready: true",
+        "--approve-repairs",
+        "status: complete",
+    ),
+    "skills/executing-implementation-task/SKILL.md": (
+        "implementation run . --task TASK-NNN --check --json",
+        "--apply-start --expect-snapshot",
+        "implementation_required",
+        "executed: false",
+        "--approve-repairs",
+        "closeout_applied: true",
+    ),
+    "references/implementation-execution-checklist.md": (
+        "implementation run --check",
+        "--apply-start",
+        "ready_count == required_count",
+        "--approve-repairs",
+        "status: complete",
+    ),
+    "templates/docs/agent-workflow/command-contract.md": (
+        "implementation-run-check",
+        '`["bin/governance", "implementation", "run", ".", "--check", "--json"]`',
+        "Use `implementation run --check`",
+    ),
+}
 IMPLEMENTATION_VERIFY_DOC_REQUIREMENTS = {
     "README.md": (
         "implementation verify <target> --task TASK-NNN --command command-name --check --json",
@@ -4953,7 +5031,7 @@ GOVERNANCE_CLI_REQUIRED_SUBCOMMANDS = {
         "implementation-planning-authoring",
         "architecture-decisions-authoring",
     ),
-    "implementation": ("plan", "start", "verify", "closeout"),
+    "implementation": ("plan", "start", "verify", "closeout", "run"),
 }
 GOVERNANCE_CLI_PARSER_VARIABLES = {
     "top-level": "sub",
@@ -5338,6 +5416,8 @@ def verify_pack(root: Path) -> PackReport:
     _check_design_plan_docs(root, findings)
     _check_project_environment_source(root, findings)
     _check_bounded_process_source(root, findings)
+    _check_implementation_run_source(root, findings)
+    _check_implementation_run_docs(root, findings)
     _check_implementation_verify_source(root, findings)
     _check_implementation_verify_docs(root, findings)
     _check_work_package_source(root, findings)
@@ -7627,6 +7707,53 @@ def _check_bounded_process_source(root: Path, findings: list[PackFinding]) -> No
             BOUNDED_PROCESS_SOURCE_PATH,
         )
     )
+
+
+def _check_implementation_run_source(root: Path, findings: list[PackFinding]) -> None:
+    path = root / IMPLEMENTATION_RUN_SOURCE_PATH
+    if not path.is_file():
+        findings.append(
+            PackFinding(
+                "pack_implementation_run_source_missing",
+                f"missing guarded implementation runner source: {IMPLEMENTATION_RUN_SOURCE_PATH}",
+                IMPLEMENTATION_RUN_SOURCE_PATH,
+            )
+        )
+        return
+    text = _read_utf8_text_or_none(path)
+    if text is None:
+        return
+    missing = [phrase for phrase in IMPLEMENTATION_RUN_SOURCE_REQUIRED_PHRASES if phrase not in text]
+    if not missing:
+        return
+    findings.append(
+        PackFinding(
+            "pack_implementation_run_source_incomplete",
+            (
+                f"{IMPLEMENTATION_RUN_SOURCE_PATH} must preserve snapshot-guarded claim/edit separation, "
+                f"all-command preflight, bounded sequential execution, registered repair approval, locking, "
+                f"and evidence-gated closeout; missing phrase(s): {', '.join(missing)}"
+            ),
+            IMPLEMENTATION_RUN_SOURCE_PATH,
+        )
+    )
+
+
+def _check_implementation_run_docs(root: Path, findings: list[PackFinding]) -> None:
+    for rel, required_phrases in IMPLEMENTATION_RUN_DOC_REQUIREMENTS.items():
+        text = _read_utf8_text_or_none(root / rel)
+        if text is None:
+            continue
+        missing = [phrase for phrase in required_phrases if phrase not in text]
+        if not missing:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_implementation_run_doc_missing",
+                f"{rel} must document guarded implementation runner phrase(s): {', '.join(missing)}",
+                rel,
+            )
+        )
 
 
 def _check_implementation_verify_source(root: Path, findings: list[PackFinding]) -> None:

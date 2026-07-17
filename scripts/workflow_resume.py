@@ -282,7 +282,7 @@ def _snapshot_input_paths(root: Path, package_payload: dict[str, object]) -> lis
         values.extend(
             path.relative_to(root).as_posix()
             for path in governance_root.rglob("*")
-            if path.is_symlink() or path.is_file()
+            if (path.is_symlink() or path.is_file()) and path.suffix != ".lock"
         )
 
     work_package = _dict(package_payload.get("work_package"))

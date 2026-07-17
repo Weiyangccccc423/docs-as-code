@@ -21,6 +21,7 @@ One-sentence project summary.
 - `make product-plan` - print product structuring plan as JSON.
 - `make design-plan` - print design derivation plan as JSON.
 - `make implementation-plan` - print Ready implementation task execution plan as JSON.
+- `make implementation-run-check` - preflight the selected implementation task without claiming or executing it.
 - `make check-env` - inventory local governance tools as JSON.
 - `make repair-env-check` - preview environment repair without writing files.
 - `make project-env-plan` - print reviewed project runtime tool registration plan as JSON.

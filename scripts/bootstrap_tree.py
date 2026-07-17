@@ -52,6 +52,7 @@ RUNTIME_SCRIPT_FILES = [
     "gates.py",
     "governance_cli.py",
     "implementation_plan.py",
+    "implementation_run.py",
     "implementation_verify.py",
     "phases.py",
     "product_dispositions.py",
@@ -152,6 +153,12 @@ TARGET_LOCAL_COMMANDS = (
         "implementation-plan",
         "bin/governance implementation plan . --json",
         "print Ready implementation task execution plan as JSON",
+        False,
+    ),
+    (
+        "implementation-run-check",
+        "bin/governance implementation run . --check --json",
+        "preflight the selected implementation task without claiming or executing it",
         False,
     ),
     (

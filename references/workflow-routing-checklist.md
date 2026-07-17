@@ -26,6 +26,10 @@ Reference: `https://www.omg.org/spec/BPMN/2.0.2/`
 - When `selected_action.kind` is `guarded-sequence`, is preflight run first and apply run only after preflight succeeds?
 - Are `blocked`, `approval_required`, and `failed` treated as stop states, and is `complete` required to have `action_count: 0`?
 - Is the SHA-256 snapshot treated as a stale-context guard rather than a repository lock or substitute for implementation codebase mapping?
+- For implementation, is `implementation run --check` used to select the task and issue the exact snapshot-guarded start, execute, and closeout actions?
+- Does `--apply-start` stop with `status: implementation_required` so code edits occur before any verification execution?
+- After edits, are all bound commands preflighted before execution, with approval/manual repair routes stopping instead of being guessed or silently applied?
+- Does a stale runner snapshot, unavailable implementation lock, or first command failure preserve `In Progress` and force refresh or repair?
 - Are `--json` payloads treated as structured JSON data, not display text?
 - Are `local_commands[].argv` and `next_actions[].argv` executed from their reported `cwd`?
 - Are `writes_state: false` commands preferred for inspection before state-changing actions?
@@ -76,6 +80,7 @@ Reference: `https://www.rfc-editor.org/rfc/rfc8259.html`
 - Are product acceptance blockers repaired with product structuring before design derivation?
 - Are design, API, UI, backend, frontend, test, ADR, and implementation-readiness blockers routed to their owning design skills?
 - Are runtime or workflow-pack drift findings routed to `runtime refresh --check --json` from a trusted source workflow-pack checkout?
+- Are implementation environment blockers routed only through registered governance-env, reviewed-command, or manual repair contracts, with explicit approval where required?
 
 ## Schema and Payload Expectations
 

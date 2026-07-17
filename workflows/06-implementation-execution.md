@@ -35,6 +35,7 @@ Load:
    bin/governance verify . --check --json
    bin/governance implementation plan . --json
    make implementation-plan
+   make implementation-run-check
    make work-package
    ```
 
@@ -46,14 +47,16 @@ Load:
 
 4. Select exactly one `Ready` or `In Progress` `TASK-NNN` from `active_work.task_id` or the first actionable `tasks[]` item. Do not start multiple task rows in one implementation pass unless the task board explicitly groups them and their verification evidence is shared.
 
-5. Claim a `Ready` task before editing code:
+5. Use the guarded runner to claim a `Ready` task before editing code:
 
    ```bash
-   bin/governance implementation start <target> --task TASK-NNN --json
-   bin/governance implementation start <target> --task TASK-NNN --apply --json
+   bin/governance implementation run <target> --task TASK-NNN --check --json
+   bin/governance implementation run <target> --task TASK-NNN --apply-start --expect-snapshot <snapshot-id> --json
    ```
 
-   The preview payload uses `decision_policy: claim_exactly_one_ready_task_before_editing_code`; inspect `start_ready`, `requirements[]`, `blocking_requirements[]`, and `status_update_plan`. Only run apply when `status_update_plan.can_auto_apply` is true. If the selected task is already `In Progress`, treat the start command as an idempotent resume check before continuing.
+   Use the first payload's `snapshot.id` or returned `next_action.argv`; never copy an older snapshot from conversation memory. The apply-start invocation must return `status: implementation_required`, set `start_applied: true`, leave `executed: false`, and route `next_action.kind: edit_selected_task`. Stop the controller at this point, map the codebase, and perform the scoped code/test edits. `--apply-start` must never be combined with `--execute` or `--closeout`.
+
+   `implementation start --task TASK-NNN --json` and its apply form remain available as lower-level diagnostics. The runner reuses their requirements and synchronized task-board/roadmap updates.
 
 6. Read every path in the selected task's `read_order`, including local Markdown sources linked from the task's `Product`, `Design`, `API`, `Acceptance`, and `Verification` cells, plus `docs/agent-workflow/command-contract.md` and `docs/agent-workflow/task-handoff.md` when it exists.
 
@@ -65,7 +68,16 @@ Load:
    - update generated clients, schemas, migrations, fixtures, snapshots, or lockfiles only when task scope and repository tooling require them
    - register missing or conflicting requirements in `docs/unresolved.md` instead of guessing
 
-9. Confirm each `command:<registered-name>` binding resolves in `docs/agent-workflow/command-contract.md`, then execute every entry through the target-local evidence runner. Prefer each work-package `verification_commands[].preflight_command.argv`, followed only on readiness by `verification_commands[].execute_command.argv`; these preserve the exact task ID, command name, and required `--allow-writes` flag:
+9. After code edits, confirm each `command:<registered-name>` binding resolves in `docs/agent-workflow/command-contract.md`, then preflight every bound command before any task command executes:
+
+   ```bash
+   bin/governance implementation run <target> --task TASK-NNN --check --json
+   bin/governance implementation run <target> --task TASK-NNN --execute --expect-snapshot <snapshot-id> --json
+   ```
+
+   Require `status: verification_ready`, `verification_summary.all_ready: true`, and `ready_count == required_count` before using the returned snapshot-guarded execute action. Execution is sequential and stops at the first failure while preserving evidence and `In Progress` status. Use `--auto-repair` only for registered repair routes; the runner may auto-apply only repairs reporting `can_auto_apply: true`. A `reviewed-command` repair additionally requires `--approve-repairs`; manual, unknown-source, and approval-required task commands remain stop conditions.
+
+   For one-command diagnosis, use each work-package `verification_commands[].preflight_command.argv`, followed only on readiness by `verification_commands[].execute_command.argv`; these preserve the exact task ID, command name, and required `--allow-writes` flag:
 
    ```bash
    bin/governance implementation verify <target> --task TASK-NNN --command command-name --check --json
@@ -80,16 +92,16 @@ Load:
 
    Every execution derives pass/fail from the process return code, serializes evidence writers with a repository-local lock, applies best-effort redaction to common credential output, and atomically updates `docs/development/04-implementation-evidence.md`, `03-verification-log.md`, `02-task-board.md`, and the development README index. The evidence ledger preserves every run. The current verification log has one summary row per `(Task, Command)`, so rerunning the same command replaces only its summary row. Redaction is not a substitute for keeping secrets out of command arguments and output.
 
-10. Re-run governance verification and refresh the implementation plan when docs, task status, or handoff evidence changes:
+10. Re-run governance verification and refresh the implementation plan when docs, task status, or handoff evidence changes. After runner execution returns `status: closeout_ready`, use its returned snapshot-guarded closeout action:
 
    ```bash
    bin/governance verify <target> --check --json
    bin/governance implementation plan <target> --json
+   bin/governance implementation run <target> --task TASK-NNN --closeout --expect-snapshot <snapshot-id> --json
    bin/governance implementation closeout <target> --task TASK-NNN --json
-   bin/governance implementation closeout <target> --task TASK-NNN --apply --json
    ```
 
-11. Before marking `Done`, run `implementation closeout --task TASK-NNN --json`. Its `decision_policy` is `do_not_mark_done_without_passing_evidence`; inspect `closeout_ready`, `requirements[]`, `blocking_requirements[]`, `evidence_summary.required_verification_commands`, `missing_verification_commands`, `failing_verification_commands`, `verification_commands_registered`, `required_verification_commands_passing`, `evidence_summary.all_verification_results_passing`, and `status_update_plan`. Do not mark `Done` unless every bound command is registered and passing, and every additional current verification row also passes. When `status_update_plan.can_auto_apply` is true, run the returned `status_update_plan.apply_command.argv` or `implementation closeout --task TASK-NNN --apply --json` so the CLI updates `docs/development/02-task-board.md` and `docs/development/01-roadmap.md` together.
+11. Before marking `Done`, inspect the runner's embedded `closeout_preview`. It reuses `implementation closeout` and its `decision_policy: do_not_mark_done_without_passing_evidence`; inspect `closeout_ready`, `requirements[]`, `blocking_requirements[]`, `evidence_summary.required_verification_commands`, `missing_verification_commands`, `failing_verification_commands`, `verification_commands_registered`, `required_verification_commands_passing`, `evidence_summary.all_verification_results_passing`, and `status_update_plan`. Do not mark `Done` unless every bound command is registered and passing, and every additional current verification row also passes. Successful runner closeout must return `status: complete`, `closeout_applied: true`, and synchronized `Done` status in `docs/development/02-task-board.md` and `docs/development/01-roadmap.md`.
 
 12. Keep `docs/development/02-task-board.md` and `docs/development/01-roadmap.md` statuses synchronized:
    - `In Progress` only through `implementation start --apply` when one Ready task is claimed or resumed
@@ -116,6 +128,7 @@ Implementation execution is complete when:
 - task-specific verification commands have been run through `implementation verify` or honestly recorded as unavailable
 - every Ready or In Progress task binds required checks as `command:<registered-name>` and the work package resolves exact preflight and execute `argv`
 - closeout reports both `required_verification_commands_registered` and `required_verification_commands_passing` satisfied
+- `implementation run` proves snapshot-guarded start and closeout, all-command preflight before execution, and `status: complete`
 - every current `(Task, Command)` summary result is passing before closeout
 - project-specific verification commands are documented in `docs/agent-workflow/command-contract.md` before agents rely on them
 - `docs/development/03-verification-log.md` contains matching `TASK-NNN` evidence
@@ -133,4 +146,6 @@ Implementation execution is complete when:
 - `environment_readiness.ok` is false, or its repair decision requires environment preflight, manual tool registration, or executable-path repair.
 - A command-contract row with `Approval Required` set to `true` needs approval that has not been granted.
 - A state-writing command has not received explicit `--allow-writes` authorization.
+- The runner reports `status: stale` or its repository-local implementation lock is unavailable.
+- Auto-repair requires approval, manual action, or an unregistered repair source.
 - Verification fails and no blocker or follow-up is recorded.

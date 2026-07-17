@@ -13,6 +13,7 @@
 | product-plan | Print product structuring plan as JSON. | `.` | `["bin/governance", "product", "plan", ".", "--json"]` | false | false | `docs/development/03-verification-log.md` | core-governance |
 | design-plan | Print design derivation plan as JSON. | `.` | `["bin/governance", "design", "plan", ".", "--json"]` | false | false | `docs/development/03-verification-log.md` | core-governance |
 | implementation-plan | Print Ready implementation task execution plan as JSON. | `.` | `["bin/governance", "implementation", "plan", ".", "--json"]` | false | false | `docs/development/03-verification-log.md` | core-governance |
+| implementation-run-check | Preflight the selected implementation task without claiming or executing it. | `.` | `["bin/governance", "implementation", "run", ".", "--check", "--json"]` | false | false | `docs/development/03-verification-log.md` | core-governance |
 | check-env | Inventory local governance tools as JSON. | `.` | `["bin/governance", "env", "--target", ".", "--json"]` | false | false | `docs/development/03-verification-log.md` | core-governance |
 | repair-env-check | Preview environment repair without writing files. | `.` | `["bin/governance", "env", "--repair", "--check", "--target", ".", "--json"]` | false | false | `.governance/env-repair.md` when repair is written | core-governance |
 | project-env-plan | Print reviewed project runtime tool registration plan as JSON. | `.` | `["bin/governance", "project-env", "plan", ".", "--json"]` | false | false | `docs/development/03-verification-log.md` | core-governance |
@@ -33,6 +34,7 @@
 - Run read-only commands before state-writing commands when both exist.
 - Do not run commands with `Approval Required` set to `true` unless the task explicitly authorizes them.
 - Record skipped, unavailable, failed, flaky, and passing commands in `docs/development/03-verification-log.md`.
+- Use `implementation run --check` to select one task and preflight all bound commands. Use `--apply-start` in a separate invocation before editing code, then use `--execute` only after the scoped code changes are complete.
 - For an `In Progress` task, preflight registered project checks with `bin/governance implementation verify . --task TASK-NNN --command command-name --check --json`.
 - Require `environment_readiness.ok: true` before execution. Inspect `required_tools` version evidence and follow only repair actions backed by `project-environment.json`; register unknown tools instead of guessing installation commands.
 - Preview a `reviewed-command` repair with `project-env repair --tool-id <tool-id> --check`; request approval for its apply action and require completed repair evidence plus a passing post-repair version probe.

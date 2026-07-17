@@ -92,6 +92,7 @@ TARGET_LOCAL_MAKE_STEP_IDS = [
     "make_product_plan",
     "make_design_plan",
     "make_implementation_plan",
+    "make_implementation_run_check",
     "make_check_env",
     "make_repair_env_check",
     "make_project_env_plan",
@@ -1324,6 +1325,23 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         payload=make_implementation_plan,
     )
 
+    make_implementation_run_check = _run_json(
+        steps,
+        "make_implementation_run_check",
+        ["make", "implementation-run-check"],
+        target,
+    )
+    ready_snapshot = str(make_implementation_run_check.get("snapshot", {}).get("id", ""))
+    _require(
+        make_implementation_run_check.get("ok") is True
+        and make_implementation_run_check.get("check") is True
+        and make_implementation_run_check.get("status") == "ready_to_start"
+        and make_implementation_run_check.get("task_id") == IMPLEMENTATION_TASK_ID
+        and bool(ready_snapshot),
+        "make implementation-run-check did not select a snapshot-guarded Ready task",
+        payload=make_implementation_run_check,
+    )
+
     implementation_start_preview = _run_json(
         steps,
         "implementation_start_preview",
@@ -1335,15 +1353,35 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         "implementation start did not expose a safe In Progress status update plan",
         payload=implementation_start_preview,
     )
-    implementation_start_apply = _run_json(
+    implementation_run_apply_start = _run_json(
         steps,
-        "implementation_start_apply",
-        ["bin/governance", "implementation", "start", ".", "--task", IMPLEMENTATION_TASK_ID, "--apply", "--json"],
+        "implementation_run_apply_start",
+        [
+            "bin/governance",
+            "implementation",
+            "run",
+            ".",
+            "--task",
+            IMPLEMENTATION_TASK_ID,
+            "--apply-start",
+            "--expect-snapshot",
+            ready_snapshot,
+            "--json",
+        ],
         target,
     )
     _require(
+        implementation_run_apply_start.get("ok") is True
+        and implementation_run_apply_start.get("status") == "implementation_required"
+        and implementation_run_apply_start.get("start_applied") is True
+        and implementation_run_apply_start.get("executed") is False,
+        "implementation run did not claim exactly one task and stop for code edits",
+        payload=implementation_run_apply_start,
+    )
+    implementation_start_apply = dict(implementation_run_apply_start.get("start_apply", {}))
+    _require(
         _implementation_start_apply_completed(implementation_start_apply),
-        "implementation start apply did not synchronize In Progress statuses",
+        "implementation run start apply did not synchronize In Progress statuses",
         payload=implementation_start_apply,
     )
     implementation_plan_after_start = _run_json(
@@ -1477,92 +1515,65 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         payload=node_verification_execute,
     )
 
-    rust_runtime_registration = _register_stack_runtime(
-        target,
+    (
+        rust_runtime_registration,
+        rust_verification_preview,
+        rust_verification_execute,
+    ) = _run_optional_rust_stack_acceptance(target, steps, repair_env)
+
+    implementation_run_check_in_progress = _run_json(
         steps,
-        env=repair_env,
-        stack="rust",
-        tool_id="rust-cargo",
-        executable="cargo",
-        version_prefix="cargo ",
-        minimum_version="1.70.0",
-        maximum_exclusive_version="2.0.0",
-        repair_source="https://www.rust-lang.org/tools/install",
-        repair_instructions="Install a reviewed stable Rust toolchain with Cargo from the official distribution.",
-    )
-    cargo_available = shutil.which("cargo", path=repair_env.get("PATH")) is not None
-    rust_verification_preview = _run_json(
-        steps,
-        "implementation_rust_verification_preview",
+        "implementation_run_check_in_progress",
         [
             "bin/governance",
             "implementation",
-            "verify",
+            "run",
             ".",
             "--task",
             IMPLEMENTATION_TASK_ID,
-            "--command",
-            RUST_IMPLEMENTATION_VERIFICATION_COMMAND,
-            "--run-id",
-            RUST_IMPLEMENTATION_VERIFICATION_RUN_ID,
-            "--allow-writes",
             "--check",
             "--json",
         ],
         target,
-        expected_returncode=0 if cargo_available else 1,
         env=repair_env,
     )
-    rust_verification_execute: dict[str, object] = {}
-    if cargo_available:
-        _require(
-            _implementation_verification_preview_ready(
-                rust_verification_preview,
-                command_name=RUST_IMPLEMENTATION_VERIFICATION_COMMAND,
-                executable="cargo",
-                environment_id="project-runtime",
-            ),
-            "Rust stack verification preflight did not become ready",
-            payload=rust_verification_preview,
-        )
-        rust_verification_execute = _run_json(
-            steps,
-            "implementation_rust_verification_execute",
-            [
-                "bin/governance",
-                "implementation",
-                "verify",
-                ".",
-                "--task",
-                IMPLEMENTATION_TASK_ID,
-                "--command",
-                RUST_IMPLEMENTATION_VERIFICATION_COMMAND,
-                "--run-id",
-                RUST_IMPLEMENTATION_VERIFICATION_RUN_ID,
-                "--allow-writes",
-                "--json",
-            ],
-            target,
-            env=repair_env,
-        )
-        _require(
-            _implementation_verification_completed(rust_verification_execute),
-            "Rust stack tests did not execute and record passing evidence",
-            payload=rust_verification_execute,
-        )
-    else:
-        _require(
-            rust_verification_preview.get("ok") is False
-            and rust_verification_preview.get("executed") is False
-            and rust_verification_preview.get("environment_readiness", {}).get("ok") is False
-            and any(
-                action.get("strategy") == "manual" and action.get("tool_id") == "rust-cargo"
-                for action in rust_verification_preview.get("environment_readiness", {}).get("repair_actions", [])
-                if isinstance(action, dict)
-            ),
-            "missing Rust did not route to reviewed manual environment repair",
-            payload=rust_verification_preview,
-        )
+    run_check_summary = implementation_run_check_in_progress.get("verification_summary", {})
+    _require(
+        implementation_run_check_in_progress.get("ok") is True
+        and implementation_run_check_in_progress.get("status") == "verification_ready"
+        and implementation_run_check_in_progress.get("executed") is False
+        and run_check_summary.get("required_count") == 2
+        and run_check_summary.get("ready_count") == 2
+        and run_check_summary.get("all_ready") is True,
+        "implementation run did not preflight every bound verification command",
+        payload=implementation_run_check_in_progress,
+    )
+    implementation_run_execute_argv = implementation_run_check_in_progress.get("next_action", {}).get("argv", [])
+    _require(
+        isinstance(implementation_run_execute_argv, list)
+        and "--execute" in implementation_run_execute_argv
+        and "--expect-snapshot" in implementation_run_execute_argv,
+        "implementation run preflight did not return a snapshot-guarded execute action",
+        payload=implementation_run_check_in_progress,
+    )
+    implementation_run_execute = _run_json(
+        steps,
+        "implementation_run_execute",
+        implementation_run_execute_argv,
+        target,
+        env=repair_env,
+    )
+    run_execute_summary = implementation_run_execute.get("verification_summary", {})
+    _require(
+        implementation_run_execute.get("ok") is True
+        and implementation_run_execute.get("status") == "closeout_ready"
+        and implementation_run_execute.get("executed") is True
+        and run_execute_summary.get("required_count") == 2
+        and run_execute_summary.get("passed_count") == 2
+        and run_execute_summary.get("all_passed") is True,
+        "implementation run did not execute every bound verification command",
+        payload=implementation_run_execute,
+    )
     closeout_with_evidence = _run_json(
         steps,
         "implementation_closeout_with_evidence",
@@ -1574,15 +1585,32 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         "implementation closeout did not become ready with passing local evidence",
         payload=closeout_with_evidence,
     )
-    closeout_apply = _run_json(
+    implementation_run_closeout_argv = implementation_run_execute.get("next_action", {}).get("argv", [])
+    _require(
+        isinstance(implementation_run_closeout_argv, list)
+        and "--closeout" in implementation_run_closeout_argv
+        and "--expect-snapshot" in implementation_run_closeout_argv,
+        "implementation run execute did not return a snapshot-guarded closeout action",
+        payload=implementation_run_execute,
+    )
+    implementation_run_closeout = _run_json(
         steps,
-        "implementation_closeout_apply",
-        ["bin/governance", "implementation", "closeout", ".", "--task", IMPLEMENTATION_TASK_ID, "--apply", "--json"],
+        "implementation_run_closeout",
+        implementation_run_closeout_argv,
         target,
+        env=repair_env,
     )
     _require(
+        implementation_run_closeout.get("ok") is True
+        and implementation_run_closeout.get("status") == "complete"
+        and implementation_run_closeout.get("closeout_applied") is True,
+        "implementation run did not apply closeout after passing evidence",
+        payload=implementation_run_closeout,
+    )
+    closeout_apply = dict(implementation_run_closeout.get("closeout_apply", {}))
+    _require(
         _closeout_apply_completed(closeout_apply),
-        "implementation closeout apply did not synchronize Done statuses",
+        "implementation run closeout did not synchronize Done statuses",
         payload=closeout_apply,
     )
     implementation_plan_after_closeout = _run_json(
@@ -1827,6 +1855,21 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
             "ready_ok": implementation_gate.get("ok"),
         },
         "implementation_task_package": dict(make_implementation_work_package.get("work_package", {})),
+        "implementation_run": {
+            "ready_check": make_implementation_run_check.get("status") == "ready_to_start",
+            "snapshot_guarded_start": bool(ready_snapshot)
+            and implementation_run_apply_start.get("snapshot", {}).get("id") == ready_snapshot,
+            "start_applied": implementation_run_apply_start.get("start_applied") is True,
+            "verification_ready": implementation_run_check_in_progress.get("status") == "verification_ready",
+            "required_count": run_execute_summary.get("required_count", 0),
+            "passed_count": run_execute_summary.get("passed_count", 0),
+            "executed_all_required": implementation_run_execute.get("executed") is True
+            and run_execute_summary.get("all_passed") is True
+            and run_execute_summary.get("passed_count") == run_execute_summary.get("required_count"),
+            "snapshot_guarded_closeout": "--expect-snapshot" in implementation_run_closeout_argv,
+            "closeout_applied": implementation_run_closeout.get("closeout_applied") is True,
+            "complete": implementation_run_closeout.get("status") == "complete",
+        },
         "implementation_start": {
             "task_id": IMPLEMENTATION_TASK_ID,
             "ready": implementation_start_preview.get("start_ready") is True,
@@ -1905,6 +1948,7 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
                 for path in (
                     "bin/governance",
                     "scripts/governance_cli.py",
+                    "scripts/implementation_run.py",
                     "scripts/implementation_verify.py",
                     "scripts/project_environment.py",
                     "scripts/bounded_process.py",
@@ -2128,6 +2172,105 @@ def _register_stack_runtime(
         payload=applied,
     )
     return applied
+
+
+def _run_optional_rust_stack_acceptance(
+    target: Path,
+    steps: list[dict[str, object]],
+    env: dict[str, str],
+) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
+    with tempfile.TemporaryDirectory(prefix="docs-as-code-rust-", dir=target.parent) as tmp:
+        rust_target = Path(tmp) / "target"
+        shutil.copytree(target, rust_target)
+        registration = _register_stack_runtime(
+            rust_target,
+            steps,
+            env=env,
+            stack="rust",
+            tool_id="rust-cargo",
+            executable="cargo",
+            version_prefix="cargo ",
+            minimum_version="1.70.0",
+            maximum_exclusive_version="2.0.0",
+            repair_source="https://www.rust-lang.org/tools/install",
+            repair_instructions=(
+                "Install a reviewed stable Rust toolchain with Cargo from the official distribution."
+            ),
+        )
+        cargo_available = shutil.which("cargo", path=env.get("PATH")) is not None
+        preview = _run_json(
+            steps,
+            "implementation_rust_verification_preview",
+            [
+                "bin/governance",
+                "implementation",
+                "verify",
+                ".",
+                "--task",
+                IMPLEMENTATION_TASK_ID,
+                "--command",
+                RUST_IMPLEMENTATION_VERIFICATION_COMMAND,
+                "--run-id",
+                RUST_IMPLEMENTATION_VERIFICATION_RUN_ID,
+                "--allow-writes",
+                "--check",
+                "--json",
+            ],
+            rust_target,
+            expected_returncode=0 if cargo_available else 1,
+            env=env,
+        )
+        executed: dict[str, object] = {}
+        if cargo_available:
+            _require(
+                _implementation_verification_preview_ready(
+                    preview,
+                    command_name=RUST_IMPLEMENTATION_VERIFICATION_COMMAND,
+                    executable="cargo",
+                    environment_id="project-runtime",
+                ),
+                "Rust stack verification preflight did not become ready",
+                payload=preview,
+            )
+            executed = _run_json(
+                steps,
+                "implementation_rust_verification_execute",
+                [
+                    "bin/governance",
+                    "implementation",
+                    "verify",
+                    ".",
+                    "--task",
+                    IMPLEMENTATION_TASK_ID,
+                    "--command",
+                    RUST_IMPLEMENTATION_VERIFICATION_COMMAND,
+                    "--run-id",
+                    RUST_IMPLEMENTATION_VERIFICATION_RUN_ID,
+                    "--allow-writes",
+                    "--json",
+                ],
+                rust_target,
+                env=env,
+            )
+            _require(
+                _implementation_verification_completed(executed),
+                "Rust stack tests did not execute and record passing evidence",
+                payload=executed,
+            )
+        else:
+            _require(
+                preview.get("ok") is False
+                and preview.get("executed") is False
+                and preview.get("environment_readiness", {}).get("ok") is False
+                and any(
+                    action.get("strategy") == "manual" and action.get("tool_id") == "rust-cargo"
+                    for action in preview.get("environment_readiness", {}).get("repair_actions", [])
+                    if isinstance(action, dict)
+                ),
+                "missing Rust did not route to reviewed manual environment repair",
+                payload=preview,
+            )
+        return registration, preview, executed
 
 
 def _architecture_system_context_doc() -> str:

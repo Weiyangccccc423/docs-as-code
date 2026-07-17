@@ -66,6 +66,17 @@ class PackStructureTest(unittest.TestCase):
         self.assertIn(Path("scripts/workflow_resume.py"), RUNTIME_REQUIRED_PATHS)
         self.assertIn("workflow-resume", [target for target, *_rest in TARGET_LOCAL_COMMANDS])
 
+    def test_implementation_run_runtime_and_target_entry_are_required(self) -> None:
+        self.assertIn(Path("scripts/implementation_run.py"), RUNTIME_REQUIRED_PATHS)
+        commands = {
+            target: (recipe, writes_state)
+            for target, recipe, _description, writes_state in TARGET_LOCAL_COMMANDS
+        }
+        self.assertEqual(
+            ("bin/governance implementation run . --check --json", False),
+            commands.get("implementation-run-check"),
+        )
+
     def test_target_local_command_contracts_stay_aligned(self) -> None:
         expected_targets = tuple(target for target, _recipe, _description, _writes_state in TARGET_LOCAL_COMMANDS)
         expected_recipes = {
@@ -585,6 +596,34 @@ class PackStructureTest(unittest.TestCase):
                     finding.code == "pack_dry_run_workflow_incomplete"
                     and finding.path == "scripts/dry_run_workflow.py"
                     and "implementation_closeout_without_evidence" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_dry_run_missing_guarded_implementation_runner(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/dry_run_workflow.py"
+            text = script.read_text(encoding="utf-8")
+            self.assertIn("implementation_run_execute", text)
+            script.write_text(
+                text.replace("implementation_run_execute", "implementation_batch_execute"),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_dry_run_workflow_incomplete"
+                    and finding.path == "scripts/dry_run_workflow.py"
+                    and "implementation_run_execute" in finding.message
                     for finding in report.findings
                 )
             )
@@ -1465,6 +1504,32 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_artifact_smoke_missing_guarded_runner_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/smoke_workflow_pack_artifact.py"
+            text = script.read_text(encoding="utf-8")
+            phrase = "guarded implementation runner completion"
+            self.assertIn(phrase, text)
+            script.write_text(text.replace(phrase, "implementation completion", 1), encoding="utf-8")
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_artifact_smoke_incomplete"
+                    and finding.path == "scripts/smoke_workflow_pack_artifact.py"
+                    and phrase in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_artifact_smoke_missing_manifest_verifier_call(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
@@ -1615,6 +1680,34 @@ class PackStructureTest(unittest.TestCase):
                     finding.code == "pack_release_readiness_incomplete"
                     and finding.path == "scripts/release_readiness.py"
                     and "_dry_run_closeout_evidence_ok" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_release_readiness_missing_guarded_runner_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/release_readiness.py"
+            text = script.read_text(encoding="utf-8")
+            self.assertIn("_dry_run_implementation_runner_ok", text)
+            script.write_text(
+                text.replace("_dry_run_implementation_runner_ok", "_dry_run_runner_preview_ok"),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_release_readiness_incomplete"
+                    and finding.path == "scripts/release_readiness.py"
+                    and "_dry_run_implementation_runner_ok" in finding.message
                     for finding in report.findings
                 )
             )
@@ -5667,6 +5760,62 @@ class PackStructureTest(unittest.TestCase):
                     and finding.path == "scripts/governance_cli.py"
                     and "implementation" in finding.message
                     and "verify" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_missing_implementation_run_subcommand(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/governance_cli.py"
+            original = 'implementation_run = implementation_sub.add_parser(\n        "run",'
+            replacement = 'implementation_run = implementation_sub.add_parser(\n        "run-check",'
+            text = script.read_text(encoding="utf-8")
+            self.assertIn(original, text)
+            script.write_text(text.replace(original, replacement, 1), encoding="utf-8")
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_governance_cli_subcommand_missing"
+                    and finding.path == "scripts/governance_cli.py"
+                    and "implementation" in finding.message
+                    and "run" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_incomplete_implementation_run_source_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/implementation_run.py"
+            text = script.read_text(encoding="utf-8")
+            self.assertIn("IMPLEMENTATION_RUN_LOCK_REL", text)
+            script.write_text(
+                text.replace("IMPLEMENTATION_RUN_LOCK_REL", "IMPLEMENTATION_TASK_LOCK_REL"),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_implementation_run_source_incomplete"
+                    and finding.path == "scripts/implementation_run.py"
+                    and "IMPLEMENTATION_RUN_LOCK_REL" in finding.message
                     for finding in report.findings
                 )
             )

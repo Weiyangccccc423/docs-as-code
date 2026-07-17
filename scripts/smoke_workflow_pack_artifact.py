@@ -37,6 +37,7 @@ TARGET_LOCAL_MAKE_STEP_IDS = [
     "make_product_plan",
     "make_design_plan",
     "make_implementation_plan",
+    "make_implementation_run_check",
     "make_check_env",
     "make_repair_env_check",
 ]
@@ -431,6 +432,7 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
             payload=dry_run_payload,
         )
         start = dry_run_payload.get("implementation_start")
+        implementation_run = dry_run_payload.get("implementation_run")
         implementation_verification = dry_run_payload.get("implementation_verification")
         implementation_task_package = _dry_run_implementation_task_package_details(dry_run_payload)
         closeout = dry_run_payload.get("implementation_closeout")
@@ -441,6 +443,21 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
             and start.get("applied_status_updates") is True
             and start.get("implementation_plan_in_progress") is True,
             "unpacked artifact dry-run did not prove implementation start status gates",
+            payload=dry_run_payload,
+        )
+        _require(
+            isinstance(implementation_run, dict)
+            and implementation_run.get("ready_check") is True
+            and implementation_run.get("snapshot_guarded_start") is True
+            and implementation_run.get("start_applied") is True
+            and implementation_run.get("verification_ready") is True
+            and implementation_run.get("required_count") == 2
+            and implementation_run.get("passed_count") == 2
+            and implementation_run.get("executed_all_required") is True
+            and implementation_run.get("snapshot_guarded_closeout") is True
+            and implementation_run.get("closeout_applied") is True
+            and implementation_run.get("complete") is True,
+            "unpacked artifact dry-run did not prove guarded implementation runner completion",
             payload=dry_run_payload,
         )
         _require(
@@ -539,6 +556,7 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
             "product_dispositions": product_dispositions,
             "design_reviews": design_reviews,
             "implementation_verification": dict(implementation_verification),
+            "implementation_run": dict(implementation_run),
             "implementation_task_package": implementation_task_package,
             "stack_acceptance": stack_acceptance,
             "api_review": api_review,

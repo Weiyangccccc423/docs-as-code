@@ -65,6 +65,7 @@ Create the minimum structure needed for reliable docs-as-code work.
    make product-plan
    make design-plan
    make implementation-plan
+   make implementation-run-check
    make check-env
    make repair-env-check
    make project-env-plan
