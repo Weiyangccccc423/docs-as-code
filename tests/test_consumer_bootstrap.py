@@ -5,13 +5,17 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from scripts.bootstrap_consumer_project import (
     DESIGN_AUTHORING_QUEUE_IDS,
     _apply_implementation_closeout,
     _maybe_auto_repair_env,
     _preview_implementation_closeout,
+    _preview_implementation_run,
     _summarize_design_authoring,
+    _workflow_preset_flags,
+    run_consumer_bootstrap,
 )
 
 
@@ -20,6 +24,167 @@ EXPORT = ROOT / "scripts" / "export_workflow_pack.py"
 
 
 class ConsumerBootstrapTest(unittest.TestCase):
+    def test_implementation_routing_preset_hands_off_to_guarded_runner(self) -> None:
+        expanded_flags = _workflow_preset_flags("implementation-routing")
+
+        self.assertIn("implementation_run_preview", expanded_flags)
+        self.assertNotIn("implementation_start_preview", expanded_flags)
+        self.assertNotIn("implementation_start_apply", expanded_flags)
+        self.assertNotIn("implementation_closeout_preview", expanded_flags)
+        self.assertNotIn("implementation_closeout_apply", expanded_flags)
+
+    def test_implementation_run_preview_skips_until_advance_is_applied(self) -> None:
+        steps: list[dict[str, object]] = []
+        target = Path("/tmp/consumer-target")
+
+        with patch("scripts.bootstrap_consumer_project._run_json") as run_json:
+            payload = _preview_implementation_run(
+                steps,
+                target,
+                {
+                    "ok": True,
+                    "apply_skipped": True,
+                    "phase": "design-derivation",
+                },
+            )
+
+        run_json.assert_not_called()
+        self.assertTrue(payload["ok"])
+        self.assertTrue(payload["check"])
+        self.assertFalse(payload["writes_state"])
+        self.assertTrue(payload["preview_skipped"])
+        self.assertEqual("advance_apply_not_applied", payload["skip_code"])
+        self.assertEqual("implementation_advance_apply", payload["blocked_by"])
+        self.assertFalse(payload["required_advance_applied"])
+        self.assertFalse(payload["handoff_ready"])
+        self.assertEqual({}, payload["implementation_run"])
+
+    def test_implementation_run_preview_returns_snapshot_guarded_handoff(self) -> None:
+        steps: list[dict[str, object]] = []
+        target = Path("/tmp/consumer-target")
+        snapshot_id = "a" * 64
+        next_action = {
+            "id": "apply-start",
+            "kind": "command",
+            "cwd": str(target),
+            "argv": [
+                "bin/governance",
+                "implementation",
+                "run",
+                ".",
+                "--task",
+                "TASK-001",
+                "--apply-start",
+                "--expect-snapshot",
+                snapshot_id,
+                "--json",
+            ],
+            "writes_state": True,
+            "approval_required": False,
+        }
+        runner = {
+            "ok": True,
+            "check": True,
+            "writes_state": False,
+            "status": "ready_to_start",
+            "task_id": "TASK-001",
+            "snapshot": {"id": snapshot_id},
+            "next_action": next_action,
+        }
+
+        with patch("scripts.bootstrap_consumer_project._run_json", return_value=runner) as run_json:
+            payload = _preview_implementation_run(
+                steps,
+                target,
+                {
+                    "ok": True,
+                    "apply_skipped": False,
+                    "phase": "implementation",
+                },
+            )
+
+        run_json.assert_called_once_with(
+            steps,
+            "target_local_implementation_run_preview",
+            ["bin/governance", "implementation", "run", ".", "--check", "--json"],
+            target,
+            allowed_returncodes=(0, 1),
+        )
+        self.assertTrue(payload["ok"])
+        self.assertFalse(payload["preview_skipped"])
+        self.assertTrue(payload["required_advance_applied"])
+        self.assertTrue(payload["runner_ok"])
+        self.assertTrue(payload["handoff_ready"])
+        self.assertEqual("ready_to_start", payload["status"])
+        self.assertEqual("TASK-001", payload["task_id"])
+        self.assertEqual({"id": snapshot_id}, payload["snapshot"])
+        self.assertEqual(next_action, payload["next_action"])
+        self.assertEqual(runner, payload["implementation_run"])
+
+    def test_implementation_run_preview_rejects_extra_runner_actions(self) -> None:
+        steps: list[dict[str, object]] = []
+        target = Path("/tmp/consumer-target")
+        snapshot_id = "b" * 64
+        runner = {
+            "ok": True,
+            "status": "ready_to_start",
+            "task_id": "TASK-001",
+            "snapshot": {"id": snapshot_id},
+            "next_action": {
+                "id": "apply-start",
+                "kind": "command",
+                "cwd": str(target),
+                "argv": [
+                    "bin/governance",
+                    "implementation",
+                    "run",
+                    ".",
+                    "--task",
+                    "TASK-001",
+                    "--apply-start",
+                    "--execute",
+                    "--expect-snapshot",
+                    snapshot_id,
+                    "--json",
+                ],
+                "writes_state": True,
+                "approval_required": False,
+            },
+        }
+
+        with patch("scripts.bootstrap_consumer_project._run_json", return_value=runner):
+            payload = _preview_implementation_run(
+                steps,
+                target,
+                {
+                    "ok": True,
+                    "apply_skipped": False,
+                    "phase": "implementation",
+                },
+            )
+
+        self.assertTrue(payload["runner_ok"])
+        self.assertFalse(payload["handoff_ready"])
+        self.assertEqual(runner["next_action"], payload["next_action"])
+
+    def test_implementation_runner_handoff_rejects_legacy_start_or_closeout_flags(self) -> None:
+        with patch("scripts.bootstrap_consumer_project._run_json") as run_json:
+            payload = run_consumer_bootstrap(
+                target=Path("/tmp/consumer-target"),
+                workflow_preset="implementation-routing",
+                implementation_start_preview=True,
+                implementation_start_apply=True,
+            )
+
+        run_json.assert_not_called()
+        self.assertFalse(payload["ok"])
+        self.assertEqual(
+            "--implementation-run-preview cannot be combined with implementation start/closeout flags",
+            payload["error"],
+        )
+        self.assertTrue(payload["implementation_run_preview_requested"])
+        self.assertTrue(payload["implementation_start_apply_requested"])
+
     def test_design_authoring_summary_reports_complete_when_all_queues_are_ready(self) -> None:
         queues = {
             queue_id: {
@@ -1506,6 +1671,7 @@ class ConsumerBootstrapTest(unittest.TestCase):
                 implementation_readiness_preview=True,
                 implementation_advance_preview=True,
                 implementation_advance_apply=True,
+                implementation_run_preview=True,
             )
 
             self.assertTrue(payload["ok"])
@@ -1524,10 +1690,24 @@ class ConsumerBootstrapTest(unittest.TestCase):
             self.assertFalse(apply_payload["required_preview_ready"])
             self.assertEqual("implementation advance preview did not pass", apply_payload["skip_reason"])
             self.assertEqual({}, apply_payload["advance"])
+            self.assertTrue(payload["implementation_run_preview_requested"])
+            self.assertTrue(payload["implementation_run_previewed"])
+            self.assertTrue(payload["implementation_run_preview_ok"])
+            run_preview = payload["implementation_run_preview"]
+            self.assertTrue(run_preview["ok"])
+            self.assertTrue(run_preview["check"])
+            self.assertFalse(run_preview["writes_state"])
+            self.assertTrue(run_preview["preview_skipped"])
+            self.assertEqual("advance_apply_not_applied", run_preview["skip_code"])
+            self.assertEqual("implementation_advance_apply", run_preview["blocked_by"])
+            self.assertFalse(run_preview["required_advance_applied"])
+            self.assertFalse(run_preview["handoff_ready"])
+            self.assertEqual({}, run_preview["implementation_run"])
             self.assertEqual("design-derivation", payload["target_local"]["phase"])
             step_ids = {step["id"] for step in payload["steps"]}
             self.assertIn("target_local_implementation_advance_preview", step_ids)
             self.assertNotIn("target_local_implementation_advance_apply", step_ids)
+            self.assertNotIn("target_local_implementation_run_preview", step_ids)
 
     def test_exported_pack_skips_implementation_start_preview_until_ready(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1862,6 +2042,7 @@ def _run_bootstrap(
     implementation_readiness_preview: bool = False,
     implementation_advance_preview: bool = False,
     implementation_advance_apply: bool = False,
+    implementation_run_preview: bool = False,
     implementation_start_preview: bool = False,
     implementation_start_apply: bool = False,
     implementation_closeout_preview: bool = False,
@@ -1910,6 +2091,8 @@ def _run_bootstrap(
         argv.insert(-1, "--implementation-advance-preview")
     if implementation_advance_apply:
         argv.insert(-1, "--implementation-advance-apply")
+    if implementation_run_preview:
+        argv.insert(-1, "--implementation-run-preview")
     if implementation_start_preview:
         argv.insert(-1, "--implementation-start-preview")
     if implementation_start_apply:

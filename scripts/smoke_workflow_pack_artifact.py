@@ -1365,10 +1365,7 @@ def _consumer_bootstrap_implementation_routing_details(
     readiness_preview = bootstrap_payload.get("implementation_readiness_preview")
     advance_preview = bootstrap_payload.get("implementation_advance_preview")
     advance_apply = bootstrap_payload.get("implementation_advance_apply")
-    start_preview = bootstrap_payload.get("implementation_start_preview")
-    start_apply = bootstrap_payload.get("implementation_start_apply")
-    closeout_preview = bootstrap_payload.get("implementation_closeout_preview")
-    closeout_apply = bootstrap_payload.get("implementation_closeout_apply")
+    run_preview = bootstrap_payload.get("implementation_run_preview")
     readiness_preview_map = readiness_preview if isinstance(readiness_preview, dict) else {}
     readiness_summary = readiness_preview_map.get("readiness_summary")
     readiness_summary_map = readiness_summary if isinstance(readiness_summary, dict) else {}
@@ -1388,10 +1385,7 @@ def _consumer_bootstrap_implementation_routing_details(
     readiness_blocker_count = readiness_blocker_count_value if isinstance(readiness_blocker_count_value, int) else 0
     advance_preview_map = advance_preview if isinstance(advance_preview, dict) else {}
     advance_apply_map = advance_apply if isinstance(advance_apply, dict) else {}
-    start_preview_map = start_preview if isinstance(start_preview, dict) else {}
-    start_apply_map = start_apply if isinstance(start_apply, dict) else {}
-    closeout_preview_map = closeout_preview if isinstance(closeout_preview, dict) else {}
-    closeout_apply_map = closeout_apply if isinstance(closeout_apply, dict) else {}
+    run_preview_map = run_preview if isinstance(run_preview, dict) else {}
     verify_check = readiness_preview_map.get("verify_check")
     findings = verify_check.get("findings") if isinstance(verify_check, dict) else []
     blocked_by_placeholders = _has_finding_code(findings, "governance_scaffold_placeholder")
@@ -1399,15 +1393,9 @@ def _consumer_bootstrap_implementation_routing_details(
     implementation_ready = readiness_preview_map.get("implementation_ready") is True
     advance_ready = advance_preview_map.get("advance_ready") is True
     advance_apply_skipped = advance_apply_map.get("apply_skipped") is True
-    start_preview_skipped = start_preview_map.get("preview_skipped") is True
-    start_apply_skipped = start_apply_map.get("apply_skipped") is True
-    closeout_preview_skipped = closeout_preview_map.get("preview_skipped") is True
-    closeout_apply_skipped = closeout_apply_map.get("apply_skipped") is True
+    run_preview_skipped = run_preview_map.get("preview_skipped") is True
     advance_apply_skip_code = _string_field(advance_apply_map, "skip_code")
-    start_preview_skip_code = _string_field(start_preview_map, "skip_code")
-    start_apply_skip_code = _string_field(start_apply_map, "skip_code")
-    closeout_preview_skip_code = _string_field(closeout_preview_map, "skip_code")
-    closeout_apply_skip_code = _string_field(closeout_apply_map, "skip_code")
+    run_preview_skip_code = _string_field(run_preview_map, "skip_code")
     return {
         **base,
         "ok": (
@@ -1416,18 +1404,14 @@ def _consumer_bootstrap_implementation_routing_details(
             and bootstrap_payload.get("implementation_readiness_preview_ok") is True
             and bootstrap_payload.get("implementation_advance_preview_ok") is True
             and bootstrap_payload.get("implementation_advance_apply_ok") is True
-            and bootstrap_payload.get("implementation_start_preview_ok") is True
-            and bootstrap_payload.get("implementation_start_apply_ok") is True
-            and bootstrap_payload.get("implementation_closeout_preview_ok") is True
-            and bootstrap_payload.get("implementation_closeout_apply_ok") is True
+            and bootstrap_payload.get("implementation_run_preview_ok") is True
             and isinstance(expanded_flags, list)
             and "implementation_readiness_preview" in expanded_flags
             and "implementation_advance_preview" in expanded_flags
             and "implementation_advance_apply" in expanded_flags
-            and "implementation_start_preview" in expanded_flags
-            and "implementation_start_apply" in expanded_flags
-            and "implementation_closeout_preview" in expanded_flags
-            and "implementation_closeout_apply" in expanded_flags
+            and "implementation_run_preview" in expanded_flags
+            and "implementation_start_apply" not in expanded_flags
+            and "implementation_closeout_apply" not in expanded_flags
             and readiness_ok is False
             and implementation_ready is False
             and readiness_blocker_count > 0
@@ -1437,25 +1421,20 @@ def _consumer_bootstrap_implementation_routing_details(
             and bool(readiness_next_repair_action_map)
             and advance_ready is False
             and advance_apply_skipped
-            and start_preview_skipped
-            and start_apply_skipped
-            and closeout_preview_skipped
-            and closeout_apply_skipped
             and advance_apply_skip_code == "advance_preview_not_ready"
-            and start_preview_skip_code == "readiness_preview_not_ready"
-            and start_apply_skip_code == "start_preview_not_ready"
-            and closeout_preview_skip_code == "start_apply_not_applied"
-            and closeout_apply_skip_code == "closeout_preview_not_ready"
+            and run_preview_skipped
+            and run_preview_skip_code == "advance_apply_not_applied"
+            and _string_field(run_preview_map, "blocked_by") == "implementation_advance_apply"
+            and run_preview_map.get("required_advance_applied") is False
+            and run_preview_map.get("handoff_ready") is False
+            and run_preview_map.get("implementation_run") == {}
             and blocked_by_placeholders
         ),
         "workflow_preset": workflow_preset if isinstance(workflow_preset, str) else "",
         "implementation_readiness_preview_ok": bootstrap_payload.get("implementation_readiness_preview_ok") is True,
         "implementation_advance_preview_ok": bootstrap_payload.get("implementation_advance_preview_ok") is True,
         "implementation_advance_apply_ok": bootstrap_payload.get("implementation_advance_apply_ok") is True,
-        "implementation_start_preview_ok": bootstrap_payload.get("implementation_start_preview_ok") is True,
-        "implementation_start_apply_ok": bootstrap_payload.get("implementation_start_apply_ok") is True,
-        "implementation_closeout_preview_ok": bootstrap_payload.get("implementation_closeout_preview_ok") is True,
-        "implementation_closeout_apply_ok": bootstrap_payload.get("implementation_closeout_apply_ok") is True,
+        "implementation_run_preview_ok": bootstrap_payload.get("implementation_run_preview_ok") is True,
         "readiness_previewed": bootstrap_payload.get("implementation_readiness_previewed") is True,
         "readiness_ok": readiness_ok,
         "implementation_ready": implementation_ready,
@@ -1473,18 +1452,18 @@ def _consumer_bootstrap_implementation_routing_details(
         "advance_apply_skipped": advance_apply_skipped,
         "advance_apply_skip_code": advance_apply_skip_code,
         "advance_apply_blocked_by": _string_field(advance_apply_map, "blocked_by"),
-        "start_preview_skipped": start_preview_skipped,
-        "start_preview_skip_code": start_preview_skip_code,
-        "start_preview_blocked_by": _string_field(start_preview_map, "blocked_by"),
-        "start_apply_skipped": start_apply_skipped,
-        "start_apply_skip_code": start_apply_skip_code,
-        "start_apply_blocked_by": _string_field(start_apply_map, "blocked_by"),
-        "closeout_preview_skipped": closeout_preview_skipped,
-        "closeout_preview_skip_code": closeout_preview_skip_code,
-        "closeout_preview_blocked_by": _string_field(closeout_preview_map, "blocked_by"),
-        "closeout_apply_skipped": closeout_apply_skipped,
-        "closeout_apply_skip_code": closeout_apply_skip_code,
-        "closeout_apply_blocked_by": _string_field(closeout_apply_map, "blocked_by"),
+        "run_previewed": bootstrap_payload.get("implementation_run_previewed") is True,
+        "run_preview_skipped": run_preview_skipped,
+        "run_preview_skip_code": run_preview_skip_code,
+        "run_preview_blocked_by": _string_field(run_preview_map, "blocked_by"),
+        "run_required_advance_applied": run_preview_map.get("required_advance_applied") is True,
+        "run_handoff_ready": run_preview_map.get("handoff_ready") is True,
+        "run_status": _string_field(run_preview_map, "status"),
+        "run_task_id": _string_field(run_preview_map, "task_id"),
+        "run_snapshot": run_preview_map.get("snapshot") if isinstance(run_preview_map.get("snapshot"), dict) else {},
+        "run_next_action": run_preview_map.get("next_action")
+        if isinstance(run_preview_map.get("next_action"), dict)
+        else {},
         "blocked_by_placeholders": blocked_by_placeholders,
     }
 

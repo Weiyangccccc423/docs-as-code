@@ -54,10 +54,7 @@ WORKFLOW_PRESETS: dict[str, tuple[str, ...]] = {
         "implementation_readiness_preview",
         "implementation_advance_preview",
         "implementation_advance_apply",
-        "implementation_start_preview",
-        "implementation_start_apply",
-        "implementation_closeout_preview",
-        "implementation_closeout_apply",
+        "implementation_run_preview",
     ),
 }
 
@@ -148,6 +145,7 @@ def run_consumer_bootstrap(
     implementation_readiness_preview: bool = False,
     implementation_advance_preview: bool = False,
     implementation_advance_apply: bool = False,
+    implementation_run_preview: bool = False,
     implementation_start_preview: bool = False,
     implementation_start_apply: bool = False,
     implementation_closeout_preview: bool = False,
@@ -181,12 +179,24 @@ def run_consumer_bootstrap(
             implementation_advance_preview or "implementation_advance_preview" in expanded_flags
         )
         implementation_advance_apply = implementation_advance_apply or "implementation_advance_apply" in expanded_flags
+        implementation_run_preview = implementation_run_preview or "implementation_run_preview" in expanded_flags
         implementation_start_preview = implementation_start_preview or "implementation_start_preview" in expanded_flags
         implementation_start_apply = implementation_start_apply or "implementation_start_apply" in expanded_flags
         implementation_closeout_preview = (
             implementation_closeout_preview or "implementation_closeout_preview" in expanded_flags
         )
         implementation_closeout_apply = implementation_closeout_apply or "implementation_closeout_apply" in expanded_flags
+        if implementation_run_preview and any(
+            (
+                implementation_start_preview,
+                implementation_start_apply,
+                implementation_closeout_preview,
+                implementation_closeout_apply,
+            )
+        ):
+            raise ConsumerBootstrapError(
+                "--implementation-run-preview cannot be combined with implementation start/closeout flags"
+            )
 
         pack_manifest_verification = _run_json(
             steps,
@@ -320,6 +330,11 @@ def run_consumer_bootstrap(
             payload=init_check,
         )
         _require(
+            not implementation_run_preview or implementation_advance_apply,
+            "--implementation-run-preview requires --implementation-advance-apply",
+            payload=init_check,
+        )
+        _require(
             not implementation_start_preview or implementation_readiness_preview,
             "--implementation-start-preview requires --implementation-readiness-preview",
             payload=init_check,
@@ -391,6 +406,9 @@ def run_consumer_bootstrap(
             "implementation_advance_apply_requested": implementation_advance_apply,
             "implementation_advance_applied": False,
             "implementation_advance_apply_ok": False,
+            "implementation_run_preview_requested": implementation_run_preview,
+            "implementation_run_previewed": False,
+            "implementation_run_preview_ok": False,
             "implementation_start_preview_requested": implementation_start_preview,
             "implementation_start_previewed": False,
             "implementation_start_preview_ok": False,
@@ -587,6 +605,17 @@ def run_consumer_bootstrap(
                                                             expected_phase="implementation",
                                                         )
                                                         readiness_preview = advance_apply["implementation_readiness"]
+                                                    if implementation_run_preview:
+                                                        run_preview = _preview_implementation_run(
+                                                            steps,
+                                                            target,
+                                                            advance_apply,
+                                                        )
+                                                        payload["implementation_run_previewed"] = True
+                                                        payload["implementation_run_preview"] = run_preview
+                                                        payload["implementation_run_preview_ok"] = (
+                                                            run_preview.get("ok") is True
+                                                        )
                                             if implementation_start_preview:
                                                 start_preview = _preview_implementation_start(
                                                     steps,
@@ -782,6 +811,9 @@ def run_consumer_bootstrap(
             "implementation_advance_apply_requested": implementation_advance_apply,
             "implementation_advance_applied": False,
             "implementation_advance_apply_ok": False,
+            "implementation_run_preview_requested": implementation_run_preview,
+            "implementation_run_previewed": False,
+            "implementation_run_preview_ok": False,
             "implementation_start_preview_requested": implementation_start_preview,
             "implementation_start_previewed": False,
             "implementation_start_preview_ok": False,
@@ -847,6 +879,9 @@ def run_consumer_bootstrap(
             "implementation_advance_apply_requested": implementation_advance_apply,
             "implementation_advance_applied": False,
             "implementation_advance_apply_ok": False,
+            "implementation_run_preview_requested": implementation_run_preview,
+            "implementation_run_previewed": False,
+            "implementation_run_preview_ok": False,
             "implementation_start_preview_requested": implementation_start_preview,
             "implementation_start_previewed": False,
             "implementation_start_preview_ok": False,
@@ -2065,6 +2100,93 @@ def _apply_implementation_advance(
     return payload
 
 
+def _preview_implementation_run(
+    steps: list[dict[str, object]],
+    target: Path,
+    advance_apply: dict[str, object],
+) -> dict[str, object]:
+    advance_applied = advance_apply.get("ok") is True and advance_apply.get("apply_skipped") is not True
+    payload: dict[str, object] = {
+        "ok": True,
+        "target": str(target),
+        "check": True,
+        "writes_state": False,
+        "phase": str(advance_apply.get("phase", "")),
+        "preview_skipped": False,
+        "skip_code": "",
+        "blocked_by": "",
+        "required_advance_applied": advance_applied,
+        "skip_reason": "",
+        "runner_ok": False,
+        "handoff_ready": False,
+        "status": "",
+        "task_id": "",
+        "snapshot": {},
+        "next_action": {},
+        "implementation_run": {},
+    }
+    if not advance_applied:
+        payload["preview_skipped"] = True
+        payload["skip_code"] = "advance_apply_not_applied"
+        payload["blocked_by"] = "implementation_advance_apply"
+        payload["required_advance_applied"] = False
+        payload["skip_reason"] = "implementation advance apply did not pass"
+        return payload
+
+    implementation_run = _run_json(
+        steps,
+        "target_local_implementation_run_preview",
+        ["bin/governance", "implementation", "run", ".", "--check", "--json"],
+        target,
+        allowed_returncodes=(0, 1),
+    )
+    status = _string_value(implementation_run.get("status"))
+    task_id = _string_value(implementation_run.get("task_id"))
+    snapshot_value = implementation_run.get("snapshot")
+    snapshot = dict(snapshot_value) if isinstance(snapshot_value, dict) else {}
+    next_action_value = implementation_run.get("next_action")
+    next_action = dict(next_action_value) if isinstance(next_action_value, dict) else {}
+    snapshot_id = _string_value(snapshot.get("id"))
+    next_argv = next_action.get("argv")
+    argv = next_argv if isinstance(next_argv, list) and all(isinstance(item, str) for item in next_argv) else []
+    expected_argv = [
+        "bin/governance",
+        "implementation",
+        "run",
+        ".",
+        "--task",
+        task_id,
+        "--apply-start",
+        "--expect-snapshot",
+        snapshot_id,
+        "--json",
+    ]
+    handoff_ready = (
+        implementation_run.get("ok") is True
+        and status == "ready_to_start"
+        and TASK_ID_PATTERN.fullmatch(task_id) is not None
+        and re.fullmatch(r"[0-9a-f]{64}", snapshot_id) is not None
+        and argv == expected_argv
+        and next_action.get("id") == "apply-start"
+        and next_action.get("kind") == "command"
+        and next_action.get("cwd") == str(target)
+        and next_action.get("writes_state") is True
+        and next_action.get("approval_required") is False
+    )
+    payload.update(
+        {
+            "runner_ok": implementation_run.get("ok") is True,
+            "handoff_ready": handoff_ready,
+            "status": status,
+            "task_id": task_id,
+            "snapshot": snapshot,
+            "next_action": next_action,
+            "implementation_run": implementation_run,
+        }
+    )
+    return payload
+
+
 TASK_ID_PATTERN = re.compile(r"^TASK-\d{3}$")
 
 
@@ -2551,6 +2673,15 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--implementation-run-preview",
+        action="store_true",
+        help=(
+            "With --implementation-advance-apply, run the read-only guarded implementation runner and return "
+            "its snapshot-bound next action without claiming or executing a task. Cannot be combined with "
+            "implementation start or closeout flags."
+        ),
+    )
+    parser.add_argument(
         "--implementation-start-preview",
         action="store_true",
         help=(
@@ -2614,6 +2745,7 @@ def main() -> int:
         implementation_readiness_preview=args.implementation_readiness_preview,
         implementation_advance_preview=args.implementation_advance_preview,
         implementation_advance_apply=args.implementation_advance_apply,
+        implementation_run_preview=args.implementation_run_preview,
         implementation_start_preview=args.implementation_start_preview,
         implementation_start_apply=args.implementation_start_apply,
         implementation_closeout_preview=args.implementation_closeout_preview,

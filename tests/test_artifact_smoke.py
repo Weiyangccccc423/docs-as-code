@@ -264,42 +264,23 @@ class ArtifactSmokeTest(unittest.TestCase):
             "implementation_advance_preview",
             payload["consumer_bootstrap_implementation_routing"]["advance_apply_blocked_by"],
         )
-        self.assertTrue(payload["consumer_bootstrap_implementation_routing"]["start_preview_skipped"])
+        self.assertTrue(payload["consumer_bootstrap_implementation_routing"]["implementation_run_preview_ok"])
+        self.assertTrue(payload["consumer_bootstrap_implementation_routing"]["run_previewed"])
+        self.assertTrue(payload["consumer_bootstrap_implementation_routing"]["run_preview_skipped"])
         self.assertEqual(
-            "readiness_preview_not_ready",
-            payload["consumer_bootstrap_implementation_routing"]["start_preview_skip_code"],
+            "advance_apply_not_applied",
+            payload["consumer_bootstrap_implementation_routing"]["run_preview_skip_code"],
         )
         self.assertEqual(
-            "implementation_readiness_preview",
-            payload["consumer_bootstrap_implementation_routing"]["start_preview_blocked_by"],
+            "implementation_advance_apply",
+            payload["consumer_bootstrap_implementation_routing"]["run_preview_blocked_by"],
         )
-        self.assertTrue(payload["consumer_bootstrap_implementation_routing"]["start_apply_skipped"])
-        self.assertEqual(
-            "start_preview_not_ready",
-            payload["consumer_bootstrap_implementation_routing"]["start_apply_skip_code"],
-        )
-        self.assertEqual(
-            "implementation_start_preview",
-            payload["consumer_bootstrap_implementation_routing"]["start_apply_blocked_by"],
-        )
-        self.assertTrue(payload["consumer_bootstrap_implementation_routing"]["closeout_preview_skipped"])
-        self.assertEqual(
-            "start_apply_not_applied",
-            payload["consumer_bootstrap_implementation_routing"]["closeout_preview_skip_code"],
-        )
-        self.assertEqual(
-            "implementation_start_apply",
-            payload["consumer_bootstrap_implementation_routing"]["closeout_preview_blocked_by"],
-        )
-        self.assertTrue(payload["consumer_bootstrap_implementation_routing"]["closeout_apply_skipped"])
-        self.assertEqual(
-            "closeout_preview_not_ready",
-            payload["consumer_bootstrap_implementation_routing"]["closeout_apply_skip_code"],
-        )
-        self.assertEqual(
-            "implementation_closeout_preview",
-            payload["consumer_bootstrap_implementation_routing"]["closeout_apply_blocked_by"],
-        )
+        self.assertFalse(payload["consumer_bootstrap_implementation_routing"]["run_required_advance_applied"])
+        self.assertFalse(payload["consumer_bootstrap_implementation_routing"]["run_handoff_ready"])
+        self.assertEqual("", payload["consumer_bootstrap_implementation_routing"]["run_status"])
+        self.assertEqual("", payload["consumer_bootstrap_implementation_routing"]["run_task_id"])
+        self.assertEqual({}, payload["consumer_bootstrap_implementation_routing"]["run_snapshot"])
+        self.assertEqual({}, payload["consumer_bootstrap_implementation_routing"]["run_next_action"])
         self.assertTrue(payload["consumer_bootstrap_implementation_routing"]["blocked_by_placeholders"])
         self.assertIn(
             "implementation_readiness_preview",
@@ -310,6 +291,14 @@ class ArtifactSmokeTest(unittest.TestCase):
             payload["consumer_bootstrap_implementation_routing"]["workflow_preset_expanded_flags"],
         )
         self.assertIn(
+            "implementation_run_preview",
+            payload["consumer_bootstrap_implementation_routing"]["workflow_preset_expanded_flags"],
+        )
+        self.assertNotIn(
+            "implementation_start_apply",
+            payload["consumer_bootstrap_implementation_routing"]["workflow_preset_expanded_flags"],
+        )
+        self.assertNotIn(
             "implementation_closeout_apply",
             payload["consumer_bootstrap_implementation_routing"]["workflow_preset_expanded_flags"],
         )
