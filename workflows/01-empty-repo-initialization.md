@@ -24,7 +24,13 @@ Load:
    python3 scripts/authority_skills.py --repair --check --json
    ```
 
-   Stop on an invalid or routing-misaligned `manifest`. Inspect `status_counts`, `provenance_issue_skills`, and `repair_plan`. Source-unregistered or unmanaged skills require source and license review; do not guess install locations. Base initialization may continue in non-strict mode, but run with `--strict-provenance` before authority-dependent design when approved locked skills are required.
+   Stop on an invalid or routing-misaligned `manifest`. Inspect `status_counts`, `provenance_issue_skills`, and `repair_plan`. Source-unregistered or unmanaged skills require source and license review; do not guess install locations. After explicit approval, install all eligible locked missing skills with:
+
+   ```bash
+   python3 scripts/authority_skills.py --repair --apply --approve-installs --strict-provenance --json
+   ```
+
+   Apply mode refuses drifted, duplicated, unmanaged, source-unregistered, or unavailable-installer actions. It stops after the first installer or digest failure; inspect `repair_execution.partial_write_observed` and `manual_cleanup_required` before cleanup or retry. Base initialization may continue in non-strict mode, but run with `--strict-provenance` before authority-dependent design when approved locked skills are required.
 
 3. Check environment:
 

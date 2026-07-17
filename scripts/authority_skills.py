@@ -11,6 +11,7 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
 try:
+    from .bounded_process import run_bounded_command
     from .design_plan import (
         AUTHORITY_ROUTING_SKILL_MISSING_POLICY,
         AUTHORITY_ROUTING_SPECIALIST_SKILLS,
@@ -18,6 +19,7 @@ try:
     )
     from .implementation_plan import BASE_SPECIALIST_SKILLS
 except ImportError:  # pragma: no cover - direct script execution
+    from bounded_process import run_bounded_command
     from design_plan import (
         AUTHORITY_ROUTING_SKILL_MISSING_POLICY,
         AUTHORITY_ROUTING_SPECIALIST_SKILLS,
@@ -53,6 +55,8 @@ SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 APPROVAL_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 TREE_DIGEST_IGNORED_DIRS = {".git", "__pycache__"}
 TREE_DIGEST_IGNORED_FILES = {".DS_Store"}
+AUTHORITY_INSTALL_TIMEOUT_SECONDS = 120.0
+AUTHORITY_INSTALL_MAX_OUTPUT_BYTES = 65_536
 
 
 def build_authority_skill_inventory(
@@ -233,6 +237,312 @@ def build_authority_skill_inventory(
 def validate_authority_skill_lock(path: Path) -> dict[str, Any]:
     manifest, _entries = _load_authority_skill_lock(_absolute_path_preserving_symlinks(path))
     return manifest
+
+
+def apply_authority_skill_repairs(
+    *,
+    approved: bool,
+    skill_roots: list[Path] | None = None,
+    strict: bool = False,
+    strict_provenance: bool = False,
+    include_default_skill_roots: bool = True,
+    manifest_path: Path | None = None,
+    skill_installer_path: Path | None = None,
+) -> dict[str, Any]:
+    initial = build_authority_skill_inventory(
+        skill_roots=skill_roots,
+        include_default_skill_roots=include_default_skill_roots,
+        manifest_path=manifest_path,
+        repair=True,
+        check=True,
+        skill_installer_path=skill_installer_path,
+    )
+    plan = initial["repair_plan"]
+    actions = plan.get("actions", []) if isinstance(plan, dict) else []
+    execution = _authority_repair_execution_payload(approved=approved, action_count=len(actions))
+
+    if not initial["ok"]:
+        execution.update(
+            {
+                "status": "blocked_invalid_inventory",
+                "stop_reason": "authority skill lock or routing inventory is invalid",
+            }
+        )
+        return _authority_repair_result(
+            initial,
+            initial,
+            execution,
+            strict=strict,
+            strict_provenance=strict_provenance,
+        )
+
+    installer_path = _resolve_skill_installer_path(skill_installer_path)
+    skills_by_name = {str(skill["name"]): skill for skill in initial["skills"]}
+    unsupported_actions = [
+        action
+        for action in actions
+        if not _authority_install_action_is_executable(
+            action,
+            skill=skills_by_name.get(str(action.get("skill", "")), {}),
+            installer_path=installer_path,
+        )
+    ]
+    if unsupported_actions:
+        execution.update(
+            {
+                "status": "blocked_unsupported_actions",
+                "stop_reason": "authority repair contains drift, source review, ambiguity, or unavailable-installer actions",
+                "blocked_action_ids": [str(action.get("id", "")) for action in unsupported_actions],
+            }
+        )
+        return _authority_repair_result(
+            initial,
+            initial,
+            execution,
+            strict=strict,
+            strict_provenance=strict_provenance,
+        )
+
+    if not actions:
+        final = build_authority_skill_inventory(
+            skill_roots=skill_roots,
+            strict=strict,
+            strict_provenance=strict_provenance,
+            include_default_skill_roots=include_default_skill_roots,
+            manifest_path=manifest_path,
+            skill_installer_path=skill_installer_path,
+        )
+        execution.update(
+            {
+                "ok": final["ok"] and final["provenance_ready"],
+                "status": "no_action_required",
+                "can_continue": final["ok"] and final["provenance_ready"],
+            }
+        )
+        return _authority_repair_result(
+            initial,
+            final,
+            execution,
+            strict=strict,
+            strict_provenance=strict_provenance,
+        )
+
+    if not approved:
+        execution.update(
+            {
+                "status": "approval_required",
+                "stop_reason": "network access and Agent-environment writes require explicit --approve-installs",
+                "blocked_action_ids": [str(action.get("id", "")) for action in actions],
+            }
+        )
+        return _authority_repair_result(
+            initial,
+            initial,
+            execution,
+            strict=strict,
+            strict_provenance=strict_provenance,
+        )
+
+    lock_path = _resolve_authority_skill_lock_path(manifest_path)
+    for action in actions:
+        action_id = str(action["id"])
+        skill_name = str(action["skill"])
+        if not _authority_install_action_is_executable(
+            action,
+            skill=skills_by_name.get(skill_name, {}),
+            installer_path=installer_path,
+        ):
+            execution.update(
+                {
+                    "status": "blocked_unsupported_actions",
+                    "stop_reason": "authority install action or installer changed after repair planning",
+                    "blocked_action_ids": [action_id],
+                    "partial_write_observed": execution["verified_count"] > 0,
+                }
+            )
+            break
+        argv = [str(value) for value in action["argv"]]
+        command_result = run_bounded_command(
+            argv,
+            cwd=lock_path.parent.parent,
+            timeout_seconds=AUTHORITY_INSTALL_TIMEOUT_SECONDS,
+            max_output_bytes=AUTHORITY_INSTALL_MAX_OUTPUT_BYTES,
+        )
+        execution["attempted_count"] += 1
+        post_action = build_authority_skill_inventory(
+            skill_roots=skill_roots,
+            include_default_skill_roots=include_default_skill_roots,
+            manifest_path=manifest_path,
+            skill_installer_path=skill_installer_path,
+        )
+        skill = next((item for item in post_action["skills"] if item["name"] == skill_name), {})
+        command_succeeded = command_result.get("result") == "pass"
+        integrity_verified = skill.get("status") == "current" and skill.get("integrity_matches") is True
+        verified = command_succeeded and integrity_verified
+        action_result = {
+            "id": action_id,
+            "skill": skill_name,
+            "argv": argv,
+            "execution": command_result,
+            "command_succeeded": command_succeeded,
+            "post_status": skill.get("status", "unavailable"),
+            "post_integrity_matches": skill.get("integrity_matches"),
+            "integrity_verified": integrity_verified,
+            "verified": verified,
+        }
+        execution["actions"].append(action_result)
+        if verified:
+            execution["verified_count"] += 1
+            continue
+
+        execution["failed_action_id"] = action_id
+        execution["failed_skill"] = skill_name
+        execution["partial_write_observed"] = (
+            execution["verified_count"] > 0 or skill.get("available_in_agent_environment") is True
+        )
+        execution["manual_cleanup_required"] = skill.get("available_in_agent_environment") is True
+        if command_succeeded:
+            execution["status"] = "integrity_failed"
+            execution["stop_reason"] = "installer returned success but the installed skill tree did not match the lock"
+        else:
+            execution["status"] = "failed"
+            execution["stop_reason"] = "authority skill installer command failed"
+        break
+
+    final = build_authority_skill_inventory(
+        skill_roots=skill_roots,
+        strict=strict,
+        strict_provenance=strict_provenance,
+        include_default_skill_roots=include_default_skill_roots,
+        manifest_path=manifest_path,
+        skill_installer_path=skill_installer_path,
+    )
+    if not execution["failed_action_id"] and not execution["blocked_action_ids"]:
+        execution["partial_write_observed"] = False
+        execution["status"] = "completed"
+        execution["ok"] = final["ok"] and final["provenance_ready"]
+        execution["can_continue"] = execution["ok"]
+        if not execution["ok"]:
+            execution["status"] = "post_verification_failed"
+            execution["stop_reason"] = "post-install authority provenance verification did not pass"
+    return _authority_repair_result(
+        initial,
+        final,
+        execution,
+        strict=strict,
+        strict_provenance=strict_provenance,
+    )
+
+
+def _authority_install_action_is_executable(
+    action: object,
+    *,
+    skill: object,
+    installer_path: Path,
+) -> bool:
+    if not isinstance(action, dict) or not isinstance(skill, dict):
+        return False
+    name = skill.get("name")
+    source = skill.get("source")
+    trust = skill.get("trust")
+    if not isinstance(name, str) or not isinstance(source, dict) or not isinstance(trust, dict):
+        return False
+    repo = source.get("repo")
+    source_path = source.get("path")
+    source_ref = source.get("ref")
+    if not all(isinstance(value, str) and value for value in (repo, source_path, source_ref)):
+        return False
+    expected_argv = [
+        sys.executable,
+        str(installer_path),
+        "--repo",
+        repo,
+        "--path",
+        source_path,
+        "--ref",
+        source_ref,
+        "--name",
+        name,
+    ]
+    argv = action.get("argv")
+    return bool(
+        installer_path.is_file()
+        and not installer_path.is_symlink()
+        and skill.get("status") == "missing"
+        and skill.get("source_registered") is True
+        and source.get("kind") == "github"
+        and trust.get("status") == "approved"
+        and SHA256_RE.fullmatch(str(skill.get("expected_sha256", ""))) is not None
+        and action.get("id") == f"authority-skill-install-{name}"
+        and action.get("skill") == name
+        and action.get("kind") == "install-authority-skill-from-registered-source"
+        and action.get("status") == "missing"
+        and action.get("approval_required") is True
+        and action.get("network_required") is True
+        and action.get("writes_outside_repository") is True
+        and action.get("manual_required") is False
+        and argv == expected_argv
+    )
+
+
+def _authority_repair_execution_payload(*, approved: bool, action_count: int) -> dict[str, Any]:
+    return {
+        "ok": False,
+        "requested": True,
+        "approved": approved,
+        "writes_state": True,
+        "writes_outside_repository": True,
+        "network_required": action_count > 0,
+        "status": "pending",
+        "can_continue": False,
+        "action_count": action_count,
+        "attempted_count": 0,
+        "verified_count": 0,
+        "failed_action_id": "",
+        "failed_skill": "",
+        "blocked_action_ids": [],
+        "partial_write_observed": False,
+        "manual_cleanup_required": False,
+        "stop_reason": "",
+        "timeout_seconds_per_action": AUTHORITY_INSTALL_TIMEOUT_SECONDS,
+        "max_output_bytes_per_stream": AUTHORITY_INSTALL_MAX_OUTPUT_BYTES,
+        "actions": [],
+    }
+
+
+def _authority_repair_result(
+    initial: dict[str, Any],
+    final: dict[str, Any],
+    execution: dict[str, Any],
+    *,
+    strict: bool,
+    strict_provenance: bool,
+) -> dict[str, Any]:
+    payload = dict(final)
+    payload["strict"] = strict
+    payload["strict_provenance"] = strict_provenance
+    payload["ok"] = bool(final.get("ok") is True and execution.get("ok") is True)
+    payload["repair_plan"] = initial["repair_plan"]
+    payload["repair_execution"] = execution
+    payload["pre_repair_summary"] = _authority_inventory_summary(initial)
+    payload["post_repair_summary"] = _authority_inventory_summary(final)
+    if not payload["ok"] and execution.get("stop_reason"):
+        errors = list(payload.get("errors", []))
+        errors.append(str(execution["stop_reason"]))
+        payload["errors"] = errors
+    return payload
+
+
+def _authority_inventory_summary(payload: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "ok": payload.get("ok") is True,
+        "required_skill_count": payload.get("required_skill_count", 0),
+        "available_skill_count": payload.get("available_skill_count", 0),
+        "missing_skill_count": payload.get("missing_skill_count", 0),
+        "provenance_issue_count": payload.get("provenance_issue_count", 0),
+        "provenance_ready": payload.get("provenance_ready") is True,
+        "status_counts": payload.get("status_counts", {}),
+    }
 
 
 def _load_authority_skill_lock(path: Path) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
@@ -787,9 +1097,19 @@ def _build_parser() -> argparse.ArgumentParser:
         help="With --repair, plan actions without network access or filesystem writes.",
     )
     parser.add_argument(
+        "--apply",
+        action="store_true",
+        help="With --repair, execute only approved missing-skill installs and verify every locked tree digest.",
+    )
+    parser.add_argument(
+        "--approve-installs",
+        action="store_true",
+        help="Explicitly approve network access and Agent-environment writes for --repair --apply.",
+    )
+    parser.add_argument(
         "--skill-installer",
         type=Path,
-        help="Explicit Codex system skill-installer helper used only to construct approved install argv.",
+        help="Explicit Codex system skill-installer helper used to plan and execute approved install argv.",
     )
     parser.add_argument(
         "--skill-root",
@@ -809,18 +1129,33 @@ def _build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
-    if args.repair != args.check:
-        parser.error("--repair and --check must be used together; authority skill repair is planning-only")
-    payload = build_authority_skill_inventory(
-        skill_roots=list(args.skill_root),
-        strict=args.strict,
-        strict_provenance=args.strict_provenance,
-        include_default_skill_roots=not args.no_default_skill_roots,
-        manifest_path=args.manifest,
-        repair=args.repair,
-        check=args.check,
-        skill_installer_path=args.skill_installer,
-    )
+    if args.check and args.apply:
+        parser.error("--check and --apply are mutually exclusive")
+    if args.repair and not (args.check or args.apply):
+        parser.error("--repair requires exactly one of --check or --apply")
+    if not args.repair and (args.check or args.apply):
+        parser.error("--check and --apply require --repair")
+    if args.approve_installs and not args.apply:
+        parser.error("--approve-installs requires --repair --apply")
+    common = {
+        "skill_roots": list(args.skill_root),
+        "strict": args.strict,
+        "strict_provenance": args.strict_provenance,
+        "include_default_skill_roots": not args.no_default_skill_roots,
+        "manifest_path": args.manifest,
+        "skill_installer_path": args.skill_installer,
+    }
+    if args.apply:
+        payload = apply_authority_skill_repairs(
+            approved=args.approve_installs,
+            **common,
+        )
+    else:
+        payload = build_authority_skill_inventory(
+            repair=args.repair,
+            check=args.check,
+            **common,
+        )
     if args.json:
         print(json.dumps(payload, indent=2, sort_keys=True))
     else:

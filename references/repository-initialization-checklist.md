@@ -26,9 +26,13 @@ Reference: `https://git-scm.com/book/en/v2/Git-Basics-Getting-a-Git-Repository`
 ## Authority Skill Readiness
 
 - Does `python3 scripts/authority_skills.py --repair --check --json` validate `references/authority-skills.lock.json` without network access or writes?
+- If missing locked skills are required, was `python3 scripts/authority_skills.py --repair --apply --approve-installs --strict-provenance --json` explicitly approved and run before environment checks or target writes?
+- Did authority apply accept only `missing` installs, stop on the first command/integrity failure, and leave drifted, duplicated, unmanaged, source-unregistered, or unavailable-installer actions untouched?
+- Were `repair_execution.partial_write_observed` and `manual_cleanup_required` checked before retrying a failed authority repair?
 - Are `source-unregistered` and `unmanaged` skills routed to source and license review instead of guessed installs?
 - Are exact install argv emitted only for approved GitHub sources pinned to immutable commits and expected digests?
 - Is `--strict-authority-provenance` used before target writes when policy requires every authority skill to be source-approved and current?
+- When consumer bootstrap performs the repair, is `--approve-authority-installs --strict-authority-provenance` used only in write mode, and is `authority_skill_auto_repair.can_continue` true before initialization?
 
 ## Governance Entry Points
 

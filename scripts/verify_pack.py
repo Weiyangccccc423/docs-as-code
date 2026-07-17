@@ -1119,6 +1119,10 @@ CONSUMER_BOOTSTRAP_REQUIRED_PHRASES = (
     "pack_verify",
     "authority_skill_inventory",
     "_authority_skill_argv",
+    "_authority_skill_apply_argv",
+    "authority_skill_repair_apply",
+    "--approve-authority-installs",
+    "authority_skill_auto_repair",
     "--strict-authority-skills",
     "strict_authority_skills",
     "--strict-authority-provenance",
@@ -5375,8 +5379,60 @@ AUTHORITY_SKILL_INVENTORY_REQUIRED_PHRASES = (
     "installation_ambiguous",
     "_skill_frontmatter_name",
     "validate_authority_skill_lock",
+    "apply_authority_skill_repairs",
+    "run_bounded_command",
+    "--apply",
+    "--approve-installs",
+    "integrity_failed",
+    "blocked_unsupported_actions",
+    "manual_cleanup_required",
     "_task_specialist_skills",
 )
+AUTHORITY_SKILL_REPAIR_COMMAND = (
+    "python3 scripts/authority_skills.py --repair --apply "
+    "--approve-installs --strict-provenance --json"
+)
+AUTHORITY_SKILL_REPAIR_DOC_REQUIREMENTS = {
+    "README.md": (
+        AUTHORITY_SKILL_REPAIR_COMMAND,
+        "--approve-authority-installs --strict-authority-provenance --json",
+        "authority_skill_auto_repair",
+        "manual_cleanup_required",
+    ),
+    "workflows/00-overview.md": (
+        AUTHORITY_SKILL_REPAIR_COMMAND,
+        "--approve-authority-installs --strict-authority-provenance --json",
+        "authority_skill_auto_repair",
+        "manual_cleanup_required",
+    ),
+    "workflows/01-empty-repo-initialization.md": (
+        AUTHORITY_SKILL_REPAIR_COMMAND,
+        "manual_cleanup_required",
+    ),
+    "skills/initializing-governance-repo/SKILL.md": (
+        AUTHORITY_SKILL_REPAIR_COMMAND,
+        "manual_cleanup_required",
+    ),
+    "skills/verifying-governance-docs/SKILL.md": (
+        AUTHORITY_SKILL_REPAIR_COMMAND,
+        "--approve-authority-installs --strict-authority-provenance --json",
+        "authority_skill_auto_repair",
+    ),
+    "references/runtime-strategy.md": (
+        AUTHORITY_SKILL_REPAIR_COMMAND,
+        "120 seconds",
+        "65,536 bytes",
+    ),
+    "references/repository-initialization-checklist.md": (
+        AUTHORITY_SKILL_REPAIR_COMMAND,
+        "--approve-authority-installs --strict-authority-provenance",
+    ),
+    "references/authority-skills-source-review.md": (
+        AUTHORITY_SKILL_REPAIR_COMMAND,
+        "non-symlink Codex system installer",
+        "manual_cleanup_required",
+    ),
+}
 IGNORED_PACK_FILE_NAMES = {".DS_Store", "manifest.json"}
 MARKDOWN_LINK_RE = re.compile(r"(?<!!)\[[^\]]*]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 MARKDOWN_REFERENCE_DEFINITION_RE = re.compile(r"^\s{0,3}\[[^\]]+]:\s*(\S+)", re.MULTILINE)
@@ -5539,6 +5595,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_ci_workflow(root, findings)
     _check_authority_skill_inventory(root, findings)
     _check_authority_skill_lock(root, findings)
+    _check_authority_skill_repair_docs(root, findings)
     _check_runtime_continuation_calls(root, findings)
     _check_target_local_command_source(root, findings)
     _check_target_local_command_schema(root, findings)
@@ -6010,6 +6067,23 @@ def _check_authority_skill_inventory(root: Path, findings: list[PackFinding]) ->
             AUTHORITY_SKILL_INVENTORY_PATH,
         )
     )
+
+
+def _check_authority_skill_repair_docs(root: Path, findings: list[PackFinding]) -> None:
+    for rel, required_phrases in AUTHORITY_SKILL_REPAIR_DOC_REQUIREMENTS.items():
+        text = _read_utf8_text_or_none(root / rel)
+        if text is None:
+            continue
+        for phrase in required_phrases:
+            if phrase in text:
+                continue
+            findings.append(
+                PackFinding(
+                    "pack_authority_skill_repair_doc_missing",
+                    f"{rel} must document authority skill repair command or behavior: {phrase}",
+                    rel,
+                )
+            )
 
 
 def _check_authority_skill_lock(root: Path, findings: list[PackFinding]) -> None:

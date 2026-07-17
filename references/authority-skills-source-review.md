@@ -55,6 +55,10 @@ This approval means the pinned skill trees are allowed as reviewed Agent guidanc
 
 - Installation always requires explicit approval because it uses network access and writes to the Agent environment.
 - Install only the exact repository path at the exact 40-character revision in the lock.
+- Preview the full batch offline with `python3 scripts/authority_skills.py --repair --check --json`; after review, apply eligible missing skills with `python3 scripts/authority_skills.py --repair --apply --approve-installs --strict-provenance --json`.
+- Approved apply uses the non-symlink Codex system installer without a shell, enforces a 120-second timeout and 65,536-byte limit per output stream for each action, and verifies the complete tree digest immediately after every install.
+- Stop the batch after the first installer failure or digest mismatch. Inspect `repair_execution.partial_write_observed` and `manual_cleanup_required` before manually cleaning up or retrying.
+- Never auto-replace drifted or duplicated skills and never execute source-unregistered, unmanaged, or unavailable-installer actions.
 - Stop authority-dependent work when a skill is missing, duplicated, source-unregistered, or does not match its complete tree digest.
 - Do not execute a skill's scripts merely because the skill is approved. Inspect the work package, script arguments, target paths, network effects, and write behavior for the current task.
 - Treat generated recommendations as review input. Product sources, repository evidence, primary standards, and deterministic gates remain controlling.

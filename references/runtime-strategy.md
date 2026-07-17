@@ -9,7 +9,7 @@ Core governance commands must remain runnable with:
 - POSIX shell for `bin/` wrappers
 - `python3` standard library for `scripts/`
 - no package installation for normal checks and initialization
-- no network access except approved `env --repair` system package installation
+- no network access during normal checks or initialization; approved `env --repair` and authority-skill apply are separate explicit repair boundaries
 
 Core runtime includes:
 
@@ -81,15 +81,16 @@ Authority-routing skills live in the agent environment, outside the repository r
 ```bash
 python3 scripts/authority_skills.py --json
 python3 scripts/authority_skills.py --repair --check --json
+python3 scripts/authority_skills.py --repair --apply --approve-installs --strict-provenance --json
 ```
 
 `references/authority-skills.lock.json` is the source contract. A registered entry must identify a GitHub `owner/repository`, normalized repository-relative skill path, full 40-character commit SHA, SHA-256 integrity scope and digest, license, reviewer, approval date, and review evidence. A source whose provenance has not been established must remain `unregistered`; never derive a repository or install command from the skill name.
 
 The inventory reports `current`, `missing`, `drifted`, `unmanaged`, and `source-unregistered` status. `skill-tree` integrity hashes sorted repository-relative file records in the form `path\0file_sha256\n`; `.git`, `__pycache__`, `.DS_Store`, and `.pyc` cache files are excluded. Dependency directories such as `node_modules` remain inside the integrity boundary. Symbolic links and duplicate same-name installations fail provenance. Use the reported `observed_sha256` only after the source, revision, license, and contents have been reviewed; an observed local digest is not source approval.
 
-`--repair --check` is planning-only: it performs no network access and no filesystem writes. A registered missing skill may produce exact Codex system `skill-installer` argv, but the action remains approval-required because it uses the network and writes outside the repository. Drift replacement remains manual because the installer refuses to overwrite an existing destination. Unregistered or unmanaged skills produce source-registration actions without guessed argv.
+`--repair --check` is planning-only: it performs no network access and no filesystem writes. A registered missing skill may produce exact Codex system `skill-installer` argv, but the action remains approval-required because it uses the network and writes outside the repository. `--repair --apply` still executes nothing until `--approve-installs` is present. Approved apply accepts only `missing` actions from the valid immutable lock through an available non-symlink system installer, executes argv without a shell, limits every action to 120 seconds and 65,536 bytes per output stream, and immediately verifies the complete installed tree digest. It stops after the first command failure or digest mismatch and reports `partial_write_observed` plus `manual_cleanup_required`. Drift replacement, duplicate installations, unavailable installers, unmanaged skills, and source-registration work remain manual and block the whole batch before execution.
 
-Use `--strict` to require availability. Use `--strict-provenance` to require every routing skill to be installed, source-approved, and digest-current. The checked-in baseline may remain portable with acknowledged unregistered sources, but authority-dependent work should use provenance strictness once the organization has completed source review.
+Use `--strict` to require availability. Use `--strict-provenance` to require every routing skill to be installed, source-approved, and digest-current. The checked-in lock registers the reviewed baseline, but a recipient Agent environment may still be missing or drifted; authority-dependent work should use provenance strictness.
 
 This contract is calibrated against SLSA provenance, NIST SP 800-218 SSDF, and OpenSSF Scorecard pinned-dependency guidance listed in `references/community-practices.md`.
 
@@ -119,7 +120,7 @@ The Python standard-library implementation remains the reference behavior.
 
 Environment repair may create local governance directories and write repair plans. It may execute supported apt installs only when the process already has root privileges. Under `--check`, it must not write repair plans or execute package-manager commands. It must not call `sudo`, change global Git configuration, or install project dependencies.
 
-Authority skill repair is a separate trust domain. It is always planning-only in this pack; it must not download code or modify `CODEX_HOME` without explicit approval.
+Authority skill repair is a separate trust domain. Planning remains offline and no-write. Apply may download code and modify `CODEX_HOME` only with `--repair --apply --approve-installs`, only for eligible locked missing skills, and only under bounded execution plus immediate digest verification. It never removes or replaces an existing skill automatically.
 
 Project-command verification is a separate scope governed by `docs/agent-workflow/project-environment.json`. Each command-contract `Environment` cell references an environment ID. After governance verification passes, `implementation verify --check` resolves `Argv[0]`, confines repository-relative executables, and runs each declared tool's version probe without a shell, with a five-second timeout and bounded output. Version probes accept only the parser's fixed read-only argument forms; parsed numeric versions must satisfy `exact`, `minimum`, and/or `maximum_exclusive` constraints. `environment_readiness`, `required_tools[]`, and `environment_probe_executed` make that evidence explicit. Missing or incompatible tools route only through the declared repair strategy: `governance-env` delegates to `env --repair --check --strict`, `manual` returns reviewed instructions, and `reviewed-command` delegates to `project-env repair --check`. Undeclared tools stop for registration. No package name, source, or install command is inferred. The registered task command and reviewed repair command are never executed by implementation preflight.
 

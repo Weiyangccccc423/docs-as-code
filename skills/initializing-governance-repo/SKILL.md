@@ -11,7 +11,7 @@ Create the minimum structure needed for reliable docs-as-code work.
 
 1. Read `references/repository-initialization-checklist.md`.
 
-2. From the workflow-pack checkout, run `python3 scripts/authority_skills.py --repair --check --json`. Stop on an invalid lock. Inspect `status_counts` and `repair_plan`; never guess a source for `source-unregistered` or `unmanaged` skills. Use `--strict-provenance` before authority-dependent work when approved locked skills are required.
+2. From the workflow-pack checkout, run `python3 scripts/authority_skills.py --repair --check --json`. Stop on an invalid lock. Inspect `status_counts` and `repair_plan`; never guess a source for `source-unregistered` or `unmanaged` skills. After explicit approval, run `python3 scripts/authority_skills.py --repair --apply --approve-installs --strict-provenance --json`. Apply only installs locked `missing` skills, stops after the first command or digest failure, and never auto-replaces drifted or ambiguous installations. Inspect `repair_execution.partial_write_observed` and `manual_cleanup_required` before retrying. Use `--strict-provenance` before authority-dependent work when approved locked skills are required.
 
 3. Run environment check:
 

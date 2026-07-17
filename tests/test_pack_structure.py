@@ -352,6 +352,13 @@ class PackStructureTest(unittest.TestCase):
             ("--skill-root", "--skills-dir"),
             ("required_by", "required_sources"),
             ("available_in_agent_environment", "available"),
+            ("apply_authority_skill_repairs", "apply_skill_repairs"),
+            ("run_bounded_command", "run_installer_command"),
+            ("--apply", "--execute"),
+            ("--approve-installs", "--allow-installs"),
+            ("integrity_failed", "digest_failed"),
+            ("blocked_unsupported_actions", "blocked_actions"),
+            ("manual_cleanup_required", "cleanup_needed"),
         )
         for required_phrase, replacement in cases:
             with self.subTest(required_phrase=required_phrase):
@@ -1578,6 +1585,69 @@ class PackStructureTest(unittest.TestCase):
                     finding.code == "pack_consumer_bootstrap_incomplete"
                     and finding.path == "scripts/bootstrap_consumer_project.py"
                     and "--auto-repair-env" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_consumer_bootstrap_missing_authority_repair_contract(self) -> None:
+        cases = (
+            ("_authority_skill_apply_argv", "_authority_apply_command"),
+            ("authority_skill_repair_apply", "authority_repair_apply"),
+            ("--approve-authority-installs", "--allow-authority-installs"),
+            ("authority_skill_auto_repair", "authority_repair_summary"),
+        )
+        for required_phrase, replacement in cases:
+            with self.subTest(required_phrase=required_phrase), tempfile.TemporaryDirectory() as tmp:
+                target = Path(tmp) / "pack"
+                shutil.copytree(
+                    ROOT,
+                    target,
+                    ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+                )
+                script = target / "scripts/bootstrap_consumer_project.py"
+                script.write_text(
+                    script.read_text(encoding="utf-8").replace(required_phrase, replacement),
+                    encoding="utf-8",
+                )
+
+                report = verify_pack(target)
+
+                self.assertFalse(report.ok)
+                self.assertTrue(
+                    any(
+                        finding.code == "pack_consumer_bootstrap_incomplete"
+                        and finding.path == "scripts/bootstrap_consumer_project.py"
+                        and required_phrase in finding.message
+                        for finding in report.findings
+                    )
+                )
+
+    def test_verify_pack_reports_missing_authority_skill_apply_documentation(self) -> None:
+        required_command = (
+            "python3 scripts/authority_skills.py --repair --apply "
+            "--approve-installs --strict-provenance --json"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            readme = target / "README.md"
+            readme.write_text(
+                readme.read_text(encoding="utf-8").replace(required_command, "authority apply command", 1),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_authority_skill_repair_doc_missing"
+                    and finding.path == "README.md"
+                    and required_command in finding.message
                     for finding in report.findings
                 )
             )

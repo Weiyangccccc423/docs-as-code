@@ -11,6 +11,7 @@ from scripts.bootstrap_consumer_project import (
     ConsumerBootstrapError,
     DESIGN_AUTHORING_QUEUE_IDS,
     _apply_implementation_closeout,
+    _consumer_pack_environment_preflight,
     _maybe_auto_repair_env,
     _preview_implementation_closeout,
     _preview_implementation_run,
@@ -54,6 +55,129 @@ def _runner_preview_contract(
 
 
 class ConsumerBootstrapTest(unittest.TestCase):
+    def test_consumer_preflight_applies_approved_authority_installs_before_environment_check(self) -> None:
+        steps: list[dict[str, object]] = []
+        pack_root = Path("/tmp/workflow-pack")
+        target = Path("/tmp/consumer-target")
+        authority_plan = {
+            "ok": True,
+            "repair_plan": {
+                "action_count": 1,
+                "actions": [{"id": "authority-skill-install-senior-architect"}],
+            },
+        }
+        authority_repaired = {
+            "ok": True,
+            "provenance_ready": True,
+            "repair_execution": {"status": "completed", "can_continue": True},
+        }
+        env_check = {"ok": True, "check": True, "missing_required": []}
+        env_auto_repair = {"final_env_check": env_check}
+
+        def fake_run_json(
+            recorded_steps: list[dict[str, object]],
+            step_id: str,
+            argv: list[str | Path],
+            cwd: Path,
+            **_kwargs: object,
+        ) -> dict[str, object]:
+            recorded_steps.append({"id": step_id, "argv": [str(value) for value in argv], "cwd": str(cwd)})
+            return {
+                "pack_manifest_verify": {"ok": True},
+                "pack_verify": {"ok": True},
+                "authority_skill_inventory": authority_plan,
+                "authority_skill_repair_apply": authority_repaired,
+                "env_repair_check": env_check,
+            }[step_id]
+
+        with (
+            patch("scripts.bootstrap_consumer_project._run_json", side_effect=fake_run_json),
+            patch(
+                "scripts.bootstrap_consumer_project._maybe_auto_repair_env",
+                return_value=env_auto_repair,
+            ),
+        ):
+            payload = _consumer_pack_environment_preflight(
+                steps,
+                pack_root,
+                target,
+                auto_repair_env=False,
+                approve_authority_installs=True,
+                check=False,
+                strict_authority_skills=True,
+                strict_authority_provenance=True,
+            )
+
+        self.assertEqual(
+            [
+                "pack_manifest_verify",
+                "pack_verify",
+                "authority_skill_inventory",
+                "authority_skill_repair_apply",
+                "env_repair_check",
+            ],
+            [step["id"] for step in steps],
+        )
+        apply_step = steps[3]
+        self.assertIn("--apply", apply_step["argv"])
+        self.assertIn("--approve-installs", apply_step["argv"])
+        self.assertIn("--strict", apply_step["argv"])
+        self.assertIn("--strict-provenance", apply_step["argv"])
+        self.assertEqual(authority_repaired, payload["authority_skill_inventory"])
+        self.assertTrue(payload["authority_skill_auto_repair"]["applied"])
+        self.assertTrue(payload["authority_skill_auto_repair"]["can_continue"])
+
+    def test_consumer_check_mode_never_applies_authority_installs(self) -> None:
+        steps: list[dict[str, object]] = []
+        pack_root = Path("/tmp/workflow-pack")
+        target = Path("/tmp/consumer-target")
+        authority_plan = {
+            "ok": True,
+            "repair_plan": {
+                "action_count": 1,
+                "actions": [{"id": "authority-skill-install-senior-architect"}],
+            },
+        }
+        env_check = {"ok": True, "check": True, "missing_required": []}
+
+        def fake_run_json(
+            recorded_steps: list[dict[str, object]],
+            step_id: str,
+            argv: list[str | Path],
+            cwd: Path,
+            **_kwargs: object,
+        ) -> dict[str, object]:
+            recorded_steps.append({"id": step_id, "argv": [str(value) for value in argv], "cwd": str(cwd)})
+            return {
+                "pack_manifest_verify": {"ok": True},
+                "pack_verify": {"ok": True},
+                "authority_skill_inventory": authority_plan,
+                "env_repair_check": env_check,
+            }[step_id]
+
+        with (
+            patch("scripts.bootstrap_consumer_project._run_json", side_effect=fake_run_json),
+            patch(
+                "scripts.bootstrap_consumer_project._maybe_auto_repair_env",
+                return_value={"final_env_check": env_check},
+            ),
+        ):
+            payload = _consumer_pack_environment_preflight(
+                steps,
+                pack_root,
+                target,
+                auto_repair_env=False,
+                approve_authority_installs=True,
+                check=True,
+                strict_authority_skills=False,
+                strict_authority_provenance=False,
+            )
+
+        self.assertNotIn("authority_skill_repair_apply", [step["id"] for step in steps])
+        self.assertFalse(payload["authority_skill_auto_repair"]["applied"])
+        self.assertTrue(payload["authority_skill_auto_repair"]["skipped"])
+        self.assertEqual("check_mode", payload["authority_skill_auto_repair"]["skip_reason"])
+
     def test_consumer_resume_check_mode_does_not_apply_ready_transition(self) -> None:
         steps: list[dict[str, object]] = []
         target = Path("/tmp/consumer-target")
@@ -263,6 +387,7 @@ class ConsumerBootstrapTest(unittest.TestCase):
                 "authority_skill_inventory": {"ok": True},
                 "env_check": {"ok": True},
                 "env_auto_repair": {},
+                "authority_skill_auto_repair": {},
             }
 
             def fail_after_transition(
@@ -306,6 +431,53 @@ class ConsumerBootstrapTest(unittest.TestCase):
         self.assertTrue(payload["writes_state"])
         self.assertTrue(payload["state_write_observed"])
         self.assertEqual("post-transition state refresh failed", payload["error"])
+
+    def test_authority_repair_failure_is_preserved_in_fresh_and_resume_payloads(self) -> None:
+        authority_failure = {
+            "ok": False,
+            "provenance_ready": False,
+            "repair_plan": {"action_count": 2},
+            "pre_repair_summary": {"provenance_ready": False},
+            "repair_execution": {
+                "status": "failed",
+                "can_continue": False,
+                "attempted_count": 1,
+                "manual_cleanup_required": True,
+            },
+        }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            (target / "bin").mkdir(parents=True)
+            (target / "bin/governance").write_text("#!/bin/sh\n", encoding="utf-8")
+            for mode in ("fresh", "resume"):
+                with self.subTest(mode=mode), patch(
+                    "scripts.bootstrap_consumer_project._consumer_pack_environment_preflight",
+                    side_effect=ConsumerBootstrapError(
+                        "authority skill repair failed",
+                        payload=authority_failure,
+                    ),
+                ):
+                    if mode == "fresh":
+                        payload = run_consumer_bootstrap(
+                            target=target,
+                            approve_authority_installs=True,
+                        )
+                    else:
+                        payload = run_consumer_resume(
+                            target=target,
+                            approve_authority_installs=True,
+                        )
+
+                self.assertFalse(payload["ok"])
+                self.assertEqual("authority skill repair failed", payload["error"])
+                self.assertEqual(authority_failure, payload["authority_skill_inventory"])
+                auto_repair = payload["authority_skill_auto_repair"]
+                self.assertTrue(auto_repair["requested"])
+                self.assertTrue(auto_repair["applied"])
+                self.assertEqual("failed", auto_repair["status"])
+                self.assertEqual(2, auto_repair["initial_action_count"])
+                self.assertEqual(authority_failure["repair_execution"], auto_repair["repair_execution"])
 
     def test_implementation_routing_preset_hands_off_to_guarded_runner(self) -> None:
         expanded_flags = _workflow_preset_flags("implementation-routing")
@@ -2492,6 +2664,7 @@ def _run_bootstrap(
     implementation_closeout_apply: bool = False,
     workflow_preset: str = "",
     auto_repair_env: bool = False,
+    approve_authority_installs: bool = False,
     strict_authority_skills: bool = False,
     strict_authority_provenance: bool = False,
     expected_returncode: int = 0,
@@ -2549,6 +2722,8 @@ def _run_bootstrap(
         argv.insert(-1, workflow_preset)
     if auto_repair_env:
         argv.insert(-1, "--auto-repair-env")
+    if approve_authority_installs:
+        argv.insert(-1, "--approve-authority-installs")
     if strict_authority_skills:
         argv.insert(-1, "--strict-authority-skills")
     if strict_authority_provenance:

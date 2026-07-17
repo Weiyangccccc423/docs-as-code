@@ -1,12 +1,16 @@
 import hashlib
 import json
+import os
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-from scripts.authority_skills import build_authority_skill_inventory
+from scripts.authority_skills import (
+    _authority_install_action_is_executable,
+    build_authority_skill_inventory,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -77,6 +81,74 @@ def _write_lock(path: Path, replacement: dict[str, object] | None = None) -> Non
         assert isinstance(skills, list)
         payload["skills"] = [replacement if item.get("name") == replacement["name"] else item for item in skills]
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _write_fixture_lock(path: Path, source_root: Path) -> list[str]:
+    payload = _lock_payload()
+    names: list[str] = []
+    for entry in payload["skills"]:
+        name = entry["name"]
+        names.append(name)
+        skill_dir = source_root / name
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text(
+            f"---\nname: {name}\ndescription: Fixture authority skill\n---\n",
+            encoding="utf-8",
+        )
+        entry["source"] = {
+            "kind": "github",
+            "repo": "example/authority-skills",
+            "path": f"skills/{name}",
+            "ref": "0123456789abcdef0123456789abcdef01234567",
+        }
+        entry["integrity"]["digest"] = _tree_digest(skill_dir)
+        entry["trust"] = {
+            "status": "approved",
+            "approved_by": "workflow-pack-test",
+            "approved_at": "2026-07-17",
+            "license": "MIT",
+            "review_evidence": "references/authority-skills-source-review.md",
+        }
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return names
+
+
+def _write_fixture_installer(codex_home: Path) -> Path:
+    installer = codex_home / "skills/.system/skill-installer/scripts/install-skill-from-github.py"
+    installer.parent.mkdir(parents=True)
+    installer.write_text(
+        "import argparse\n"
+        "import os\n"
+        "import shutil\n"
+        "from pathlib import Path\n"
+        "parser = argparse.ArgumentParser()\n"
+        "parser.add_argument('--repo')\n"
+        "parser.add_argument('--path')\n"
+        "parser.add_argument('--ref')\n"
+        "parser.add_argument('--name', required=True)\n"
+        "args = parser.parse_args()\n"
+        "source = Path(os.environ['AUTHORITY_FIXTURE_SOURCE']) / args.name\n"
+        "destination = Path(os.environ['CODEX_HOME']) / 'skills' / args.name\n"
+        "if args.name == os.environ.get('AUTHORITY_FIXTURE_FAIL_NAME'):\n"
+        "    raise SystemExit(7)\n"
+        "shutil.copytree(source, destination)\n"
+        "if args.name == os.environ.get('AUTHORITY_FIXTURE_FAIL_AFTER_COPY_NAME'):\n"
+        "    raise SystemExit(8)\n"
+        "if args.name == os.environ.get('AUTHORITY_FIXTURE_DRIFT_NAME'):\n"
+        "    (destination / 'SKILL.md').write_text('drifted\\n', encoding='utf-8')\n",
+        encoding="utf-8",
+    )
+    return installer
+
+
+def _authority_fixture_env(codex_home: Path, source_root: Path, **overrides: str) -> dict[str, str]:
+    return {
+        **os.environ,
+        "CODEX_HOME": str(codex_home),
+        "HOME": str(codex_home.parent / "home"),
+        "AUTHORITY_FIXTURE_SOURCE": str(source_root),
+        **overrides,
+    }
 
 
 class AuthoritySkillsTest(unittest.TestCase):
@@ -341,6 +413,295 @@ class AuthoritySkillsTest(unittest.TestCase):
         self.assertFalse(payload["repair_plan"]["skill_installer_available"])
         self.assertTrue(action["manual_required"])
         self.assertEqual([], action["argv"])
+
+    def test_repair_apply_installs_and_verifies_every_missing_registered_skill(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            codex_home = base / "codex"
+            source_root = base / "source"
+            lock = base / "authority-skills.lock.json"
+            names = _write_fixture_lock(lock, source_root)
+            _write_fixture_installer(codex_home)
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT),
+                    "--manifest",
+                    str(lock),
+                    "--repair",
+                    "--apply",
+                    "--approve-installs",
+                    "--strict-provenance",
+                    "--json",
+                ],
+                cwd=ROOT,
+                env=_authority_fixture_env(codex_home, source_root),
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            installed = sorted(path.name for path in (codex_home / "skills").iterdir() if path.name != ".system")
+
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertEqual("", result.stderr)
+        payload = json.loads(result.stdout)
+        execution = payload["repair_execution"]
+        self.assertTrue(payload["ok"])
+        self.assertTrue(payload["provenance_ready"])
+        self.assertEqual("completed", execution["status"])
+        self.assertEqual(len(names), execution["attempted_count"])
+        self.assertEqual(len(names), execution["verified_count"])
+        self.assertEqual("", execution["failed_action_id"])
+        self.assertFalse(execution["partial_write_observed"])
+        self.assertEqual(sorted(names), installed)
+        self.assertEqual([], payload["missing_skills"])
+        self.assertEqual([], payload["drifted_skills"])
+
+    def test_repair_apply_without_approval_executes_nothing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            codex_home = base / "codex"
+            source_root = base / "source"
+            lock = base / "authority-skills.lock.json"
+            _write_fixture_lock(lock, source_root)
+            _write_fixture_installer(codex_home)
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT),
+                    "--manifest",
+                    str(lock),
+                    "--repair",
+                    "--apply",
+                    "--strict-provenance",
+                    "--json",
+                ],
+                cwd=ROOT,
+                env=_authority_fixture_env(codex_home, source_root),
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            installed = [path for path in (codex_home / "skills").iterdir() if path.name != ".system"]
+
+        self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+        self.assertEqual("", result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertFalse(payload["ok"])
+        self.assertTrue(payload["strict_provenance"])
+        self.assertEqual("approval_required", payload["repair_execution"]["status"])
+        self.assertEqual(0, payload["repair_execution"]["attempted_count"])
+        self.assertEqual([], installed)
+
+    def test_repair_apply_stops_after_installer_failure_and_reports_partial_state(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            codex_home = base / "codex"
+            source_root = base / "source"
+            lock = base / "authority-skills.lock.json"
+            names = _write_fixture_lock(lock, source_root)
+            _write_fixture_installer(codex_home)
+            fail_name = sorted(names)[1]
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT),
+                    "--manifest",
+                    str(lock),
+                    "--repair",
+                    "--apply",
+                    "--approve-installs",
+                    "--json",
+                ],
+                cwd=ROOT,
+                env=_authority_fixture_env(
+                    codex_home,
+                    source_root,
+                    AUTHORITY_FIXTURE_FAIL_NAME=fail_name,
+                ),
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+        self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        execution = payload["repair_execution"]
+        self.assertFalse(payload["ok"])
+        self.assertEqual("failed", execution["status"])
+        self.assertEqual(2, execution["attempted_count"])
+        self.assertEqual(1, execution["verified_count"])
+        self.assertEqual(f"authority-skill-install-{fail_name}", execution["failed_action_id"])
+        self.assertTrue(execution["partial_write_observed"])
+        self.assertFalse((codex_home / "skills" / sorted(names)[2]).exists())
+
+    def test_repair_apply_stops_when_failed_installer_left_a_matching_tree(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            codex_home = base / "codex"
+            source_root = base / "source"
+            lock = base / "authority-skills.lock.json"
+            names = _write_fixture_lock(lock, source_root)
+            _write_fixture_installer(codex_home)
+            fail_name = sorted(names)[0]
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT),
+                    "--manifest",
+                    str(lock),
+                    "--repair",
+                    "--apply",
+                    "--approve-installs",
+                    "--json",
+                ],
+                cwd=ROOT,
+                env=_authority_fixture_env(
+                    codex_home,
+                    source_root,
+                    AUTHORITY_FIXTURE_FAIL_AFTER_COPY_NAME=fail_name,
+                ),
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+        self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        execution = payload["repair_execution"]
+        self.assertEqual("failed", execution["status"])
+        self.assertEqual(1, execution["attempted_count"])
+        self.assertEqual(0, execution["verified_count"])
+        self.assertEqual(f"authority-skill-install-{fail_name}", execution["failed_action_id"])
+        self.assertTrue(execution["partial_write_observed"])
+        self.assertTrue(execution["manual_cleanup_required"])
+        self.assertFalse(execution["actions"][0]["verified"])
+        self.assertTrue(execution["actions"][0]["post_integrity_matches"])
+        self.assertFalse((codex_home / "skills" / sorted(names)[1]).exists())
+
+    def test_install_action_must_exactly_match_locked_source_and_installer(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            source_root = base / "source"
+            lock = base / "authority-skills.lock.json"
+            installer = _write_fixture_installer(base / "codex")
+            names = _write_fixture_lock(lock, source_root)
+            payload = build_authority_skill_inventory(
+                skill_roots=[],
+                include_default_skill_roots=False,
+                manifest_path=lock,
+                repair=True,
+                check=True,
+                skill_installer_path=installer,
+            )
+            skill_name = sorted(names)[0]
+            skill = next(item for item in payload["skills"] if item["name"] == skill_name)
+            action = next(item for item in payload["repair_plan"]["actions"] if item["skill"] == skill_name)
+
+            self.assertTrue(
+                _authority_install_action_is_executable(
+                    action,
+                    skill=skill,
+                    installer_path=installer,
+                )
+            )
+            tampered_action = json.loads(json.dumps(action))
+            tampered_action["argv"][-1] = "different-skill"
+            self.assertFalse(
+                _authority_install_action_is_executable(
+                    tampered_action,
+                    skill=skill,
+                    installer_path=installer,
+                )
+            )
+
+    def test_repair_apply_stops_when_installed_tree_does_not_match_lock(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            codex_home = base / "codex"
+            source_root = base / "source"
+            lock = base / "authority-skills.lock.json"
+            names = _write_fixture_lock(lock, source_root)
+            _write_fixture_installer(codex_home)
+            drift_name = sorted(names)[0]
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT),
+                    "--manifest",
+                    str(lock),
+                    "--repair",
+                    "--apply",
+                    "--approve-installs",
+                    "--json",
+                ],
+                cwd=ROOT,
+                env=_authority_fixture_env(
+                    codex_home,
+                    source_root,
+                    AUTHORITY_FIXTURE_DRIFT_NAME=drift_name,
+                ),
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+        self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        execution = payload["repair_execution"]
+        self.assertEqual("integrity_failed", execution["status"])
+        self.assertEqual(1, execution["attempted_count"])
+        self.assertEqual(0, execution["verified_count"])
+        self.assertEqual(f"authority-skill-install-{drift_name}", execution["failed_action_id"])
+        self.assertTrue(execution["manual_cleanup_required"])
+        self.assertIn(drift_name, payload["drifted_skills"])
+        self.assertFalse((codex_home / "skills" / sorted(names)[1]).exists())
+
+    def test_repair_apply_refuses_all_actions_when_preexisting_skill_is_drifted(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            codex_home = base / "codex"
+            source_root = base / "source"
+            lock = base / "authority-skills.lock.json"
+            names = _write_fixture_lock(lock, source_root)
+            _write_fixture_installer(codex_home)
+            drift_name = sorted(names)[0]
+            drift_dir = codex_home / "skills" / drift_name
+            drift_dir.mkdir()
+            (drift_dir / "SKILL.md").write_text("preexisting drift\n", encoding="utf-8")
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT),
+                    "--manifest",
+                    str(lock),
+                    "--repair",
+                    "--apply",
+                    "--approve-installs",
+                    "--json",
+                ],
+                cwd=ROOT,
+                env=_authority_fixture_env(codex_home, source_root),
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+        self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        execution = payload["repair_execution"]
+        self.assertEqual("blocked_unsupported_actions", execution["status"])
+        self.assertEqual(0, execution["attempted_count"])
+        self.assertIn(f"authority-skill-replace-{drift_name}", execution["blocked_action_ids"])
+        self.assertFalse((codex_home / "skills" / sorted(names)[1]).exists())
 
     def test_repair_and_check_flags_must_be_paired_in_library_api(self) -> None:
         with self.assertRaisesRegex(ValueError, "repair and check must be used together"):

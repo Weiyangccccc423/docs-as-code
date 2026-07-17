@@ -174,6 +174,7 @@ def run_consumer_bootstrap(
     implementation_closeout_apply: bool = False,
     workflow_preset: str = "",
     auto_repair_env: bool = False,
+    approve_authority_installs: bool = False,
     strict_authority_skills: bool = False,
     strict_authority_provenance: bool = False,
     pack_root: Path = ROOT,
@@ -184,6 +185,8 @@ def run_consumer_bootstrap(
     expanded_flags: tuple[str, ...] = ()
     steps: list[dict[str, object]] = []
     env_auto_repair: dict[str, object] = _empty_env_auto_repair(auto_repair_env)
+    authority_skill_inventory: dict[str, object] = {}
+    authority_skill_auto_repair = _empty_authority_skill_auto_repair(approve_authority_installs)
     try:
         expanded_flags = _workflow_preset_flags(workflow_preset)
         advance_product_structuring = advance_product_structuring or "advance_product_structuring" in expanded_flags
@@ -225,6 +228,7 @@ def run_consumer_bootstrap(
             pack_root,
             target,
             auto_repair_env=auto_repair_env,
+            approve_authority_installs=approve_authority_installs,
             check=check,
             strict_authority_skills=strict_authority_skills,
             strict_authority_provenance=strict_authority_provenance,
@@ -234,6 +238,7 @@ def run_consumer_bootstrap(
         authority_skill_inventory = preflight["authority_skill_inventory"]
         env_check = preflight["env_check"]
         env_auto_repair = preflight["env_auto_repair"]
+        authority_skill_auto_repair = preflight["authority_skill_auto_repair"]
 
         init_check = _run_json(
             steps,
@@ -341,9 +346,11 @@ def run_consumer_bootstrap(
             "workflow_preset": workflow_preset,
             "workflow_preset_expanded_flags": list(expanded_flags),
             "auto_repair_env": auto_repair_env,
+            "approve_authority_installs": approve_authority_installs,
             "strict_authority_skills": strict_authority_skills,
             "strict_authority_provenance": strict_authority_provenance,
             "env_auto_repair": env_auto_repair,
+            "authority_skill_auto_repair": authority_skill_auto_repair,
             "work_package_generated": False,
             "work_package_ok": False,
             "workflow_resume_generated": False,
@@ -729,6 +736,13 @@ def run_consumer_bootstrap(
         return payload
     except ConsumerBootstrapError as error:
         failed_step = error.step if error.step is not None else (steps[-1] if steps else None)
+        authority_skill_inventory, authority_skill_auto_repair = _authority_skill_failure_state(
+            error,
+            authority_skill_inventory=authority_skill_inventory,
+            authority_skill_auto_repair=authority_skill_auto_repair,
+            approve_authority_installs=approve_authority_installs,
+            check=check,
+        )
         return {
             "ok": False,
             "check": check,
@@ -743,16 +757,16 @@ def run_consumer_bootstrap(
             "workflow_preset": workflow_preset,
             "workflow_preset_expanded_flags": list(expanded_flags),
             "auto_repair_env": auto_repair_env,
+            "approve_authority_installs": approve_authority_installs,
             "strict_authority_skills": strict_authority_skills,
             "strict_authority_provenance": strict_authority_provenance,
             "env_auto_repair": env_auto_repair,
+            "authority_skill_auto_repair": authority_skill_auto_repair,
             "work_package_generated": False,
             "work_package_ok": False,
             "workflow_resume_generated": False,
             "workflow_resume_ok": False,
-            "authority_skill_inventory": error.payload
-            if error.message == "authority skill inventory failed" and error.payload is not None
-            else {},
+            "authority_skill_inventory": authority_skill_inventory,
             "advance_product_structuring_requested": advance_product_structuring,
             "advanced_product_structuring": False,
             "product_scaffold_preview_requested": product_scaffold_preview,
@@ -818,9 +832,12 @@ def run_consumer_bootstrap(
             "workflow_preset": workflow_preset,
             "workflow_preset_expanded_flags": list(expanded_flags),
             "auto_repair_env": auto_repair_env,
+            "approve_authority_installs": approve_authority_installs,
             "strict_authority_skills": strict_authority_skills,
             "strict_authority_provenance": strict_authority_provenance,
             "env_auto_repair": env_auto_repair,
+            "authority_skill_auto_repair": authority_skill_auto_repair,
+            "authority_skill_inventory": authority_skill_inventory,
             "advance_product_structuring_requested": advance_product_structuring,
             "advanced_product_structuring": False,
             "product_scaffold_preview_requested": product_scaffold_preview,
@@ -880,6 +897,7 @@ def run_consumer_resume(
     check: bool = False,
     workflow_preset: str = "",
     auto_repair_env: bool = False,
+    approve_authority_installs: bool = False,
     strict_authority_skills: bool = False,
     strict_authority_provenance: bool = False,
     pack_root: Path = ROOT,
@@ -890,6 +908,8 @@ def run_consumer_resume(
     expanded_flags: tuple[str, ...] = ()
     steps: list[dict[str, object]] = []
     env_auto_repair = _empty_env_auto_repair(auto_repair_env)
+    authority_skill_inventory: dict[str, object] = {}
+    authority_skill_auto_repair = _empty_authority_skill_auto_repair(approve_authority_installs)
     route: dict[str, object] = {}
     try:
         if product is not None or force:
@@ -905,6 +925,7 @@ def run_consumer_resume(
             pack_root,
             target,
             auto_repair_env=auto_repair_env,
+            approve_authority_installs=approve_authority_installs,
             check=check,
             strict_authority_skills=strict_authority_skills,
             strict_authority_provenance=strict_authority_provenance,
@@ -914,6 +935,7 @@ def run_consumer_resume(
         authority_skill_inventory = preflight["authority_skill_inventory"]
         env_check = preflight["env_check"]
         env_auto_repair = preflight["env_auto_repair"]
+        authority_skill_auto_repair = preflight["authority_skill_auto_repair"]
 
         initial = _collect_consumer_resume_state(steps, target, suffix="initial")
         phase_before = _string_value(_mapping(initial["status"].get("state")).get("phase"))
@@ -978,6 +1000,7 @@ def run_consumer_resume(
             "workflow_preset": workflow_preset,
             "workflow_preset_expanded_flags": list(expanded_flags),
             "auto_repair_env": auto_repair_env,
+            "approve_authority_installs": approve_authority_installs,
             "strict_authority_skills": strict_authority_skills,
             "strict_authority_provenance": strict_authority_provenance,
             "pack_manifest_verification": pack_manifest_verification,
@@ -985,6 +1008,7 @@ def run_consumer_resume(
             "authority_skill_inventory": authority_skill_inventory,
             "env_check": env_check,
             "env_auto_repair": env_auto_repair,
+            "authority_skill_auto_repair": authority_skill_auto_repair,
             "phase_before": phase_before,
             "phase_after": phase_after,
             "target_local": target_local,
@@ -1021,6 +1045,13 @@ def run_consumer_resume(
     except ConsumerBootstrapError as error:
         failed_step = error.step if error.step is not None else (steps[-1] if steps else None)
         state_write_observed = _consumer_resume_state_write_observed(steps, route)
+        authority_skill_inventory, authority_skill_auto_repair = _authority_skill_failure_state(
+            error,
+            authority_skill_inventory=authority_skill_inventory,
+            authority_skill_auto_repair=authority_skill_auto_repair,
+            approve_authority_installs=approve_authority_installs,
+            check=check,
+        )
         return {
             "ok": False,
             "resume": True,
@@ -1036,9 +1067,12 @@ def run_consumer_resume(
             "workflow_preset": workflow_preset,
             "workflow_preset_expanded_flags": list(expanded_flags),
             "auto_repair_env": auto_repair_env,
+            "approve_authority_installs": approve_authority_installs,
             "strict_authority_skills": strict_authority_skills,
             "strict_authority_provenance": strict_authority_provenance,
             "env_auto_repair": env_auto_repair,
+            "authority_skill_auto_repair": authority_skill_auto_repair,
+            "authority_skill_inventory": authority_skill_inventory,
             "implementation_routing_requested": workflow_preset == "implementation-routing",
             "implementation_routing_ok": False,
             "implementation_routing": {},
@@ -1072,9 +1106,12 @@ def run_consumer_resume(
             "workflow_preset": workflow_preset,
             "workflow_preset_expanded_flags": list(expanded_flags),
             "auto_repair_env": auto_repair_env,
+            "approve_authority_installs": approve_authority_installs,
             "strict_authority_skills": strict_authority_skills,
             "strict_authority_provenance": strict_authority_provenance,
             "env_auto_repair": env_auto_repair,
+            "authority_skill_auto_repair": authority_skill_auto_repair,
+            "authority_skill_inventory": authority_skill_inventory,
             "implementation_routing_requested": workflow_preset == "implementation-routing",
             "implementation_routing_ok": False,
             "implementation_routing": {},
@@ -1196,12 +1233,29 @@ def _authority_skill_argv(*, strict: bool, strict_provenance: bool) -> list[str 
     return argv
 
 
+def _authority_skill_apply_argv(*, strict: bool, strict_provenance: bool) -> list[str | Path]:
+    argv: list[str | Path] = [
+        sys.executable,
+        "scripts/authority_skills.py",
+        "--repair",
+        "--apply",
+        "--approve-installs",
+        "--json",
+    ]
+    if strict:
+        argv.append("--strict")
+    if strict_provenance:
+        argv.append("--strict-provenance")
+    return argv
+
+
 def _consumer_pack_environment_preflight(
     steps: list[dict[str, object]],
     pack_root: Path,
     target: Path,
     *,
     auto_repair_env: bool,
+    approve_authority_installs: bool,
     check: bool,
     strict_authority_skills: bool,
     strict_authority_provenance: bool,
@@ -1224,21 +1278,66 @@ def _consumer_pack_environment_preflight(
         pack_root,
     )
     _require(pack_verification.get("ok") is True, "workflow-pack verification failed", payload=pack_verification)
+    authority_apply_requested = approve_authority_installs and not check
     authority_skill_inventory = _run_json(
         steps,
         "authority_skill_inventory",
         _authority_skill_argv(
-            strict=strict_authority_skills,
-            strict_provenance=strict_authority_provenance,
+            strict=strict_authority_skills and not authority_apply_requested,
+            strict_provenance=strict_authority_provenance and not authority_apply_requested,
         ),
         pack_root,
         allowed_returncodes=(0, 1),
     )
-    _require(
-        authority_skill_inventory.get("ok") is True,
-        "authority skill inventory failed",
-        payload=authority_skill_inventory,
+    authority_skill_auto_repair = _empty_authority_skill_auto_repair(approve_authority_installs)
+    repair_plan = _mapping(authority_skill_inventory.get("repair_plan"))
+    action_count = _non_negative_int(repair_plan.get("action_count"))
+    authority_skill_auto_repair["initial_action_count"] = action_count
+    authority_skill_auto_repair["initial_provenance_ready"] = (
+        authority_skill_inventory.get("provenance_ready") is True
     )
+    if authority_apply_requested and action_count > 0:
+        authority_skill_inventory = _run_json(
+            steps,
+            "authority_skill_repair_apply",
+            _authority_skill_apply_argv(
+                strict=strict_authority_skills,
+                strict_provenance=True,
+            ),
+            pack_root,
+            allowed_returncodes=(0, 1),
+        )
+        repair_execution = _mapping(authority_skill_inventory.get("repair_execution"))
+        authority_skill_auto_repair.update(
+            {
+                "applied": True,
+                "status": _string_value(repair_execution.get("status")),
+                "can_continue": repair_execution.get("can_continue") is True,
+                "repair_execution": repair_execution,
+                "final_provenance_ready": authority_skill_inventory.get("provenance_ready") is True,
+            }
+        )
+        _require(
+            authority_skill_inventory.get("ok") is True
+            and authority_skill_inventory.get("provenance_ready") is True
+            and repair_execution.get("can_continue") is True,
+            "authority skill repair failed",
+            payload=authority_skill_inventory,
+        )
+    else:
+        if approve_authority_installs:
+            authority_skill_auto_repair["skipped"] = True
+            authority_skill_auto_repair["skip_reason"] = "check_mode" if check else "no_action_required"
+            authority_skill_auto_repair["status"] = authority_skill_auto_repair["skip_reason"]
+        authority_skill_auto_repair["can_continue"] = authority_skill_inventory.get("ok") is True
+        authority_skill_auto_repair["final_provenance_ready"] = (
+            authority_skill_inventory.get("provenance_ready") is True
+        )
+        _require(
+            authority_skill_inventory.get("ok") is True,
+            "authority skill inventory failed",
+            payload=authority_skill_inventory,
+        )
     env_check = _run_json(
         steps,
         "env_repair_check",
@@ -1279,9 +1378,76 @@ def _consumer_pack_environment_preflight(
         "pack_manifest_verification": pack_manifest_verification,
         "pack_verification": pack_verification,
         "authority_skill_inventory": authority_skill_inventory,
+        "authority_skill_auto_repair": authority_skill_auto_repair,
         "env_check": final_env_check,
         "env_auto_repair": env_auto_repair,
     }
+
+
+def _empty_authority_skill_auto_repair(requested: bool) -> dict[str, object]:
+    return {
+        "requested": requested,
+        "applied": False,
+        "skipped": False,
+        "skip_reason": "",
+        "status": "not_requested" if not requested else "pending",
+        "can_continue": False,
+        "initial_action_count": 0,
+        "initial_provenance_ready": False,
+        "final_provenance_ready": False,
+        "repair_execution": {},
+    }
+
+
+def _authority_skill_failure_state(
+    error: ConsumerBootstrapError,
+    *,
+    authority_skill_inventory: dict[str, object],
+    authority_skill_auto_repair: dict[str, object],
+    approve_authority_installs: bool,
+    check: bool,
+) -> tuple[dict[str, object], dict[str, object]]:
+    if error.message not in {"authority skill inventory failed", "authority skill repair failed"}:
+        return authority_skill_inventory, authority_skill_auto_repair
+    if error.payload is None:
+        return authority_skill_inventory, authority_skill_auto_repair
+
+    inventory = error.payload
+    repair_plan = _mapping(inventory.get("repair_plan"))
+    pre_repair_summary = _mapping(inventory.get("pre_repair_summary"))
+    repair_execution = _mapping(inventory.get("repair_execution"))
+    auto_repair = dict(authority_skill_auto_repair)
+    auto_repair.update(
+        {
+            "requested": approve_authority_installs,
+            "initial_action_count": _non_negative_int(repair_plan.get("action_count")),
+            "initial_provenance_ready": (
+                pre_repair_summary.get("provenance_ready") is True
+                if pre_repair_summary
+                else inventory.get("provenance_ready") is True
+            ),
+            "final_provenance_ready": inventory.get("provenance_ready") is True,
+            "can_continue": False,
+        }
+    )
+    if error.message == "authority skill repair failed":
+        auto_repair.update(
+            {
+                "applied": True,
+                "status": _string_value(repair_execution.get("status")) or "failed",
+                "repair_execution": repair_execution,
+            }
+        )
+    elif approve_authority_installs:
+        skip_reason = "check_mode" if check else "no_action_required"
+        auto_repair.update(
+            {
+                "skipped": True,
+                "skip_reason": skip_reason,
+                "status": skip_reason,
+            }
+        )
+    return inventory, auto_repair
 
 
 def _empty_env_auto_repair(auto_repair_env: bool) -> dict[str, object]:
@@ -3169,6 +3335,14 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--approve-authority-installs",
+        action="store_true",
+        help=(
+            "Explicitly approve network access and Agent-environment writes for missing authority skills from "
+            "their locked immutable sources. Check mode remains no-write."
+        ),
+    )
+    parser.add_argument(
         "--strict-authority-skills",
         action="store_true",
         help=(
@@ -3358,6 +3532,7 @@ def main() -> int:
             check=args.check,
             workflow_preset=args.workflow_preset,
             auto_repair_env=args.auto_repair_env,
+            approve_authority_installs=args.approve_authority_installs,
             strict_authority_skills=args.strict_authority_skills,
             strict_authority_provenance=args.strict_authority_provenance,
         )
@@ -3387,6 +3562,7 @@ def main() -> int:
             implementation_closeout_apply=args.implementation_closeout_apply,
             workflow_preset=args.workflow_preset,
             auto_repair_env=args.auto_repair_env,
+            approve_authority_installs=args.approve_authority_installs,
             strict_authority_skills=args.strict_authority_skills,
             strict_authority_provenance=args.strict_authority_provenance,
         )
