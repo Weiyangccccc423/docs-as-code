@@ -27,6 +27,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class PackStructureTest(unittest.TestCase):
+    def test_authority_skill_source_review_is_required_in_generated_targets(self) -> None:
+        self.assertIn("references/authority-skills-source-review.md", WORKFLOW_PACK_REQUIRED_PATHS)
+
     def test_makefile_avoids_duplicate_tests_while_preserving_combined_ci_gate(self) -> None:
         text = (ROOT / "Makefile").read_text(encoding="utf-8")
         self.assertIn("\nverify-pack:\n", text)
@@ -301,6 +304,42 @@ class PackStructureTest(unittest.TestCase):
                     finding.code == "pack_authority_skill_lock_invalid"
                     and finding.path == "references/authority-skills.lock.json"
                     and "immutable 40-character commit" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_unregistered_authority_skill_source(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            lock = target / "references/authority-skills.lock.json"
+            payload = json.loads(lock.read_text(encoding="utf-8"))
+            payload["skills"][0]["source"] = {
+                "kind": "unregistered",
+                "reason": "Test fixture intentionally removes the approved source.",
+            }
+            payload["skills"][0].pop("integrity", None)
+            payload["skills"][0]["trust"] = {
+                "status": "pending-source-review",
+                "approved_by": "",
+                "approved_at": "",
+                "license": "",
+                "review_evidence": "",
+            }
+            lock.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_authority_skill_lock_unregistered"
+                    and finding.path == "references/authority-skills.lock.json"
+                    and payload["skills"][0]["name"] in finding.message
                     for finding in report.findings
                 )
             )

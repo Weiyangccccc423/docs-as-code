@@ -6042,12 +6042,24 @@ def _check_authority_skill_lock(root: Path, findings: list[PackFinding]) -> None
         errors.append(f"missing authority-routing skill entries: {', '.join(missing)}")
     if stale:
         errors.append(f"stale authority-routing skill entries: {', '.join(stale)}")
-    if not errors:
+    if not errors and not validation["source_unregistered_skills"]:
+        return
+    if errors:
+        findings.append(
+            PackFinding(
+                "pack_authority_skill_lock_invalid",
+                f"{AUTHORITY_SKILL_LOCK_PATH} is invalid: {'; '.join(errors)}",
+                AUTHORITY_SKILL_LOCK_PATH,
+            )
+        )
         return
     findings.append(
         PackFinding(
-            "pack_authority_skill_lock_invalid",
-            f"{AUTHORITY_SKILL_LOCK_PATH} is invalid: {'; '.join(errors)}",
+            "pack_authority_skill_lock_unregistered",
+            (
+                f"{AUTHORITY_SKILL_LOCK_PATH} must register an approved immutable source for every authority skill; "
+                f"unregistered: {', '.join(validation['source_unregistered_skills'])}"
+            ),
             AUTHORITY_SKILL_LOCK_PATH,
         )
     )

@@ -849,6 +849,10 @@ class ConsumerBootstrapTest(unittest.TestCase):
             pack = base / "docs-as-code-workflow-pack"
             product = base / "product.md"
             target = base / "consumer-target"
+            home = base / "home"
+            codex_home = base / "codex"
+            (codex_home / "skills").mkdir(parents=True)
+            home.mkdir()
             product.write_text("# Product\n\n## Acceptance Criteria\n\n- Provenance is checked.\n", encoding="utf-8")
             export = subprocess.run(
                 [
@@ -875,6 +879,7 @@ class ConsumerBootstrapTest(unittest.TestCase):
                 check=True,
                 strict_authority_provenance=True,
                 expected_returncode=1,
+                env={"CODEX_HOME": str(codex_home), "HOME": str(home)},
             )
 
             self.assertFalse(payload["ok"])
@@ -882,6 +887,7 @@ class ConsumerBootstrapTest(unittest.TestCase):
             self.assertEqual("authority skill inventory failed", payload["error"])
             self.assertTrue(payload["failed_payload"]["strict_provenance"])
             self.assertGreater(payload["failed_payload"]["provenance_issue_count"], 0)
+            self.assertIn("senior-architect", payload["failed_payload"]["missing_skills"])
             self.assertFalse(target.exists())
 
     def test_auto_repair_env_runs_write_mode_repair_then_rechecks_when_safe(self) -> None:

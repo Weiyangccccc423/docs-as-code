@@ -71,6 +71,7 @@ Create reliable project governance before and during implementation:
 - `references/architecture-methods.md`: C4, arc42, ADR, and OpenAPI method notes.
 - `references/architecture-quality-checklist.md`: architecture-description, quality-model, scenario, runtime, tradeoff, and implementation-readiness checklist.
 - `references/authority-skills.lock.json`: authority-skill source, immutable revision, integrity, and trust lock.
+- `references/authority-skills-source-review.md`: approved community source boundary, inspection evidence, runtime controls, and upgrade procedure for authority-routing skills.
 - `references/api-design-checklist.md`: API contract, HTTP semantics, error, idempotency, collection, compatibility, and traceability checklist.
 - `references/backend-design-checklist.md`: backend and data-design completion checklist.
 - `references/backend-operability-checklist.md`: backend service-level, observability, configuration, runtime-control, logging, and runbook checklist.

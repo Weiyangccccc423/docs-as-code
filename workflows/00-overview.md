@@ -63,7 +63,7 @@ python3 scripts/authority_skills.py --strict --json
 python3 scripts/authority_skills.py --strict-provenance --json
 ```
 
-The non-strict inventory is a portable, offline source-pack check. `--repair --check` validates `references/authority-skills.lock.json`, classifies current, missing, drifted, unmanaged, and source-unregistered skills, and returns a no-write repair plan. It never guesses a source. `--strict` gates availability; `--strict-provenance` additionally requires an approved immutable source and matching digest before authority-dependent work.
+The non-strict inventory is a portable, offline source-pack check. `--repair --check` validates `references/authority-skills.lock.json`, classifies current, missing, drifted, unmanaged, and source-unregistered skills, and returns a no-write repair plan. It never guesses a source. `--strict` gates availability; `--strict-provenance` additionally requires an approved immutable source and matching digest before authority-dependent work. Read `references/authority-skills-source-review.md` for the pinned community-source boundary, inspection evidence, runtime controls, and upgrade procedure; an approved authority-routing skill is reviewed guidance and tooling, not a substitute for primary standards or project evidence.
 
 For a recipient environment that has already unpacked the source workflow-pack artifact, use the consumer bootstrap script to compose source-pack checks and target initialization without manually stitching commands:
 

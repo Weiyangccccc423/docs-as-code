@@ -53,6 +53,23 @@ def _registered_skill(name: str, digest: str) -> dict[str, object]:
     }
 
 
+def _unregistered_skill(name: str) -> dict[str, object]:
+    return {
+        "name": name,
+        "source": {
+            "kind": "unregistered",
+            "reason": "Test fixture intentionally leaves source registration pending.",
+        },
+        "trust": {
+            "status": "pending-source-review",
+            "approved_by": "",
+            "approved_at": "",
+            "license": "",
+            "review_evidence": "",
+        },
+    }
+
+
 def _write_lock(path: Path, replacement: dict[str, object] | None = None) -> None:
     payload = _lock_payload()
     if replacement is not None:
@@ -63,6 +80,26 @@ def _write_lock(path: Path, replacement: dict[str, object] | None = None) -> Non
 
 
 class AuthoritySkillsTest(unittest.TestCase):
+    def test_default_lock_registers_every_required_authority_skill_source(self) -> None:
+        payload = build_authority_skill_inventory(skill_roots=[], include_default_skill_roots=False)
+
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["required_skill_count"], payload["registered_source_skill_count"])
+        self.assertEqual(0, payload["source_unregistered_skill_count"])
+        self.assertEqual([], payload["source_unregistered_skills"])
+        for entry in _lock_payload()["skills"]:
+            self.assertEqual("github", entry["source"]["kind"])
+            self.assertEqual("alirezarezvani/claude-skills", entry["source"]["repo"])
+            self.assertRegex(entry["source"]["ref"], r"^[0-9a-f]{40}$")
+            self.assertEqual("skill-tree", entry["integrity"]["scope"])
+            self.assertRegex(entry["integrity"]["digest"], r"^[0-9a-f]{64}$")
+            self.assertEqual("approved", entry["trust"]["status"])
+            self.assertEqual("MIT", entry["trust"]["license"])
+            self.assertEqual(
+                "references/authority-skills-source-review.md",
+                entry["trust"]["review_evidence"],
+            )
+
     def test_inventory_collects_design_and_implementation_authority_skills(self) -> None:
         payload = build_authority_skill_inventory(skill_roots=[], include_default_skill_roots=False)
 
@@ -182,18 +219,21 @@ class AuthoritySkillsTest(unittest.TestCase):
 
     def test_installed_skill_without_registered_source_is_source_unregistered(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            skill_root = Path(tmp) / "skills"
+            base = Path(tmp)
+            skill_root = base / "skills"
             skill_dir = skill_root / "senior-architect"
             skill_dir.mkdir(parents=True)
             (skill_dir / "SKILL.md").write_text(
                 "---\nname: senior-architect\ndescription: Architecture review\n---\n",
                 encoding="utf-8",
             )
+            lock = base / "authority-skills.lock.json"
+            _write_lock(lock, _unregistered_skill("senior-architect"))
 
             payload = build_authority_skill_inventory(
                 skill_roots=[skill_root],
                 include_default_skill_roots=False,
-                manifest_path=DEFAULT_LOCK,
+                manifest_path=lock,
                 repair=True,
                 check=True,
             )
@@ -437,18 +477,21 @@ class AuthoritySkillsTest(unittest.TestCase):
 
     def test_provenance_strict_fails_for_unregistered_sources_even_when_skill_is_installed(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            skill_root = Path(tmp) / "skills"
+            base = Path(tmp)
+            skill_root = base / "skills"
             skill_dir = skill_root / "senior-architect"
             skill_dir.mkdir(parents=True)
             (skill_dir / "SKILL.md").write_text(
                 "---\nname: senior-architect\ndescription: Architecture review\n---\n",
                 encoding="utf-8",
             )
+            lock = base / "authority-skills.lock.json"
+            _write_lock(lock, _unregistered_skill("senior-architect"))
 
             payload = build_authority_skill_inventory(
                 skill_roots=[skill_root],
                 include_default_skill_roots=False,
-                manifest_path=DEFAULT_LOCK,
+                manifest_path=lock,
                 strict_provenance=True,
             )
 

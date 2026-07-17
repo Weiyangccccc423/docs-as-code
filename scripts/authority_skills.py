@@ -302,7 +302,7 @@ def _load_authority_skill_lock(path: Path) -> tuple[dict[str, Any], dict[str, di
             continue
         entries[name] = raw_entry
 
-    return _manifest_payload(path, schema_version, skill_names, invalid_skills, errors), entries
+    return _manifest_payload(path, schema_version, skill_names, invalid_skills, errors, entries), entries
 
 
 def _validate_lock_entry(entry: dict[str, Any], prefix: str) -> list[str]:
@@ -365,7 +365,15 @@ def _manifest_payload(
     skill_names: set[str],
     invalid_skills: set[str],
     errors: list[str],
+    entries: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
+    valid_entries = entries or {}
+    registered_source_skills = sorted(
+        name for name, entry in valid_entries.items() if entry.get("source", {}).get("kind") == "github"
+    )
+    source_unregistered_skills = sorted(
+        name for name, entry in valid_entries.items() if entry.get("source", {}).get("kind") == "unregistered"
+    )
     return {
         "ok": not errors,
         "path": str(path),
@@ -373,6 +381,8 @@ def _manifest_payload(
         "skill_count": len(skill_names),
         "skill_names": sorted(skill_names),
         "invalid_skills": sorted(invalid_skills),
+        "registered_source_skills": registered_source_skills,
+        "source_unregistered_skills": source_unregistered_skills,
         "aligned_with_routing": False,
         "unmanaged_required_skills": [],
         "stale_locked_skills": [],

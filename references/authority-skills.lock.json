@@ -11,267 +11,400 @@
     {
       "name": "a11y-audit",
       "source": {
-        "kind": "unregistered",
-        "reason": "Installed provenance is unavailable; register and review an exact source before locking."
+        "kind": "github",
+        "repo": "alirezarezvani/claude-skills",
+        "path": "engineering-team/a11y-audit/skills/a11y-audit",
+        "ref": "b2aa395350c5a96d094c0fea116636bfa25ad1d0"
+      },
+      "integrity": {
+        "algorithm": "sha256",
+        "scope": "skill-tree",
+        "digest": "c3dde4c9f476412c9d5e9b67eb8debdfba77f57a0b12ed7bb2b720530b083282"
       },
       "trust": {
-        "approved_at": "",
-        "approved_by": "",
-        "license": "",
-        "review_evidence": "",
-        "status": "pending-source-review"
+        "status": "approved",
+        "approved_by": "workflow-pack-maintainers",
+        "approved_at": "2026-07-17",
+        "license": "MIT",
+        "review_evidence": "references/authority-skills-source-review.md"
       }
     },
     {
       "name": "api-design-reviewer",
       "source": {
-        "kind": "unregistered",
-        "reason": "Installed provenance is unavailable; register and review an exact source before locking."
+        "kind": "github",
+        "repo": "alirezarezvani/claude-skills",
+        "path": "engineering/skills/api-design-reviewer",
+        "ref": "b2aa395350c5a96d094c0fea116636bfa25ad1d0"
+      },
+      "integrity": {
+        "algorithm": "sha256",
+        "scope": "skill-tree",
+        "digest": "b8c46af92685c6951f8c85682fa6ddd38a23f364ea20424e204407941f450bac"
       },
       "trust": {
-        "approved_at": "",
-        "approved_by": "",
-        "license": "",
-        "review_evidence": "",
-        "status": "pending-source-review"
+        "status": "approved",
+        "approved_by": "workflow-pack-maintainers",
+        "approved_at": "2026-07-17",
+        "license": "MIT",
+        "review_evidence": "references/authority-skills-source-review.md"
       }
     },
     {
       "name": "ci-cd-pipeline-builder",
       "source": {
-        "kind": "unregistered",
-        "reason": "Installed provenance is unavailable; register and review an exact source before locking."
+        "kind": "github",
+        "repo": "alirezarezvani/claude-skills",
+        "path": "engineering/skills/ci-cd-pipeline-builder",
+        "ref": "b2aa395350c5a96d094c0fea116636bfa25ad1d0"
+      },
+      "integrity": {
+        "algorithm": "sha256",
+        "scope": "skill-tree",
+        "digest": "67ce2934ef76390866f784a6b2adb8dbeb698d6763d17d9c1da655d5a9d2eea0"
       },
       "trust": {
-        "approved_at": "",
-        "approved_by": "",
-        "license": "",
-        "review_evidence": "",
-        "status": "pending-source-review"
+        "status": "approved",
+        "approved_by": "workflow-pack-maintainers",
+        "approved_at": "2026-07-17",
+        "license": "MIT",
+        "review_evidence": "references/authority-skills-source-review.md"
       }
     },
     {
       "name": "database-designer",
       "source": {
-        "kind": "unregistered",
-        "reason": "Installed provenance is unavailable; register and review an exact source before locking."
+        "kind": "github",
+        "repo": "alirezarezvani/claude-skills",
+        "path": "engineering/skills/database-designer",
+        "ref": "b2aa395350c5a96d094c0fea116636bfa25ad1d0"
+      },
+      "integrity": {
+        "algorithm": "sha256",
+        "scope": "skill-tree",
+        "digest": "13ab8ae4efdf2ec5054e393df6399c3b936e291429314078131624b9a6149b8d"
       },
       "trust": {
-        "approved_at": "",
-        "approved_by": "",
-        "license": "",
-        "review_evidence": "",
-        "status": "pending-source-review"
+        "status": "approved",
+        "approved_by": "workflow-pack-maintainers",
+        "approved_at": "2026-07-17",
+        "license": "MIT",
+        "review_evidence": "references/authority-skills-source-review.md"
       }
     },
     {
       "name": "database-schema-designer",
       "source": {
-        "kind": "unregistered",
-        "reason": "Installed provenance is unavailable; register and review an exact source before locking."
+        "kind": "github",
+        "repo": "alirezarezvani/claude-skills",
+        "path": "engineering/skills/database-schema-designer",
+        "ref": "b2aa395350c5a96d094c0fea116636bfa25ad1d0"
+      },
+      "integrity": {
+        "algorithm": "sha256",
+        "scope": "skill-tree",
+        "digest": "78a06a7d171318ac20c8930f37184be2c5e3e6798da2d42ca19eda827cfbef54"
       },
       "trust": {
-        "approved_at": "",
-        "approved_by": "",
-        "license": "",
-        "review_evidence": "",
-        "status": "pending-source-review"
+        "status": "approved",
+        "approved_by": "workflow-pack-maintainers",
+        "approved_at": "2026-07-17",
+        "license": "MIT",
+        "review_evidence": "references/authority-skills-source-review.md"
       }
     },
     {
       "name": "migration-architect",
       "source": {
-        "kind": "unregistered",
-        "reason": "Installed provenance is unavailable; register and review an exact source before locking."
+        "kind": "github",
+        "repo": "alirezarezvani/claude-skills",
+        "path": "engineering/skills/migration-architect",
+        "ref": "b2aa395350c5a96d094c0fea116636bfa25ad1d0"
+      },
+      "integrity": {
+        "algorithm": "sha256",
+        "scope": "skill-tree",
+        "digest": "38911f658eac23894d70d2184768eb1fed8f60a013aacd9c29aa3dd559adb999"
       },
       "trust": {
-        "approved_at": "",
-        "approved_by": "",
-        "license": "",
-        "review_evidence": "",
-        "status": "pending-source-review"
+        "status": "approved",
+        "approved_by": "workflow-pack-maintainers",
+        "approved_at": "2026-07-17",
+        "license": "MIT",
+        "review_evidence": "references/authority-skills-source-review.md"
       }
     },
     {
       "name": "observability-designer",
       "source": {
-        "kind": "unregistered",
-        "reason": "Installed provenance is unavailable; register and review an exact source before locking."
+        "kind": "github",
+        "repo": "alirezarezvani/claude-skills",
+        "path": "engineering/skills/observability-designer",
+        "ref": "b2aa395350c5a96d094c0fea116636bfa25ad1d0"
+      },
+      "integrity": {
+        "algorithm": "sha256",
+        "scope": "skill-tree",
+        "digest": "b206e926e639c380ce42b3f3aea291b39039f41c1b16a0b5ec003063c54f0be0"
       },
       "trust": {
-        "approved_at": "",
-        "approved_by": "",
-        "license": "",
-        "review_evidence": "",
-        "status": "pending-source-review"
+        "status": "approved",
+        "approved_by": "workflow-pack-maintainers",
+        "approved_at": "2026-07-17",
+        "license": "MIT",
+        "review_evidence": "references/authority-skills-source-review.md"
       }
     },
     {
       "name": "performance-profiler",
       "source": {
-        "kind": "unregistered",
-        "reason": "Installed provenance is unavailable; register and review an exact source before locking."
+        "kind": "github",
+        "repo": "alirezarezvani/claude-skills",
+        "path": "engineering/skills/performance-profiler",
+        "ref": "b2aa395350c5a96d094c0fea116636bfa25ad1d0"
+      },
+      "integrity": {
+        "algorithm": "sha256",
+        "scope": "skill-tree",
+        "digest": "bb70d0c6782223fd8d9a6a1e7c3494fc78c99bda5a64c0a63acfb3c3767ca100"
       },
       "trust": {
-        "approved_at": "",
-        "approved_by": "",
-        "license": "",
-        "review_evidence": "",
-        "status": "pending-source-review"
+        "status": "approved",
+        "approved_by": "workflow-pack-maintainers",
+        "approved_at": "2026-07-17",
+        "license": "MIT",
+        "review_evidence": "references/authority-skills-source-review.md"
       }
     },
     {
       "name": "playwright-pro",
       "source": {
-        "kind": "unregistered",
-        "reason": "Installed provenance is unavailable; register and review an exact source before locking."
+        "kind": "github",
+        "repo": "alirezarezvani/claude-skills",
+        "path": "engineering-team/playwright-pro/skills/pw",
+        "ref": "b2aa395350c5a96d094c0fea116636bfa25ad1d0"
+      },
+      "integrity": {
+        "algorithm": "sha256",
+        "scope": "skill-tree",
+        "digest": "778604899e1401fa6264056ee9a0cf64f765701b41a23e833000c7da4e15fcdb"
       },
       "trust": {
-        "approved_at": "",
-        "approved_by": "",
-        "license": "",
-        "review_evidence": "",
-        "status": "pending-source-review"
+        "status": "approved",
+        "approved_by": "workflow-pack-maintainers",
+        "approved_at": "2026-07-17",
+        "license": "MIT",
+        "review_evidence": "references/authority-skills-source-review.md"
       }
     },
     {
       "name": "security-pen-testing",
       "source": {
-        "kind": "unregistered",
-        "reason": "Installed provenance is unavailable; register and review an exact source before locking."
+        "kind": "github",
+        "repo": "alirezarezvani/claude-skills",
+        "path": "engineering-team/skills/security-pen-testing",
+        "ref": "b2aa395350c5a96d094c0fea116636bfa25ad1d0"
+      },
+      "integrity": {
+        "algorithm": "sha256",
+        "scope": "skill-tree",
+        "digest": "f62cc0c8e15b374587fda78f7a6b8b1100008733686c6432897bce9cfe426e61"
       },
       "trust": {
-        "approved_at": "",
-        "approved_by": "",
-        "license": "",
-        "review_evidence": "",
-        "status": "pending-source-review"
+        "status": "approved",
+        "approved_by": "workflow-pack-maintainers",
+        "approved_at": "2026-07-17",
+        "license": "MIT",
+        "review_evidence": "references/authority-skills-source-review.md"
       }
     },
     {
       "name": "senior-architect",
       "source": {
-        "kind": "unregistered",
-        "reason": "Installed provenance is unavailable; register and review an exact source before locking."
+        "kind": "github",
+        "repo": "alirezarezvani/claude-skills",
+        "path": "engineering-team/skills/senior-architect",
+        "ref": "b2aa395350c5a96d094c0fea116636bfa25ad1d0"
+      },
+      "integrity": {
+        "algorithm": "sha256",
+        "scope": "skill-tree",
+        "digest": "4522d109749207b38ecc444a0acc838de4e768b33ffd17b47ae02c8d29140d78"
       },
       "trust": {
-        "approved_at": "",
-        "approved_by": "",
-        "license": "",
-        "review_evidence": "",
-        "status": "pending-source-review"
+        "status": "approved",
+        "approved_by": "workflow-pack-maintainers",
+        "approved_at": "2026-07-17",
+        "license": "MIT",
+        "review_evidence": "references/authority-skills-source-review.md"
       }
     },
     {
       "name": "senior-backend",
       "source": {
-        "kind": "unregistered",
-        "reason": "Installed provenance is unavailable; register and review an exact source before locking."
+        "kind": "github",
+        "repo": "alirezarezvani/claude-skills",
+        "path": "engineering-team/skills/senior-backend",
+        "ref": "b2aa395350c5a96d094c0fea116636bfa25ad1d0"
+      },
+      "integrity": {
+        "algorithm": "sha256",
+        "scope": "skill-tree",
+        "digest": "c9585ecbdf58724a206fe6e6111d15281e7d6cd2b5b2d68c9da01255e9cfb2a1"
       },
       "trust": {
-        "approved_at": "",
-        "approved_by": "",
-        "license": "",
-        "review_evidence": "",
-        "status": "pending-source-review"
+        "status": "approved",
+        "approved_by": "workflow-pack-maintainers",
+        "approved_at": "2026-07-17",
+        "license": "MIT",
+        "review_evidence": "references/authority-skills-source-review.md"
       }
     },
     {
       "name": "senior-frontend",
       "source": {
-        "kind": "unregistered",
-        "reason": "Installed provenance is unavailable; register and review an exact source before locking."
+        "kind": "github",
+        "repo": "alirezarezvani/claude-skills",
+        "path": "engineering-team/skills/senior-frontend",
+        "ref": "b2aa395350c5a96d094c0fea116636bfa25ad1d0"
+      },
+      "integrity": {
+        "algorithm": "sha256",
+        "scope": "skill-tree",
+        "digest": "08995610a3fa8a1527a377191d0ea1984f502d02b5719987efb71df6555fdf4d"
       },
       "trust": {
-        "approved_at": "",
-        "approved_by": "",
-        "license": "",
-        "review_evidence": "",
-        "status": "pending-source-review"
+        "status": "approved",
+        "approved_by": "workflow-pack-maintainers",
+        "approved_at": "2026-07-17",
+        "license": "MIT",
+        "review_evidence": "references/authority-skills-source-review.md"
       }
     },
     {
       "name": "senior-fullstack",
       "source": {
-        "kind": "unregistered",
-        "reason": "Installed provenance is unavailable; register and review an exact source before locking."
+        "kind": "github",
+        "repo": "alirezarezvani/claude-skills",
+        "path": "engineering-team/skills/senior-fullstack",
+        "ref": "b2aa395350c5a96d094c0fea116636bfa25ad1d0"
+      },
+      "integrity": {
+        "algorithm": "sha256",
+        "scope": "skill-tree",
+        "digest": "389658d478817df1a8d9ca3875fbd34c36e5945e1851419e6705b4a7892ae761"
       },
       "trust": {
-        "approved_at": "",
-        "approved_by": "",
-        "license": "",
-        "review_evidence": "",
-        "status": "pending-source-review"
+        "status": "approved",
+        "approved_by": "workflow-pack-maintainers",
+        "approved_at": "2026-07-17",
+        "license": "MIT",
+        "review_evidence": "references/authority-skills-source-review.md"
       }
     },
     {
       "name": "senior-qa",
       "source": {
-        "kind": "unregistered",
-        "reason": "Installed provenance is unavailable; register and review an exact source before locking."
+        "kind": "github",
+        "repo": "alirezarezvani/claude-skills",
+        "path": "engineering-team/skills/senior-qa",
+        "ref": "b2aa395350c5a96d094c0fea116636bfa25ad1d0"
+      },
+      "integrity": {
+        "algorithm": "sha256",
+        "scope": "skill-tree",
+        "digest": "6cdc16b03daab70fed1f0269c611879b27ba649b2204149e11d8c1c95e4d7adf"
       },
       "trust": {
-        "approved_at": "",
-        "approved_by": "",
-        "license": "",
-        "review_evidence": "",
-        "status": "pending-source-review"
+        "status": "approved",
+        "approved_by": "workflow-pack-maintainers",
+        "approved_at": "2026-07-17",
+        "license": "MIT",
+        "review_evidence": "references/authority-skills-source-review.md"
       }
     },
     {
       "name": "senior-security",
       "source": {
-        "kind": "unregistered",
-        "reason": "Installed provenance is unavailable; register and review an exact source before locking."
+        "kind": "github",
+        "repo": "alirezarezvani/claude-skills",
+        "path": "engineering-team/skills/senior-security",
+        "ref": "b2aa395350c5a96d094c0fea116636bfa25ad1d0"
+      },
+      "integrity": {
+        "algorithm": "sha256",
+        "scope": "skill-tree",
+        "digest": "c14f0b0259316c1565d17da153c0d5f85dcda2c4cac09ef0c8ca1ad03ff919ec"
       },
       "trust": {
-        "approved_at": "",
-        "approved_by": "",
-        "license": "",
-        "review_evidence": "",
-        "status": "pending-source-review"
+        "status": "approved",
+        "approved_by": "workflow-pack-maintainers",
+        "approved_at": "2026-07-17",
+        "license": "MIT",
+        "review_evidence": "references/authority-skills-source-review.md"
       }
     },
     {
       "name": "slo-architect",
       "source": {
-        "kind": "unregistered",
-        "reason": "Installed provenance is unavailable; register and review an exact source before locking."
+        "kind": "github",
+        "repo": "alirezarezvani/claude-skills",
+        "path": "engineering/skills/slo-architect",
+        "ref": "b2aa395350c5a96d094c0fea116636bfa25ad1d0"
+      },
+      "integrity": {
+        "algorithm": "sha256",
+        "scope": "skill-tree",
+        "digest": "d48c918a625681b5303f918d4b5bfdf1d00777f609266c513559af61506a19e1"
       },
       "trust": {
-        "approved_at": "",
-        "approved_by": "",
-        "license": "",
-        "review_evidence": "",
-        "status": "pending-source-review"
+        "status": "approved",
+        "approved_by": "workflow-pack-maintainers",
+        "approved_at": "2026-07-17",
+        "license": "MIT",
+        "review_evidence": "references/authority-skills-source-review.md"
       }
     },
     {
       "name": "tech-debt-tracker",
       "source": {
-        "kind": "unregistered",
-        "reason": "Installed provenance is unavailable; register and review an exact source before locking."
+        "kind": "github",
+        "repo": "alirezarezvani/claude-skills",
+        "path": "engineering/skills/tech-debt-tracker",
+        "ref": "b2aa395350c5a96d094c0fea116636bfa25ad1d0"
+      },
+      "integrity": {
+        "algorithm": "sha256",
+        "scope": "skill-tree",
+        "digest": "093017609f7316cdf9e6f939f3d6a0ebdca6d80a63950344640857560101f8b9"
       },
       "trust": {
-        "approved_at": "",
-        "approved_by": "",
-        "license": "",
-        "review_evidence": "",
-        "status": "pending-source-review"
+        "status": "approved",
+        "approved_by": "workflow-pack-maintainers",
+        "approved_at": "2026-07-17",
+        "license": "MIT",
+        "review_evidence": "references/authority-skills-source-review.md"
       }
     },
     {
       "name": "tech-stack-evaluator",
       "source": {
-        "kind": "unregistered",
-        "reason": "Installed provenance is unavailable; register and review an exact source before locking."
+        "kind": "github",
+        "repo": "alirezarezvani/claude-skills",
+        "path": "engineering-team/skills/tech-stack-evaluator",
+        "ref": "b2aa395350c5a96d094c0fea116636bfa25ad1d0"
+      },
+      "integrity": {
+        "algorithm": "sha256",
+        "scope": "skill-tree",
+        "digest": "6505b97cddb4fa7706c60e2592f0695684ffa93ccc30e9929968aef77ae6bcc6"
       },
       "trust": {
-        "approved_at": "",
-        "approved_by": "",
-        "license": "",
-        "review_evidence": "",
-        "status": "pending-source-review"
+        "status": "approved",
+        "approved_by": "workflow-pack-maintainers",
+        "approved_at": "2026-07-17",
+        "license": "MIT",
+        "review_evidence": "references/authority-skills-source-review.md"
       }
     }
   ]
