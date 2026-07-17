@@ -1103,6 +1103,9 @@ PACK_MANIFEST_VERIFY_DOC_REQUIREMENTS = {
     ),
 }
 CONSUMER_BOOTSTRAP_PATH = "scripts/bootstrap_consumer_project.py"
+CONSUMER_BOOTSTRAP_WRAPPER_PATH = "bin/governance-bootstrap"
+ONE_COMMAND_CONSUMER_CHECK = "./docs-as-code-workflow-pack/bin/governance-bootstrap --check --json"
+ONE_COMMAND_CONSUMER_APPLY = "./docs-as-code-workflow-pack/bin/governance-bootstrap --json"
 CONSUMER_BOOTSTRAP_REQUIRED_PHRASES = (
     "run_consumer_bootstrap",
     "run_consumer_resume",
@@ -1123,6 +1126,10 @@ CONSUMER_BOOTSTRAP_REQUIRED_PHRASES = (
     "authority_skill_repair_apply",
     "--approve-authority-installs",
     "authority_skill_auto_repair",
+    "input_resolution",
+    "current-directory",
+    "target-directory-name",
+    "consumer target must not be the workflow-pack root or its descendant",
     "--strict-authority-skills",
     "strict_authority_skills",
     "--strict-authority-provenance",
@@ -1406,6 +1413,8 @@ CONSUMER_BOOTSTRAP_REQUIRED_PHRASES = (
 )
 CONSUMER_BOOTSTRAP_DOC_REQUIREMENTS = {
     "README.md": (
+        ONE_COMMAND_CONSUMER_CHECK,
+        ONE_COMMAND_CONSUMER_APPLY,
         "python3 scripts/bootstrap_consumer_project.py --target /path/to/new-project --product /path/to/product.md --profile web-app --project-name \"Project Name\" --check --json",
         "python3 scripts/bootstrap_consumer_project.py --target /path/to/new-project --product /path/to/product.md --profile web-app --project-name \"Project Name\" --json",
         "python3 scripts/bootstrap_consumer_project.py --target /path/to/new-project --product /path/to/product.md --profile web-app --project-name \"Project Name\" --workflow-preset product-structure --json",
@@ -1518,6 +1527,8 @@ CONSUMER_BOOTSTRAP_DOC_REQUIREMENTS = {
         "selected_action",
     ),
     "workflows/00-overview.md": (
+        ONE_COMMAND_CONSUMER_CHECK,
+        ONE_COMMAND_CONSUMER_APPLY,
         "python3 scripts/bootstrap_consumer_project.py --target /path/to/new-project --product /path/to/product.md --profile web-app --project-name \"Project Name\" --check --json",
         "python3 scripts/bootstrap_consumer_project.py --target /path/to/new-project --product /path/to/product.md --profile web-app --project-name \"Project Name\" --workflow-preset product-structure --json",
         "python3 scripts/bootstrap_consumer_project.py --target /path/to/new-project --product /path/to/product.md --profile web-app --project-name \"Project Name\" --workflow-preset implementation-routing --json",
@@ -1635,6 +1646,8 @@ CONSUMER_BOOTSTRAP_DOC_REQUIREMENTS = {
         "active_work.queue_id",
     ),
     "skills/verifying-governance-docs/SKILL.md": (
+        ONE_COMMAND_CONSUMER_CHECK,
+        ONE_COMMAND_CONSUMER_APPLY,
         "python3 scripts/bootstrap_consumer_project.py --target <target> --product <product-doc> --profile <profile> --project-name \"<name>\" --check --json",
         "--strict-authority-provenance",
         "authority_skill_inventory.repair_plan",
@@ -1721,6 +1734,26 @@ CONSUMER_BOOTSTRAP_DOC_REQUIREMENTS = {
         "local_commands",
         "next_actions",
     ),
+    "workflows/01-empty-repo-initialization.md": (
+        ONE_COMMAND_CONSUMER_CHECK,
+        ONE_COMMAND_CONSUMER_APPLY,
+        "target-root-auto-discovery",
+    ),
+    "skills/initializing-governance-repo/SKILL.md": (
+        ONE_COMMAND_CONSUMER_CHECK,
+        ONE_COMMAND_CONSUMER_APPLY,
+        "target-root-auto-discovery",
+    ),
+    "references/runtime-strategy.md": (
+        ONE_COMMAND_CONSUMER_CHECK,
+        ONE_COMMAND_CONSUMER_APPLY,
+        "input_resolution",
+    ),
+    "references/repository-initialization-checklist.md": (
+        ONE_COMMAND_CONSUMER_CHECK,
+        ONE_COMMAND_CONSUMER_APPLY,
+        "input_resolution",
+    ),
 }
 ARTIFACT_SMOKE_PATH = "scripts/smoke_workflow_pack_artifact.py"
 ARTIFACT_SMOKE_REQUIRED_PHRASES = (
@@ -1730,6 +1763,11 @@ ARTIFACT_SMOKE_REQUIRED_PHRASES = (
     "unpacked_verify_pack",
     "unpacked_init_fresh_target_check",
     "unpacked_init_fresh_target",
+    "unpacked_consumer_bootstrap_one_command_check",
+    "unpacked_consumer_bootstrap_one_command_apply",
+    "consumer_bootstrap_one_command",
+    "_consumer_bootstrap_one_command_details",
+    "bin/governance-bootstrap",
     "fresh_target_verify_check",
     "fresh_target_governance_status",
     "fresh_target_workflow_plan",
@@ -1929,6 +1967,7 @@ ARTIFACT_SMOKE_DOC_REQUIREMENTS = {
         "unpacks the tar.gz artifact",
         "initializes a fresh target folder",
         "target-local verify/status/workflow-plan/work-package/workflow-resume commands",
+        "consumer_bootstrap_one_command.ok: true",
         "--auto-repair-env --workflow-preset product-structure",
         "--auto-repair-env --workflow-preset design-scaffold",
         "--auto-repair-env --workflow-preset design-routing",
@@ -1942,6 +1981,7 @@ ARTIFACT_SMOKE_DOC_REQUIREMENTS = {
         "python3 scripts/smoke_workflow_pack_artifact.py --archive dist/docs-as-code-workflow-pack.tar.gz --json",
         "unpacks the tar.gz artifact",
         "fresh target",
+        "consumer_bootstrap_one_command.ok: true",
         "--auto-repair-env --workflow-preset product-structure",
         "--auto-repair-env --workflow-preset design-scaffold",
         "--auto-repair-env --workflow-preset design-routing",
@@ -1955,6 +1995,7 @@ ARTIFACT_SMOKE_DOC_REQUIREMENTS = {
         "python3 scripts/smoke_workflow_pack_artifact.py --archive dist/docs-as-code-workflow-pack.tar.gz --json",
         "unpacked artifact",
         "fresh_target_init.ok: true",
+        "consumer_bootstrap_one_command.ok: true",
         "design_reviews.ok: true",
         "consumer_bootstrap_implementation_routing.ok: true",
         "consumer_resume_implementation_handoff.ok: true",
@@ -1964,6 +2005,7 @@ ARTIFACT_SMOKE_DOC_REQUIREMENTS = {
         "python3 scripts/smoke_workflow_pack_artifact.py --json",
         "python3 scripts/smoke_workflow_pack_artifact.py --archive dist/docs-as-code-workflow-pack.tar.gz --json",
         "fresh target folder",
+        "consumer_bootstrap_one_command.ok: true",
         "--auto-repair-env --workflow-preset product-structure",
         "--auto-repair-env --workflow-preset design-scaffold",
         "--auto-repair-env --workflow-preset design-routing",
@@ -5096,6 +5138,9 @@ MAKEFILE_REQUIRED_TARGET_RECIPES = {
 }
 RUNTIME_WRAPPER_REQUIRED_COMMANDS = {
     "bin/governance": 'python3 "$ROOT_DIR/scripts/governance_cli.py" "$@"',
+    CONSUMER_BOOTSTRAP_WRAPPER_PATH: (
+        'python3 "$ROOT_DIR/scripts/bootstrap_consumer_project.py" --auto-repair-env "$@"'
+    ),
     "bin/governance-init": 'python3 "$ROOT_DIR/scripts/governance_cli.py" init "$@"',
     "bin/governance-verify": 'python3 "$ROOT_DIR/scripts/governance_cli.py" verify "$@"',
 }
@@ -5328,6 +5373,7 @@ SOURCE_PACK_REQUIRED_PATHS = tuple(
             STACK_ACCEPTANCE_PATH,
             STACK_ACCEPTANCE_TEST_PATH,
             CONSUMER_BOOTSTRAP_PATH,
+            CONSUMER_BOOTSTRAP_WRAPPER_PATH,
             *(path.as_posix() for path in RUNTIME_REQUIRED_PATHS),
             *WORKFLOW_PACK_REQUIRED_PATHS,
         )
@@ -7232,7 +7278,7 @@ def _ast_bool_literal(node: ast.AST) -> bool | None:
 
 
 def _check_runtime_executable_bits(root: Path, findings: list[PackFinding]) -> None:
-    for rel_path in RUNTIME_EXECUTABLE_PATHS:
+    for rel_path in (*RUNTIME_EXECUTABLE_PATHS, Path(CONSUMER_BOOTSTRAP_WRAPPER_PATH)):
         rel = rel_path.as_posix()
         path = root / rel_path
         if not path.exists() or not path.is_file():

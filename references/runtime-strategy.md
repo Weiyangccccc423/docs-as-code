@@ -65,6 +65,15 @@ bin/governance runtime refresh <target> --json
 
 The refresh command overwrites only generated `bin/`, `scripts/`, `docs/agent-workflow/runtime-manifest.json`, and `docs/agent-workflow/workflow-pack/` snapshot files. It does not rewrite product, design, planning, or implementation documents.
 
+For an unpacked source pack placed inside a new project folder with one product document, use the source-only consumer entry before target-local runtime exists:
+
+```bash
+./docs-as-code-workflow-pack/bin/governance-bootstrap --check --json
+./docs-as-code-workflow-pack/bin/governance-bootstrap --json
+```
+
+The wrapper does not become part of generated target runtime. It enables safe `--auto-repair-env`, selects the current directory only when `--target` is absent, derives the default project name from that directory, and leaves profile as `unknown`; target-root product discovery still requires exactly one candidate. Check mode stays no-write, and write mode applies only repairs already classified as no-approval and non-manual. Inspect `input_resolution`. The workflow-pack root and its descendants are rejected as targets; the pack may be nested inside the target.
+
 Use `runtime refresh --check --json` before repair when an agent needs a no-write preflight. It reports `would_refresh` and `would_remove` paths while leaving target files and `.governance/state.json` unchanged.
 
 After successful write-mode `runtime refresh --json`, JSON includes `local_commands` and `next_actions` when the refreshed target state is readable. Agents should run each returned `argv` from its `cwd` instead of reconstructing commands or rerunning `status`.

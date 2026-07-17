@@ -6,6 +6,9 @@ Calibrate against Git repository initialization, repository entry-point document
 
 ## Target Safety
 
+- When using the one-command entry, did `./docs-as-code-workflow-pack/bin/governance-bootstrap --check --json` pass before `./docs-as-code-workflow-pack/bin/governance-bootstrap --json`?
+- Does `input_resolution` prove current-directory target selection, target-directory-name project naming, and reviewed product/profile inputs, and are the workflow-pack root and its descendants excluded as targets?
+- Did wrapper-driven `--auto-repair-env` remain no-write in check mode and apply only no-approval, non-manual repairs in write mode?
 - Is the target folder empty or near-empty enough that generated governance files can be created without hiding user work?
 - Does `bin/governance init --check --target <target> --json` auto-discover exactly one root product document when `--product` is omitted?
 - Does `bin/governance init --check --target <target> --product <product-doc> --json` report conflicts before write mode is used when the source is outside the target or multiple candidates exist?

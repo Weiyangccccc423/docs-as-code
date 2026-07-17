@@ -9,6 +9,7 @@ from pathlib import Path
 
 from scripts.bootstrap_tree import TARGET_LOCAL_COMMANDS, _iter_workflow_pack_files
 from scripts.verify_pack import (
+    SOURCE_PACK_REQUIRED_PATHS,
     TARGET_MAKEFILE_REQUIRED_COMMANDS,
     PackFinding,
     PackReport,
@@ -27,6 +28,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class PackStructureTest(unittest.TestCase):
+    def test_one_command_consumer_bootstrap_wrapper_is_required(self) -> None:
+        self.assertIn("bin/governance-bootstrap", SOURCE_PACK_REQUIRED_PATHS)
+
     def test_authority_skill_source_review_is_required_in_generated_targets(self) -> None:
         self.assertIn("references/authority-skills-source-review.md", WORKFLOW_PACK_REQUIRED_PATHS)
 
@@ -1622,6 +1626,69 @@ class PackStructureTest(unittest.TestCase):
                     )
                 )
 
+    def test_verify_pack_reports_consumer_bootstrap_missing_one_command_input_contract(self) -> None:
+        cases = (
+            ("input_resolution", "resolved_inputs"),
+            ("current-directory", "working-directory"),
+            ("target-directory-name", "directory-name"),
+            (
+                "consumer target must not be the workflow-pack root or its descendant",
+                "invalid consumer target",
+            ),
+        )
+        for required_phrase, replacement in cases:
+            with self.subTest(required_phrase=required_phrase), tempfile.TemporaryDirectory() as tmp:
+                target = Path(tmp) / "pack"
+                shutil.copytree(
+                    ROOT,
+                    target,
+                    ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+                )
+                script = target / "scripts/bootstrap_consumer_project.py"
+                script.write_text(
+                    script.read_text(encoding="utf-8").replace(required_phrase, replacement),
+                    encoding="utf-8",
+                )
+
+                report = verify_pack(target)
+
+                self.assertFalse(report.ok)
+                self.assertTrue(
+                    any(
+                        finding.code == "pack_consumer_bootstrap_incomplete"
+                        and finding.path == "scripts/bootstrap_consumer_project.py"
+                        and required_phrase in finding.message
+                        for finding in report.findings
+                    )
+                )
+
+    def test_verify_pack_reports_missing_one_command_consumer_documentation(self) -> None:
+        required_command = "./docs-as-code-workflow-pack/bin/governance-bootstrap --json"
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            readme = target / "README.md"
+            readme.write_text(
+                readme.read_text(encoding="utf-8").replace(required_command, "one command", 1),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_consumer_bootstrap_doc_missing"
+                    and finding.path == "README.md"
+                    and required_command in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_missing_authority_skill_apply_documentation(self) -> None:
         required_command = (
             "python3 scripts/authority_skills.py --repair --apply "
@@ -1689,6 +1756,16 @@ class PackStructureTest(unittest.TestCase):
             ("make_verify_check", "local_verify_check"),
             ("fresh_target_init", "target_init_preview"),
             ("unpacked_init_fresh_target", "unpacked_init_preview"),
+            (
+                "unpacked_consumer_bootstrap_one_command_check",
+                "unpacked_consumer_bootstrap_default_check",
+            ),
+            (
+                "unpacked_consumer_bootstrap_one_command_apply",
+                "unpacked_consumer_bootstrap_default_apply",
+            ),
+            ("_consumer_bootstrap_one_command_details", "_consumer_bootstrap_default_details"),
+            ("bin/governance-bootstrap", "bin/governance-init"),
             ("fresh_target_workflow_plan", "target_workflow_preview"),
             ("unpacked_consumer_bootstrap_product_structure", "unpacked_consumer_bootstrap_preview"),
             ("unpacked_consumer_bootstrap_design_scaffold", "unpacked_consumer_design_preview"),

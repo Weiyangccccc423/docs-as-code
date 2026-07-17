@@ -16,7 +16,14 @@ Load:
 
 ## Procedure
 
-1. Read `references/repository-initialization-checklist.md` and use it as the rubric for target safety, environment repair, generated entry points, runtime snapshot integrity, product seed, Git readiness, baseline security, tooling consistency, and handoff readiness.
+1. Read `references/repository-initialization-checklist.md` and use it as the rubric for target safety, environment repair, generated entry points, runtime snapshot integrity, product seed, Git readiness, baseline security, tooling consistency, and handoff readiness. When the target root contains exactly one supported product document plus an unpacked `docs-as-code-workflow-pack/`, use the standard consumer entry:
+
+   ```bash
+   ./docs-as-code-workflow-pack/bin/governance-bootstrap --check --json
+   ./docs-as-code-workflow-pack/bin/governance-bootstrap --json
+   ```
+
+   The wrapper enables safe `--auto-repair-env`, uses current-directory target selection, target-directory-name project naming, and target-root-auto-discovery for the product. Check mode stays no-write; write mode applies only no-approval, non-manual environment repairs. Inspect `input_resolution`; stop on ambiguous product selection, and pass `--profile`, `--project-name`, or `--product` only when reviewed explicit values are available. Never use the workflow-pack root or its descendants as targets; nesting the pack inside the target is valid.
 
 2. From the trusted workflow-pack checkout, inventory authority skills and build the offline repair plan:
 

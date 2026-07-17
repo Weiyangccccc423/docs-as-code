@@ -188,6 +188,10 @@ def run_consumer_bootstrap(
     authority_skill_inventory: dict[str, object] = {}
     authority_skill_auto_repair = _empty_authority_skill_auto_repair(approve_authority_installs)
     try:
+        _require(
+            not _path_is_within(target, pack_root),
+            "consumer target must not be the workflow-pack root or its descendant",
+        )
         expanded_flags = _workflow_preset_flags(workflow_preset)
         advance_product_structuring = advance_product_structuring or "advance_product_structuring" in expanded_flags
         product_scaffold_preview = product_scaffold_preview or "product_scaffold_preview" in expanded_flags
@@ -245,6 +249,7 @@ def run_consumer_bootstrap(
             "init_check",
             _init_argv(target=target, product=product, profile=profile, project_name=project_name, check=True, force=force),
             pack_root,
+            allowed_returncodes=(0, 1),
         )
         _require(init_check.get("ok") is True, "initialization preflight failed", payload=init_check)
         _require(
@@ -912,6 +917,10 @@ def run_consumer_resume(
     authority_skill_auto_repair = _empty_authority_skill_auto_repair(approve_authority_installs)
     route: dict[str, object] = {}
     try:
+        _require(
+            not _path_is_within(target, pack_root),
+            "consumer target must not be the workflow-pack root or its descendant",
+        )
         if product is not None or force:
             raise ConsumerBootstrapError("--resume cannot be combined with --product or --force")
         if fresh_options_requested:
@@ -996,6 +1005,8 @@ def run_consumer_resume(
             "pack_root": str(pack_root),
             "target": str(target),
             "product": "",
+            "profile": target_local["profile"],
+            "project_name": target_local["project_name"],
             "force": False,
             "workflow_preset": workflow_preset,
             "workflow_preset_expanded_flags": list(expanded_flags),
@@ -3302,14 +3313,29 @@ def _require(condition: bool, message: str, *, payload: dict[str, object] | None
         raise ConsumerBootstrapError(message, payload=payload)
 
 
+def _path_is_within(path: Path, parent: Path) -> bool:
+    try:
+        path.relative_to(parent)
+    except ValueError:
+        return False
+    return True
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Bootstrap a governed target repository from an exported docs-as-code workflow pack."
     )
-    parser.add_argument("--target", required=True, type=Path, help="Target project directory to initialize.")
+    parser.add_argument(
+        "--target",
+        type=Path,
+        help="Target project directory; defaults to the current working directory.",
+    )
     parser.add_argument("--product", type=Path, help="Optional source product document path.")
     parser.add_argument("--profile", default="unknown", help="Project profile recorded in governance state.")
-    parser.add_argument("--project-name", default="Project Workspace", help="Project name recorded in governance state.")
+    parser.add_argument(
+        "--project-name",
+        help="Project name recorded in governance state; defaults to the target directory name.",
+    )
     parser.add_argument("--force", action="store_true", help="Pass --force through to governance init.")
     parser.add_argument(
         "--resume",
@@ -3501,11 +3527,15 @@ def _print_human(payload: dict[str, Any]) -> None:
 
 def main() -> int:
     args = build_parser().parse_args()
+    target = (args.target if args.target is not None else Path.cwd()).resolve()
+    target_selection = "explicit" if args.target is not None else "current-directory"
+    project_name = args.project_name if args.project_name is not None else (target.name or "Project Workspace")
+    project_name_selection = "explicit" if args.project_name is not None else "target-directory-name"
     if args.resume:
         fresh_options_requested = any(
             (
                 args.profile != "unknown",
-                args.project_name != "Project Workspace",
+                args.project_name is not None,
                 args.advance_product_structuring,
                 args.product_scaffold_preview,
                 args.product_structure_preview,
@@ -3525,7 +3555,7 @@ def main() -> int:
             )
         )
         payload = run_consumer_resume(
-            target=args.target,
+            target=target,
             product=args.product,
             force=args.force,
             fresh_options_requested=fresh_options_requested,
@@ -3538,10 +3568,10 @@ def main() -> int:
         )
     else:
         payload = run_consumer_bootstrap(
-            target=args.target,
+            target=target,
             product=args.product,
             profile=args.profile,
-            project_name=args.project_name,
+            project_name=project_name,
             check=args.check,
             force=args.force,
             advance_product_structuring=args.advance_product_structuring,
@@ -3566,6 +3596,32 @@ def main() -> int:
             strict_authority_skills=args.strict_authority_skills,
             strict_authority_provenance=args.strict_authority_provenance,
         )
+    if args.resume:
+        resolved_product_selection = (
+            "explicit-rejected-by-resume" if args.product is not None else "recorded-governance-state"
+        )
+        resolved_profile = _string_value(payload.get("profile"))
+        profile_selection = (
+            "recorded-governance-state" if args.profile == "unknown" else "explicit-rejected-by-resume"
+        )
+        resolved_project_name = _string_value(payload.get("project_name"))
+        resolved_project_name_selection = "recorded-governance-state"
+    else:
+        resolved_product_selection = "explicit" if args.product is not None else "target-root-auto-discovery"
+        resolved_profile = args.profile
+        profile_selection = "explicit" if args.profile != "unknown" else "default-unknown"
+        resolved_project_name = project_name
+        resolved_project_name_selection = project_name_selection
+    payload["input_resolution"] = {
+        "target": str(target),
+        "target_selection": target_selection,
+        "product": str(args.product.resolve()) if args.product is not None else "",
+        "product_selection": resolved_product_selection,
+        "profile": resolved_profile,
+        "profile_selection": profile_selection,
+        "project_name": resolved_project_name,
+        "project_name_selection": resolved_project_name_selection,
+    }
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
     else:

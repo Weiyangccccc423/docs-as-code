@@ -187,6 +187,34 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
         _require(verify_payload.get("ok") is True, "unpacked artifact verify_pack failed", payload=verify_payload)
         _require(verify_payload.get("findings") == [], "unpacked artifact verify_pack returned findings", payload=verify_payload)
 
+        one_command_target = workspace / "artifact-one-command-target"
+        _write_fresh_target_product(one_command_target)
+        one_command_wrapper = unpacked_root / "bin/governance-bootstrap"
+        one_command_check_payload = _run_json(
+            steps,
+            "unpacked_consumer_bootstrap_one_command_check",
+            [one_command_wrapper, "--check", "--json"],
+            one_command_target,
+        )
+        one_command_check_left_target_uninitialized = not (one_command_target / "README.md").exists()
+        one_command_apply_payload = _run_json(
+            steps,
+            "unpacked_consumer_bootstrap_one_command_apply",
+            [one_command_wrapper, "--json"],
+            one_command_target,
+        )
+        consumer_bootstrap_one_command = _consumer_bootstrap_one_command_details(
+            target=one_command_target,
+            check_payload=one_command_check_payload,
+            apply_payload=one_command_apply_payload,
+            check_left_target_uninitialized=one_command_check_left_target_uninitialized,
+        )
+        _require(
+            consumer_bootstrap_one_command.get("ok") is True,
+            "unpacked artifact one-command consumer bootstrap failed",
+            payload=consumer_bootstrap_one_command,
+        )
+
         fresh_target = workspace / "fresh-target"
         fresh_product = _write_fresh_target_product(fresh_target)
         init_check_payload = _run_json(
@@ -590,6 +618,7 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
             "reliability_review": reliability_review,
             "migration_review": migration_review,
             "fresh_target_init": fresh_target_init,
+            "consumer_bootstrap_one_command": consumer_bootstrap_one_command,
             "consumer_bootstrap_product_structure": consumer_bootstrap_product_structure,
             "consumer_bootstrap_design_scaffold": consumer_bootstrap_design_scaffold,
             "consumer_bootstrap_design_routing": consumer_bootstrap_design_routing,
@@ -1183,6 +1212,50 @@ def _consumer_bootstrap_details(
         "target_local_ok": target_local.get("ok") is True if isinstance(target_local, dict) else False,
         "goals_chapter": goals_chapter.is_file(),
         "acceptance_chapter": acceptance_chapter.is_file(),
+    }
+
+
+def _consumer_bootstrap_one_command_details(
+    *,
+    target: Path,
+    check_payload: dict[str, object],
+    apply_payload: dict[str, object],
+    check_left_target_uninitialized: bool,
+) -> dict[str, object]:
+    check_resolution = check_payload.get("input_resolution")
+    apply_resolution = apply_payload.get("input_resolution")
+    check_resolution_map = check_resolution if isinstance(check_resolution, dict) else {}
+    apply_resolution_map = apply_resolution if isinstance(apply_resolution, dict) else {}
+    init_check = check_payload.get("init_check")
+    init_check_map = init_check if isinstance(init_check, dict) else {}
+    product = init_check_map.get("product")
+    product_map = product if isinstance(product, dict) else {}
+    return {
+        "ok": (
+            check_payload.get("ok") is True
+            and check_payload.get("check") is True
+            and check_left_target_uninitialized
+            and apply_payload.get("ok") is True
+            and apply_payload.get("initialized") is True
+            and apply_payload.get("auto_repair_env") is True
+            and check_resolution_map.get("target_selection") == "current-directory"
+            and apply_resolution_map.get("project_name_selection") == "target-directory-name"
+            and product_map.get("selection") == "auto-discovered"
+            and apply_payload.get("workflow_resume_ok") is True
+            and (target / "README.md").is_file()
+            and (target / "AGENTS.md").is_file()
+            and (target / "docs/product/core/source/source-manifest.json").is_file()
+        ),
+        "target": str(target),
+        "check_ok": check_payload.get("ok") is True and check_payload.get("check") is True,
+        "check_left_target_uninitialized": check_left_target_uninitialized,
+        "apply_ok": apply_payload.get("ok") is True,
+        "initialized": apply_payload.get("initialized") is True,
+        "auto_repair_env": apply_payload.get("auto_repair_env") is True,
+        "target_selection": str(check_resolution_map.get("target_selection", "")),
+        "project_name_selection": str(apply_resolution_map.get("project_name_selection", "")),
+        "product_selection": str(product_map.get("selection", "")),
+        "workflow_resume_ok": apply_payload.get("workflow_resume_ok") is True,
     }
 
 

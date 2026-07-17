@@ -55,6 +55,19 @@ def _runner_preview_contract(
 
 
 class ConsumerBootstrapTest(unittest.TestCase):
+    def test_consumer_bootstrap_refuses_workflow_pack_as_target_before_commands(self) -> None:
+        for target in (ROOT, ROOT / "nested-consumer-target"):
+            with self.subTest(target=target), patch("scripts.bootstrap_consumer_project._run_json") as run_json:
+                payload = run_consumer_bootstrap(target=target, pack_root=ROOT)
+
+            run_json.assert_not_called()
+            self.assertFalse(payload["ok"])
+            self.assertFalse(payload["initialized"])
+            self.assertEqual(
+                "consumer target must not be the workflow-pack root or its descendant",
+                payload["error"],
+            )
+
     def test_consumer_preflight_applies_approved_authority_installs_before_environment_check(self) -> None:
         steps: list[dict[str, object]] = []
         pack_root = Path("/tmp/workflow-pack")
@@ -957,6 +970,131 @@ class ConsumerBootstrapTest(unittest.TestCase):
             self.assertIn("target_local_workflow_plan", step_ids)
             self.assertIn("target_local_work_package", step_ids)
             self.assertIn("target_local_workflow_resume", step_ids)
+
+    def test_exported_pack_wrapper_bootstraps_current_directory_with_derived_inputs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "field-service-console"
+            pack = target / "workflow-pack"
+            target.mkdir()
+            (target / "product.md").write_text(
+                "# Field Service Console\n\n"
+                "## Goals and Requirements\n\n"
+                "- Create a governed workspace from one command.\n\n"
+                "## Acceptance Criteria\n\n"
+                "- The product document is auto-discovered from the target root.\n",
+                encoding="utf-8",
+            )
+            export = subprocess.run(
+                [
+                    sys.executable,
+                    str(EXPORT),
+                    "--output",
+                    str(pack),
+                    "--no-archive",
+                    "--force",
+                    "--json",
+                ],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, export.returncode, export.stdout + export.stderr)
+            wrapper = pack / "bin/governance-bootstrap"
+            self.assertTrue(wrapper.is_file())
+            self.assertTrue(wrapper.stat().st_mode & 0o111)
+
+            check_result = subprocess.run(
+                [str(wrapper), "--check", "--json"],
+                cwd=target,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, check_result.returncode, check_result.stdout + check_result.stderr)
+            check_payload = json.loads(check_result.stdout)
+            self.assertTrue(check_payload["ok"])
+            self.assertTrue(check_payload["check"])
+            self.assertTrue(check_payload["auto_repair_env"])
+            self.assertEqual(str(target.resolve()), check_payload["target"])
+            self.assertEqual("field-service-console", check_payload["project_name"])
+            self.assertEqual("auto-discovered", check_payload["init_check"]["product"]["selection"])
+            self.assertEqual("current-directory", check_payload["input_resolution"]["target_selection"])
+            self.assertEqual(
+                "target-directory-name",
+                check_payload["input_resolution"]["project_name_selection"],
+            )
+            self.assertFalse((target / "README.md").exists())
+
+            second_product = target / "other-product.md"
+            second_product.write_text("# Other Product\n", encoding="utf-8")
+            ambiguous_result = subprocess.run(
+                [str(wrapper), "--check", "--json"],
+                cwd=target,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(1, ambiguous_result.returncode, ambiguous_result.stdout + ambiguous_result.stderr)
+            ambiguous_payload = json.loads(ambiguous_result.stdout)
+            self.assertFalse(ambiguous_payload["ok"])
+            self.assertEqual("initialization preflight failed", ambiguous_payload["error"])
+            self.assertEqual("ambiguous", ambiguous_payload["failed_payload"]["product"]["selection"])
+            self.assertEqual(
+                "target-root-auto-discovery",
+                ambiguous_payload["input_resolution"]["product_selection"],
+            )
+            self.assertFalse((target / "README.md").exists())
+            second_product.unlink()
+
+            apply_result = subprocess.run(
+                [str(wrapper), "--json"],
+                cwd=target,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, apply_result.returncode, apply_result.stdout + apply_result.stderr)
+            apply_payload = json.loads(apply_result.stdout)
+            self.assertTrue(apply_payload["ok"])
+            self.assertTrue(apply_payload["initialized"])
+            self.assertTrue(apply_payload["auto_repair_env"])
+            self.assertEqual("field-service-console", apply_payload["project_name"])
+            self.assertEqual("auto-discovered", apply_payload["target_local"]["product_selection"])
+            self.assertTrue((target / "README.md").is_file())
+            self.assertTrue((target / "AGENTS.md").is_file())
+            self.assertTrue((target / "docs/product/core/source/source-manifest.json").is_file())
+
+            resume_result = subprocess.run(
+                [str(wrapper), "--resume", "--check", "--json"],
+                cwd=target,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, resume_result.returncode, resume_result.stdout + resume_result.stderr)
+            resume_payload = json.loads(resume_result.stdout)
+            self.assertTrue(resume_payload["ok"])
+            self.assertTrue(resume_payload["resume"])
+            self.assertEqual("unknown", resume_payload["profile"])
+            self.assertEqual("field-service-console", resume_payload["project_name"])
+            self.assertEqual(
+                "recorded-governance-state",
+                resume_payload["input_resolution"]["product_selection"],
+            )
+            self.assertEqual(
+                "recorded-governance-state",
+                resume_payload["input_resolution"]["profile_selection"],
+            )
+            self.assertEqual("unknown", resume_payload["input_resolution"]["profile"])
+            self.assertEqual(
+                "recorded-governance-state",
+                resume_payload["input_resolution"]["project_name_selection"],
+            )
+            self.assertEqual(
+                "field-service-console",
+                resume_payload["input_resolution"]["project_name"],
+            )
 
     def test_strict_authority_skills_blocks_bootstrap_when_agent_skills_are_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

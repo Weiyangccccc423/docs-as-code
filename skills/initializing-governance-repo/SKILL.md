@@ -9,7 +9,7 @@ Create the minimum structure needed for reliable docs-as-code work.
 
 ## Steps
 
-1. Read `references/repository-initialization-checklist.md`.
+1. Read `references/repository-initialization-checklist.md`. For a target containing one product document and `docs-as-code-workflow-pack/`, run `./docs-as-code-workflow-pack/bin/governance-bootstrap --check --json` and then `./docs-as-code-workflow-pack/bin/governance-bootstrap --json`. The wrapper enables safe `--auto-repair-env`; check mode stays no-write and write mode applies only no-approval, non-manual repairs. Inspect `input_resolution`: the defaults are current-directory target selection, target-directory-name project naming, target-root-auto-discovery for exactly one product, and profile `unknown`. Stop on product ambiguity or when the target resolves to the workflow-pack root or its descendants; nesting the pack inside the target remains valid. Use explicit flags only from reviewed inputs.
 
 2. From the workflow-pack checkout, run `python3 scripts/authority_skills.py --repair --check --json`. Stop on an invalid lock. Inspect `status_counts` and `repair_plan`; never guess a source for `source-unregistered` or `unmanaged` skills. After explicit approval, run `python3 scripts/authority_skills.py --repair --apply --approve-installs --strict-provenance --json`. Apply only installs locked `missing` skills, stops after the first command or digest failure, and never auto-replaces drifted or ambiguous installations. Inspect `repair_execution.partial_write_observed` and `manual_cleanup_required` before retrying. Use `--strict-provenance` before authority-dependent work when approved locked skills are required.
 
