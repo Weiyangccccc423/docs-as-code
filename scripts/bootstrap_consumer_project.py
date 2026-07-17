@@ -58,6 +58,28 @@ WORKFLOW_PRESETS: dict[str, tuple[str, ...]] = {
     ),
 }
 
+RESUME_WORKFLOW_PRESETS: dict[str, tuple[str, ...]] = {
+    "implementation-routing": (
+        "implementation_readiness_preview",
+        "implementation_advance_preview",
+        "implementation_advance_apply",
+        "implementation_run_preview",
+    ),
+}
+
+IMPLEMENTATION_RUN_DECISION_POLICY = "claim_then_edit_then_verify_all_bound_commands_then_closeout"
+IMPLEMENTATION_RUN_PREVIEW_STATUSES = {
+    "blocked",
+    "closeout_blocked",
+    "closeout_ready",
+    "complete",
+    "ready_to_start",
+    "repair_required",
+    "resume_failed",
+    "stale",
+    "verification_ready",
+}
+
 
 class ConsumerBootstrapError(Exception):
     def __init__(
@@ -198,69 +220,20 @@ def run_consumer_bootstrap(
                 "--implementation-run-preview cannot be combined with implementation start/closeout flags"
             )
 
-        pack_manifest_verification = _run_json(
-            steps,
-            "pack_manifest_verify",
-            [sys.executable, "scripts/verify_pack_manifest.py", ".", "--json"],
-            pack_root,
-        )
-        _require(
-            pack_manifest_verification.get("ok") is True,
-            "workflow-pack manifest verification failed",
-            payload=pack_manifest_verification,
-        )
-        pack_verification = _run_json(
-            steps,
-            "pack_verify",
-            [sys.executable, "scripts/verify_pack.py", "--json"],
-            pack_root,
-        )
-        _require(pack_verification.get("ok") is True, "workflow-pack verification failed", payload=pack_verification)
-
-        authority_skill_inventory = _run_json(
-            steps,
-            "authority_skill_inventory",
-            _authority_skill_argv(
-                strict=strict_authority_skills,
-                strict_provenance=strict_authority_provenance,
-            ),
-            pack_root,
-            allowed_returncodes=(0, 1),
-        )
-        _require(
-            authority_skill_inventory.get("ok") is True,
-            "authority skill inventory failed",
-            payload=authority_skill_inventory,
-        )
-
-        env_check = _run_json(
-            steps,
-            "env_repair_check",
-            [
-                sys.executable,
-                "scripts/governance_cli.py",
-                "env",
-                "--repair",
-                "--check",
-                "--target",
-                target,
-                "--json",
-            ],
-            pack_root,
-            allowed_returncodes=(0, 1),
-        )
-        env_auto_repair = _maybe_auto_repair_env(
+        preflight = _consumer_pack_environment_preflight(
             steps,
             pack_root,
             target,
-            env_check,
             auto_repair_env=auto_repair_env,
             check=check,
+            strict_authority_skills=strict_authority_skills,
+            strict_authority_provenance=strict_authority_provenance,
         )
-        env_check = env_auto_repair["final_env_check"]
-        _require(env_check.get("ok") is True, "environment repair check failed", payload=env_check)
-        _require(env_check.get("check") is True, "environment repair check did not run in check mode", payload=env_check)
-        _require(env_check.get("missing_required") == [], "required environment tools are missing", payload=env_check)
+        pack_manifest_verification = preflight["pack_manifest_verification"]
+        pack_verification = preflight["pack_verification"]
+        authority_skill_inventory = preflight["authority_skill_inventory"]
+        env_check = preflight["env_check"]
+        env_auto_repair = preflight["env_auto_repair"]
 
         init_check = _run_json(
             steps,
@@ -898,6 +871,286 @@ def run_consumer_bootstrap(
         }
 
 
+def run_consumer_resume(
+    *,
+    target: Path,
+    product: Path | None = None,
+    force: bool = False,
+    fresh_options_requested: bool = False,
+    check: bool = False,
+    workflow_preset: str = "",
+    auto_repair_env: bool = False,
+    strict_authority_skills: bool = False,
+    strict_authority_provenance: bool = False,
+    pack_root: Path = ROOT,
+) -> dict[str, object]:
+    pack_root = pack_root.resolve()
+    target = target.resolve()
+    product = product.resolve() if product is not None else None
+    expanded_flags: tuple[str, ...] = ()
+    steps: list[dict[str, object]] = []
+    env_auto_repair = _empty_env_auto_repair(auto_repair_env)
+    route: dict[str, object] = {}
+    try:
+        if product is not None or force:
+            raise ConsumerBootstrapError("--resume cannot be combined with --product or --force")
+        if fresh_options_requested:
+            raise ConsumerBootstrapError("--resume cannot be combined with fresh bootstrap phase options")
+        expanded_flags = _resume_workflow_preset_flags(workflow_preset)
+        _require(target.is_dir(), "consumer resume target directory does not exist")
+        _require((target / "bin/governance").is_file(), "consumer resume target-local governance wrapper is missing")
+
+        preflight = _consumer_pack_environment_preflight(
+            steps,
+            pack_root,
+            target,
+            auto_repair_env=auto_repair_env,
+            check=check,
+            strict_authority_skills=strict_authority_skills,
+            strict_authority_provenance=strict_authority_provenance,
+        )
+        pack_manifest_verification = preflight["pack_manifest_verification"]
+        pack_verification = preflight["pack_verification"]
+        authority_skill_inventory = preflight["authority_skill_inventory"]
+        env_check = preflight["env_check"]
+        env_auto_repair = preflight["env_auto_repair"]
+
+        initial = _collect_consumer_resume_state(steps, target, suffix="initial")
+        phase_before = _string_value(_mapping(initial["status"].get("state")).get("phase"))
+        _require(bool(phase_before), "consumer resume target did not expose a recorded phase", payload=initial["status"])
+        if workflow_preset == "implementation-routing":
+            route = _route_consumer_resume_to_implementation(
+                steps,
+                target,
+                phase=phase_before,
+                check=check,
+            )
+
+        final = (
+            _collect_consumer_resume_state(steps, target, suffix="final")
+            if route.get("writes_state") is True
+            else initial
+        )
+        final_status_state = _mapping(final["status"].get("state"))
+        phase_after = _string_value(final_status_state.get("phase"))
+        _require(
+            _workflow_resume_contract_ok(final["workflow_resume"], expected_phase=phase_after),
+            "target-local workflow resume failed",
+            payload=final["workflow_resume"],
+        )
+        implementation_run_preview = _mapping(route.get("implementation_run_preview"))
+        implementation_routing_requested = workflow_preset == "implementation-routing"
+        implementation_routing_ok = implementation_routing_requested and route.get("ok") is True
+        state_write_observed = _consumer_resume_state_write_observed(steps, route)
+        target_local = {
+            "ok": (
+                final["status"].get("ok") is True
+                and final["workflow_plan"].get("ok") is True
+                and final["work_package"].get("ok") is True
+                and final["workflow_resume"].get("ok") is True
+            ),
+            "phase": phase_after,
+            "profile": _string_value(final_status_state.get("profile")),
+            "project_name": _string_value(final_status_state.get("project_name")),
+            "verify_ok": final["verify"].get("ok") is True and final["verify"].get("findings") == [],
+            "status_ok": final["status"].get("ok") is True,
+            "workflow_plan_ok": final["workflow_plan"].get("ok") is True,
+            "work_package_ok": final["work_package"].get("ok") is True,
+            "workflow_resume_ok": final["workflow_resume"].get("ok") is True,
+            "local_governance_cli": (target / "bin/governance").is_file(),
+            "runtime_manifest": (target / "docs/agent-workflow/runtime-manifest.json").is_file(),
+            "workflow_pack_snapshot": (target / "docs/agent-workflow/workflow-pack/manifest.json").is_file(),
+            "product_source_manifest": (target / "docs/product/core/source/source-manifest.json").is_file(),
+        }
+        payload: dict[str, object] = {
+            "ok": target_local["ok"] is True and (
+                not implementation_routing_requested or implementation_routing_ok
+            ),
+            "resume": True,
+            "check": check,
+            "writes_state": state_write_observed,
+            "state_write_observed": state_write_observed,
+            "initialized": True,
+            "pack_root": str(pack_root),
+            "target": str(target),
+            "product": "",
+            "force": False,
+            "workflow_preset": workflow_preset,
+            "workflow_preset_expanded_flags": list(expanded_flags),
+            "auto_repair_env": auto_repair_env,
+            "strict_authority_skills": strict_authority_skills,
+            "strict_authority_provenance": strict_authority_provenance,
+            "pack_manifest_verification": pack_manifest_verification,
+            "pack_verification": pack_verification,
+            "authority_skill_inventory": authority_skill_inventory,
+            "env_check": env_check,
+            "env_auto_repair": env_auto_repair,
+            "phase_before": phase_before,
+            "phase_after": phase_after,
+            "target_local": target_local,
+            "implementation_routing_requested": implementation_routing_requested,
+            "implementation_routing_ok": implementation_routing_ok,
+            "implementation_routing": route,
+            "implementation_handoff_ready": route.get("handoff_ready") is True,
+            "implementation_continuation_ready": route.get("continuation_ready") is True,
+            "implementation_terminal": route.get("terminal") is True,
+            "implementation_route_ready": (
+                route.get("handoff_ready") is True
+                or route.get("continuation_ready") is True
+                or route.get("terminal") is True
+            ),
+            "implementation_run_preview": implementation_run_preview,
+            "work_package_generated": True,
+            "work_package_ok": final["work_package"].get("ok") is True,
+            "work_package": final["work_package"],
+            "workflow_resume_generated": True,
+            "workflow_resume_ok": final["workflow_resume"].get("ok") is True,
+            "workflow_resume": final["workflow_resume"],
+            "steps": steps,
+        }
+        if isinstance(final["status"].get("local_commands"), list):
+            payload["local_commands"] = final["status"]["local_commands"]
+        if (
+            implementation_run_preview.get("handoff_ready") is True
+            or implementation_run_preview.get("continuation_ready") is True
+        ):
+            payload["next_action"] = dict(implementation_run_preview.get("next_action", {}))
+        elif isinstance(final["status"].get("next_actions"), list):
+            payload["next_actions"] = final["status"]["next_actions"]
+        return payload
+    except ConsumerBootstrapError as error:
+        failed_step = error.step if error.step is not None else (steps[-1] if steps else None)
+        state_write_observed = _consumer_resume_state_write_observed(steps, route)
+        return {
+            "ok": False,
+            "resume": True,
+            "check": check,
+            "writes_state": state_write_observed,
+            "state_write_observed": state_write_observed,
+            "initialized": target.is_dir(),
+            "error": error.message,
+            "pack_root": str(pack_root),
+            "target": str(target),
+            "product": str(product) if product is not None else "",
+            "force": force,
+            "workflow_preset": workflow_preset,
+            "workflow_preset_expanded_flags": list(expanded_flags),
+            "auto_repair_env": auto_repair_env,
+            "strict_authority_skills": strict_authority_skills,
+            "strict_authority_provenance": strict_authority_provenance,
+            "env_auto_repair": env_auto_repair,
+            "implementation_routing_requested": workflow_preset == "implementation-routing",
+            "implementation_routing_ok": False,
+            "implementation_routing": {},
+            "implementation_handoff_ready": False,
+            "implementation_continuation_ready": False,
+            "implementation_terminal": False,
+            "implementation_route_ready": False,
+            "implementation_run_preview": {},
+            "work_package_generated": False,
+            "work_package_ok": False,
+            "workflow_resume_generated": False,
+            "workflow_resume_ok": False,
+            "steps": steps,
+            "failed_step": failed_step,
+            "failed_payload": error.payload,
+        }
+    except OSError as error:
+        state_write_observed = _consumer_resume_state_write_observed(steps, route)
+        return {
+            "ok": False,
+            "resume": True,
+            "check": check,
+            "writes_state": state_write_observed,
+            "state_write_observed": state_write_observed,
+            "initialized": target.is_dir(),
+            "error": error.strerror or str(error),
+            "pack_root": str(pack_root),
+            "target": str(target),
+            "product": str(product) if product is not None else "",
+            "force": force,
+            "workflow_preset": workflow_preset,
+            "workflow_preset_expanded_flags": list(expanded_flags),
+            "auto_repair_env": auto_repair_env,
+            "strict_authority_skills": strict_authority_skills,
+            "strict_authority_provenance": strict_authority_provenance,
+            "env_auto_repair": env_auto_repair,
+            "implementation_routing_requested": workflow_preset == "implementation-routing",
+            "implementation_routing_ok": False,
+            "implementation_routing": {},
+            "implementation_handoff_ready": False,
+            "implementation_continuation_ready": False,
+            "implementation_terminal": False,
+            "implementation_route_ready": False,
+            "implementation_run_preview": {},
+            "work_package_generated": False,
+            "work_package_ok": False,
+            "workflow_resume_generated": False,
+            "workflow_resume_ok": False,
+            "steps": steps,
+        }
+
+
+def _consumer_resume_state_write_observed(
+    steps: list[dict[str, object]],
+    route: dict[str, object],
+) -> bool:
+    if route.get("writes_state") is True:
+        return True
+    return any(
+        step.get("id") == "target_local_implementation_advance_apply"
+        and step.get("returncode") == 0
+        and step.get("payload_ok") is True
+        for step in steps
+    )
+
+
+def _collect_consumer_resume_state(
+    steps: list[dict[str, object]],
+    target: Path,
+    *,
+    suffix: str,
+) -> dict[str, dict[str, object]]:
+    verify = _run_json(
+        steps,
+        f"target_local_verify_check_resume_{suffix}",
+        ["bin/governance", "verify", ".", "--check", "--json"],
+        target,
+        allowed_returncodes=(0, 1),
+    )
+    status = _run_json(
+        steps,
+        f"target_local_governance_status_resume_{suffix}",
+        ["make", "governance-status"],
+        target,
+    )
+    workflow_plan = _run_json(
+        steps,
+        f"target_local_workflow_plan_resume_{suffix}",
+        ["make", "workflow-plan"],
+        target,
+    )
+    work_package = _run_json(
+        steps,
+        f"target_local_work_package_resume_{suffix}",
+        ["make", "work-package"],
+        target,
+    )
+    workflow_resume = _run_json(
+        steps,
+        f"target_local_workflow_resume_{suffix}",
+        ["make", "workflow-resume"],
+        target,
+    )
+    return {
+        "verify": verify,
+        "status": status,
+        "workflow_plan": workflow_plan,
+        "work_package": work_package,
+        "workflow_resume": workflow_resume,
+    }
+
+
 def _init_argv(
     *,
     target: Path,
@@ -941,6 +1194,94 @@ def _authority_skill_argv(*, strict: bool, strict_provenance: bool) -> list[str 
     if strict_provenance:
         argv.append("--strict-provenance")
     return argv
+
+
+def _consumer_pack_environment_preflight(
+    steps: list[dict[str, object]],
+    pack_root: Path,
+    target: Path,
+    *,
+    auto_repair_env: bool,
+    check: bool,
+    strict_authority_skills: bool,
+    strict_authority_provenance: bool,
+) -> dict[str, dict[str, object]]:
+    pack_manifest_verification = _run_json(
+        steps,
+        "pack_manifest_verify",
+        [sys.executable, "scripts/verify_pack_manifest.py", ".", "--json"],
+        pack_root,
+    )
+    _require(
+        pack_manifest_verification.get("ok") is True,
+        "workflow-pack manifest verification failed",
+        payload=pack_manifest_verification,
+    )
+    pack_verification = _run_json(
+        steps,
+        "pack_verify",
+        [sys.executable, "scripts/verify_pack.py", "--json"],
+        pack_root,
+    )
+    _require(pack_verification.get("ok") is True, "workflow-pack verification failed", payload=pack_verification)
+    authority_skill_inventory = _run_json(
+        steps,
+        "authority_skill_inventory",
+        _authority_skill_argv(
+            strict=strict_authority_skills,
+            strict_provenance=strict_authority_provenance,
+        ),
+        pack_root,
+        allowed_returncodes=(0, 1),
+    )
+    _require(
+        authority_skill_inventory.get("ok") is True,
+        "authority skill inventory failed",
+        payload=authority_skill_inventory,
+    )
+    env_check = _run_json(
+        steps,
+        "env_repair_check",
+        [
+            sys.executable,
+            "scripts/governance_cli.py",
+            "env",
+            "--repair",
+            "--check",
+            "--target",
+            target,
+            "--json",
+        ],
+        pack_root,
+        allowed_returncodes=(0, 1),
+    )
+    env_auto_repair = _maybe_auto_repair_env(
+        steps,
+        pack_root,
+        target,
+        env_check,
+        auto_repair_env=auto_repair_env,
+        check=check,
+    )
+    final_env_check = _mapping(env_auto_repair.get("final_env_check"))
+    _require(final_env_check.get("ok") is True, "environment repair check failed", payload=final_env_check)
+    _require(
+        final_env_check.get("check") is True,
+        "environment repair check did not run in check mode",
+        payload=final_env_check,
+    )
+    _require(
+        final_env_check.get("missing_required") == [],
+        "required environment tools are missing",
+        payload=final_env_check,
+    )
+    return {
+        "pack_manifest_verification": pack_manifest_verification,
+        "pack_verification": pack_verification,
+        "authority_skill_inventory": authority_skill_inventory,
+        "env_check": final_env_check,
+        "env_auto_repair": env_auto_repair,
+    }
 
 
 def _empty_env_auto_repair(auto_repair_env: bool) -> dict[str, object]:
@@ -2105,32 +2446,86 @@ def _preview_implementation_run(
     target: Path,
     advance_apply: dict[str, object],
 ) -> dict[str, object]:
-    advance_applied = advance_apply.get("ok") is True and advance_apply.get("apply_skipped") is not True
+    advance_applied = (
+        advance_apply.get("ok") is True
+        and advance_apply.get("apply_skipped") is not True
+        and advance_apply.get("phase") == "implementation"
+    )
+    return _preview_guarded_implementation_run(
+        steps,
+        target,
+        phase=str(advance_apply.get("phase", "")),
+        prerequisite_source="implementation_advance_apply",
+        prerequisite_ready=advance_applied,
+        required_advance_applied=advance_applied,
+        skip_code="advance_apply_not_applied",
+        blocked_by="implementation_advance_apply",
+        skip_reason="implementation advance apply did not pass",
+    )
+
+
+def _preview_recorded_implementation_run(
+    steps: list[dict[str, object]],
+    target: Path,
+) -> dict[str, object]:
+    return _preview_guarded_implementation_run(
+        steps,
+        target,
+        phase="implementation",
+        prerequisite_source="recorded_phase",
+        prerequisite_ready=True,
+        required_advance_applied=False,
+        skip_code="implementation_phase_not_current",
+        blocked_by="governance_status.phase",
+        skip_reason="recorded phase is not implementation",
+    )
+
+
+def _preview_guarded_implementation_run(
+    steps: list[dict[str, object]],
+    target: Path,
+    *,
+    phase: str,
+    prerequisite_source: str,
+    prerequisite_ready: bool,
+    required_advance_applied: bool,
+    skip_code: str,
+    blocked_by: str,
+    skip_reason: str,
+) -> dict[str, object]:
     payload: dict[str, object] = {
         "ok": True,
         "target": str(target),
         "check": True,
         "writes_state": False,
-        "phase": str(advance_apply.get("phase", "")),
+        "phase": phase,
+        "prerequisite_source": prerequisite_source,
+        "implementation_phase_ready": prerequisite_ready and phase == "implementation",
         "preview_skipped": False,
         "skip_code": "",
         "blocked_by": "",
-        "required_advance_applied": advance_applied,
+        "required_advance_applied": required_advance_applied,
         "skip_reason": "",
         "runner_ok": False,
+        "runner_contract_valid": False,
+        "routing_status": "",
         "handoff_ready": False,
+        "continuation_ready": False,
+        "continuation_kind": "",
+        "terminal": False,
+        "action_snapshot_id": "",
         "status": "",
         "task_id": "",
         "snapshot": {},
+        "snapshot_after": {},
         "next_action": {},
         "implementation_run": {},
     }
-    if not advance_applied:
+    if not prerequisite_ready or phase != "implementation":
         payload["preview_skipped"] = True
-        payload["skip_code"] = "advance_apply_not_applied"
-        payload["blocked_by"] = "implementation_advance_apply"
-        payload["required_advance_applied"] = False
-        payload["skip_reason"] = "implementation advance apply did not pass"
+        payload["skip_code"] = skip_code
+        payload["blocked_by"] = blocked_by
+        payload["skip_reason"] = skip_reason
         return payload
 
     implementation_run = _run_json(
@@ -2144,11 +2539,113 @@ def _preview_implementation_run(
     task_id = _string_value(implementation_run.get("task_id"))
     snapshot_value = implementation_run.get("snapshot")
     snapshot = dict(snapshot_value) if isinstance(snapshot_value, dict) else {}
+    snapshot_after_value = implementation_run.get("snapshot_after")
+    snapshot_after = dict(snapshot_after_value) if isinstance(snapshot_after_value, dict) else {}
     next_action_value = implementation_run.get("next_action")
     next_action = dict(next_action_value) if isinstance(next_action_value, dict) else {}
     snapshot_id = _string_value(snapshot.get("id"))
-    next_argv = next_action.get("argv")
-    argv = next_argv if isinstance(next_argv, list) and all(isinstance(item, str) for item in next_argv) else []
+    runner_identity_valid = (
+        implementation_run.get("schema_version") == 1
+        and implementation_run.get("workflow") == "implementation-run"
+        and implementation_run.get("decision_policy") == IMPLEMENTATION_RUN_DECISION_POLICY
+        and implementation_run.get("target") == str(target)
+        and implementation_run.get("check") is True
+        and implementation_run.get("writes_requested") is False
+        and status in IMPLEMENTATION_RUN_PREVIEW_STATUSES
+    )
+    handoff_ready = (
+        runner_identity_valid
+        and implementation_run.get("ok") is True
+        and status == "ready_to_start"
+        and TASK_ID_PATTERN.fullmatch(task_id) is not None
+        and re.fullmatch(r"[0-9a-f]{64}", snapshot_id) is not None
+        and _snapshot_guarded_runner_action_ready(
+            next_action,
+            target,
+            task_id=task_id,
+            action_id="apply-start",
+            action_flag="--apply-start",
+            snapshot_id=snapshot_id,
+        )
+    )
+    continuation_kind = "apply-start" if handoff_ready else ""
+    action_snapshot_id = snapshot_id if handoff_ready else ""
+    continuation_ready = handoff_ready
+    if status == "verification_ready":
+        continuation_kind = "execute"
+        action_snapshot_id = snapshot_id
+        continuation_ready = (
+            runner_identity_valid
+            and implementation_run.get("ok") is True
+            and TASK_ID_PATTERN.fullmatch(task_id) is not None
+            and re.fullmatch(r"[0-9a-f]{64}", action_snapshot_id) is not None
+            and _snapshot_guarded_runner_action_ready(
+                next_action,
+                target,
+                task_id=task_id,
+                action_id="execute",
+                action_flag="--execute",
+                snapshot_id=action_snapshot_id,
+            )
+        )
+    elif status == "closeout_ready":
+        continuation_kind = "closeout"
+        action_snapshot_id = _string_value(snapshot_after.get("id"))
+        continuation_ready = (
+            runner_identity_valid
+            and implementation_run.get("ok") is True
+            and TASK_ID_PATTERN.fullmatch(task_id) is not None
+            and re.fullmatch(r"[0-9a-f]{64}", action_snapshot_id) is not None
+            and _snapshot_guarded_runner_action_ready(
+                next_action,
+                target,
+                task_id=task_id,
+                action_id="closeout",
+                action_flag="--closeout",
+                snapshot_id=action_snapshot_id,
+            )
+        )
+    terminal = runner_identity_valid and implementation_run.get("ok") is True and status == "complete"
+    if status == "ready_to_start":
+        runner_contract_valid = runner_identity_valid and handoff_ready
+    elif status in {"verification_ready", "closeout_ready"}:
+        runner_contract_valid = runner_identity_valid and continuation_ready
+    elif status == "complete":
+        runner_contract_valid = runner_identity_valid and terminal
+    else:
+        runner_contract_valid = runner_identity_valid
+    routing_status = status if runner_contract_valid else "invalid_runner_payload"
+    payload.update(
+        {
+            "ok": runner_contract_valid,
+            "runner_ok": runner_contract_valid and implementation_run.get("ok") is True,
+            "runner_contract_valid": runner_contract_valid,
+            "routing_status": routing_status,
+            "handoff_ready": handoff_ready,
+            "continuation_ready": continuation_ready,
+            "continuation_kind": continuation_kind,
+            "terminal": terminal,
+            "action_snapshot_id": action_snapshot_id,
+            "status": status,
+            "task_id": task_id,
+            "snapshot": snapshot,
+            "snapshot_after": snapshot_after,
+            "next_action": next_action,
+            "implementation_run": implementation_run,
+        }
+    )
+    return payload
+
+
+def _snapshot_guarded_runner_action_ready(
+    next_action: dict[str, object],
+    target: Path,
+    *,
+    task_id: str,
+    action_id: str,
+    action_flag: str,
+    snapshot_id: str,
+) -> bool:
     expected_argv = [
         "bin/governance",
         "implementation",
@@ -2156,35 +2653,122 @@ def _preview_implementation_run(
         ".",
         "--task",
         task_id,
-        "--apply-start",
+        action_flag,
         "--expect-snapshot",
         snapshot_id,
         "--json",
     ]
-    handoff_ready = (
-        implementation_run.get("ok") is True
-        and status == "ready_to_start"
-        and TASK_ID_PATTERN.fullmatch(task_id) is not None
-        and re.fullmatch(r"[0-9a-f]{64}", snapshot_id) is not None
-        and argv == expected_argv
-        and next_action.get("id") == "apply-start"
+    return (
+        next_action.get("argv") == expected_argv
+        and next_action.get("id") == action_id
         and next_action.get("kind") == "command"
         and next_action.get("cwd") == str(target)
         and next_action.get("writes_state") is True
         and next_action.get("approval_required") is False
     )
-    payload.update(
-        {
-            "runner_ok": implementation_run.get("ok") is True,
-            "handoff_ready": handoff_ready,
-            "status": status,
-            "task_id": task_id,
-            "snapshot": snapshot,
-            "next_action": next_action,
-            "implementation_run": implementation_run,
-        }
+
+
+def _route_consumer_resume_to_implementation(
+    steps: list[dict[str, object]],
+    target: Path,
+    *,
+    phase: str,
+    check: bool,
+) -> dict[str, object]:
+    readiness = _preview_implementation_readiness(steps, target)
+    advance_preview: dict[str, object] = {}
+    advance_apply: dict[str, object] = {}
+    transition_applied = False
+    transition_already_current = phase == "implementation"
+
+    if phase == "design-derivation":
+        advance_preview = _preview_implementation_advance(steps, target)
+        if check:
+            advance_apply = {
+                "ok": True,
+                "target": str(target),
+                "check": True,
+                "writes_state": False,
+                "phase": "design-derivation",
+                "advance_ready": advance_preview.get("advance_ready") is True,
+                "apply_skipped": True,
+                "skip_code": "check_mode_no_apply",
+                "blocked_by": "consumer_resume.check",
+                "required_preview_ready": advance_preview.get("advance_ready") is True,
+                "skip_reason": "consumer resume check mode does not record the implementation phase",
+            }
+        else:
+            advance_apply = _apply_implementation_advance(steps, target, advance_preview)
+            advance_result = _mapping(advance_apply.get("advance"))
+            transition_applied = (
+                advance_apply.get("apply_skipped") is not True
+                and advance_apply.get("phase") == "implementation"
+                and (
+                    (
+                        advance_result.get("ok") is True
+                        and advance_result.get("advanced") is True
+                    )
+                    or advance_apply.get("ok") is True
+                )
+            )
+        run_preview = _preview_implementation_run(steps, target, advance_apply)
+    elif phase == "implementation":
+        run_preview = _preview_recorded_implementation_run(steps, target)
+    else:
+        run_preview = _preview_guarded_implementation_run(
+            steps,
+            target,
+            phase=phase,
+            prerequisite_source="recorded_phase",
+            prerequisite_ready=False,
+            required_advance_applied=False,
+            skip_code="implementation_resume_phase_not_ready",
+            blocked_by="governance_status.phase",
+            skip_reason="consumer implementation resume requires design-derivation or implementation phase",
+        )
+
+    phase_after = "implementation" if transition_applied or transition_already_current else phase
+    handoff_ready = run_preview.get("handoff_ready") is True
+    continuation_ready = run_preview.get("continuation_ready") is True
+    terminal = run_preview.get("terminal") is True
+    route_ok = (
+        run_preview.get("ok") is True
+        and (phase != "design-derivation" or advance_apply.get("ok") is True)
     )
-    return payload
+    if run_preview.get("ok") is not True:
+        status = "invalid_runner_payload"
+    elif handoff_ready:
+        status = _string_value(run_preview.get("status")) or "ready_to_start"
+    elif check and advance_preview.get("advance_ready") is True:
+        status = "ready_to_advance"
+    else:
+        status = _string_value(run_preview.get("status")) or "blocked"
+    return {
+        "ok": route_ok,
+        "target": str(target),
+        "check": check,
+        "writes_state": transition_applied,
+        "status": status,
+        "phase_before": phase,
+        "phase_after": phase_after,
+        "transition_applied": transition_applied,
+        "transition_already_current": transition_already_current,
+        "handoff_ready": handoff_ready,
+        "continuation_ready": continuation_ready,
+        "continuation_kind": _string_value(run_preview.get("continuation_kind")),
+        "terminal": terminal,
+        "task_id": _string_value(run_preview.get("task_id")),
+        "snapshot": dict(run_preview.get("snapshot", {}))
+        if isinstance(run_preview.get("snapshot"), dict)
+        else {},
+        "next_action": dict(run_preview.get("next_action", {}))
+        if isinstance(run_preview.get("next_action"), dict)
+        else {},
+        "implementation_readiness_preview": readiness,
+        "implementation_advance_preview": advance_preview,
+        "implementation_advance_apply": advance_apply,
+        "implementation_run_preview": run_preview,
+    }
 
 
 TASK_ID_PATTERN = re.compile(r"^TASK-\d{3}$")
@@ -2539,6 +3123,14 @@ def _workflow_preset_flags(workflow_preset: str) -> tuple[str, ...]:
     return WORKFLOW_PRESETS[workflow_preset]
 
 
+def _resume_workflow_preset_flags(workflow_preset: str) -> tuple[str, ...]:
+    if not workflow_preset:
+        return ()
+    if workflow_preset not in RESUME_WORKFLOW_PRESETS:
+        raise ConsumerBootstrapError(f"workflow preset is not supported with --resume: {workflow_preset}")
+    return RESUME_WORKFLOW_PRESETS[workflow_preset]
+
+
 def _require(condition: bool, message: str, *, payload: dict[str, object] | None = None) -> None:
     if not condition:
         raise ConsumerBootstrapError(message, payload=payload)
@@ -2553,6 +3145,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--profile", default="unknown", help="Project profile recorded in governance state.")
     parser.add_argument("--project-name", default="Project Workspace", help="Project name recorded in governance state.")
     parser.add_argument("--force", action="store_true", help="Pass --force through to governance init.")
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Resume an existing governed target without replaying initialization or overwriting authored files.",
+    )
     parser.add_argument("--check", action="store_true", help="Run source-pack, environment, and init checks without writing.")
     parser.add_argument(
         "--workflow-preset",
@@ -2719,7 +3316,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _print_human(payload: dict[str, Any]) -> None:
     if payload.get("ok"):
-        mode = "preflight passed" if payload.get("check") else "initialized"
+        if payload.get("resume"):
+            mode = "resume preflight passed" if payload.get("check") else "resumed"
+        else:
+            mode = "preflight passed" if payload.get("check") else "initialized"
         print(f"Consumer bootstrap {mode}: {payload.get('target')}")
         return
     print(f"Consumer bootstrap failed: {payload.get('error')}")
@@ -2727,34 +3327,69 @@ def _print_human(payload: dict[str, Any]) -> None:
 
 def main() -> int:
     args = build_parser().parse_args()
-    payload = run_consumer_bootstrap(
-        target=args.target,
-        product=args.product,
-        profile=args.profile,
-        project_name=args.project_name,
-        check=args.check,
-        force=args.force,
-        advance_product_structuring=args.advance_product_structuring,
-        product_scaffold_preview=args.product_scaffold_preview,
-        product_structure_preview=args.product_structure_preview,
-        product_structure_apply=args.product_structure_apply,
-        advance_design_derivation=args.advance_design_derivation,
-        design_scaffold_preview=args.design_scaffold_preview,
-        design_scaffold_apply=args.design_scaffold_apply,
-        design_authoring_preview=args.design_authoring_preview,
-        implementation_readiness_preview=args.implementation_readiness_preview,
-        implementation_advance_preview=args.implementation_advance_preview,
-        implementation_advance_apply=args.implementation_advance_apply,
-        implementation_run_preview=args.implementation_run_preview,
-        implementation_start_preview=args.implementation_start_preview,
-        implementation_start_apply=args.implementation_start_apply,
-        implementation_closeout_preview=args.implementation_closeout_preview,
-        implementation_closeout_apply=args.implementation_closeout_apply,
-        workflow_preset=args.workflow_preset,
-        auto_repair_env=args.auto_repair_env,
-        strict_authority_skills=args.strict_authority_skills,
-        strict_authority_provenance=args.strict_authority_provenance,
-    )
+    if args.resume:
+        fresh_options_requested = any(
+            (
+                args.profile != "unknown",
+                args.project_name != "Project Workspace",
+                args.advance_product_structuring,
+                args.product_scaffold_preview,
+                args.product_structure_preview,
+                args.product_structure_apply,
+                args.advance_design_derivation,
+                args.design_scaffold_preview,
+                args.design_scaffold_apply,
+                args.design_authoring_preview,
+                args.implementation_readiness_preview,
+                args.implementation_advance_preview,
+                args.implementation_advance_apply,
+                args.implementation_run_preview,
+                args.implementation_start_preview,
+                args.implementation_start_apply,
+                args.implementation_closeout_preview,
+                args.implementation_closeout_apply,
+            )
+        )
+        payload = run_consumer_resume(
+            target=args.target,
+            product=args.product,
+            force=args.force,
+            fresh_options_requested=fresh_options_requested,
+            check=args.check,
+            workflow_preset=args.workflow_preset,
+            auto_repair_env=args.auto_repair_env,
+            strict_authority_skills=args.strict_authority_skills,
+            strict_authority_provenance=args.strict_authority_provenance,
+        )
+    else:
+        payload = run_consumer_bootstrap(
+            target=args.target,
+            product=args.product,
+            profile=args.profile,
+            project_name=args.project_name,
+            check=args.check,
+            force=args.force,
+            advance_product_structuring=args.advance_product_structuring,
+            product_scaffold_preview=args.product_scaffold_preview,
+            product_structure_preview=args.product_structure_preview,
+            product_structure_apply=args.product_structure_apply,
+            advance_design_derivation=args.advance_design_derivation,
+            design_scaffold_preview=args.design_scaffold_preview,
+            design_scaffold_apply=args.design_scaffold_apply,
+            design_authoring_preview=args.design_authoring_preview,
+            implementation_readiness_preview=args.implementation_readiness_preview,
+            implementation_advance_preview=args.implementation_advance_preview,
+            implementation_advance_apply=args.implementation_advance_apply,
+            implementation_run_preview=args.implementation_run_preview,
+            implementation_start_preview=args.implementation_start_preview,
+            implementation_start_apply=args.implementation_start_apply,
+            implementation_closeout_preview=args.implementation_closeout_preview,
+            implementation_closeout_apply=args.implementation_closeout_apply,
+            workflow_preset=args.workflow_preset,
+            auto_repair_env=args.auto_repair_env,
+            strict_authority_skills=args.strict_authority_skills,
+            strict_authority_provenance=args.strict_authority_provenance,
+        )
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
     else:

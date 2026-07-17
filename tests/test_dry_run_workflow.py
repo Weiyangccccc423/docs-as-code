@@ -318,6 +318,12 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertTrue(payload["implementation_run"]["snapshot_guarded_closeout"])
             self.assertTrue(payload["implementation_run"]["closeout_applied"])
             self.assertTrue(payload["implementation_run"]["complete"])
+            consumer_resume = payload["consumer_resume_implementation_handoff"]
+            self.assertFalse(consumer_resume["exercised"])
+            self.assertTrue(consumer_resume["ok"])
+            self.assertFalse(consumer_resume["handoff_ready"])
+            self.assertFalse(consumer_resume["reentry_exercised"])
+            self.assertTrue(consumer_resume["reentry_ok"])
             self.assertTrue(payload["implementation_verification"]["preview_ready"])
             self.assertTrue(payload["implementation_verification"]["environment_ready"])
             self.assertTrue(payload["implementation_verification"]["environment_version_ready"])

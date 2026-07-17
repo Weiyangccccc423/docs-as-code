@@ -329,6 +329,24 @@ class ReleaseReadinessTest(unittest.TestCase):
             criteria["release-artifact-smoke"]["details"]["implementation_task_package"]["ok"]
         )
         self.assertTrue(criteria["release-artifact-smoke"]["details"]["implementation_run"]["complete"])
+        consumer_resume = criteria["release-artifact-smoke"]["details"][
+            "consumer_resume_implementation_handoff"
+        ]
+        self.assertTrue(consumer_resume["exercised"])
+        self.assertTrue(consumer_resume["ok"])
+        self.assertEqual("design-derivation", consumer_resume["phase_before"])
+        self.assertEqual("implementation", consumer_resume["phase_after"])
+        self.assertTrue(consumer_resume["transition_applied"])
+        self.assertTrue(consumer_resume["state_write_observed"])
+        self.assertTrue(consumer_resume["routing_ok"])
+        self.assertTrue(consumer_resume["route_ready"])
+        self.assertTrue(consumer_resume["runner_contract_valid"])
+        self.assertTrue(consumer_resume["handoff_ready"])
+        self.assertTrue(consumer_resume["snapshot_guarded"])
+        self.assertTrue(consumer_resume["reentry_exercised"])
+        self.assertTrue(consumer_resume["reentry_ok"])
+        self.assertTrue(consumer_resume["reentry_transition_already_current"])
+        self.assertTrue(consumer_resume["reentry_snapshot_stable"])
         self.assertTrue(criteria["release-artifact-smoke"]["details"]["stack_acceptance"]["ok"])
         self.assertTrue(
             criteria["release-artifact-smoke"]["details"]["stack_acceptance"]["all_required_passed"]

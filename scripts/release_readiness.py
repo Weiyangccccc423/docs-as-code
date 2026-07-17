@@ -490,6 +490,32 @@ def _artifact_smoke_migration_review_ok(payload: dict[str, object] | None) -> bo
     )
 
 
+def _artifact_smoke_consumer_resume_handoff_ok(payload: dict[str, object] | None) -> bool:
+    if payload is None:
+        return False
+    handoff = payload.get("consumer_resume_implementation_handoff")
+    return (
+        isinstance(handoff, dict)
+        and handoff.get("exercised") is True
+        and handoff.get("ok") is True
+        and handoff.get("phase_before") == "design-derivation"
+        and handoff.get("phase_after") == "implementation"
+        and handoff.get("transition_applied") is True
+        and handoff.get("state_write_observed") is True
+        and handoff.get("routing_ok") is True
+        and handoff.get("route_ready") is True
+        and handoff.get("runner_contract_valid") is True
+        and handoff.get("handoff_ready") is True
+        and handoff.get("status") == "ready_to_start"
+        and handoff.get("task_id") == "TASK-001"
+        and handoff.get("snapshot_guarded") is True
+        and handoff.get("reentry_exercised") is True
+        and handoff.get("reentry_ok") is True
+        and handoff.get("reentry_transition_already_current") is True
+        and handoff.get("reentry_snapshot_stable") is True
+    )
+
+
 def _artifact_smoke_work_package_ok(
     bootstrap_summary: dict[str, object],
     *,
@@ -1186,6 +1212,7 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
         and _artifact_smoke_fresh_target_init_ok(artifact_smoke_payload)
         and _artifact_smoke_stack_acceptance_ok(artifact_smoke_payload)
         and _dry_run_implementation_runner_ok(artifact_smoke_payload)
+        and _artifact_smoke_consumer_resume_handoff_ok(artifact_smoke_payload)
         and _artifact_smoke_product_dispositions_ok(artifact_smoke_payload)
         and _artifact_smoke_api_review_ok(artifact_smoke_payload)
         and _artifact_smoke_threat_review_ok(artifact_smoke_payload)
@@ -1232,6 +1259,12 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
             if artifact_smoke_payload
             else {},
             "implementation_run": artifact_smoke_payload.get("implementation_run", {})
+            if artifact_smoke_payload
+            else {},
+            "consumer_resume_implementation_handoff": artifact_smoke_payload.get(
+                "consumer_resume_implementation_handoff",
+                {},
+            )
             if artifact_smoke_payload
             else {},
             "stack_acceptance": artifact_smoke_payload.get("stack_acceptance", {})

@@ -19,6 +19,7 @@ except ImportError:  # pragma: no cover - direct script execution
 
 ROOT = Path(__file__).resolve().parents[1]
 CLI = ROOT / "scripts" / "governance_cli.py"
+CONSUMER_BOOTSTRAP = ROOT / "scripts" / "bootstrap_consumer_project.py"
 
 SAMPLE_PRODUCT = """# Product
 
@@ -1251,12 +1252,66 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
     )
     _require(implementation_gate.get("ok") is True, "implementation gate did not pass after authored docs")
 
-    implementation_advanced = _run_json(
-        steps,
-        "advance_implementation",
-        ["bin/governance", "advance", "implementation", ".", "--json"],
-        target,
-    )
+    consumer_resume_implementation_handoff: dict[str, object] = {}
+    consumer_resume_implementation_reentry: dict[str, object] = {}
+    if (ROOT / "pack-manifest.json").is_file():
+        consumer_resume_implementation_handoff = _run_json(
+            steps,
+            "consumer_resume_implementation_handoff",
+            [
+                sys.executable,
+                CONSUMER_BOOTSTRAP,
+                "--target",
+                target,
+                "--resume",
+                "--workflow-preset",
+                "implementation-routing",
+                "--json",
+            ],
+            ROOT,
+        )
+        _require(
+            _consumer_resume_handoff_ready(consumer_resume_implementation_handoff, target),
+            "consumer resume did not return a snapshot-guarded Ready task handoff",
+            payload=consumer_resume_implementation_handoff,
+        )
+        consumer_resume_implementation_reentry = _run_json(
+            steps,
+            "consumer_resume_implementation_reentry",
+            [
+                sys.executable,
+                CONSUMER_BOOTSTRAP,
+                "--target",
+                target,
+                "--resume",
+                "--workflow-preset",
+                "implementation-routing",
+                "--json",
+            ],
+            ROOT,
+        )
+        _require(
+            _consumer_resume_reentry_ready(
+                consumer_resume_implementation_reentry,
+                consumer_resume_implementation_handoff,
+                target,
+            ),
+            "consumer resume did not idempotently refresh the recorded implementation handoff",
+            payload=consumer_resume_implementation_reentry,
+        )
+        resume_routing = consumer_resume_implementation_handoff.get("implementation_routing")
+        resume_routing_map = resume_routing if isinstance(resume_routing, dict) else {}
+        resume_advance_apply = resume_routing_map.get("implementation_advance_apply")
+        resume_advance_apply_map = resume_advance_apply if isinstance(resume_advance_apply, dict) else {}
+        resume_advance = resume_advance_apply_map.get("advance")
+        implementation_advanced = resume_advance if isinstance(resume_advance, dict) else {}
+    else:
+        implementation_advanced = _run_json(
+            steps,
+            "advance_implementation",
+            ["bin/governance", "advance", "implementation", ".", "--json"],
+            target,
+        )
     _require(implementation_advanced.get("ok") is True, "implementation advance failed", payload=implementation_advanced)
     implementation_state = implementation_advanced.get("state")
     _require(
@@ -1855,6 +1910,11 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
             "ready_ok": implementation_gate.get("ok"),
         },
         "implementation_task_package": dict(make_implementation_work_package.get("work_package", {})),
+        "consumer_resume_implementation_handoff": _consumer_resume_handoff_summary(
+            consumer_resume_implementation_handoff,
+            consumer_resume_implementation_reentry,
+            target,
+        ),
         "implementation_run": {
             "ready_check": make_implementation_run_check.get("status") == "ready_to_start",
             "snapshot_guarded_start": bool(ready_snapshot)
@@ -4463,6 +4523,138 @@ def _valid_repair_action(action: object, *, expected_kind: str, item_key: str) -
     if not _valid_embedded_command(action.get("refresh_command")):
         return False
     return True
+
+
+def _consumer_resume_handoff_ready(payload: dict[str, object], target: Path) -> bool:
+    routing = payload.get("implementation_routing")
+    routing_map = routing if isinstance(routing, dict) else {}
+    run_preview = payload.get("implementation_run_preview")
+    run_preview_map = run_preview if isinstance(run_preview, dict) else {}
+    snapshot = run_preview_map.get("snapshot")
+    snapshot_map = snapshot if isinstance(snapshot, dict) else {}
+    snapshot_id = snapshot_map.get("id")
+    task_id = run_preview_map.get("task_id")
+    next_action = run_preview_map.get("next_action")
+    next_action_map = next_action if isinstance(next_action, dict) else {}
+    expected_argv = [
+        "bin/governance",
+        "implementation",
+        "run",
+        ".",
+        "--task",
+        task_id,
+        "--apply-start",
+        "--expect-snapshot",
+        snapshot_id,
+        "--json",
+    ]
+    return (
+        payload.get("ok") is True
+        and payload.get("resume") is True
+        and payload.get("writes_state") is True
+        and payload.get("state_write_observed") is True
+        and payload.get("phase_before") == "design-derivation"
+        and payload.get("phase_after") == "implementation"
+        and payload.get("implementation_routing_ok") is True
+        and payload.get("implementation_route_ready") is True
+        and payload.get("implementation_handoff_ready") is True
+        and routing_map.get("ok") is True
+        and routing_map.get("transition_applied") is True
+        and routing_map.get("transition_already_current") is False
+        and routing_map.get("status") == "ready_to_start"
+        and run_preview_map.get("handoff_ready") is True
+        and run_preview_map.get("runner_contract_valid") is True
+        and run_preview_map.get("status") == "ready_to_start"
+        and task_id == IMPLEMENTATION_TASK_ID
+        and isinstance(snapshot_id, str)
+        and re.fullmatch(r"[0-9a-f]{64}", snapshot_id) is not None
+        and next_action_map.get("argv") == expected_argv
+        and next_action_map.get("cwd") == str(target)
+        and next_action_map.get("writes_state") is True
+        and next_action_map.get("approval_required") is False
+    )
+
+
+def _consumer_resume_reentry_ready(
+    payload: dict[str, object],
+    initial_payload: dict[str, object],
+    target: Path,
+) -> bool:
+    routing = payload.get("implementation_routing")
+    routing_map = routing if isinstance(routing, dict) else {}
+    run_preview = payload.get("implementation_run_preview")
+    run_preview_map = run_preview if isinstance(run_preview, dict) else {}
+    initial_preview = initial_payload.get("implementation_run_preview")
+    initial_preview_map = initial_preview if isinstance(initial_preview, dict) else {}
+    return (
+        payload.get("ok") is True
+        and payload.get("resume") is True
+        and payload.get("writes_state") is False
+        and payload.get("state_write_observed") is False
+        and payload.get("phase_before") == "implementation"
+        and payload.get("phase_after") == "implementation"
+        and payload.get("implementation_routing_ok") is True
+        and payload.get("implementation_route_ready") is True
+        and payload.get("implementation_handoff_ready") is True
+        and routing_map.get("ok") is True
+        and routing_map.get("transition_applied") is False
+        and routing_map.get("transition_already_current") is True
+        and run_preview_map.get("handoff_ready") is True
+        and run_preview_map.get("runner_contract_valid") is True
+        and run_preview_map.get("status") == "ready_to_start"
+        and run_preview_map.get("task_id") == IMPLEMENTATION_TASK_ID
+        and run_preview_map.get("snapshot") == initial_preview_map.get("snapshot")
+        and run_preview_map.get("next_action") == initial_preview_map.get("next_action")
+        and isinstance(run_preview_map.get("next_action"), dict)
+        and run_preview_map["next_action"].get("cwd") == str(target)
+    )
+
+
+def _consumer_resume_handoff_summary(
+    payload: dict[str, object],
+    reentry_payload: dict[str, object],
+    target: Path,
+) -> dict[str, object]:
+    exercised = bool(payload)
+    run_preview = payload.get("implementation_run_preview") if exercised else {}
+    run_preview_map = run_preview if isinstance(run_preview, dict) else {}
+    routing = payload.get("implementation_routing") if exercised else {}
+    routing_map = routing if isinstance(routing, dict) else {}
+    next_action = run_preview_map.get("next_action")
+    next_action_map = next_action if isinstance(next_action, dict) else {}
+    argv = next_action_map.get("argv")
+    return {
+        "exercised": exercised,
+        "ok": _consumer_resume_handoff_ready(payload, target) if exercised else True,
+        "phase_before": str(payload.get("phase_before", "")) if exercised else "",
+        "phase_after": str(payload.get("phase_after", "")) if exercised else "",
+        "transition_applied": routing_map.get("transition_applied") is True,
+        "state_write_observed": payload.get("state_write_observed") is True,
+        "routing_ok": payload.get("implementation_routing_ok") is True,
+        "route_ready": payload.get("implementation_route_ready") is True,
+        "runner_contract_valid": run_preview_map.get("runner_contract_valid") is True,
+        "handoff_ready": run_preview_map.get("handoff_ready") is True,
+        "status": str(run_preview_map.get("status", "")),
+        "task_id": str(run_preview_map.get("task_id", "")),
+        "snapshot_guarded": isinstance(argv, list) and "--expect-snapshot" in argv,
+        "reentry_exercised": bool(reentry_payload),
+        "reentry_ok": (
+            _consumer_resume_reentry_ready(reentry_payload, payload, target)
+            if reentry_payload
+            else not exercised
+        ),
+        "reentry_transition_already_current": (
+            reentry_payload.get("implementation_routing", {}).get("transition_already_current") is True
+            if isinstance(reentry_payload.get("implementation_routing"), dict)
+            else False
+        ),
+        "reentry_snapshot_stable": (
+            reentry_payload.get("implementation_run_preview", {}).get("snapshot")
+            == run_preview_map.get("snapshot")
+            if isinstance(reentry_payload.get("implementation_run_preview"), dict)
+            else False
+        ),
+    }
 
 
 def _valid_embedded_command(command: object) -> bool:

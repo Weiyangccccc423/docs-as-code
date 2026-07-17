@@ -432,11 +432,36 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
             payload=dry_run_payload,
         )
         start = dry_run_payload.get("implementation_start")
+        consumer_resume_implementation_handoff = dry_run_payload.get(
+            "consumer_resume_implementation_handoff"
+        )
         implementation_run = dry_run_payload.get("implementation_run")
         implementation_verification = dry_run_payload.get("implementation_verification")
         implementation_task_package = _dry_run_implementation_task_package_details(dry_run_payload)
         closeout = dry_run_payload.get("implementation_closeout")
         runtime_refresh = dry_run_payload.get("runtime_refresh")
+        _require(
+            isinstance(consumer_resume_implementation_handoff, dict)
+            and consumer_resume_implementation_handoff.get("exercised") is True
+            and consumer_resume_implementation_handoff.get("ok") is True
+            and consumer_resume_implementation_handoff.get("phase_before") == "design-derivation"
+            and consumer_resume_implementation_handoff.get("phase_after") == "implementation"
+            and consumer_resume_implementation_handoff.get("transition_applied") is True
+            and consumer_resume_implementation_handoff.get("state_write_observed") is True
+            and consumer_resume_implementation_handoff.get("routing_ok") is True
+            and consumer_resume_implementation_handoff.get("route_ready") is True
+            and consumer_resume_implementation_handoff.get("runner_contract_valid") is True
+            and consumer_resume_implementation_handoff.get("handoff_ready") is True
+            and consumer_resume_implementation_handoff.get("status") == "ready_to_start"
+            and consumer_resume_implementation_handoff.get("task_id") == "TASK-001"
+            and consumer_resume_implementation_handoff.get("snapshot_guarded") is True
+            and consumer_resume_implementation_handoff.get("reentry_exercised") is True
+            and consumer_resume_implementation_handoff.get("reentry_ok") is True
+            and consumer_resume_implementation_handoff.get("reentry_transition_already_current") is True
+            and consumer_resume_implementation_handoff.get("reentry_snapshot_stable") is True,
+            "unpacked artifact dry-run did not prove consumer resume implementation handoff",
+            payload=dry_run_payload,
+        )
         _require(
             isinstance(start, dict)
             and start.get("ready") is True
@@ -556,6 +581,7 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
             "product_dispositions": product_dispositions,
             "design_reviews": design_reviews,
             "implementation_verification": dict(implementation_verification),
+            "consumer_resume_implementation_handoff": dict(consumer_resume_implementation_handoff),
             "implementation_run": dict(implementation_run),
             "implementation_task_package": implementation_task_package,
             "stack_acceptance": stack_acceptance,

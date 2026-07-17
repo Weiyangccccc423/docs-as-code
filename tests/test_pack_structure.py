@@ -1381,7 +1381,7 @@ class PackStructureTest(unittest.TestCase):
             script = target / "scripts/bootstrap_consumer_project.py"
             script.write_text(
                 script.read_text(encoding="utf-8").replace(
-                    "argv == expected_argv",
+                    'next_action.get("argv") == expected_argv',
                     '"--apply-start" in argv',
                     1,
                 ),
@@ -1395,7 +1395,92 @@ class PackStructureTest(unittest.TestCase):
                 any(
                     finding.code == "pack_consumer_bootstrap_incomplete"
                     and finding.path == "scripts/bootstrap_consumer_project.py"
-                    and "argv == expected_argv" in finding.message
+                    and 'next_action.get("argv") == expected_argv' in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_consumer_bootstrap_missing_runner_identity_check(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/bootstrap_consumer_project.py"
+            script.write_text(
+                script.read_text(encoding="utf-8").replace(
+                    'implementation_run.get("workflow") == "implementation-run"',
+                    'implementation_run.get("workflow") != "implementation-run"',
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_consumer_bootstrap_incomplete"
+                    and finding.path == "scripts/bootstrap_consumer_project.py"
+                    and 'implementation_run.get("workflow") == "implementation-run"' in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_consumer_bootstrap_missing_resume_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/bootstrap_consumer_project.py"
+            script.write_text(
+                script.read_text(encoding="utf-8").replace("--resume", "--continue-workflow"),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_consumer_bootstrap_incomplete"
+                    and finding.path == "scripts/bootstrap_consumer_project.py"
+                    and "--resume" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_dry_run_missing_consumer_resume_handoff(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/dry_run_workflow.py"
+            script.write_text(
+                script.read_text(encoding="utf-8").replace(
+                    "consumer_resume_implementation_handoff",
+                    "consumer_implementation_handoff",
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_dry_run_workflow_incomplete"
+                    and finding.path == "scripts/dry_run_workflow.py"
+                    and "consumer_resume_implementation_handoff" in finding.message
                     for finding in report.findings
                 )
             )
