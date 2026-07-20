@@ -44,6 +44,8 @@ class PackStructureTest(unittest.TestCase):
     def test_ci_pins_node_for_real_stack_acceptance(self) -> None:
         text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
         self.assertIn("workflow_dispatch:", text)
+        self.assertNotIn("\n  push:", text)
+        self.assertNotIn("\n  pull_request:", text)
         self.assertIn("timeout-minutes: 30", text)
         self.assertIn("actions/setup-node@v4", text)
         self.assertIn("node-version: '22'", text)
@@ -833,6 +835,35 @@ class PackStructureTest(unittest.TestCase):
                     finding.code == "pack_ci_workflow_incomplete"
                     and finding.path == ".github/workflows/ci.yml"
                     and "workflow_dispatch:" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_automatic_online_ci_trigger(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            workflow = target / ".github/workflows/ci.yml"
+            workflow.write_text(
+                workflow.read_text(encoding="utf-8").replace(
+                    "  workflow_dispatch:\n",
+                    "  workflow_dispatch:\n  push:\n    branches:\n      - main\n",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_ci_workflow_automatic_trigger"
+                    and finding.path == ".github/workflows/ci.yml"
                     for finding in report.findings
                 )
             )

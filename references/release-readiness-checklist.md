@@ -4,7 +4,7 @@ Use this checklist before tagging, exporting, or handing off this source workflo
 
 ## Source Pack Verification
 
-- Confirm `.github/workflows/ci.yml` exposes `workflow_dispatch`, pins Python 3.10 and Node 22, then runs the source-pack CI baseline: `make test`, `make stack-acceptance`, `python3 scripts/verify_pack.py --json`, and `python3 scripts/check_env.py --json`. Manual dispatch supports rerunning the current ref after an administrator explicitly re-enables a disabled workflow; it does not change remote workflow state by itself.
+- Treat local `make ci` as the authoritative source-pack baseline. Confirm `.github/workflows/ci.yml` exposes only `workflow_dispatch` with no `push` or `pull_request` trigger, pins Python 3.10 and Node 22, then runs `make test`, `make stack-acceptance`, `python3 scripts/verify_pack.py --json`, and `python3 scripts/check_env.py --json` only when a reviewed remote-environment run is explicitly required.
 - Run `make test` and `make verify-pack`, or run their combined `make ci` gate.
 - Run `python3 scripts/verify_pack.py --json` and require `ok: true` with no `findings`.
 - Run `make authority-skills` or `python3 scripts/authority_skills.py --json` and confirm the inventory lists the authority-routing specialist skills required by design and implementation routing.

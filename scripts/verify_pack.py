@@ -5418,8 +5418,6 @@ CI_WORKFLOW_REQUIRED_PHRASES = (
     "name: CI",
     "on:",
     "workflow_dispatch:",
-    "push:",
-    "pull_request:",
     "timeout-minutes: 30",
     "actions/checkout@v4",
     "actions/setup-python@v5",
@@ -5432,6 +5430,10 @@ CI_WORKFLOW_REQUIRED_PHRASES = (
     "make stack-acceptance",
     "python3 scripts/verify_pack.py --json",
     "python3 scripts/check_env.py --json",
+)
+CI_WORKFLOW_FORBIDDEN_TRIGGERS = (
+    "\n  push:",
+    "\n  pull_request:",
 )
 AUTHORITY_SKILL_INVENTORY_PATH = "scripts/authority_skills.py"
 AUTHORITY_SKILL_LOCK_PATH = "references/authority-skills.lock.json"
@@ -6108,18 +6110,33 @@ def _check_ci_workflow(root: Path, findings: list[PackFinding]) -> None:
     if text is None:
         return
     missing = [phrase for phrase in CI_WORKFLOW_REQUIRED_PHRASES if phrase not in text]
-    if not missing:
-        return
-    findings.append(
-        PackFinding(
-            "pack_ci_workflow_incomplete",
-            (
-                f"{CI_WORKFLOW_PATH} must run the source workflow-pack CI baseline; "
-                f"missing phrase(s): {', '.join(missing)}"
-            ),
-            CI_WORKFLOW_PATH,
+    if missing:
+        findings.append(
+            PackFinding(
+                "pack_ci_workflow_incomplete",
+                (
+                    f"{CI_WORKFLOW_PATH} must run the source workflow-pack CI baseline; "
+                    f"missing phrase(s): {', '.join(missing)}"
+                ),
+                CI_WORKFLOW_PATH,
+            )
         )
-    )
+    automatic_triggers = [
+        trigger.strip()
+        for trigger in CI_WORKFLOW_FORBIDDEN_TRIGGERS
+        if trigger in text
+    ]
+    if automatic_triggers:
+        findings.append(
+            PackFinding(
+                "pack_ci_workflow_automatic_trigger",
+                (
+                    f"{CI_WORKFLOW_PATH} must remain manual-only; remove automatic trigger(s): "
+                    f"{', '.join(automatic_triggers)}"
+                ),
+                CI_WORKFLOW_PATH,
+            )
+        )
 
 
 def _check_authority_skill_inventory(root: Path, findings: list[PackFinding]) -> None:
