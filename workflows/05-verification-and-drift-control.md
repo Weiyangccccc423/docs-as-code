@@ -158,6 +158,8 @@ make release-check
 python3 scripts/release_readiness.py --json
 ```
 
+`make test` is the authoritative local unit-test entry. It runs discovered `tests/test_*.py` modules in isolated subprocesses with bounded module-level parallelism, a 15-minute per-module timeout, and stable reporting. If it fails, use `make test-serial` to reproduce the same suite through standard serial `unittest` discovery; do not require both commands to pass as separate gates. Do not trigger `.github/workflows/ci.yml` unless a reviewed remote-environment run is explicitly required.
+
 The default stack acceptance gate requires real dependency-free Python and Node tests. Use `--strict-rust` only when the release environment is required to provide Cargo; otherwise a missing Rust runtime must remain visible as reviewed manual repair routing.
 
 Command discipline, environment repair control, drift refresh, phase gates, repair ordering, traceability evidence, security and supply-chain sanity, and completion gates must satisfy `references/governance-verification-checklist.md`. Source workflow-pack release handoff must satisfy `references/release-readiness-checklist.md`. Single-task implementation execution must satisfy `references/implementation-execution-checklist.md` before a task is marked `Done`.

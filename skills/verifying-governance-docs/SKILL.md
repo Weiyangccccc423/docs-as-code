@@ -15,6 +15,8 @@ For source workflow-pack health before using the pack on a real target:
 
 ```bash
 .github/workflows/ci.yml
+make test
+make test-serial
 make dry-run
 make dry-run-golden
 python3 scripts/dry_run_workflow.py --json
@@ -40,6 +42,8 @@ python3 scripts/authority_skills.py --strict-provenance --json
 ./docs-as-code-workflow-pack/bin/governance-bootstrap --check --json
 ./docs-as-code-workflow-pack/bin/governance-bootstrap --json
 ```
+
+Treat local `make test` as the unit-test gate. It uses bounded module-level subprocess parallelism; route failures to `make test-serial` only for deterministic diagnosis. The GitHub workflow is manual-only and must not be triggered unless a reviewed remote-environment run is explicitly required.
 
 Treat successful `--archive` artifact smoke as evidence that the exact exported tar.gz can be unpacked, verified, reports `consumer_bootstrap_one_command.ok: true` for wrapper check/apply, reports `consumer_bootstrap_product_conversion.ok: true` for TXT conversion with pending-review evidence, can initialize a fresh target folder containing only a product document, can run target-local `bin/governance` and Make commands, and can exercise consumer bootstrap with `--auto-repair-env --workflow-preset product-structure`, `--auto-repair-env --workflow-preset design-scaffold`, `--auto-repair-env --workflow-preset design-routing`, and `--auto-repair-env --workflow-preset implementation-routing`. Each fresh bootstrap summary must include `authority_skill_inventory.ok: true` and `env_auto_repair.ok: true`. Treat fresh implementation-routing evidence as blocker routing, not proof that implementation readiness passed. Require the exported-pack dry run to report `consumer_resume_implementation_handoff.exercised: true`, `ok: true`, a design-to-implementation transition, `state_write_observed: true`, `routing_ok: true`, `route_ready: true`, `runner_contract_valid: true`, `status: ready_to_start`, and snapshot guarding before accepting the resume contract.
 Require default, multi-acceptance, and artifact dry-run summaries to report complete `design_reviews` coverage and current `api_review`, `threat_review`, `reliability_review`, and `migration_review` evidence; artifact smoke must report `design_reviews.ok: true`, `api_review.ok: true`, `threat_review.ok: true`, `reliability_review.ok: true`, and `migration_review.ok: true` before release evidence is accepted.

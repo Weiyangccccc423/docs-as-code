@@ -1,6 +1,9 @@
-.PHONY: test dry-run dry-run-golden stack-acceptance package artifact-smoke release-check authority-skills verify-pack check-env ci
+.PHONY: test test-serial dry-run dry-run-golden stack-acceptance package artifact-smoke release-check authority-skills verify-pack check-env ci
 
 test:
+	python3 scripts/run_tests.py
+
+test-serial:
 	python3 -m unittest discover -s tests
 
 dry-run:

@@ -5286,6 +5286,7 @@ PHASE_ADVANCE_AMBIGUOUS_PHRASES = (
 )
 MAKEFILE_REQUIRED_TARGETS = (
     "test",
+    "test-serial",
     "dry-run",
     "dry-run-golden",
     "stack-acceptance",
@@ -5297,6 +5298,9 @@ MAKEFILE_REQUIRED_TARGETS = (
 )
 MAKEFILE_REQUIRED_TARGET_RECIPES = {
     "test": (
+        "python3 scripts/run_tests.py",
+    ),
+    "test-serial": (
         "python3 -m unittest discover -s tests",
     ),
     "dry-run": (
@@ -5556,6 +5560,7 @@ SOURCE_PACK_REQUIRED_PATHS = tuple(
             "README.md",
             "AGENTS.md",
             "Makefile",
+            "scripts/run_tests.py",
             "scripts/authority_skills.py",
             "references/authority-skills.lock.json",
             "scripts/verify_pack_manifest.py",
