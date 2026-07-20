@@ -13,17 +13,45 @@ ROOT = Path(__file__).resolve().parents[1]
 DRY_RUN = ROOT / "scripts" / "dry_run_workflow.py"
 
 
+def _source_result(argv: list[str], **overrides: object) -> dict[str, object]:
+    result: dict[str, object] = {
+        "started": True,
+        "argv": argv,
+        "cwd": ".",
+        "started_at": "2026-07-20T00:00:00.000000Z",
+        "finished_at": "2026-07-20T00:00:00.010000Z",
+        "duration_seconds": 0.01,
+        "returncode": 0,
+        "result": "pass",
+        "timed_out": False,
+        "timeout_seconds": 900.0,
+        "stdout": "",
+        "stderr": "",
+        "stdout_truncated": False,
+        "stderr_truncated": False,
+        "output_redacted": False,
+        "stdout_redaction_count": 0,
+        "stderr_redaction_count": 0,
+        "max_output_bytes_per_stream": 16 * 1024 * 1024,
+        "output_safe": True,
+    }
+    result.update(overrides)
+    return result
+
+
 class DryRunWorkflowTest(unittest.TestCase):
     def test_run_json_reports_timeout_as_a_structured_failure(self) -> None:
         steps: list[dict[str, object]] = []
-        timeout = subprocess.TimeoutExpired(
-            cmd=["slow-command"],
-            timeout=0.05,
-            output='{"partial": true}',
+        execution = _source_result(
+            ["slow-command"],
+            timed_out=True,
+            returncode=-9,
+            stdout='{"partial": true}',
             stderr="still running",
+            timeout_seconds=0.05,
         )
 
-        with mock.patch.object(dry_run_workflow.subprocess, "run", side_effect=timeout):
+        with mock.patch.object(dry_run_workflow, "run_source_command", return_value=execution):
             with self.assertRaises(dry_run_workflow.DryRunFailure) as raised:
                 dry_run_workflow._run_json(
                     steps,
@@ -43,15 +71,14 @@ class DryRunWorkflowTest(unittest.TestCase):
             "make: Warning: File 'Makefile' has modification time 1.2 s in the future\n"
             "make: warning:  Clock skew detected.  Your build may be incomplete.\n"
         )
-        result = subprocess.CompletedProcess(
-            args=["make", "check"],
-            returncode=0,
+        result = _source_result(
+            ["make", "check"],
             stdout='{"ok": true}\n',
             stderr=clock_skew,
         )
         steps: list[dict[str, object]] = []
 
-        with mock.patch.object(dry_run_workflow.subprocess, "run", return_value=result):
+        with mock.patch.object(dry_run_workflow, "run_source_command", return_value=result):
             payload = dry_run_workflow._run_json(steps, "make_check", ["make", "check"], Path("."))
 
         self.assertTrue(payload["ok"])
@@ -59,11 +86,10 @@ class DryRunWorkflowTest(unittest.TestCase):
 
         text_steps: list[dict[str, object]] = []
         with mock.patch.object(
-            dry_run_workflow.subprocess,
-            "run",
-            return_value=subprocess.CompletedProcess(
-                args=["make", "verify-governance"],
-                returncode=0,
+            dry_run_workflow,
+            "run_source_command",
+            return_value=_source_result(
+                ["make", "verify-governance"],
                 stdout="Governance verification passed.\n",
                 stderr=clock_skew,
             ),
@@ -83,17 +109,31 @@ class DryRunWorkflowTest(unittest.TestCase):
             (["make", "check"], clock_skew + "make: *** unrelated failure\n"),
         ):
             with self.subTest(argv=argv, stderr=stderr), mock.patch.object(
-                dry_run_workflow.subprocess,
-                "run",
-                return_value=subprocess.CompletedProcess(
-                    args=argv,
-                    returncode=0,
+                dry_run_workflow,
+                "run_source_command",
+                return_value=_source_result(
+                    argv,
                     stdout='{"ok": true}\n',
                     stderr=stderr,
                 ),
             ):
                 with self.assertRaises(dry_run_workflow.DryRunFailure):
                     dry_run_workflow._run_json([], "check", argv, Path("."))
+
+    def test_run_text_blocks_unsafe_output(self) -> None:
+        execution = _source_result(
+            ["unsafe-command"],
+            stdout="truncated output",
+            stdout_truncated=True,
+            output_safe=False,
+        )
+
+        with mock.patch.object(dry_run_workflow, "run_source_command", return_value=execution):
+            with self.assertRaises(dry_run_workflow.DryRunFailure) as raised:
+                dry_run_workflow._run_text([], "unsafe_step", ["unsafe-command"], Path("."))
+
+        self.assertFalse(raised.exception.step["output_safe"])
+        self.assertTrue(raised.exception.step["stdout_truncated"])
 
     def test_product_evidence_repair_schema_requires_safe_commands(self) -> None:
         task = {

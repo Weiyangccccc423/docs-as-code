@@ -5,7 +5,6 @@ import json
 import os
 import re
 import shutil
-import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -13,8 +12,10 @@ from typing import Any
 
 try:
     from .design_reviews import DESIGN_REVIEW_TRACK_ORDER, DESIGN_REVIEW_TRACK_SPECS
+    from .source_process import run_source_command
 except ImportError:  # pragma: no cover - direct script execution
     from design_reviews import DESIGN_REVIEW_TRACK_ORDER, DESIGN_REVIEW_TRACK_SPECS
+    from source_process import run_source_command
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -136,14 +137,6 @@ def _stringify_argv(argv: list[str | Path]) -> list[str]:
     return [str(item) for item in argv]
 
 
-def _timeout_output(value: str | bytes | None) -> str:
-    if value is None:
-        return ""
-    if isinstance(value, bytes):
-        return value.decode("utf-8", errors="replace")
-    return value
-
-
 def _make_clock_skew_warnings(command: list[str], stderr: str) -> list[str]:
     if not stderr or not command or Path(command[0]).name != "make":
         return []
@@ -164,59 +157,37 @@ def _run_json(
     timeout_seconds: float = DRY_RUN_STEP_TIMEOUT_SECONDS,
 ) -> dict[str, object]:
     command = _stringify_argv(argv)
-    try:
-        result = subprocess.run(
-            command,
-            cwd=cwd,
-            env=env or _agent_env(),
-            text=True,
-            capture_output=True,
-            check=False,
-            timeout=timeout_seconds,
-        )
-    except subprocess.TimeoutExpired as error:
-        failed = {
-            "id": step_id,
-            "argv": command,
-            "cwd": str(cwd),
-            "returncode": None,
-            "expected_returncode": expected_returncode,
-            "timed_out": True,
-            "timeout_seconds": timeout_seconds,
-            "stdout": _timeout_output(error.stdout),
-            "stderr": _timeout_output(error.stderr),
-        }
-        steps.append(failed)
-        raise DryRunFailure(f"step timed out: {step_id}", step=failed) from error
+    execution = run_source_command(
+        command,
+        cwd=cwd,
+        env=env if env is not None else _agent_env(),
+        timeout_seconds=timeout_seconds,
+    )
     step = {
         "id": step_id,
-        "argv": command,
-        "cwd": str(cwd),
-        "returncode": result.returncode,
+        **execution,
         "expected_returncode": expected_returncode,
-        "timed_out": False,
-        "timeout_seconds": timeout_seconds,
     }
-    warnings = _make_clock_skew_warnings(command, result.stderr)
+    stdout = execution.get("stdout")
+    stderr = execution.get("stderr")
+    stdout_text = stdout if isinstance(stdout, str) else ""
+    stderr_text = stderr if isinstance(stderr, str) else ""
+    warnings = _make_clock_skew_warnings(command, stderr_text)
     if warnings:
         step["warnings"] = warnings
     steps.append(step)
-    if result.returncode != expected_returncode or (result.stderr and not warnings):
-        failed = {
-            **step,
-            "stdout": result.stdout,
-            "stderr": result.stderr,
-        }
-        raise DryRunFailure(f"step failed: {step_id}", step=failed)
+    if execution.get("started") is not True:
+        raise DryRunFailure(f"step did not start: {step_id}", step=step)
+    if execution.get("timed_out") is True:
+        raise DryRunFailure(f"step timed out: {step_id}", step=step)
+    if execution.get("output_safe") is not True:
+        raise DryRunFailure(f"step output is incomplete or redacted: {step_id}", step=step)
+    if execution.get("returncode") != expected_returncode or (stderr_text and not warnings):
+        raise DryRunFailure(f"step failed: {step_id}", step=step)
     try:
-        payload = json.loads(result.stdout)
+        payload = json.loads(stdout_text)
     except json.JSONDecodeError as error:
-        failed = {
-            **step,
-            "stdout": result.stdout,
-            "stderr": result.stderr,
-        }
-        raise DryRunFailure(f"step did not return JSON: {step_id}: {error}", step=failed) from error
+        raise DryRunFailure(f"step did not return JSON: {step_id}: {error}", step=step) from error
     if not isinstance(payload, dict):
         raise DryRunFailure(f"step returned non-object JSON: {step_id}", step=step)
     step["payload_ok"] = payload.get("ok")
@@ -233,54 +204,37 @@ def _run_text(
     timeout_seconds: float = DRY_RUN_STEP_TIMEOUT_SECONDS,
 ) -> str:
     command = _stringify_argv(argv)
-    try:
-        result = subprocess.run(
-            command,
-            cwd=cwd,
-            env=_agent_env(),
-            text=True,
-            capture_output=True,
-            check=False,
-            timeout=timeout_seconds,
-        )
-    except subprocess.TimeoutExpired as error:
-        failed = {
-            "id": step_id,
-            "argv": command,
-            "cwd": str(cwd),
-            "returncode": None,
-            "expected_returncode": expected_returncode,
-            "timed_out": True,
-            "timeout_seconds": timeout_seconds,
-            "stdout": _timeout_output(error.stdout),
-            "stderr": _timeout_output(error.stderr),
-        }
-        steps.append(failed)
-        raise DryRunFailure(f"step timed out: {step_id}", step=failed) from error
+    execution = run_source_command(
+        command,
+        cwd=cwd,
+        env=_agent_env(),
+        timeout_seconds=timeout_seconds,
+    )
     step = {
         "id": step_id,
-        "argv": command,
-        "cwd": str(cwd),
-        "returncode": result.returncode,
+        **execution,
         "expected_returncode": expected_returncode,
-        "timed_out": False,
-        "timeout_seconds": timeout_seconds,
     }
-    warnings = _make_clock_skew_warnings(command, result.stderr)
+    stdout = execution.get("stdout")
+    stderr = execution.get("stderr")
+    stdout_text = stdout if isinstance(stdout, str) else ""
+    stderr_text = stderr if isinstance(stderr, str) else ""
+    warnings = _make_clock_skew_warnings(command, stderr_text)
     if warnings:
         step["warnings"] = warnings
     steps.append(step)
-    if result.returncode != expected_returncode or (result.stderr and not warnings):
-        failed = {
-            **step,
-            "stdout": result.stdout,
-            "stderr": result.stderr,
-        }
-        raise DryRunFailure(f"step failed: {step_id}", step=failed)
-    stdout = result.stdout.strip()
-    if stdout:
-        step["stdout_first_line"] = stdout.splitlines()[0]
-    return result.stdout
+    if execution.get("started") is not True:
+        raise DryRunFailure(f"step did not start: {step_id}", step=step)
+    if execution.get("timed_out") is True:
+        raise DryRunFailure(f"step timed out: {step_id}", step=step)
+    if execution.get("output_safe") is not True:
+        raise DryRunFailure(f"step output is incomplete or redacted: {step_id}", step=step)
+    if execution.get("returncode") != expected_returncode or (stderr_text and not warnings):
+        raise DryRunFailure(f"step failed: {step_id}", step=step)
+    stripped_stdout = stdout_text.strip()
+    if stripped_stdout:
+        step["stdout_first_line"] = stripped_stdout.splitlines()[0]
+    return stdout_text
 
 
 def _require(condition: bool, message: str, *, payload: dict[str, object] | None = None) -> None:

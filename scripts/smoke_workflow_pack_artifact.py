@@ -5,12 +5,16 @@ import hashlib
 import json
 import os
 import shutil
-import subprocess
 import sys
 import tarfile
 import tempfile
 from pathlib import Path
 from typing import Any
+
+try:
+    from .source_process import run_source_command
+except ImportError:  # pragma: no cover - direct script execution
+    from source_process import run_source_command
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -88,14 +92,6 @@ def _agent_env() -> dict[str, str]:
     return env
 
 
-def _timeout_output(value: str | bytes | None) -> str:
-    if value is None:
-        return ""
-    if isinstance(value, bytes):
-        return value.decode("utf-8", errors="replace")
-    return value
-
-
 def _run_json(
     steps: list[dict[str, object]],
     step_id: str,
@@ -106,48 +102,32 @@ def _run_json(
     timeout_seconds: float = ARTIFACT_SMOKE_STEP_TIMEOUT_SECONDS,
 ) -> dict[str, object]:
     command = [str(item) for item in argv]
-    try:
-        result = subprocess.run(
-            command,
-            cwd=cwd,
-            env=_agent_env(),
-            text=True,
-            capture_output=True,
-            check=False,
-            timeout=timeout_seconds,
-        )
-    except subprocess.TimeoutExpired as error:
-        failed = {
-            "id": step_id,
-            "argv": command,
-            "cwd": str(cwd),
-            "returncode": None,
-            "expected_returncode": expected_returncode,
-            "timed_out": True,
-            "timeout_seconds": timeout_seconds,
-            "stdout": _timeout_output(error.stdout),
-            "stderr": _timeout_output(error.stderr),
-        }
-        steps.append(failed)
-        raise ArtifactSmokeError(f"step timed out: {step_id}", step=failed) from error
+    execution = run_source_command(
+        command,
+        cwd=cwd,
+        env=_agent_env(),
+        timeout_seconds=timeout_seconds,
+    )
     step = {
         "id": step_id,
-        "argv": command,
-        "cwd": str(cwd),
-        "returncode": result.returncode,
+        **execution,
         "expected_returncode": expected_returncode,
-        "timed_out": False,
-        "timeout_seconds": timeout_seconds,
     }
     steps.append(step)
-    if result.returncode != expected_returncode:
-        failed = {**step, "stdout": result.stdout, "stderr": result.stderr}
-        raise ArtifactSmokeError(f"step failed: {step_id}", step=failed)
+    if execution.get("started") is not True:
+        raise ArtifactSmokeError(f"step did not start: {step_id}", step=step)
+    if execution.get("timed_out") is True:
+        raise ArtifactSmokeError(f"step timed out: {step_id}", step=step)
+    if execution.get("output_safe") is not True:
+        raise ArtifactSmokeError(f"step output is incomplete or redacted: {step_id}", step=step)
+    if execution.get("returncode") != expected_returncode:
+        raise ArtifactSmokeError(f"step failed: {step_id}", step=step)
+    stdout = execution.get("stdout")
+    stdout_text = stdout if isinstance(stdout, str) else ""
     try:
-        payload = json.loads(result.stdout)
+        payload = json.loads(stdout_text)
     except json.JSONDecodeError as error:
-        failed = {**step, "stdout": result.stdout, "stderr": result.stderr}
-        raise ArtifactSmokeError(f"step did not return JSON: {step_id}: {error}", step=failed) from error
+        raise ArtifactSmokeError(f"step did not return JSON: {step_id}: {error}", step=step) from error
     if not isinstance(payload, dict):
         raise ArtifactSmokeError(f"step returned non-object JSON: {step_id}", step=step)
     step["payload_ok"] = payload.get("ok")

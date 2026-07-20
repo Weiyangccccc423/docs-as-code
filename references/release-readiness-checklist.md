@@ -7,7 +7,7 @@ Use this checklist before tagging, exporting, or handing off this source workflo
 - Treat local `make ci` as the authoritative source-pack baseline. Confirm `.github/workflows/ci.yml` exposes only `workflow_dispatch` with no `push` or `pull_request` trigger, pins Python 3.10 and Node 22, then runs `make test`, `make stack-acceptance`, `python3 scripts/verify_pack.py --json`, and `python3 scripts/check_env.py --json` only when a reviewed remote-environment run is explicitly required.
 - Run `make test` and `make verify-pack`, or run their combined local `make ci` gate. `make test` uses bounded module-level subprocess parallelism; use `make test-serial` only to diagnose ordering-sensitive failures, not as a second release gate.
 - Confirm `make release-check` reuses `python3 scripts/run_tests.py` for its unit-test criterion instead of starting a second serial `unittest` discovery path.
-- Confirm release steps have a 60-minute outer timeout and nested dry-run/artifact-smoke steps have 15-minute timeouts; any `timed_out: true` step blocks release readiness with captured command evidence.
+- Confirm release, dry-run, and artifact-smoke steps use `scripts/source_process.py`: release steps have a 60-minute outer timeout, nested dry-run/artifact-smoke steps have 15-minute timeouts, each output stream is limited to 16 MiB, sensitive output is redacted, and POSIX timeout terminates the full process group. Require structured command, duration, stdout/stderr, truncation, and redaction evidence. Any `started: false`, `timed_out: true`, `output_safe: false`, or return-code mismatch blocks release readiness; never substitute an unbounded retry.
 - Run `python3 scripts/verify_pack.py --json` and require `ok: true` with no `findings`.
 - Run `make authority-skills` or `python3 scripts/authority_skills.py --json` and confirm the inventory lists the authority-routing specialist skills required by design and implementation routing.
 - Run `python3 scripts/authority_skills.py --repair --check --json`; require a valid, routing-aligned `references/authority-skills.lock.json`, `writes_state: false`, and no guessed argv for source-unregistered skills.
@@ -66,3 +66,4 @@ Use this checklist before tagging, exporting, or handing off this source workflo
 - Do not ignore package export verification failures even when the source checkout itself verifies cleanly.
 - Do not hand off an archive without its `pack-manifest.json`, archive SHA-256, and verification result.
 - Do not hand off an archive that has not passed artifact smoke validation from an unpacked artifact.
+- Do not accept source workflow evidence with `output_safe: false`; truncated or redacted output is incomplete evidence even when the command return code matches.

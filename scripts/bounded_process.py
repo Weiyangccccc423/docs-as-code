@@ -29,6 +29,7 @@ def run_bounded_command(
     cwd: Path,
     timeout_seconds: float,
     max_output_bytes: int,
+    env: dict[str, str] | None = None,
 ) -> dict[str, object]:
     started_at = datetime.now(timezone.utc)
     start = time.monotonic()
@@ -39,6 +40,7 @@ def run_bounded_command(
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            env=env,
             shell=False,
             start_new_session=os.name == "posix",
         )

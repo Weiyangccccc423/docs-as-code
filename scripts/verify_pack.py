@@ -753,6 +753,7 @@ DRY_RUN_WORKFLOW_PATH = "scripts/dry_run_workflow.py"
 DRY_RUN_WORKFLOW_REQUIRED_PHRASES = (
     "run_dry_run",
     "DRY_RUN_STEP_TIMEOUT_SECONDS",
+    "run_source_command",
     "fresh-target-governance-dry-run",
     "SAMPLE_PRODUCT",
     "DESIGN_REVIEW_TRACK_ORDER",
@@ -1819,6 +1820,7 @@ ARTIFACT_SMOKE_PATH = "scripts/smoke_workflow_pack_artifact.py"
 ARTIFACT_SMOKE_REQUIRED_PHRASES = (
     "run_artifact_smoke",
     "ARTIFACT_SMOKE_STEP_TIMEOUT_SECONDS",
+    "run_source_command",
     "export_artifact",
     "unpacked_verify_pack_manifest",
     "unpacked_verify_pack",
@@ -2095,6 +2097,7 @@ RELEASE_READINESS_PATH = "scripts/release_readiness.py"
 RELEASE_READINESS_REQUIRED_PHRASES = (
     "run_release_readiness",
     "RELEASE_STEP_TIMEOUT_SECONDS",
+    "run_source_command",
     "release_ready",
     "criteria",
     "diff_check",
@@ -3113,6 +3116,17 @@ BOUNDED_PROCESS_SOURCE_REQUIRED_PHRASES = (
     "_redact_sensitive_output",
     "SENSITIVE_OUTPUT_PATTERNS",
     "_kill_process_group",
+    "env=env",
+)
+SOURCE_PROCESS_PATH = "scripts/source_process.py"
+SOURCE_PROCESS_REQUIRED_PHRASES = (
+    "run_source_command",
+    "run_bounded_command",
+    "SOURCE_PROCESS_MAX_OUTPUT_BYTES",
+    "timeout_seconds",
+    "max_output_bytes",
+    "output_safe",
+    "env=env",
 )
 PROJECT_ENVIRONMENT_SOURCE_REQUIRED_PHRASES = (
     "PROJECT_ENVIRONMENT_REL",
@@ -5565,6 +5579,7 @@ SOURCE_PACK_REQUIRED_PATHS = tuple(
             "AGENTS.md",
             "Makefile",
             "scripts/run_tests.py",
+            SOURCE_PROCESS_PATH,
             "scripts/authority_skills.py",
             "references/authority-skills.lock.json",
             "scripts/verify_pack_manifest.py",
@@ -5886,6 +5901,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_design_plan_docs(root, findings)
     _check_project_environment_source(root, findings)
     _check_bounded_process_source(root, findings)
+    _check_source_process(root, findings)
     _check_implementation_run_source(root, findings)
     _check_implementation_run_docs(root, findings)
     _check_implementation_review_source(root, findings)
@@ -8301,6 +8317,35 @@ def _check_bounded_process_source(root: Path, findings: list[PackFinding]) -> No
                 f"missing phrase(s): {', '.join(missing)}"
             ),
             BOUNDED_PROCESS_SOURCE_PATH,
+        )
+    )
+
+
+def _check_source_process(root: Path, findings: list[PackFinding]) -> None:
+    path = root / SOURCE_PROCESS_PATH
+    if not path.is_file():
+        findings.append(
+            PackFinding(
+                "pack_source_process_missing",
+                f"missing source workflow process adapter: {SOURCE_PROCESS_PATH}",
+                SOURCE_PROCESS_PATH,
+            )
+        )
+        return
+    text = _read_utf8_text_or_none(path)
+    if text is None:
+        return
+    missing = [phrase for phrase in SOURCE_PROCESS_REQUIRED_PHRASES if phrase not in text]
+    if not missing:
+        return
+    findings.append(
+        PackFinding(
+            "pack_source_process_incomplete",
+            (
+                f"{SOURCE_PROCESS_PATH} must preserve bounded source workflow execution, "
+                f"output safety, and environment forwarding; missing phrase(s): {', '.join(missing)}"
+            ),
+            SOURCE_PROCESS_PATH,
         )
     )
 

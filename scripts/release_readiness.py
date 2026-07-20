@@ -3,11 +3,15 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import subprocess
 import sys
 import tempfile
 from pathlib import Path
 from typing import Any
+
+try:
+    from .source_process import run_source_command
+except ImportError:  # pragma: no cover - direct script execution
+    from source_process import run_source_command
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -56,14 +60,6 @@ def _agent_env() -> dict[str, str]:
     return env
 
 
-def _timeout_output(value: str | bytes | None) -> str:
-    if value is None:
-        return ""
-    if isinstance(value, bytes):
-        return value.decode("utf-8", errors="replace")
-    return value
-
-
 def _run_step(
     steps: list[dict[str, object]],
     step_id: str,
@@ -74,46 +70,27 @@ def _run_step(
     timeout_seconds: float = RELEASE_STEP_TIMEOUT_SECONDS,
 ) -> dict[str, object] | None:
     command = [str(item) for item in argv]
-    try:
-        result = subprocess.run(
-            command,
-            cwd=ROOT,
-            env=_agent_env(),
-            text=True,
-            capture_output=True,
-            check=False,
-            timeout=timeout_seconds,
-        )
-    except subprocess.TimeoutExpired as error:
-        steps.append(
-            {
-                "id": step_id,
-                "argv": command,
-                "cwd": str(ROOT),
-                "returncode": None,
-                "expected_returncode": expected_returncode,
-                "ok": False,
-                "timed_out": True,
-                "timeout_seconds": timeout_seconds,
-                "stdout": _timeout_output(error.stdout),
-                "stderr": _timeout_output(error.stderr),
-            }
-        )
-        return None
+    execution = run_source_command(
+        command,
+        cwd=ROOT,
+        env=_agent_env(),
+        timeout_seconds=timeout_seconds,
+    )
+    started = execution.get("started") is True
+    timed_out = execution.get("timed_out") is True
+    output_safe = execution.get("output_safe") is True
+    returncode_matches = execution.get("returncode") == expected_returncode
     step: dict[str, object] = {
         "id": step_id,
-        "argv": command,
-        "cwd": str(ROOT),
-        "returncode": result.returncode,
+        **execution,
         "expected_returncode": expected_returncode,
-        "ok": result.returncode == expected_returncode,
-        "timed_out": False,
-        "timeout_seconds": timeout_seconds,
+        "ok": started and not timed_out and output_safe and returncode_matches,
     }
     payload: dict[str, object] | None = None
-    if parse_json and result.stdout:
+    stdout = execution.get("stdout")
+    if step["ok"] and parse_json and isinstance(stdout, str) and stdout:
         try:
-            loaded = json.loads(result.stdout)
+            loaded = json.loads(stdout)
         except json.JSONDecodeError as error:
             step["ok"] = False
             step["json_error"] = str(error)
@@ -124,9 +101,6 @@ def _run_step(
             else:
                 step["ok"] = False
                 step["json_error"] = "top-level JSON payload must be an object"
-    if not step["ok"]:
-        step["stdout"] = result.stdout
-        step["stderr"] = result.stderr
     steps.append(step)
     return payload
 

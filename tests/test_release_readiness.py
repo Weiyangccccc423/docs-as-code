@@ -19,17 +19,45 @@ ROOT = Path(__file__).resolve().parents[1]
 RELEASE = ROOT / "scripts" / "release_readiness.py"
 
 
+def _source_result(argv: list[str], **overrides: object) -> dict[str, object]:
+    result: dict[str, object] = {
+        "started": True,
+        "argv": argv,
+        "cwd": str(ROOT),
+        "started_at": "2026-07-20T00:00:00.000000Z",
+        "finished_at": "2026-07-20T00:00:00.010000Z",
+        "duration_seconds": 0.01,
+        "returncode": 0,
+        "result": "pass",
+        "timed_out": False,
+        "timeout_seconds": 3600.0,
+        "stdout": "",
+        "stderr": "",
+        "stdout_truncated": False,
+        "stderr_truncated": False,
+        "output_redacted": False,
+        "stdout_redaction_count": 0,
+        "stderr_redaction_count": 0,
+        "max_output_bytes_per_stream": 16 * 1024 * 1024,
+        "output_safe": True,
+    }
+    result.update(overrides)
+    return result
+
+
 class ReleaseReadinessTest(unittest.TestCase):
     def test_release_step_records_timeout_as_structured_failure(self) -> None:
         steps: list[dict[str, object]] = []
-        timeout = subprocess.TimeoutExpired(
-            cmd=["slow-command"],
-            timeout=0.05,
-            output="partial stdout",
+        execution = _source_result(
+            ["slow-command"],
+            timed_out=True,
+            returncode=-9,
+            stdout="partial stdout",
             stderr="partial stderr",
+            timeout_seconds=0.05,
         )
 
-        with mock.patch.object(release_readiness.subprocess, "run", side_effect=timeout):
+        with mock.patch.object(release_readiness, "run_source_command", return_value=execution):
             payload = release_readiness._run_step(
                 steps,
                 "slow_step",
@@ -43,6 +71,23 @@ class ReleaseReadinessTest(unittest.TestCase):
         self.assertEqual(0.05, steps[0]["timeout_seconds"])
         self.assertEqual("partial stdout", steps[0]["stdout"])
         self.assertEqual("partial stderr", steps[0]["stderr"])
+
+    def test_release_step_blocks_unsafe_output(self) -> None:
+        steps: list[dict[str, object]] = []
+        execution = _source_result(
+            ["unsafe-command"],
+            stdout="truncated output",
+            stdout_truncated=True,
+            output_safe=False,
+        )
+
+        with mock.patch.object(release_readiness, "run_source_command", return_value=execution):
+            payload = release_readiness._run_step(steps, "unsafe_step", ["unsafe-command"])
+
+        self.assertIsNone(payload)
+        self.assertFalse(steps[0]["ok"])
+        self.assertFalse(steps[0]["output_safe"])
+        self.assertTrue(steps[0]["stdout_truncated"])
 
     def test_local_unit_test_gate_uses_parallel_runner(self) -> None:
         steps: list[dict[str, object]] = []
