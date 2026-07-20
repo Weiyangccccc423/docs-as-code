@@ -1130,6 +1130,11 @@ CONSUMER_BOOTSTRAP_REQUIRED_PHRASES = (
     "current-directory",
     "target-directory-name",
     "consumer target must not be the workflow-pack root or its descendant",
+    "product_conversion_env_repair_check",
+    "target_local_product_conversion_check",
+    "target_local_product_conversion_apply",
+    "pending_product_review",
+    "--require-tool",
     "--strict-authority-skills",
     "strict_authority_skills",
     "--strict-authority-provenance",
@@ -1767,6 +1772,10 @@ ARTIFACT_SMOKE_REQUIRED_PHRASES = (
     "unpacked_consumer_bootstrap_one_command_apply",
     "consumer_bootstrap_one_command",
     "_consumer_bootstrap_one_command_details",
+    "unpacked_consumer_bootstrap_product_conversion_check",
+    "unpacked_consumer_bootstrap_product_conversion_apply",
+    "consumer_bootstrap_product_conversion",
+    "_consumer_bootstrap_product_conversion_details",
     "bin/governance-bootstrap",
     "fresh_target_verify_check",
     "fresh_target_governance_status",
@@ -1968,6 +1977,7 @@ ARTIFACT_SMOKE_DOC_REQUIREMENTS = {
         "initializes a fresh target folder",
         "target-local verify/status/workflow-plan/work-package/workflow-resume commands",
         "consumer_bootstrap_one_command.ok: true",
+        "consumer_bootstrap_product_conversion.ok: true",
         "--auto-repair-env --workflow-preset product-structure",
         "--auto-repair-env --workflow-preset design-scaffold",
         "--auto-repair-env --workflow-preset design-routing",
@@ -1982,6 +1992,7 @@ ARTIFACT_SMOKE_DOC_REQUIREMENTS = {
         "unpacks the tar.gz artifact",
         "fresh target",
         "consumer_bootstrap_one_command.ok: true",
+        "consumer_bootstrap_product_conversion.ok: true",
         "--auto-repair-env --workflow-preset product-structure",
         "--auto-repair-env --workflow-preset design-scaffold",
         "--auto-repair-env --workflow-preset design-routing",
@@ -1996,6 +2007,7 @@ ARTIFACT_SMOKE_DOC_REQUIREMENTS = {
         "unpacked artifact",
         "fresh_target_init.ok: true",
         "consumer_bootstrap_one_command.ok: true",
+        "consumer_bootstrap_product_conversion.ok: true",
         "design_reviews.ok: true",
         "consumer_bootstrap_implementation_routing.ok: true",
         "consumer_resume_implementation_handoff.ok: true",
@@ -2006,6 +2018,7 @@ ARTIFACT_SMOKE_DOC_REQUIREMENTS = {
         "python3 scripts/smoke_workflow_pack_artifact.py --archive dist/docs-as-code-workflow-pack.tar.gz --json",
         "fresh target folder",
         "consumer_bootstrap_one_command.ok: true",
+        "consumer_bootstrap_product_conversion.ok: true",
         "--auto-repair-env --workflow-preset product-structure",
         "--auto-repair-env --workflow-preset design-scaffold",
         "--auto-repair-env --workflow-preset design-routing",
@@ -2165,6 +2178,8 @@ RELEASE_READINESS_REQUIRED_PHRASES = (
     "would_archive",
     "source_pack_export",
     "release_artifact_smoke",
+    "_artifact_smoke_product_conversion_ok",
+    "consumer_bootstrap_product_conversion",
     "release-artifact-smoke",
     "_artifact_smoke_bootstrap_authority_inventory_ok",
     "_artifact_smoke_bootstrap_env_auto_repair_ok",
@@ -2353,11 +2368,29 @@ PRODUCT_ARCHIVE_DOC_PATHS = (
     "workflows/02-product-document-archiving.md",
     "skills/archiving-product-document/SKILL.md",
 )
+PRODUCT_CONVERSION_SOURCE_PATH = "scripts/product_conversion.py"
+PRODUCT_CONVERSION_SOURCE_REQUIRED_PHRASES = (
+    "check_product_conversion",
+    "convert_product_document",
+    "run_bounded_command",
+    "CONVERSION_REPORT_SCHEMA_VERSION",
+    "MAX_CONVERTED_BYTES",
+    "CONVERSION_TIMEOUT_SECONDS",
+    "required conversion tool is missing: pandoc",
+    "automatic PDF conversion is unsupported",
+    "pending_review",
+    "reviewed_prd_sha256",
+    "plan_conversion_review",
+)
 PRODUCT_ARCHIVE_REQUIRED_PHRASES = (
     "source-manifest.json",
     "SHA-256",
     "can_derive_design",
     "product mark-ready",
+    "product convert",
+    "conversion-report.json",
+    "--require-tool pandoc",
+    "pending_review",
     "manual-reviewed-markdown",
     "would_update",
     "local_commands",
@@ -5224,7 +5257,7 @@ GOVERNANCE_CLI_REQUIRED_SUBCOMMANDS = {
     "runtime": ("refresh",),
     "project-env": ("plan", "register", "repair"),
     "workflow": ("plan", "work-package", "resume"),
-    "product": ("mark-ready", "plan", "disposition", "structure"),
+    "product": ("convert", "mark-ready", "plan", "disposition", "structure"),
     "design": (
         "plan",
         "review",
@@ -5264,6 +5297,7 @@ CONTINUATION_RUNTIME_SCRIPT_PATHS = (
     "scripts/governance_cli.py",
     "scripts/implementation_plan.py",
     "scripts/phases.py",
+    "scripts/product_conversion.py",
     "scripts/product_import.py",
     "scripts/product_structure.py",
     "scripts/scaffold.py",
@@ -5662,6 +5696,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_env_repair_docs(root, findings)
     _check_runtime_refresh_test_coverage(root, findings)
     _check_runtime_refresh_docs(root, findings)
+    _check_product_conversion_source(root, findings)
     _check_product_archive_docs(root, findings)
     _check_product_structure_docs(root, findings)
     _check_product_disposition_source(root, findings)
@@ -6759,6 +6794,29 @@ def _check_workflow_action_schema(root: Path, findings: list[PackFinding]) -> No
         return
 
     constants = _top_level_string_constants(tree)
+    product_conversion = _top_level_assignment_value(tree, "PRODUCT_CONVERSION_ACTIONS")
+    conversion_actions = _sequence_dict_literals(product_conversion)
+    if not conversion_actions:
+        findings.append(
+            PackFinding(
+                "pack_workflow_action_schema_missing",
+                "scripts/workflow_actions.py PRODUCT_CONVERSION_ACTIONS must contain action dicts",
+                rel,
+            )
+        )
+    else:
+        _check_action_dicts_have_keys(
+            conversion_actions,
+            WORKFLOW_ACTION_SOURCE_REQUIRED_KEYS,
+            "PRODUCT_CONVERSION_ACTIONS",
+            rel,
+            findings,
+        )
+        _check_action_pair_contract(conversion_actions, "PRODUCT_CONVERSION_ACTIONS", rel, findings)
+        _check_action_command_contract(conversion_actions, "PRODUCT_CONVERSION_ACTIONS", rel, findings)
+        for action in conversion_actions:
+            _check_workflow_action_metadata_alignment(root, action, constants, rel, findings)
+
     product_import = _top_level_assignment_value(tree, "PRODUCT_IMPORT_ACTIONS")
     product_actions = _sequence_dict_literals(product_import)
     if not product_actions:
@@ -7610,6 +7668,27 @@ def _check_runtime_refresh_test_coverage(root: Path, findings: list[PackFinding]
             "pack_runtime_refresh_test_missing",
             f"{RUNTIME_REFRESH_TEST_PATH} must cover runtime refresh continuation phrase(s): {', '.join(missing)}",
             RUNTIME_REFRESH_TEST_PATH,
+        )
+    )
+
+
+def _check_product_conversion_source(root: Path, findings: list[PackFinding]) -> None:
+    text = _read_utf8_text_or_none(root / PRODUCT_CONVERSION_SOURCE_PATH)
+    if text is None:
+        return
+    missing = [
+        phrase
+        for phrase in PRODUCT_CONVERSION_SOURCE_REQUIRED_PHRASES
+        if phrase not in text
+    ]
+    if not missing:
+        return
+    findings.append(
+        PackFinding(
+            "pack_product_conversion_incomplete",
+            f"{PRODUCT_CONVERSION_SOURCE_PATH} must preserve bounded conversion, evidence, and review gates; "
+            f"missing phrase(s): {', '.join(missing)}",
+            PRODUCT_CONVERSION_SOURCE_PATH,
         )
     )
 

@@ -29,14 +29,25 @@ Load:
 5. Record navigational metadata in `docs/product/core/product-meta.md`.
 6. Do not edit product meaning during archiving.
 7. If conversion is incomplete, register the limitation in `docs/unresolved.md` and stop before design derivation. Bootstrap registers `U-001` automatically for conversion-required sources.
-8. After the readable Markdown PRD has been manually reviewed against the archived source, use the deterministic closeout command instead of editing manifest metadata by hand:
+8. For TXT, DOCX, HTML, or HTM input, run the deterministic conversion preflight and apply pair. DOCX/HTML conversion requires Pandoc; request only that operation-specific environment capability instead of enabling every recommended tool:
+
+   ```bash
+   bin/governance env --repair --require-tool pandoc --check --target <target> --json
+   bin/governance env --repair --require-tool pandoc --target <target> --json
+   bin/governance product convert <target> --check --json
+   bin/governance product convert <target> --json
+   ```
+
+   `product convert --check` is no-write. Write mode validates the archived size and SHA-256 first, uses bounded no-shell execution, writes `docs/product/core/PRD.md`, records `docs/product/core/source/conversion-report.json`, and leaves `product_conversion_status: pending_review`. TXT uses the Python standard library; DOCX/HTML use Pandoc to GitHub-Flavored Markdown. The command does not resolve `U-001` and does not allow design derivation.
+9. PDF remains a manual stop: archive it, extract Markdown with a reviewed PDF tool, record fidelity limits, and do not claim automatic support.
+10. Compare the readable Markdown PRD against the archived source. Use the `review_method` returned by `product convert` when conversion evidence exists; `manual-reviewed-markdown` remains the method for a fully manual conversion. Then use the deterministic closeout command instead of editing manifest metadata by hand:
 
    ```bash
    bin/governance product mark-ready <target> --reviewed --method manual-reviewed-markdown --check --json
    bin/governance product mark-ready <target> --reviewed --method manual-reviewed-markdown --json
    ```
 
-   The `--check` command reports `would_update` without writing files. The write command updates `source-manifest.json`, refreshes `product-meta.md`, records state, marks the bootstrap conversion blocker `U-001` as `resolved`, and returns `local_commands` plus `next_actions` for the product-structuring transition. Sort returned `next_actions` by `sequence`; run apply actions only after the action named by `requires_action` reports `success_condition: ok:true`.
+   The `--check` command reports `would_update` without writing files. When `conversion-report.json` exists, closeout binds both the generated output hash and the final reviewed PRD hash, updates report review status, updates `source-manifest.json`, refreshes `product-meta.md`, records state, marks the bootstrap conversion blocker `U-001` as `resolved`, and returns `local_commands` plus `next_actions` for the product-structuring transition. Sort returned `next_actions` by `sequence`; run apply actions only after the action named by `requires_action` reports `success_condition: ok:true`.
 
 ## Recommended Conversion Rules
 

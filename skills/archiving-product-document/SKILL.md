@@ -16,8 +16,10 @@ Archive first, interpret second.
 5. Record source, conversion method, hash evidence, and review status in `product-meta.md`.
 6. Preserve tables, acceptance rules, diagrams, and field names.
 7. Register conversion losses in `docs/unresolved.md`.
-8. After manual review, run `bin/governance product mark-ready <target> --reviewed --method manual-reviewed-markdown --check --json`, inspect `would_update`, then run the same command without `--check` when `ok` is true. Use the write command's `local_commands` for target-local checks and `next_actions` for the next transition, running each `argv` from its `cwd`; sort by `sequence`, pair commands with `preflight_for` and `requires_action`, require `success_condition: ok:true`, and do not infer the next phase manually.
-9. Run `bin/governance verify <target> --check --json`, then record with `bin/governance verify <target> --json` and run `bin/governance gate product-structuring <target> --json`.
+8. For DOCX/HTML, run `bin/governance env --repair --require-tool pandoc --check --target <target> --json` and follow only its reviewed repair actions. For TXT, no external converter is required.
+9. Run `bin/governance product convert <target> --check --json`; apply with `bin/governance product convert <target> --json` only when preflight is `ok: true`. Require `conversion-report.json`, bounded no-shell execution evidence where Pandoc is used, and `product_conversion_status: pending_review`. Never treat conversion as review.
+10. Compare the converted PRD against the archive, including tables, acceptance criteria, constraints, links, and diagrams. After manual review, run `bin/governance product mark-ready <target> --reviewed --method <review_method> --check --json`, inspect `would_update`, then run the same command without `--check` when `ok` is true. `review_method` comes from the conversion payload; use `manual-reviewed-markdown` only for a fully manual conversion. Use the write command's `local_commands` for target-local checks and `next_actions` for the next transition, running each `argv` from its `cwd`; sort by `sequence`, pair commands with `preflight_for` and `requires_action`, require `success_condition: ok:true`, and do not infer the next phase manually.
+11. Run `bin/governance verify <target> --check --json`, then record with `bin/governance verify <target> --json` and run `bin/governance gate product-structuring <target> --json`.
 
 ## Conversion Rules
 
@@ -27,6 +29,8 @@ Archive first, interpret second.
 | DOCX | use pandoc | tables or lists are lost |
 | PDF | extract text, then review | layout or tables are ambiguous |
 | HTML | use pandoc | scripts or hidden content affect meaning |
+| TXT | use the built-in UTF-8 conversion | encoding is invalid or formatting carries unstated meaning |
+| PDF | stop for reviewed manual extraction | layout, tables, or diagrams are ambiguous |
 
 ## Red Lines
 

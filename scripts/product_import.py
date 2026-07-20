@@ -11,10 +11,12 @@ from typing import Any
 
 try:
     from .bootstrap_tree import _product_meta, target_local_commands_payload
+    from .product_conversion import CONVERSION_REPORT_REL, plan_conversion_review
     from .state import STATE_REL, StateFileError, load_state, merge_state, utc_now
     from .workflow_actions import next_actions_payload
 except ImportError:  # pragma: no cover - direct script execution
     from bootstrap_tree import _product_meta, target_local_commands_payload
+    from product_conversion import CONVERSION_REPORT_REL, plan_conversion_review
     from state import STATE_REL, StateFileError, load_state, merge_state, utc_now
     from workflow_actions import next_actions_payload
 
@@ -153,6 +155,7 @@ class _ProductImportReadyPlan:
     would_update: list[str] = field(default_factory=list)
     would_resolve_conversion_blocker: bool = False
     state: dict[str, Any] = field(default_factory=dict)
+    conversion_report: dict[str, object] = field(default_factory=dict)
 
 
 def check_product_import_ready(
@@ -200,7 +203,13 @@ def mark_product_import_ready(root: Path, method: str = "manual-reviewed-markdow
     state: dict[str, Any] = {}
     snapshots: dict[str, _FileSnapshot] = {}
     try:
-        snapshots = _snapshot_files(root, (MANIFEST_REL, PRODUCT_META_REL, UNRESOLVED_REL))
+        snapshot_rels = [MANIFEST_REL, PRODUCT_META_REL, UNRESOLVED_REL]
+        if plan.conversion_report:
+            snapshot_rels.append(CONVERSION_REPORT_REL)
+        snapshots = _snapshot_files(root, tuple(snapshot_rels))
+        if plan.conversion_report:
+            _write_json(root / CONVERSION_REPORT_REL, plan.conversion_report)
+            updated.append(CONVERSION_REPORT_REL.as_posix())
         _write_json(root / MANIFEST_REL, manifest)
         updated.append(MANIFEST_REL.as_posix())
         _write_text(root / PRODUCT_META_REL, _product_meta(manifest))
@@ -211,13 +220,20 @@ def mark_product_import_ready(root: Path, method: str = "manual-reviewed-markdow
         elif plan.would_resolve_conversion_blocker:
             warnings.append(f"{CONVERSION_BLOCKER_ID} conversion blocker was not found or was already resolved")
 
-        state = merge_state(
-            root,
-            product_import_status="ready_for_structuring",
-            product_can_derive_design=True,
-            product_conversion_method=plan.method,
-            product_conversion_reviewed_at=plan.reviewed_at,
-        )
+        state_updates: dict[str, object] = {
+            "product_import_status": "ready_for_structuring",
+            "product_can_derive_design": True,
+            "product_conversion_method": plan.method,
+            "product_conversion_reviewed_at": plan.reviewed_at,
+        }
+        if plan.conversion_report:
+            state_updates.update(
+                {
+                    "product_conversion_status": "reviewed",
+                    "product_conversion_report": CONVERSION_REPORT_REL.as_posix(),
+                }
+            )
+        state = merge_state(root, **state_updates)
         updated.append(".governance/state.json")
     except OSError as error:
         errors.append(f"failed to update product import readiness: {_os_error_reason(error)}")
@@ -279,6 +295,16 @@ def _build_product_import_ready_plan(
     if imported.get("status") == "no_source":
         errors.append("product source is missing; cannot mark import ready")
 
+    reviewed_at = utc_now()
+    conversion_report = plan_conversion_review(
+        root,
+        manifest,
+        method=method,
+        reviewed_at=reviewed_at,
+        errors=errors,
+        warnings=warnings,
+    )
+
     state = _load_current_state(root) if not errors else {}
     if errors:
         return _ProductImportReadyPlan(
@@ -289,17 +315,24 @@ def _build_product_import_ready_plan(
             warnings=warnings,
             manifest=manifest,
             state=state,
+            conversion_report=conversion_report,
         )
 
     planned_manifest = copy.deepcopy(manifest)
     planned_imported = planned_manifest.get("import")
     if not isinstance(planned_imported, dict):
         planned_imported = {}
-    reviewed_at = utc_now()
     planned_imported["status"] = "ready_for_structuring"
     planned_imported["conversion_method"] = method
     planned_imported["can_derive_design"] = True
     planned_imported["reviewed_at"] = reviewed_at
+    if conversion_report:
+        report_review = conversion_report.get("review")
+        output = conversion_report.get("output")
+        if isinstance(report_review, dict) and isinstance(output, dict):
+            planned_imported["conversion_report"] = CONVERSION_REPORT_REL.as_posix()
+            planned_imported["generated_prd_sha256"] = output.get("sha256")
+            planned_imported["reviewed_prd_sha256"] = report_review.get("reviewed_prd_sha256")
     planned_manifest["import"] = planned_imported
 
     would_resolve = _conversion_blocker_would_resolve(root / UNRESOLVED_REL)
@@ -309,6 +342,8 @@ def _build_product_import_ready_plan(
         MANIFEST_REL.as_posix(),
         PRODUCT_META_REL.as_posix(),
     ]
+    if conversion_report:
+        would_update.insert(0, CONVERSION_REPORT_REL.as_posix())
     if would_resolve:
         would_update.append(UNRESOLVED_REL.as_posix())
     would_update.append(STATE_REL.as_posix())
@@ -324,6 +359,7 @@ def _build_product_import_ready_plan(
         would_update=would_update,
         would_resolve_conversion_blocker=would_resolve,
         state=state,
+        conversion_report=conversion_report,
     )
 
 
@@ -416,6 +452,27 @@ def _load_manifest(root: Path, errors: list[str]) -> dict[str, Any]:
             not isinstance(reviewed_at, str) or not _is_iso_timestamp_with_timezone(reviewed_at)
         ):
             errors.append("invalid product source manifest: import.reviewed_at must be an ISO timestamp with timezone")
+        conversion_report = imported.get("conversion_report")
+        generated_prd_sha256 = imported.get("generated_prd_sha256")
+        reviewed_prd_sha256 = imported.get("reviewed_prd_sha256")
+        conversion_evidence_present = any(
+            value is not None
+            for value in (conversion_report, generated_prd_sha256, reviewed_prd_sha256)
+        )
+        if conversion_evidence_present:
+            if conversion_report != CONVERSION_REPORT_REL.as_posix():
+                errors.append(
+                    f"invalid product source manifest: import.conversion_report must be {CONVERSION_REPORT_REL.as_posix()}"
+                )
+            if not _is_valid_sha256_digest(generated_prd_sha256):
+                errors.append("invalid product source manifest: import.generated_prd_sha256 must be a SHA-256 digest")
+            if not _is_valid_sha256_digest(reviewed_prd_sha256):
+                errors.append("invalid product source manifest: import.reviewed_prd_sha256 must be a SHA-256 digest")
+            report_path = root / CONVERSION_REPORT_REL
+            if not report_path.exists() or not report_path.is_file() or report_path.is_symlink():
+                errors.append(
+                    f"referenced product conversion report is missing: {CONVERSION_REPORT_REL.as_posix()}"
+                )
         if (
             status == "ready_for_structuring"
             and isinstance(conversion_method, str)

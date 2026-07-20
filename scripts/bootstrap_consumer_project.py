@@ -79,6 +79,8 @@ IMPLEMENTATION_RUN_PREVIEW_STATUSES = {
     "stale",
     "verification_ready",
 }
+AUTO_CONVERT_PRODUCT_SUFFIXES = {".docx", ".html", ".htm", ".txt"}
+PANDOC_PRODUCT_SUFFIXES = {".docx", ".html", ".htm"}
 
 
 class ConsumerBootstrapError(Exception):
@@ -185,6 +187,10 @@ def run_consumer_bootstrap(
     expanded_flags: tuple[str, ...] = ()
     steps: list[dict[str, object]] = []
     env_auto_repair: dict[str, object] = _empty_env_auto_repair(auto_repair_env)
+    product_conversion_env_check: dict[str, object] = {}
+    product_conversion_env_auto_repair: dict[str, object] = _empty_env_auto_repair(auto_repair_env)
+    product_conversion_requested = False
+    product_conversion_required_tools: tuple[str, ...] = ()
     authority_skill_inventory: dict[str, object] = {}
     authority_skill_auto_repair = _empty_authority_skill_auto_repair(approve_authority_installs)
     try:
@@ -252,6 +258,42 @@ def run_consumer_bootstrap(
             allowed_returncodes=(0, 1),
         )
         _require(init_check.get("ok") is True, "initialization preflight failed", payload=init_check)
+        product_suffix = _init_product_suffix(init_check)
+        product_conversion_requested = product_suffix in AUTO_CONVERT_PRODUCT_SUFFIXES
+        product_conversion_required_tools = (
+            ("pandoc",) if product_suffix in PANDOC_PRODUCT_SUFFIXES else ()
+        )
+        if product_conversion_required_tools:
+            product_conversion_env_check = _run_json(
+                steps,
+                "product_conversion_env_repair_check",
+                _env_repair_argv(
+                    target,
+                    check=True,
+                    required_tools=product_conversion_required_tools,
+                ),
+                pack_root,
+                allowed_returncodes=(0, 1),
+            )
+            product_conversion_env_auto_repair = _maybe_auto_repair_env(
+                steps,
+                pack_root,
+                target,
+                product_conversion_env_check,
+                auto_repair_env=auto_repair_env,
+                check=check,
+                required_tools=product_conversion_required_tools,
+                step_prefix="product_conversion_env",
+            )
+            final_conversion_env_check = _mapping(
+                product_conversion_env_auto_repair.get("final_env_check")
+            )
+            _require(
+                final_conversion_env_check.get("ok") is True
+                and final_conversion_env_check.get("missing_required") == [],
+                "product conversion environment repair check failed",
+                payload=final_conversion_env_check,
+            )
         _require(
             not product_scaffold_preview or advance_product_structuring,
             "--product-scaffold-preview requires --advance-product-structuring",
@@ -355,6 +397,12 @@ def run_consumer_bootstrap(
             "strict_authority_skills": strict_authority_skills,
             "strict_authority_provenance": strict_authority_provenance,
             "env_auto_repair": env_auto_repair,
+            "product_conversion_requested": product_conversion_requested,
+            "product_conversion_applied": False,
+            "product_conversion_ok": not product_conversion_requested,
+            "product_conversion_required_tools": list(product_conversion_required_tools),
+            "product_conversion_env_check": product_conversion_env_check,
+            "product_conversion_env_auto_repair": product_conversion_env_auto_repair,
             "authority_skill_auto_repair": authority_skill_auto_repair,
             "work_package_generated": False,
             "work_package_ok": False,
@@ -424,11 +472,40 @@ def run_consumer_bootstrap(
         )
         _require(init_payload.get("ok") is True, "initialization failed", payload=init_payload)
 
+        product_conversion_check: dict[str, object] = {}
+        product_conversion_apply: dict[str, object] = {}
+        if product_conversion_requested:
+            product_conversion_check = _run_json(
+                steps,
+                "target_local_product_conversion_check",
+                ["bin/governance", "product", "convert", ".", "--check", "--json"],
+                target,
+                allowed_returncodes=(0, 1),
+            )
+            _require(
+                product_conversion_check.get("ok") is True,
+                "product conversion preflight failed",
+                payload=product_conversion_check,
+            )
+            product_conversion_apply = _run_json(
+                steps,
+                "target_local_product_conversion_apply",
+                ["bin/governance", "product", "convert", ".", "--json"],
+                target,
+                allowed_returncodes=(0, 1),
+            )
+            _require(
+                product_conversion_apply.get("ok") is True,
+                "product conversion failed",
+                payload=product_conversion_apply,
+            )
+
         verify_payload = _run_json(
             steps,
             "target_local_verify_check",
             ["bin/governance", "verify", ".", "--check", "--json"],
             target,
+            allowed_returncodes=(0, 1),
         )
         status_payload = _run_json(
             steps,
@@ -448,12 +525,21 @@ def run_consumer_bootstrap(
             verify_payload=verify_payload,
             status_payload=status_payload,
             workflow_plan_payload=workflow_plan_payload,
+            allow_pending_product_review=product_suffix not in {"", ".md", ".markdown"},
         )
         _require(target_local.get("ok") is True, "target-local verification failed", payload=target_local)
 
         payload = {
             **base_payload,
             "initialized": True,
+            "product_conversion_applied": bool(product_conversion_apply),
+            "product_conversion_ok": (
+                product_conversion_apply.get("ok") is True
+                if product_conversion_requested
+                else True
+            ),
+            "product_conversion_check": product_conversion_check,
+            "product_conversion_apply": product_conversion_apply,
             "init": init_payload,
             "target_local": target_local,
         }
@@ -766,6 +852,10 @@ def run_consumer_bootstrap(
             "strict_authority_skills": strict_authority_skills,
             "strict_authority_provenance": strict_authority_provenance,
             "env_auto_repair": env_auto_repair,
+            "product_conversion_requested": product_conversion_requested,
+            "product_conversion_required_tools": list(product_conversion_required_tools),
+            "product_conversion_env_check": product_conversion_env_check,
+            "product_conversion_env_auto_repair": product_conversion_env_auto_repair,
             "authority_skill_auto_repair": authority_skill_auto_repair,
             "work_package_generated": False,
             "work_package_ok": False,
@@ -841,6 +931,10 @@ def run_consumer_bootstrap(
             "strict_authority_skills": strict_authority_skills,
             "strict_authority_provenance": strict_authority_provenance,
             "env_auto_repair": env_auto_repair,
+            "product_conversion_requested": product_conversion_requested,
+            "product_conversion_required_tools": list(product_conversion_required_tools),
+            "product_conversion_env_check": product_conversion_env_check,
+            "product_conversion_env_auto_repair": product_conversion_env_auto_repair,
             "authority_skill_auto_repair": authority_skill_auto_repair,
             "authority_skill_inventory": authority_skill_inventory,
             "advance_product_structuring_requested": advance_product_structuring,
@@ -1352,16 +1446,7 @@ def _consumer_pack_environment_preflight(
     env_check = _run_json(
         steps,
         "env_repair_check",
-        [
-            sys.executable,
-            "scripts/governance_cli.py",
-            "env",
-            "--repair",
-            "--check",
-            "--target",
-            target,
-            "--json",
-        ],
+        _env_repair_argv(target, check=True),
         pack_root,
         allowed_returncodes=(0, 1),
     )
@@ -1488,6 +1573,26 @@ def _empty_env_auto_repair(auto_repair_env: bool) -> dict[str, object]:
     }
 
 
+def _env_repair_argv(
+    target: Path,
+    *,
+    check: bool,
+    required_tools: tuple[str, ...] = (),
+) -> list[str | Path]:
+    argv: list[str | Path] = [
+        sys.executable,
+        "scripts/governance_cli.py",
+        "env",
+        "--repair",
+    ]
+    for tool in required_tools:
+        argv.extend(["--require-tool", tool])
+    if check:
+        argv.append("--check")
+    argv.extend(["--target", target, "--json"])
+    return argv
+
+
 def _maybe_auto_repair_env(
     steps: list[dict[str, object]],
     pack_root: Path,
@@ -1496,6 +1601,8 @@ def _maybe_auto_repair_env(
     *,
     auto_repair_env: bool,
     check: bool,
+    required_tools: tuple[str, ...] = (),
+    step_prefix: str = "env",
 ) -> dict[str, object]:
     payload = _empty_env_auto_repair(auto_repair_env)
     payload["initial_check"] = env_check
@@ -1534,34 +1641,27 @@ def _maybe_auto_repair_env(
         payload["ok"] = False
         return payload
 
+    repair_step_id = (
+        "env_repair_auto_apply"
+        if step_prefix == "env"
+        else f"{step_prefix}_repair_auto_apply"
+    )
+    post_check_step_id = (
+        "env_repair_check_after_auto_repair"
+        if step_prefix == "env"
+        else f"{step_prefix}_repair_check_after_auto_repair"
+    )
     repair = _run_json(
         steps,
-        "env_repair_auto_apply",
-        [
-            sys.executable,
-            "scripts/governance_cli.py",
-            "env",
-            "--repair",
-            "--target",
-            target,
-            "--json",
-        ],
+        repair_step_id,
+        _env_repair_argv(target, check=False, required_tools=required_tools),
         pack_root,
         allowed_returncodes=(0, 1),
     )
     post_check = _run_json(
         steps,
-        "env_repair_check_after_auto_repair",
-        [
-            sys.executable,
-            "scripts/governance_cli.py",
-            "env",
-            "--repair",
-            "--check",
-            "--target",
-            target,
-            "--json",
-        ],
+        post_check_step_id,
+        _env_repair_argv(target, check=True, required_tools=required_tools),
         pack_root,
         allowed_returncodes=(0, 1),
     )
@@ -1649,6 +1749,12 @@ def _env_auto_repair_next_step(decision: str, status: str, final_env_check_ok: b
     return "inspect environment repair payload"
 
 
+def _init_product_suffix(init_check: dict[str, object]) -> str:
+    product = _mapping(init_check.get("product"))
+    suffix = product.get("suffix")
+    return suffix.lower() if isinstance(suffix, str) else ""
+
+
 def _mapping(value: object) -> dict[str, object]:
     return value if isinstance(value, dict) else {}
 
@@ -1690,16 +1796,21 @@ def _target_local_details(
     status_payload: dict[str, object],
     workflow_plan_payload: dict[str, object],
     expected_phase: str = "initialized",
+    allow_pending_product_review: bool = False,
 ) -> dict[str, object]:
     init_product = init_payload.get("product")
     status_state = status_payload.get("state")
     phase = status_state.get("phase") if isinstance(status_state, dict) else ""
     profile = status_state.get("profile") if isinstance(status_state, dict) else ""
     project_name = status_state.get("project_name") if isinstance(status_state, dict) else ""
+    verify_ok = verify_payload.get("ok") is True and verify_payload.get("findings") == []
+    pending_product_review = allow_pending_product_review and _only_pending_product_review_findings(
+        verify_payload
+    )
+    verification_acceptable = verify_ok or pending_product_review
     return {
         "ok": (
-            verify_payload.get("ok") is True
-            and verify_payload.get("findings") == []
+            verification_acceptable
             and status_payload.get("ok") is True
             and workflow_plan_payload.get("ok") is True
             and workflow_plan_payload.get("phase") == phase
@@ -1714,7 +1825,9 @@ def _target_local_details(
         "profile": profile,
         "project_name": project_name,
         "product_selection": init_product.get("selection") if isinstance(init_product, dict) else "",
-        "verify_ok": verify_payload.get("ok") is True and verify_payload.get("findings") == [],
+        "verify_ok": verify_ok,
+        "verification_acceptable": verification_acceptable,
+        "pending_product_review": pending_product_review,
         "status_ok": status_payload.get("ok") is True,
         "workflow_plan_ok": workflow_plan_payload.get("ok") is True,
         "local_governance_cli": (target / "bin/governance").is_file(),
@@ -1722,6 +1835,18 @@ def _target_local_details(
         "workflow_pack_snapshot": (target / "docs/agent-workflow/workflow-pack/manifest.json").is_file(),
         "product_source_manifest": (target / "docs/product/core/source/source-manifest.json").is_file(),
     }
+
+
+def _only_pending_product_review_findings(payload: dict[str, object]) -> bool:
+    findings = payload.get("findings")
+    if not isinstance(findings, list) or not findings:
+        return False
+    error_codes = {
+        str(finding.get("code"))
+        for finding in findings
+        if isinstance(finding, dict) and finding.get("severity") == "error"
+    }
+    return error_codes == {"product_source_conversion_required", "unresolved_blocking_item"}
 
 
 def _workflow_resume_contract_ok(payload: dict[str, object], *, expected_phase: str) -> bool:

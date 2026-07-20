@@ -1096,6 +1096,76 @@ class ConsumerBootstrapTest(unittest.TestCase):
                 resume_payload["input_resolution"]["project_name"],
             )
 
+    def test_exported_pack_wrapper_converts_txt_and_pauses_for_source_review(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "field-service-console"
+            pack = target / "workflow-pack"
+            target.mkdir()
+            (target / "product.txt").write_text(
+                "Field Service Console\n\nGoals and Requirements\n- Dispatch work.\n",
+                encoding="utf-8",
+            )
+            export = subprocess.run(
+                [
+                    sys.executable,
+                    str(EXPORT),
+                    "--output",
+                    str(pack),
+                    "--no-archive",
+                    "--force",
+                    "--json",
+                ],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, export.returncode, export.stdout + export.stderr)
+            wrapper = pack / "bin/governance-bootstrap"
+
+            check_result = subprocess.run(
+                [str(wrapper), "--check", "--json"],
+                cwd=target,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, check_result.returncode, check_result.stdout + check_result.stderr)
+            check_payload = json.loads(check_result.stdout)
+            self.assertTrue(check_payload["ok"])
+            self.assertTrue(check_payload["product_conversion_requested"])
+            self.assertFalse(check_payload["product_conversion_applied"])
+            self.assertFalse((target / "README.md").exists())
+
+            apply_result = subprocess.run(
+                [str(wrapper), "--json"],
+                cwd=target,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, apply_result.returncode, apply_result.stdout + apply_result.stderr)
+            payload = json.loads(apply_result.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertTrue(payload["initialized"])
+            self.assertTrue(payload["product_conversion_applied"])
+            self.assertTrue(payload["product_conversion_ok"])
+            self.assertTrue(payload["target_local"]["pending_product_review"])
+            self.assertEqual(
+                "Field Service Console\n\nGoals and Requirements\n- Dispatch work.\n",
+                (target / "docs/product/core/PRD.md").read_text(encoding="utf-8"),
+            )
+            report = json.loads(
+                (target / "docs/product/core/source/conversion-report.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual("pending", report["review"]["status"])
+            self.assertEqual("product-mark-ready", payload["workflow_resume"]["selected_action"]["id"])
+            self.assertEqual("guarded-sequence", payload["workflow_resume"]["selected_action"]["kind"])
+            self.assertIn(
+                "reviewed-utf8-text-to-markdown",
+                payload["workflow_resume"]["selected_action"]["steps"][0]["argv"],
+            )
+
     def test_strict_authority_skills_blocks_bootstrap_when_agent_skills_are_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)

@@ -25,6 +25,7 @@ try:
         design_review_enforcement_ready,
     )
     from .product_dispositions import PRODUCT_DISPOSITIONS_REL, build_product_disposition_inventory
+    from .product_conversion import CONVERSION_REPORT_REL, CONVERSION_REPORT_SCHEMA_VERSION
     from .project_environment import (
         PROJECT_ENVIRONMENT_REL,
         PROJECT_ENVIRONMENT_REPAIR_EVIDENCE_REL,
@@ -63,6 +64,7 @@ except ImportError:  # pragma: no cover - direct script execution
         design_review_enforcement_ready,
     )
     from product_dispositions import PRODUCT_DISPOSITIONS_REL, build_product_disposition_inventory
+    from product_conversion import CONVERSION_REPORT_REL, CONVERSION_REPORT_SCHEMA_VERSION
     from project_environment import (
         PROJECT_ENVIRONMENT_REL,
         PROJECT_ENVIRONMENT_REPAIR_EVIDENCE_REL,
@@ -263,6 +265,7 @@ RUNTIME_REQUIRED_SCRIPT_FILES = (
     "implementation_run.py",
     "implementation_verify.py",
     "phases.py",
+    "product_conversion.py",
     "product_dispositions.py",
     "product_import.py",
     "project_environment.py",
@@ -2730,7 +2733,135 @@ def _check_product_source_manifest(root: Path, report: VerificationReport) -> No
             f"product source requires conversion before design derivation: {archived_rel}",
             archived_rel,
         )
+    _check_product_conversion_report(root, manifest, report)
     _check_product_meta_manifest_evidence(root, manifest, report)
+
+
+def _check_product_conversion_report(
+    root: Path,
+    manifest: dict[str, object],
+    report: VerificationReport,
+) -> None:
+    report_path = root / CONVERSION_REPORT_REL
+    imported = manifest.get("import")
+    archive = manifest.get("archive")
+    if not isinstance(imported, dict) or not isinstance(archive, dict):
+        return
+    report_reference = imported.get("conversion_report")
+    generated_hash = imported.get("generated_prd_sha256")
+    reviewed_hash = imported.get("reviewed_prd_sha256")
+    if not report_path.exists():
+        if report_reference is not None or generated_hash is not None or reviewed_hash is not None:
+            report.add_error(
+                "product_conversion_report_missing",
+                f"referenced product conversion report is missing: {CONVERSION_REPORT_REL.as_posix()}",
+                CONVERSION_REPORT_REL.as_posix(),
+            )
+        return
+    if not report_path.is_file() or report_path.is_symlink():
+        report.add_error(
+            "product_conversion_report_unsafe",
+            f"product conversion report must be a regular file: {CONVERSION_REPORT_REL.as_posix()}",
+            CONVERSION_REPORT_REL.as_posix(),
+        )
+        return
+    try:
+        payload = json.loads(report_path.read_text(encoding="utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        message = error.reason if isinstance(error, UnicodeDecodeError) else error.msg
+        report.add_error(
+            "product_conversion_report_invalid",
+            f"invalid product conversion report: {message}",
+            CONVERSION_REPORT_REL.as_posix(),
+        )
+        return
+    if not isinstance(payload, dict):
+        report.add_error(
+            "product_conversion_report_invalid",
+            "invalid product conversion report: root must be an object",
+            CONVERSION_REPORT_REL.as_posix(),
+        )
+        return
+    if payload.get("schema_version") != CONVERSION_REPORT_SCHEMA_VERSION:
+        report.add_error(
+            "product_conversion_report_schema_version_invalid",
+            f"product conversion report schema_version must be {CONVERSION_REPORT_SCHEMA_VERSION}",
+            CONVERSION_REPORT_REL.as_posix(),
+        )
+    source = payload.get("source") if isinstance(payload.get("source"), dict) else {}
+    if (
+        source.get("archive_path") != archive.get("path")
+        or source.get("size_bytes") != archive.get("size_bytes")
+        or source.get("sha256") != archive.get("sha256")
+    ):
+        report.add_error(
+            "product_conversion_report_source_mismatch",
+            "product conversion report source evidence must match the archived source manifest",
+            CONVERSION_REPORT_REL.as_posix(),
+        )
+    conversion = payload.get("conversion") if isinstance(payload.get("conversion"), dict) else {}
+    output = payload.get("output") if isinstance(payload.get("output"), dict) else {}
+    review = payload.get("review") if isinstance(payload.get("review"), dict) else {}
+    if not isinstance(conversion.get("method"), str) or not conversion.get("method"):
+        report.add_error(
+            "product_conversion_report_method_missing",
+            "product conversion report conversion.method must be a non-empty string",
+            CONVERSION_REPORT_REL.as_posix(),
+        )
+    output_hash = output.get("sha256")
+    if output.get("path") != "docs/product/core/PRD.md" or not _is_valid_sha256_digest(output_hash):
+        report.add_error(
+            "product_conversion_report_output_invalid",
+            "product conversion report output path and SHA-256 evidence are invalid",
+            CONVERSION_REPORT_REL.as_posix(),
+        )
+    ready = imported.get("status") == "ready_for_structuring"
+    if not ready:
+        if review.get("status") != "pending":
+            report.add_error(
+                "product_conversion_report_review_status_invalid",
+                "conversion-required product conversion report review.status must be pending",
+                CONVERSION_REPORT_REL.as_posix(),
+            )
+        return
+    if report_reference != CONVERSION_REPORT_REL.as_posix():
+        report.add_error(
+            "product_conversion_report_reference_invalid",
+            f"ready converted product import must reference {CONVERSION_REPORT_REL.as_posix()}",
+            "docs/product/core/source/source-manifest.json",
+        )
+    if review.get("status") != "reviewed" or review.get("method") != imported.get("conversion_method"):
+        report.add_error(
+            "product_conversion_report_review_invalid",
+            "ready product conversion report must record the manifest conversion method as reviewed",
+            CONVERSION_REPORT_REL.as_posix(),
+        )
+    reviewed_at = review.get("reviewed_at")
+    if reviewed_at != imported.get("reviewed_at") or not isinstance(reviewed_at, str):
+        report.add_error(
+            "product_conversion_report_review_timestamp_mismatch",
+            "product conversion report reviewed_at must match the source manifest",
+            CONVERSION_REPORT_REL.as_posix(),
+        )
+    report_reviewed_hash = review.get("reviewed_prd_sha256")
+    if generated_hash != output_hash or reviewed_hash != report_reviewed_hash:
+        report.add_error(
+            "product_conversion_report_manifest_hash_mismatch",
+            "product conversion output and reviewed PRD hashes must match source manifest evidence",
+            CONVERSION_REPORT_REL.as_posix(),
+        )
+    prd_path = root / "docs/product/core/PRD.md"
+    if prd_path.is_file() and _is_valid_sha256_digest(report_reviewed_hash):
+        try:
+            current_hash = _sha256(prd_path)
+        except OSError:
+            return
+        if current_hash != report_reviewed_hash:
+            report.add_error(
+                "product_conversion_reviewed_prd_hash_mismatch",
+                "reviewed PRD hash no longer matches product conversion closeout evidence",
+                "docs/product/core/PRD.md",
+            )
 
 
 def _check_product_meta_manifest_evidence(
@@ -2759,6 +2890,8 @@ def _check_product_meta_manifest_evidence(
         ("Conversion method", imported.get("conversion_method")),
         ("Import status", imported.get("status")),
         ("Reviewed at", imported.get("reviewed_at")),
+        ("Conversion report", imported.get("conversion_report")),
+        ("Reviewed PRD SHA-256", imported.get("reviewed_prd_sha256")),
         ("Can derive design", _manifest_bool_text(imported.get("can_derive_design"))),
     )
     for label, value in expected_values:

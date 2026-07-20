@@ -277,14 +277,16 @@ def build_install_plan(
     statuses: list[ToolStatus],
     strict: bool,
     package_manager: PackageManager,
+    required_tools: tuple[str, ...] = (),
 ) -> list[InstallPlanItem]:
+    operation_required = _validated_required_tools(statuses, required_tools)
     if package_manager.name != "apt" or not package_manager.supported:
         return []
     items: list[InstallPlanItem] = []
     for status in statuses:
         if status.present or not status.install_package:
             continue
-        if status.level == "required" or strict:
+        if status.level == "required" or strict or status.name in operation_required:
             items.append(InstallPlanItem(status.name, status.install_package, package_manager.name))
     return items
 
@@ -293,10 +295,40 @@ def missing_tools_by_level(statuses: list[ToolStatus], level: str) -> list[str]:
     return [status.name for status in statuses if not status.present and status.level == level]
 
 
-def environment_ok(statuses: list[ToolStatus], strict: bool) -> bool:
-    if missing_tools_by_level(statuses, "required"):
+def missing_required_tools(statuses: list[ToolStatus], required_tools: tuple[str, ...] = ()) -> list[str]:
+    operation_required = _validated_required_tools(statuses, required_tools)
+    return [
+        status.name
+        for status in statuses
+        if not status.present and (status.level == "required" or status.name in operation_required)
+    ]
+
+
+def environment_ok(
+    statuses: list[ToolStatus],
+    strict: bool,
+    required_tools: tuple[str, ...] = (),
+) -> bool:
+    if missing_required_tools(statuses, required_tools):
         return False
     return not (strict and missing_tools_by_level(statuses, "recommended"))
+
+
+def _validated_required_tools(
+    statuses: list[ToolStatus],
+    required_tools: tuple[str, ...],
+) -> set[str]:
+    if not isinstance(required_tools, tuple) or not all(
+        isinstance(name, str) and name for name in required_tools
+    ):
+        raise ValueError("required tools must be a tuple of non-empty tool names")
+    if len(required_tools) != len(set(required_tools)):
+        raise ValueError("required tools must be unique")
+    known = {status.name for status in statuses}
+    unknown = sorted(set(required_tools) - known)
+    if unknown:
+        raise ValueError(f"unknown required tools: {', '.join(unknown)}")
+    return set(required_tools)
 
 
 def install_commands(plan: list[InstallPlanItem], package_manager: PackageManager) -> list[list[str]]:
@@ -359,6 +391,7 @@ def repair_execution_summary(
     needs_escalation: bool,
     install_results: list[dict[str, object]],
     errors: list[str] | None = None,
+    required_tools: tuple[str, ...] = (),
 ) -> dict[str, object]:
     command_ids = [str(item.get("id", "")) for item in repair_command_items if item.get("id")]
     manual_tools = [item.tool for item in manual_repairs]
@@ -367,8 +400,8 @@ def repair_execution_summary(
     )
     install_attempted = bool(install_results)
     install_failed = any(result.get("returncode") != 0 for result in install_results)
-    env_ok = environment_ok(statuses, strict)
-    post_repair_missing_required = missing_tools_by_level(statuses, "required")
+    env_ok = environment_ok(statuses, strict, required_tools)
+    post_repair_missing_required = missing_required_tools(statuses, required_tools)
     post_repair_missing_recommended = missing_tools_by_level(statuses, "recommended")
     error_list = list(errors or [])
     status = "continue"
@@ -520,13 +553,15 @@ def manual_repair_items(
     strict: bool,
     package_manager: PackageManager,
     install_plan: list[InstallPlanItem],
+    required_tools: tuple[str, ...] = (),
 ) -> list[ManualRepairItem]:
+    operation_required = _validated_required_tools(statuses, required_tools)
     planned_tools = {item.tool for item in install_plan}
     items: list[ManualRepairItem] = []
     for status in statuses:
         if status.present or status.name in planned_tools:
             continue
-        if status.level == "recommended" and not strict:
+        if status.level == "recommended" and not strict and status.name not in operation_required:
             continue
         items.append(
             ManualRepairItem(
@@ -621,9 +656,17 @@ def _env_payload(
     repair_plan: str | None,
     would_repair: list[dict[str, object]] | None = None,
     errors: list[str] | None = None,
+    required_tools: tuple[str, ...] = (),
 ) -> dict[str, object]:
+    operation_required = tuple(sorted(_validated_required_tools(statuses, required_tools)))
     commands = install_commands(install_plan, package_manager)
-    manual_repairs = manual_repair_items(statuses, strict, package_manager, install_plan)
+    manual_repairs = manual_repair_items(
+        statuses,
+        strict,
+        package_manager,
+        install_plan,
+        operation_required,
+    )
     repair_command_items = repair_commands(
         target,
         install_plan,
@@ -645,14 +688,17 @@ def _env_payload(
         needs_escalation=needs_escalation,
         install_results=install_results,
         errors=error_list,
+        required_tools=operation_required,
     )
     payload: dict[str, object] = {
-        "ok": environment_ok(statuses, strict) and not error_list,
+        "ok": environment_ok(statuses, strict, operation_required) and not error_list,
         "target": str(target),
         "strict": strict,
         "check": check,
+        "required_tools": list(operation_required),
         "missing": [status.name for status in statuses if not status.present],
-        "missing_required": missing_tools_by_level(statuses, "required"),
+        "missing_required": missing_required_tools(statuses, operation_required),
+        "missing_required_by_level": missing_tools_by_level(statuses, "required"),
         "missing_recommended": missing_tools_by_level(statuses, "recommended"),
         "tools": _tool_status_payload(statuses),
         "system": system.to_dict(),
@@ -733,6 +779,7 @@ def write_repair_plan(
     install_plan: list[InstallPlanItem] | None = None,
     strict: bool = False,
     needs_escalation: bool = False,
+    required_tools: tuple[str, ...] = (),
 ) -> Path:
     error = repair_target_error(target)
     if error:
@@ -741,7 +788,13 @@ def write_repair_plan(
     system = system or collect_system_status()
     package_manager = package_manager or detect_package_manager(system)
     install_plan = install_plan or []
-    manual_repairs = manual_repair_items(statuses, strict, package_manager, install_plan)
+    manual_repairs = manual_repair_items(
+        statuses,
+        strict,
+        package_manager,
+        install_plan,
+        required_tools,
+    )
     path = target / ".governance/env-repair.md"
     path.parent.mkdir(parents=True, exist_ok=True)
     lines = [
@@ -880,6 +933,13 @@ def main() -> int:
         action="store_true",
         help="Also return non-zero when recommended tools are missing; required tools always block.",
     )
+    parser.add_argument(
+        "--require-tool",
+        action="append",
+        choices=tuple(spec.name for spec in TOOLS),
+        default=[],
+        help="Treat one known tool as required for the current operation. Repeat for multiple tools.",
+    )
     parser.add_argument("--repair", action="store_true", help="Write a local environment repair plan.")
     parser.add_argument("--check", action="store_true", help="Preview repair actions without writing files or installing packages.")
     parser.add_argument("--target", default=".", help="Target directory for repair artifacts.")
@@ -887,13 +947,20 @@ def main() -> int:
     args = parser.parse_args()
 
     target = Path(args.target)
+    required_tools = tuple(dict.fromkeys(args.require_tool))
     missing: list[str] = []
     statuses = collect_status()
     system = collect_system_status()
     package_manager = detect_package_manager(system)
     git = collect_git_status(target)
-    install_plan = build_install_plan(statuses, args.strict, package_manager)
-    manual_repairs = manual_repair_items(statuses, args.strict, package_manager, install_plan)
+    install_plan = build_install_plan(statuses, args.strict, package_manager, required_tools)
+    manual_repairs = manual_repair_items(
+        statuses,
+        args.strict,
+        package_manager,
+        install_plan,
+        required_tools,
+    )
     needs_escalation = bool(args.repair and install_plan and not system.is_root)
     install_results: list[dict[str, object]] = []
     repair_plan = None
@@ -931,6 +998,7 @@ def main() -> int:
                             repairs=repairs,
                             repair_plan=repair_plan,
                             errors=[target_error],
+                            required_tools=required_tools,
                         ),
                         ensure_ascii=False,
                         indent=2,
@@ -959,6 +1027,7 @@ def main() -> int:
                             repairs=repairs,
                             repair_plan=repair_plan,
                             would_repair=would_repair,
+                            required_tools=required_tools,
                         ),
                         ensure_ascii=False,
                         indent=2,
@@ -978,12 +1047,18 @@ def main() -> int:
                     print("Manual repairs required:")
                     for line in manual_repair_lines(manual_repairs):
                         print(line)
-            return 0 if environment_ok(statuses, args.strict) else 1
+            return 0 if environment_ok(statuses, args.strict, required_tools) else 1
         install_results = apply_install_plan(install_plan, package_manager, system)
         if install_results and all(result["returncode"] == 0 for result in install_results):
             statuses = collect_status()
             missing = [status.name for status in statuses if not status.present]
-            manual_repairs = manual_repair_items(statuses, args.strict, package_manager, install_plan)
+            manual_repairs = manual_repair_items(
+                statuses,
+                args.strict,
+                package_manager,
+                install_plan,
+                required_tools,
+            )
         try:
             path = write_repair_plan(
                 target,
@@ -993,6 +1068,7 @@ def main() -> int:
                 install_plan=install_plan,
                 strict=args.strict,
                 needs_escalation=needs_escalation,
+                required_tools=required_tools,
             )
         except (OSError, ValueError) as error:
             reason = error.strerror if isinstance(error, OSError) and error.strerror else str(error)
@@ -1014,6 +1090,7 @@ def main() -> int:
                             repairs=repairs,
                             repair_plan=repair_plan,
                             errors=[repair_error],
+                            required_tools=required_tools,
                         ),
                         ensure_ascii=False,
                         indent=2,
@@ -1055,13 +1132,14 @@ def main() -> int:
                     install_results=install_results,
                     repairs=repairs,
                     repair_plan=repair_plan,
+                    required_tools=required_tools,
                 ),
                 ensure_ascii=False,
                 indent=2,
                 sort_keys=True,
             )
         )
-    return 0 if environment_ok(statuses, args.strict) else 1
+    return 0 if environment_ok(statuses, args.strict, required_tools) else 1
 
 
 if __name__ == "__main__":

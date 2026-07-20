@@ -376,6 +376,25 @@ def _artifact_smoke_fresh_target_init_ok(payload: dict[str, object] | None) -> b
     )
 
 
+def _artifact_smoke_product_conversion_ok(payload: dict[str, object] | None) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    conversion = payload.get("consumer_bootstrap_product_conversion")
+    if not isinstance(conversion, dict):
+        return False
+    return (
+        conversion.get("ok") is True
+        and conversion.get("check_ok") is True
+        and conversion.get("check_left_target_uninitialized") is True
+        and conversion.get("apply_ok") is True
+        and conversion.get("conversion_requested") is True
+        and conversion.get("conversion_applied") is True
+        and conversion.get("pending_product_review") is True
+        and conversion.get("conversion_report") is True
+        and conversion.get("selected_action_id") == "product-mark-ready"
+    )
+
+
 def _artifact_smoke_stack_acceptance_ok(payload: dict[str, object] | None) -> bool:
     if payload is None:
         return False
@@ -1210,6 +1229,7 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
         and artifact_smoke_payload.get("archive_sha256") == export_payload.get("archive_sha256")
         and artifact_smoke_payload.get("manifest_sha256") == export_payload.get("manifest_sha256")
         and _artifact_smoke_fresh_target_init_ok(artifact_smoke_payload)
+        and _artifact_smoke_product_conversion_ok(artifact_smoke_payload)
         and _artifact_smoke_stack_acceptance_ok(artifact_smoke_payload)
         and _dry_run_implementation_runner_ok(artifact_smoke_payload)
         and _artifact_smoke_consumer_resume_handoff_ok(artifact_smoke_payload)
@@ -1232,6 +1252,12 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
             "manifest_sha256": artifact_smoke_payload.get("manifest_sha256") if artifact_smoke_payload else "",
             "export_manifest_sha256": export_payload.get("manifest_sha256") if export_payload else "",
             "fresh_target_init": artifact_smoke_payload.get("fresh_target_init", {})
+            if artifact_smoke_payload
+            else {},
+            "consumer_bootstrap_product_conversion": artifact_smoke_payload.get(
+                "consumer_bootstrap_product_conversion",
+                {},
+            )
             if artifact_smoke_payload
             else {},
             "product_dispositions": artifact_smoke_payload.get("product_dispositions", {})

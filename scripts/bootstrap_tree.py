@@ -55,6 +55,7 @@ RUNTIME_SCRIPT_FILES = [
     "implementation_run.py",
     "implementation_verify.py",
     "phases.py",
+    "product_conversion.py",
     "product_dispositions.py",
     "product_import.py",
     "project_environment.py",
@@ -1618,6 +1619,18 @@ def _product_meta(manifest: dict[str, object] | None = None) -> str:
         can_derive_design = str(imported["can_derive_design"]).lower()
         reviewed_at = imported.get("reviewed_at")
         reviewed_at_line = f"- Reviewed at: `{reviewed_at}`\n" if isinstance(reviewed_at, str) and reviewed_at else ""
+        conversion_report = imported.get("conversion_report")
+        conversion_report_line = (
+            f"- Conversion report: `{conversion_report}`\n"
+            if isinstance(conversion_report, str) and conversion_report
+            else ""
+        )
+        reviewed_prd_sha256 = imported.get("reviewed_prd_sha256")
+        reviewed_hash_line = (
+            f"- Reviewed PRD SHA-256: `{reviewed_prd_sha256}`\n"
+            if isinstance(reviewed_prd_sha256, str) and reviewed_prd_sha256
+            else ""
+        )
         return (
             "# Product Meta\n\n"
             "> Derived from `PRD.md`. Keep this file as a navigation and summary layer only.\n\n"
@@ -1630,6 +1643,8 @@ def _product_meta(manifest: dict[str, object] | None = None) -> str:
             f"- Conversion method: `{imported['conversion_method']}`\n"
             f"- Import status: `{imported['status']}`\n"
             f"{reviewed_at_line}"
+            f"{conversion_report_line}"
+            f"{reviewed_hash_line}"
             f"- Can derive design: `{can_derive_design}`\n"
             "- Manifest: `source/source-manifest.json`\n\n"
             "## Product Positioning\n\n"

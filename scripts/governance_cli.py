@@ -19,6 +19,7 @@ from bootstrap_tree import (
     target_local_commands_payload,
 )
 from check_env import (
+    TOOLS,
     _env_payload as build_env_payload,
     apply_install_plan,
     build_install_plan,
@@ -78,6 +79,7 @@ from product_dispositions import (
     check_product_disposition,
     record_product_disposition,
 )
+from product_conversion import check_product_conversion, convert_product_document
 from product_import import check_product_import_ready, mark_product_import_ready
 from product_structure import build_product_plan, check_structure_product, structure_product
 from project_environment import (
@@ -406,12 +408,23 @@ def _cmd_workflow_resume(args: argparse.Namespace) -> int:
 def _cmd_env(args: argparse.Namespace) -> int:
     target = Path(args.target)
     check = bool(getattr(args, "check", False))
+    required_tools = tuple(dict.fromkeys(getattr(args, "require_tool", [])))
     statuses = collect_status()
     system = collect_system_status()
     package_manager = detect_package_manager(system)
     git = collect_git_status(target)
-    install_plan = build_install_plan(statuses, args.strict, package_manager)
-    manual_repairs = manual_repair_items(statuses, args.strict, package_manager, install_plan)
+    install_plan = (
+        build_install_plan(statuses, args.strict, package_manager, required_tools)
+        if required_tools
+        else build_install_plan(statuses, args.strict, package_manager)
+    )
+    manual_repairs = manual_repair_items(
+        statuses,
+        args.strict,
+        package_manager,
+        install_plan,
+        required_tools,
+    )
     needs_escalation = bool(args.repair and install_plan and not system.is_root)
     install_results: list[dict[str, object]] = []
     for status in statuses:
@@ -439,6 +452,7 @@ def _cmd_env(args: argparse.Namespace) -> int:
                         repairs=repairs,
                         repair_plan=repair_plan,
                         errors=[target_error],
+                        required_tools=required_tools,
                     )
                 )
             else:
@@ -463,6 +477,7 @@ def _cmd_env(args: argparse.Namespace) -> int:
                         repairs=repairs,
                         repair_plan=repair_plan,
                         would_repair=would_repair,
+                        required_tools=required_tools,
                     )
                 )
             else:
@@ -478,11 +493,17 @@ def _cmd_env(args: argparse.Namespace) -> int:
                     print("Manual repairs required:")
                     for line in manual_repair_lines(manual_repairs):
                         print(line)
-            return 0 if environment_ok(statuses, args.strict) else 1
+            return 0 if environment_ok(statuses, args.strict, required_tools) else 1
         install_results = apply_install_plan(install_plan, package_manager, system)
         if install_results and all(result["returncode"] == 0 for result in install_results):
             statuses = collect_status()
-            manual_repairs = manual_repair_items(statuses, args.strict, package_manager, install_plan)
+            manual_repairs = manual_repair_items(
+                statuses,
+                args.strict,
+                package_manager,
+                install_plan,
+                required_tools,
+            )
         try:
             path = write_repair_plan(
                 target,
@@ -492,6 +513,7 @@ def _cmd_env(args: argparse.Namespace) -> int:
                 install_plan=install_plan,
                 strict=args.strict,
                 needs_escalation=needs_escalation,
+                required_tools=required_tools,
             )
         except (OSError, ValueError) as error:
             reason = error.strerror if isinstance(error, OSError) and error.strerror else str(error)
@@ -512,6 +534,7 @@ def _cmd_env(args: argparse.Namespace) -> int:
                         repairs=repairs,
                         repair_plan=repair_plan,
                         errors=[repair_error],
+                        required_tools=required_tools,
                     )
                 )
             else:
@@ -534,7 +557,6 @@ def _cmd_env(args: argparse.Namespace) -> int:
                     print(line)
             for result in install_results:
                 print(f"Install command exited {result['returncode']}: {result['command']}")
-    ok = environment_ok(statuses, args.strict)
     if args.json:
         _print_json(
             build_env_payload(
@@ -550,9 +572,10 @@ def _cmd_env(args: argparse.Namespace) -> int:
                 install_results=install_results,
                 repairs=repairs,
                 repair_plan=repair_plan,
+                required_tools=required_tools,
             )
         )
-    return 0 if ok else 1
+    return 0 if environment_ok(statuses, args.strict, required_tools) else 1
 
 
 def _project_environment_tool_from_args(args: argparse.Namespace) -> dict[str, object]:
@@ -842,6 +865,32 @@ def _cmd_product_mark_ready(args: argparse.Namespace) -> int:
         print(f"- UPDATED: {path}")
     for warning in result.warnings:
         print(f"- WARN: {warning}")
+    return 0
+
+
+def _cmd_product_convert(args: argparse.Namespace) -> int:
+    target = Path(args.target)
+    result = check_product_conversion(target) if args.check else convert_product_document(target)
+    payload = result.to_dict()
+    if result.ok and not args.check:
+        payload["local_commands"] = target_local_commands_payload(cwd=result.target)
+        payload["next_actions"] = next_actions_payload(result.state, cwd=result.target)
+    if args.json:
+        _print_json(payload)
+        return 0 if result.ok else 1
+    if not result.ok:
+        print("Product conversion preflight failed:" if args.check else "Product conversion failed:")
+        for error in result.errors:
+            print(f"- ERROR: {error}")
+        return 1
+    if args.check:
+        print("Product conversion preflight passed.")
+        for path in result.would_update:
+            print(f"- WOULD UPDATE: {path}")
+        return 0
+    print("Product document converted for manual review.")
+    for path in result.updated:
+        print(f"- UPDATED: {path}")
     return 0
 
 
@@ -1653,6 +1702,13 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Also fail when recommended tools are missing; required tools always fail.",
     )
+    env.add_argument(
+        "--require-tool",
+        action="append",
+        choices=tuple(spec.name for spec in TOOLS),
+        default=[],
+        help="Treat one known tool as required for the current operation. Repeat for multiple tools.",
+    )
     env.add_argument("--repair", action="store_true")
     env.add_argument("--check", action="store_true", help="Preview repair actions without writing files or installing packages.")
     env.add_argument("--target", default=".")
@@ -1800,6 +1856,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     product = sub.add_parser("product", help="Manage product document import state.")
     product_sub = product.add_subparsers(dest="product_command", required=True)
+    product_convert = product_sub.add_parser(
+        "convert",
+        help="Convert an archived TXT, DOCX, or HTML product source into reviewable Markdown.",
+    )
+    product_convert.add_argument("target", nargs="?", default=".")
+    product_convert.add_argument("--check", action="store_true", help="Preview conversion without writing files.")
+    product_convert.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    product_convert.set_defaults(func=_cmd_product_convert)
     mark_ready = product_sub.add_parser("mark-ready", help="Mark a reviewed converted PRD ready for structuring.")
     mark_ready.add_argument("target", nargs="?", default=".")
     mark_ready.add_argument("--method", default="manual-reviewed-markdown")

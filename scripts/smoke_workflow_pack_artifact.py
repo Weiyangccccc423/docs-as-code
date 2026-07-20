@@ -215,6 +215,33 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
             payload=consumer_bootstrap_one_command,
         )
 
+        conversion_target = workspace / "artifact-product-conversion-target"
+        _write_fresh_target_text_product(conversion_target)
+        conversion_check_payload = _run_json(
+            steps,
+            "unpacked_consumer_bootstrap_product_conversion_check",
+            [one_command_wrapper, "--check", "--json"],
+            conversion_target,
+        )
+        conversion_check_left_target_uninitialized = not (conversion_target / "README.md").exists()
+        conversion_apply_payload = _run_json(
+            steps,
+            "unpacked_consumer_bootstrap_product_conversion_apply",
+            [one_command_wrapper, "--json"],
+            conversion_target,
+        )
+        consumer_bootstrap_product_conversion = _consumer_bootstrap_product_conversion_details(
+            target=conversion_target,
+            check_payload=conversion_check_payload,
+            apply_payload=conversion_apply_payload,
+            check_left_target_uninitialized=conversion_check_left_target_uninitialized,
+        )
+        _require(
+            consumer_bootstrap_product_conversion.get("ok") is True,
+            "unpacked artifact product conversion bootstrap failed",
+            payload=consumer_bootstrap_product_conversion,
+        )
+
         fresh_target = workspace / "fresh-target"
         fresh_product = _write_fresh_target_product(fresh_target)
         init_check_payload = _run_json(
@@ -619,6 +646,7 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
             "migration_review": migration_review,
             "fresh_target_init": fresh_target_init,
             "consumer_bootstrap_one_command": consumer_bootstrap_one_command,
+            "consumer_bootstrap_product_conversion": consumer_bootstrap_product_conversion,
             "consumer_bootstrap_product_structure": consumer_bootstrap_product_structure,
             "consumer_bootstrap_design_scaffold": consumer_bootstrap_design_scaffold,
             "consumer_bootstrap_design_routing": consumer_bootstrap_design_routing,
@@ -973,6 +1001,30 @@ def _write_fresh_target_product(target: Path) -> Path:
     return product
 
 
+def _write_fresh_target_text_product(target: Path) -> Path:
+    target.mkdir(parents=True, exist_ok=True)
+    product = target / "product.txt"
+    product.write_text(
+        "Artifact Product Conversion\n\n"
+        "Goals and Requirements\n"
+        "- Convert an archived text product source without losing source evidence.\n\n"
+        "Acceptance Criteria\n"
+        "- Stop for manual review before product structuring.\n",
+        encoding="utf-8",
+    )
+    return product
+
+
+def _read_json_object(path: Path) -> dict[str, object]:
+    if not path.is_file():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
 def _fresh_target_init_details(
     *,
     fresh_target: Path,
@@ -1256,6 +1308,50 @@ def _consumer_bootstrap_one_command_details(
         "project_name_selection": str(apply_resolution_map.get("project_name_selection", "")),
         "product_selection": str(product_map.get("selection", "")),
         "workflow_resume_ok": apply_payload.get("workflow_resume_ok") is True,
+    }
+
+
+def _consumer_bootstrap_product_conversion_details(
+    *,
+    target: Path,
+    check_payload: dict[str, object],
+    apply_payload: dict[str, object],
+    check_left_target_uninitialized: bool,
+) -> dict[str, object]:
+    target_local = apply_payload.get("target_local")
+    target_local_map = target_local if isinstance(target_local, dict) else {}
+    workflow_resume = apply_payload.get("workflow_resume")
+    workflow_resume_map = workflow_resume if isinstance(workflow_resume, dict) else {}
+    selected_action = workflow_resume_map.get("selected_action")
+    selected_action_map = selected_action if isinstance(selected_action, dict) else {}
+    report_path = target / "docs/product/core/source/conversion-report.json"
+    report = _read_json_object(report_path)
+    review = report.get("review") if isinstance(report.get("review"), dict) else {}
+    details = {
+        "check_ok": check_payload.get("ok") is True and check_payload.get("check") is True,
+        "check_left_target_uninitialized": check_left_target_uninitialized,
+        "apply_ok": apply_payload.get("ok") is True,
+        "conversion_requested": apply_payload.get("product_conversion_requested") is True,
+        "conversion_applied": apply_payload.get("product_conversion_applied") is True,
+        "pending_product_review": target_local_map.get("pending_product_review") is True,
+        "conversion_report": report_path.is_file() and review.get("status") == "pending",
+        "selected_action_id": str(selected_action_map.get("id", "")),
+    }
+    return {
+        "ok": all(
+            (
+                details["check_ok"],
+                details["check_left_target_uninitialized"],
+                details["apply_ok"],
+                details["conversion_requested"],
+                details["conversion_applied"],
+                details["pending_product_review"],
+                details["conversion_report"],
+                details["selected_action_id"] == "product-mark-ready",
+            )
+        ),
+        "target": str(target),
+        **details,
     }
 
 

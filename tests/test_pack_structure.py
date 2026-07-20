@@ -2822,8 +2822,15 @@ class PackStructureTest(unittest.TestCase):
                 ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
             )
             script = target / "scripts/workflow_actions.py"
+            source = script.read_text(encoding="utf-8")
+            prefix, product_import_actions = source.split(
+                "PRODUCT_IMPORT_ACTIONS: tuple[dict[str, object], ...] = (",
+                1,
+            )
             script.write_text(
-                script.read_text(encoding="utf-8").replace(
+                prefix
+                + "PRODUCT_IMPORT_ACTIONS: tuple[dict[str, object], ...] = ("
+                + product_import_actions.replace(
                     '        "skills": ("archiving-product-document", "verifying-governance-docs"),\n',
                     "",
                     1,
@@ -2844,7 +2851,7 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
-    def test_verify_pack_reports_missing_product_import_action_approval_schema_key(self) -> None:
+    def test_verify_pack_reports_missing_product_conversion_action_schema_key(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
             shutil.copytree(
@@ -2855,6 +2862,44 @@ class PackStructureTest(unittest.TestCase):
             script = target / "scripts/workflow_actions.py"
             script.write_text(
                 script.read_text(encoding="utf-8").replace(
+                    '        "approval_required": False,\n',
+                    "",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_workflow_action_schema_missing"
+                    and finding.path == "scripts/workflow_actions.py"
+                    and "PRODUCT_CONVERSION_ACTIONS action 0" in finding.message
+                    and "approval_required" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_missing_product_import_action_approval_schema_key(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/workflow_actions.py"
+            source = script.read_text(encoding="utf-8")
+            prefix, product_import_actions = source.split(
+                "PRODUCT_IMPORT_ACTIONS: tuple[dict[str, object], ...] = (",
+                1,
+            )
+            script.write_text(
+                prefix
+                + "PRODUCT_IMPORT_ACTIONS: tuple[dict[str, object], ...] = ("
+                + product_import_actions.replace(
                     '        "approval_required": False,\n',
                     "",
                     1,

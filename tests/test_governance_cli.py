@@ -9158,8 +9158,11 @@ class GovernanceCliTest(unittest.TestCase):
     def test_product_mark_ready_next_actions_execute_from_reported_cwd(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "target"
-            product = Path(tmp) / "product.docx"
-            product.write_bytes(b"fake docx bytes")
+            product = Path(tmp) / "product.txt"
+            product.write_text(
+                "Converted Product\n\nGoal\nShip governed projects from reviewed product input.\n",
+                encoding="utf-8",
+            )
 
             init_result = subprocess.run(
                 [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product), "--json"],
@@ -9169,22 +9172,42 @@ class GovernanceCliTest(unittest.TestCase):
             )
             self.assertEqual(0, init_result.returncode, init_result.stderr)
             init_payload = json.loads(init_result.stdout)
-            mark_ready_check, mark_ready_apply = init_payload["next_actions"]
+            convert_check, convert_apply = init_payload["next_actions"]
+            self.assertEqual("product-convert-check", convert_check["id"])
+            self.assertEqual("product-convert", convert_apply["id"])
+
+            conversion_preflight = subprocess.run(
+                convert_check["argv"],
+                cwd=convert_check["cwd"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, conversion_preflight.returncode, conversion_preflight.stderr)
+            self.assertTrue(json.loads(conversion_preflight.stdout)["ok"])
+
+            conversion_applied = subprocess.run(
+                convert_apply["argv"],
+                cwd=convert_apply["cwd"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, conversion_applied.returncode, conversion_applied.stderr)
+            conversion_payload = json.loads(conversion_applied.stdout)
+            self.assertTrue(conversion_payload["ok"])
+            self.assertEqual("pending_review", conversion_payload["state"]["product_conversion_status"])
+
+            mark_ready_check, mark_ready_apply = conversion_payload["next_actions"]
             self.assertEqual("product-mark-ready-check", mark_ready_check["id"])
             self.assertEqual("product-mark-ready", mark_ready_apply["id"])
+            self.assertIn("reviewed-utf8-text-to-markdown", mark_ready_check["argv"])
             self.assertEqual(1, mark_ready_check["sequence"])
             self.assertEqual("product-mark-ready", mark_ready_check["preflight_for"])
             self.assertEqual("ok:true", mark_ready_check["success_condition"])
             self.assertEqual(2, mark_ready_apply["sequence"])
             self.assertEqual("product-mark-ready-check", mark_ready_apply["requires_action"])
             self.assertEqual("ok:true", mark_ready_apply["success_condition"])
-
-            (target / "docs/product/core/PRD.md").write_text(
-                "# Converted Product\n\n"
-                "## Goal\n\n"
-                "Ship governed projects from reviewed product input.\n",
-                encoding="utf-8",
-            )
 
             preflight = subprocess.run(
                 mark_ready_check["argv"],

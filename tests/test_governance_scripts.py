@@ -10551,10 +10551,9 @@ class GovernanceScriptsTest(unittest.TestCase):
     def test_bootstrap_installed_direct_runtime_scripts_emit_json(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "target"
-            product = Path(tmp) / "product.docx"
-            product.write_bytes(b"fake docx bytes")
+            product = Path(tmp) / "product.txt"
+            product.write_text("Converted Product\n", encoding="utf-8")
             bootstrap(root, product)
-            (root / "docs/product/core/PRD.md").write_text("# Converted Product\n", encoding="utf-8")
 
             def run_direct(script: str, *args: str) -> tuple[subprocess.CompletedProcess[str], dict[str, object]]:
                 result = subprocess.run(
@@ -10622,7 +10621,7 @@ class GovernanceScriptsTest(unittest.TestCase):
                 },
                 env_payload["local_commands"],
             )
-            self.assertEqual("product-mark-ready-check", env_payload["next_actions"][0]["id"])
+            self.assertEqual("product-convert-check", env_payload["next_actions"][0]["id"])
             self.assertEqual(str(root.resolve()), env_payload["next_actions"][0]["cwd"])
 
             env_check_result, env_check_payload = run_direct("check_env.py", "--repair", "--check", "--target", ".", "--json")
@@ -10645,15 +10644,35 @@ class GovernanceScriptsTest(unittest.TestCase):
                 },
                 env_check_payload["local_commands"],
             )
-            self.assertEqual("product-mark-ready-check", env_check_payload["next_actions"][0]["id"])
+            self.assertEqual("product-convert-check", env_check_payload["next_actions"][0]["id"])
             self.assertEqual(str(root.resolve()), env_check_payload["next_actions"][0]["cwd"])
             self.assertFalse((root / ".governance/env-repair.md").exists())
+
+            convert_check, convert_check_payload = run_direct(
+                "product_conversion.py",
+                ".",
+                "--check",
+                "--json",
+            )
+            self.assertEqual(0, convert_check.returncode)
+            self.assertTrue(convert_check_payload["ok"])
+            self.assertTrue(convert_check_payload["check"])
+            self.assertEqual("utf8-text-to-markdown", convert_check_payload["method"])
+            self.assertFalse((root / "docs/product/core/source/conversion-report.json").exists())
+
+            convert, convert_payload = run_direct("product_conversion.py", ".", "--json")
+            self.assertEqual(0, convert.returncode)
+            self.assertTrue(convert_payload["ok"])
+            self.assertEqual("pending", convert_payload["report"]["review"]["status"])
+            self.assertTrue((root / "docs/product/core/source/conversion-report.json").is_file())
 
             mark_ready_check, mark_ready_check_payload = run_direct(
                 "product_import.py",
                 "mark-ready",
                 ".",
                 "--reviewed",
+                "--method",
+                "reviewed-utf8-text-to-markdown",
                 "--check",
                 "--json",
             )
@@ -10667,7 +10686,15 @@ class GovernanceScriptsTest(unittest.TestCase):
             manifest = json.loads((root / "docs/product/core/source/source-manifest.json").read_text(encoding="utf-8"))
             self.assertEqual("conversion_required", manifest["import"]["status"])
 
-            mark_ready, mark_ready_payload = run_direct("product_import.py", "mark-ready", ".", "--reviewed", "--json")
+            mark_ready, mark_ready_payload = run_direct(
+                "product_import.py",
+                "mark-ready",
+                ".",
+                "--reviewed",
+                "--method",
+                "reviewed-utf8-text-to-markdown",
+                "--json",
+            )
             self.assertEqual(0, mark_ready.returncode)
             self.assertTrue(mark_ready_payload["ok"])
             self.assertEqual(str(root.resolve()), mark_ready_payload["target"])

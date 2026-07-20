@@ -5,6 +5,47 @@ from typing import Any
 
 
 TARGET_WORKFLOW_ROOT = "docs/agent-workflow/workflow-pack"
+CONVERTIBLE_PRODUCT_SUFFIXES = {".docx", ".html", ".htm", ".txt"}
+RECORDED_CONVERSION_METHODS = {
+    "pandoc-docx-to-gfm",
+    "pandoc-html-to-gfm",
+    "utf8-text-to-markdown",
+}
+
+PRODUCT_CONVERSION_ACTIONS: tuple[dict[str, object], ...] = (
+    {
+        "id": "product-convert-check",
+        "kind": "preflight",
+        "phase": "product-document-archiving",
+        "workflow": f"{TARGET_WORKFLOW_ROOT}/workflows/02-product-document-archiving.md",
+        "skills": ("archiving-product-document", "verifying-governance-docs"),
+        "command": "bin/governance product convert . --check --json",
+        "argv": ("bin/governance", "product", "convert", ".", "--check", "--json"),
+        "writes_state": False,
+        "approval_required": False,
+        "requires": "the archived TXT, DOCX, or HTML source passes hash and converter preflight",
+        "sequence": 1,
+        "preflight_for": "product-convert",
+        "success_condition": "ok:true",
+        "description": "preview source-preserving product conversion without writing target files",
+    },
+    {
+        "id": "product-convert",
+        "kind": "apply",
+        "phase": "product-document-archiving",
+        "workflow": f"{TARGET_WORKFLOW_ROOT}/workflows/02-product-document-archiving.md",
+        "skills": ("archiving-product-document", "verifying-governance-docs"),
+        "command": "bin/governance product convert . --json",
+        "argv": ("bin/governance", "product", "convert", ".", "--json"),
+        "writes_state": True,
+        "approval_required": False,
+        "requires": "product-convert-check ok:true",
+        "sequence": 2,
+        "requires_action": "product-convert-check",
+        "success_condition": "ok:true",
+        "description": "write reviewable Markdown and hash-bound conversion evidence",
+    },
+)
 
 PRODUCT_IMPORT_ACTIONS: tuple[dict[str, object], ...] = (
     {
@@ -100,7 +141,9 @@ def next_actions_payload(state: dict[str, Any], cwd: str = ".") -> list[dict[str
         raise ValueError("workflow action cwd must be a non-empty string")
     phase = state.get("phase")
     if phase == "initialized" and state.get("product_import_status") != "ready_for_structuring":
-        return _copy_actions(PRODUCT_IMPORT_ACTIONS, cwd)
+        if _product_conversion_pending(state):
+            return _copy_actions(PRODUCT_CONVERSION_ACTIONS, cwd)
+        return _product_mark_ready_actions(state, cwd)
     next_phase = _next_phase(phase)
     if not next_phase:
         return []
@@ -114,6 +157,32 @@ def _next_phase(phase: object) -> str:
     if index >= len(PHASE_ORDER) - 1:
         return ""
     return PHASE_ORDER[index + 1]
+
+
+def _product_conversion_pending(state: dict[str, Any]) -> bool:
+    if state.get("product_conversion_status") in {"pending_review", "reviewed"}:
+        return False
+    archived = state.get("archived_product")
+    if not isinstance(archived, str) or not archived:
+        return False
+    suffix = "." + archived.rsplit(".", 1)[-1].lower() if "." in archived else ""
+    return suffix in CONVERTIBLE_PRODUCT_SUFFIXES
+
+
+def _product_mark_ready_actions(state: dict[str, Any], cwd: str) -> list[dict[str, object]]:
+    actions = _copy_actions(PRODUCT_IMPORT_ACTIONS, cwd)
+    conversion_method = state.get("product_conversion_method")
+    if not isinstance(conversion_method, str) or conversion_method not in RECORDED_CONVERSION_METHODS:
+        return actions
+    review_method = f"reviewed-{conversion_method}"
+    for action in actions:
+        argv = action.get("argv")
+        if not isinstance(argv, list):
+            continue
+        method_index = argv.index("--method") + 1
+        argv[method_index] = review_method
+        action["command"] = _command_text(argv)
+    return actions
 
 
 def _advance_actions(phase: str, cwd: str) -> list[dict[str, object]]:
