@@ -9,6 +9,7 @@ Calibrate execution against DORA small-batch integration and test automation, Go
 - Is exactly one `Ready` or `In Progress` `TASK-NNN` selected from `docs/development/02-task-board.md`?
 - Before first code edit, was exactly one `Ready` `TASK-NNN` claimed as `In Progress`?
 - If the task was `Ready`, did the agent use `implementation run --check`, execute the returned snapshot-guarded `--apply-start` action, and stop for code edits with `executed: false`?
+- Did claim capture an immutable Git change baseline before edits, with a stable baseline ID and digest in `.governance/implementation-change-baselines.json`?
 - Was claim kept separate from verification, with no invocation combining `--apply-start` and `--execute` or `--closeout`?
 - Does the task link existing local Product, Design, API, Acceptance, and Verification sources before any code is edited?
 - Does the Verification cell bind every required check as `command:<registered-name>` before the task becomes Ready or In Progress?
@@ -67,6 +68,14 @@ Reference: `https://dora.dev/capabilities/test-automation/`
 - Are roadmap and task board statuses synchronized after implementation, verification, or blocking findings?
 - Does the final handoff name changed files, commands run, failures, deferred follow-ups, and remaining risks?
 
+## Code Review
+
+- After all required checks passed, was `implementation review --task TASK-NNN --json` used to enumerate the complete task change set from the immutable baseline?
+- Was every `authority_review_context.required_reads` file loaded, including the provenance-locked `code-reviewer` skill and its universal/language rules?
+- Does the structured report resolve every finding, prohibit accepted critical/high risk, and receive `--reviewed --check` before apply?
+- Does `docs/development/05-code-review-evidence.json` bind the task, per-file content, type and Git mode evidence, verification evidence, and authority skill digest?
+- After any code, task traceability, verification, or authority skill change, was stale review evidence rejected and renewed?
+
 Reference: `https://scrumguides.org/scrum-guide.html`
 
 ## Security and Supply Chain
@@ -84,6 +93,7 @@ Reference: `https://openssf.org/projects/scorecard/`
 - Does the task satisfy `references/implementation-readiness-checklist.md` plus this execution checklist before being marked `Done`?
 - Does `implementation closeout` report `evidence_summary.all_verification_results_passing: true`, proving every current command result passes rather than only one?
 - Did the runner closeout use the post-execution snapshot and return `status: complete` plus `closeout_applied: true`?
+- Is `code_review_evidence_current` satisfied for the complete current task change set before closeout?
 - Are `required_verification_commands_registered` and `required_verification_commands_passing` satisfied, with empty `missing_verification_commands` and `failing_verification_commands`?
 - Are failing checks, unresolved questions, or out-of-scope discoveries reflected as `Blocked`, `Deferred`, or follow-up tasks instead of hidden in prose?
 - Are all source-of-truth docs, implementation files, tests, and evidence committed as one coherent change when the repository uses Git?

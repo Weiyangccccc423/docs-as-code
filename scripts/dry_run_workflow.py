@@ -377,6 +377,13 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
     _require_path(target / "docs/agent-workflow/workflow-pack/manifest.json", "workflow-pack manifest is missing")
     _require_path(target / "docs/product/core/PRD.md", "archived PRD is missing")
 
+    _run_text(
+        steps,
+        "initialize_target_git",
+        ["git", "init", "-q", "-b", "main"],
+        target,
+    )
+
     verify_check = _run_json(
         steps,
         "verify_check",
@@ -1452,6 +1459,7 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         "implementation run start apply did not synchronize In Progress statuses",
         payload=implementation_start_apply,
     )
+    _write_dry_run_implementation_change(target)
     implementation_plan_after_start = _run_json(
         steps,
         "implementation_plan_after_start",
@@ -1558,31 +1566,6 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         "Node.js stack verification preflight did not become ready",
         payload=node_verification_preview,
     )
-    node_verification_execute = _run_json(
-        steps,
-        "implementation_node_verification_execute",
-        [
-            "bin/governance",
-            "implementation",
-            "verify",
-            ".",
-            "--task",
-            IMPLEMENTATION_TASK_ID,
-            "--command",
-            NODE_IMPLEMENTATION_VERIFICATION_COMMAND,
-            "--run-id",
-            NODE_IMPLEMENTATION_VERIFICATION_RUN_ID,
-            "--json",
-        ],
-        target,
-        env=repair_env,
-    )
-    _require(
-        _implementation_verification_completed(node_verification_execute),
-        "Node.js stack tests did not execute and record passing evidence",
-        payload=node_verification_execute,
-    )
-
     (
         rust_runtime_registration,
         rust_verification_preview,
@@ -1634,13 +1617,132 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
     run_execute_summary = implementation_run_execute.get("verification_summary", {})
     _require(
         implementation_run_execute.get("ok") is True
-        and implementation_run_execute.get("status") == "closeout_ready"
+        and implementation_run_execute.get("status") == "closeout_blocked"
         and implementation_run_execute.get("executed") is True
         and run_execute_summary.get("required_count") == 2
         and run_execute_summary.get("passed_count") == 2
-        and run_execute_summary.get("all_passed") is True,
-        "implementation run did not execute every bound verification command",
+        and run_execute_summary.get("all_passed") is True
+        and implementation_run_execute.get("next_action", {}).get("id")
+        == "inspect-implementation-code-review",
+        "implementation run did not execute every binding and route the complete change set to review",
         payload=implementation_run_execute,
+    )
+
+    node_verification_execute = _run_json(
+        steps,
+        "implementation_node_verification_execute",
+        [
+            "bin/governance",
+            "implementation",
+            "verify",
+            ".",
+            "--task",
+            IMPLEMENTATION_TASK_ID,
+            "--command",
+            NODE_IMPLEMENTATION_VERIFICATION_COMMAND,
+            "--run-id",
+            NODE_IMPLEMENTATION_VERIFICATION_RUN_ID,
+            "--json",
+        ],
+        target,
+        env=repair_env,
+    )
+    _require(
+        _implementation_verification_completed(node_verification_execute),
+        "Node.js stack tests did not execute and record passing evidence",
+        payload=node_verification_execute,
+    )
+
+    implementation_review_plan = _run_json(
+        steps,
+        "implementation_review_plan",
+        ["bin/governance", "implementation", "review", ".", "--task", IMPLEMENTATION_TASK_ID, "--json"],
+        target,
+    )
+    _require(
+        implementation_review_plan.get("ok") is True
+        and implementation_review_plan.get("status") == "review_required"
+        and implementation_review_plan.get("authority_skill", {}).get("name") == "code-reviewer"
+        and implementation_review_plan.get("authority_skill", {}).get("provenance_ready") is True
+        and "src/dry_run_task.py" in implementation_review_plan.get("change_set", {}).get("changed_paths", []),
+        "implementation review did not expose the provenance-backed complete task change set",
+        payload=implementation_review_plan,
+    )
+    implementation_review_report = _write_implementation_review_report(target)
+    implementation_review_preview = _run_json(
+        steps,
+        "implementation_review_preview",
+        [
+            "bin/governance",
+            "implementation",
+            "review",
+            ".",
+            "--task",
+            IMPLEMENTATION_TASK_ID,
+            "--report",
+            str(implementation_review_report.relative_to(target)),
+            "--reviewed",
+            "--check",
+            "--json",
+        ],
+        target,
+    )
+    _require(
+        implementation_review_preview.get("ok") is True
+        and implementation_review_preview.get("review_ready") is True
+        and implementation_review_preview.get("would_update")
+        == ["docs/development/05-code-review-evidence.json"],
+        "implementation review report preflight did not become ready",
+        payload=implementation_review_preview,
+    )
+    implementation_review_record = _run_json(
+        steps,
+        "implementation_review_record",
+        [
+            "bin/governance",
+            "implementation",
+            "review",
+            ".",
+            "--task",
+            IMPLEMENTATION_TASK_ID,
+            "--report",
+            str(implementation_review_report.relative_to(target)),
+            "--reviewed",
+            "--json",
+        ],
+        target,
+    )
+    _require(
+        implementation_review_record.get("ok") is True
+        and implementation_review_record.get("status") == "current"
+        and implementation_review_record.get("evidence_current") is True
+        and implementation_review_record.get("updated")
+        == ["docs/development/05-code-review-evidence.json"],
+        "implementation review evidence was not recorded",
+        payload=implementation_review_record,
+    )
+    implementation_run_reviewed_check = _run_json(
+        steps,
+        "implementation_run_reviewed_check",
+        [
+            "bin/governance",
+            "implementation",
+            "run",
+            ".",
+            "--task",
+            IMPLEMENTATION_TASK_ID,
+            "--check",
+            "--json",
+        ],
+        target,
+        env=repair_env,
+    )
+    _require(
+        implementation_run_reviewed_check.get("ok") is True
+        and implementation_run_reviewed_check.get("status") == "closeout_ready"
+        and implementation_run_reviewed_check.get("executed") is False,
+        "implementation runner did not accept current review evidence for closeout",
+        payload=implementation_run_reviewed_check,
     )
     closeout_with_evidence = _run_json(
         steps,
@@ -1653,13 +1755,13 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         "implementation closeout did not become ready with passing local evidence",
         payload=closeout_with_evidence,
     )
-    implementation_run_closeout_argv = implementation_run_execute.get("next_action", {}).get("argv", [])
+    implementation_run_closeout_argv = implementation_run_reviewed_check.get("next_action", {}).get("argv", [])
     _require(
         isinstance(implementation_run_closeout_argv, list)
         and "--closeout" in implementation_run_closeout_argv
         and "--expect-snapshot" in implementation_run_closeout_argv,
         "implementation run execute did not return a snapshot-guarded closeout action",
-        payload=implementation_run_execute,
+        payload=implementation_run_reviewed_check,
     )
     implementation_run_closeout = _run_json(
         steps,
@@ -1939,6 +2041,10 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
             "executed_all_required": implementation_run_execute.get("executed") is True
             and run_execute_summary.get("all_passed") is True
             and run_execute_summary.get("passed_count") == run_execute_summary.get("required_count"),
+            "review_required_after_execution": implementation_run_execute.get("status")
+            == "closeout_blocked",
+            "reviewed_closeout_ready": implementation_run_reviewed_check.get("status")
+            == "closeout_ready",
             "snapshot_guarded_closeout": "--expect-snapshot" in implementation_run_closeout_argv,
             "closeout_applied": implementation_run_closeout.get("closeout_applied") is True,
             "complete": implementation_run_closeout.get("status") == "complete",
@@ -1947,6 +2053,8 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
             "task_id": IMPLEMENTATION_TASK_ID,
             "ready": implementation_start_preview.get("start_ready") is True,
             "applied_status_updates": implementation_start_apply.get("applied") is True,
+            "baseline_captured": implementation_start_apply.get("baseline_capture", {}).get("captured")
+            is True,
             "implementation_plan_in_progress": implementation_plan_after_start.get("blocked") is False
             and implementation_plan_after_start.get("active_work", {}).get("status") == "in_progress",
             "status_update_paths": [
@@ -1987,6 +2095,18 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
             is True,
             "updated_paths": list(implementation_verification_execute.get("updated_paths", [])),
         },
+        "implementation_review": {
+            "authority_skill": implementation_review_plan.get("authority_skill", {}).get("name", ""),
+            "provenance_ready": implementation_review_plan.get("authority_skill", {}).get(
+                "provenance_ready"
+            )
+            is True,
+            "change_set_bound": "src/dry_run_task.py"
+            in implementation_review_plan.get("change_set", {}).get("changed_paths", []),
+            "preview_ready": implementation_review_preview.get("review_ready") is True,
+            "evidence_current": implementation_review_record.get("evidence_current") is True,
+            "evidence_path": "docs/development/05-code-review-evidence.json",
+        },
         "implementation_closeout": {
             "task_id": IMPLEMENTATION_TASK_ID,
             "blocked_without_evidence": closeout_without_evidence.get("closeout_ready") is False,
@@ -2022,6 +2142,7 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
                     "bin/governance",
                     "scripts/governance_cli.py",
                     "scripts/implementation_run.py",
+                    "scripts/implementation_review_evidence.py",
                     "scripts/implementation_verify.py",
                     "scripts/project_environment.py",
                     "scripts/bounded_process.py",
@@ -2037,7 +2158,7 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
                 if path in runtime_refresh.get("refreshed", [])
             ],
         },
-        "next": "execute exactly one Ready implementation task and apply closeout status updates after evidence passes",
+        "next": "execute exactly one Ready task, review its complete change set, and close only with current evidence",
     }
 
 
@@ -2130,6 +2251,38 @@ def _remove_dry_run_runtime_registration(target: Path) -> None:
                 if not isinstance(tool, dict) or tool.get("id") != "dry-run-runtime"
             ]
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _write_dry_run_implementation_change(target: Path) -> None:
+    path = target / "src/dry_run_task.py"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "def governed_workflow_ready() -> bool:\n"
+        "    return True\n",
+        encoding="utf-8",
+    )
+
+
+def _write_implementation_review_report(target: Path) -> Path:
+    path = target / ".governance/code-review-reports" / f"{IMPLEMENTATION_TASK_ID}.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "task_id": IMPLEMENTATION_TASK_ID,
+                "reviewer": {"kind": "agent", "id": "dry-run-code-reviewer"},
+                "verdict": "approved",
+                "summary": "Reviewed the complete dry-run task change set and local verification evidence.",
+                "findings": [],
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return path
 
 
 def _write_stack_acceptance_fixtures(target: Path) -> None:
@@ -3962,7 +4115,14 @@ def _implementation_start_apply_completed(payload: dict[str, object]) -> bool:
     if payload.get("applied") is not True or payload.get("already_current") is not False:
         return False
     updated_paths = {str(path) for path in payload.get("updated_paths", [])}
-    if updated_paths != {"docs/development/01-roadmap.md", "docs/development/02-task-board.md"}:
+    if updated_paths != {
+        ".governance/implementation-change-baselines.json",
+        "docs/development/01-roadmap.md",
+        "docs/development/02-task-board.md",
+    }:
+        return False
+    baseline_capture = payload.get("baseline_capture")
+    if not isinstance(baseline_capture, dict) or baseline_capture.get("captured") is not True:
         return False
     status_update_plan = payload.get("post_apply_status_update_plan")
     return isinstance(status_update_plan, dict) and status_update_plan.get("updates_required") is False
@@ -4159,6 +4319,7 @@ def _closeout_blocks_without_evidence(payload: dict[str, object]) -> bool:
         "required_verification_commands_passing",
         "verification_results_all_passing",
         "task_verification_links_local_evidence",
+        "code_review_evidence_current",
     }
     if not required_codes.issubset(blocking_codes):
         return False
@@ -4202,6 +4363,8 @@ def _closeout_ready_with_evidence(payload: dict[str, object]) -> bool:
         return False
     if evidence.get("verification_links_local_evidence") is not True:
         return False
+    if evidence.get("code_review_evidence_current") is not True:
+        return False
     status_update_plan = payload.get("status_update_plan")
     if not isinstance(status_update_plan, dict):
         return False
@@ -4234,6 +4397,8 @@ def _closeout_apply_completed(payload: dict[str, object]) -> bool:
     if not isinstance(evidence, dict):
         return False
     if evidence.get("task_status") != "Done" or evidence.get("roadmap_status") != "Done":
+        return False
+    if evidence.get("code_review_evidence_current") is not True:
         return False
     status_update_plan = payload.get("status_update_plan")
     if not isinstance(status_update_plan, dict):

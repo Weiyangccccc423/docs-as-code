@@ -316,6 +316,10 @@ TEMPLATE_REQUIRED_GUARDRAILS = {
         "stdout",
         "stderr",
     ),
+    "templates/docs/development/05-code-review-evidence.json": (
+        '"schema_version": 1',
+        '"reviews": []',
+    ),
     "templates/docs/frontend/01-modules.md": (
         "# Frontend Modules",
         "- Product scope source",
@@ -846,6 +850,10 @@ DRY_RUN_WORKFLOW_REQUIRED_PHRASES = (
     "implementation_run_apply_start",
     "implementation_run_check_in_progress",
     "implementation_run_execute",
+    "implementation_review_plan",
+    "implementation_review_preview",
+    "implementation_review_record",
+    "implementation_run_reviewed_check",
     "implementation_run_closeout",
     '"implementation_run"',
     "snapshot_guarded_start",
@@ -864,9 +872,11 @@ DRY_RUN_WORKFLOW_REQUIRED_PHRASES = (
     "_build_stack_acceptance_summary",
     '"stack_acceptance"',
     '"implementation_verification"',
+    '"implementation_review"',
     '"implementation_task_package"',
     "required_verification_commands_passing",
     "04-implementation-evidence.md",
+    "05-code-review-evidence.json",
     "all_current_results_passing",
     "make_check_env",
     "make_repair_env_check",
@@ -942,6 +952,7 @@ DRY_RUN_DOC_REQUIREMENTS = {
         "implementation gate remains blocked",
         "closeout blocks `Done`",
         "passing local evidence",
+        "code_review_evidence_current",
         "consumer_resume_implementation_handoff",
     ),
     "workflows/00-overview.md": (
@@ -955,6 +966,7 @@ DRY_RUN_DOC_REQUIREMENTS = {
         "implementation gate remains blocked",
         "implementation closeout blocks `Done`",
         "passing local evidence",
+        "code_review_evidence_current",
         "consumer_resume_implementation_handoff",
     ),
     "skills/verifying-governance-docs/SKILL.md": (
@@ -965,6 +977,7 @@ DRY_RUN_DOC_REQUIREMENTS = {
         "python3 scripts/dry_run_workflow.py --product tests/fixtures/product-docs/field-service-ops.md --json",
         "design_reviews",
         "implementation closeout",
+        "code_review_evidence_current",
         "consumer_resume_implementation_handoff",
     ),
     "references/release-readiness-checklist.md": (
@@ -975,6 +988,7 @@ DRY_RUN_DOC_REQUIREMENTS = {
         "api_candidate_count: 4",
         "design_reviews",
         "implementation closeout blocked without evidence",
+        "code_review_evidence_current",
         "passing local evidence",
         "consumer_resume_implementation_handoff",
     ),
@@ -3066,6 +3080,7 @@ DESIGN_PLAN_SOURCE_REQUIRED_PHRASES = (
 )
 IMPLEMENTATION_RUN_SOURCE_PATH = "scripts/implementation_run.py"
 IMPLEMENTATION_VERIFY_SOURCE_PATH = "scripts/implementation_verify.py"
+IMPLEMENTATION_REVIEW_SOURCE_PATH = "scripts/implementation_review_evidence.py"
 PROJECT_ENVIRONMENT_SOURCE_PATH = "scripts/project_environment.py"
 BOUNDED_PROCESS_SOURCE_PATH = "scripts/bounded_process.py"
 BOUNDED_PROCESS_SOURCE_REQUIRED_PHRASES = (
@@ -3174,6 +3189,28 @@ IMPLEMENTATION_RUN_SOURCE_REQUIRED_PHRASES = (
     "apply_implementation_closeout",
     "run_bounded_command",
 )
+IMPLEMENTATION_REVIEW_SOURCE_REQUIRED_PHRASES = (
+    "CODE_REVIEW_EVIDENCE_REL",
+    "IMPLEMENTATION_BASELINES_REL",
+    "CODE_REVIEW_AUTHORITY_SKILL",
+    "build_implementation_baseline_capture",
+    "capture_implementation_baseline",
+    "build_implementation_review",
+    "record_implementation_review",
+    "IMPLEMENTATION_REVIEW_LOCK_REL",
+    "_implementation_review_lock",
+    "fcntl.flock",
+    "git-ls-files",
+    "_build_change_set",
+    "provenance_ready",
+    "_verification_evidence",
+    "_task_fingerprint",
+    "_review_status",
+    "NamedTemporaryFile",
+    "os.fsync",
+    ".governance/code-review-reports/",
+    "reviewed",
+)
 IMPLEMENTATION_RUN_DOC_REQUIREMENTS = {
     "README.md": (
         "implementation run <target> --check --json",
@@ -3214,6 +3251,54 @@ IMPLEMENTATION_RUN_DOC_REQUIREMENTS = {
         "implementation-run-check",
         '`["bin/governance", "implementation", "run", ".", "--check", "--json"]`',
         "Use `implementation run --check`",
+    ),
+}
+IMPLEMENTATION_REVIEW_DOC_REQUIREMENTS = {
+    "README.md": (
+        "implementation review <target> --task TASK-NNN --json",
+        ".governance/implementation-change-baselines.json",
+        "docs/development/05-code-review-evidence.json",
+        "code-reviewer",
+        "--report",
+        "--reviewed",
+        "code_review_evidence_current",
+    ),
+    "workflows/00-overview.md": (
+        "implementation review --task TASK-NNN --json",
+        "complete task change set",
+        "code-reviewer",
+        "code_review_evidence_current",
+    ),
+    "workflows/06-implementation-execution.md": (
+        ".governance/implementation-change-baselines.json",
+        "implementation review <target> --task TASK-NNN --json",
+        ".governance/code-review-reports/TASK-NNN.json",
+        "--reviewed --check",
+        "docs/development/05-code-review-evidence.json",
+        "code_review_evidence_current",
+    ),
+    "skills/executing-implementation-task/SKILL.md": (
+        "code-reviewer",
+        "implementation review . --task TASK-NNN --json",
+        ".governance/code-review-reports/TASK-NNN.json",
+        "--reviewed --check",
+        "code_review_evidence_current",
+    ),
+    "skills/using-governance-workflow/SKILL.md": (
+        "code-reviewer",
+        "code_review_required",
+        "implementation review",
+    ),
+    "references/implementation-execution-checklist.md": (
+        "immutable Git change baseline",
+        "complete task change set",
+        "code-reviewer",
+        "code_review_evidence_current",
+    ),
+    "templates/docs/agent-workflow/task-handoff.md": (
+        "Code Review Record",
+        "docs/development/05-code-review-evidence.json",
+        "code-reviewer",
     ),
 }
 IMPLEMENTATION_VERIFY_DOC_REQUIREMENTS = {
@@ -5574,6 +5659,7 @@ AUTHORITY_ROUTING_SPECIALIST_SKILLS = frozenset(
         "a11y-audit",
         "api-design-reviewer",
         "ci-cd-pipeline-builder",
+        "code-reviewer",
         "database-designer",
         "database-schema-designer",
         "migration-architect",
@@ -5770,6 +5856,8 @@ def verify_pack(root: Path) -> PackReport:
     _check_bounded_process_source(root, findings)
     _check_implementation_run_source(root, findings)
     _check_implementation_run_docs(root, findings)
+    _check_implementation_review_source(root, findings)
+    _check_implementation_review_docs(root, findings)
     _check_implementation_verify_source(root, findings)
     _check_implementation_verify_docs(root, findings)
     _check_work_package_source(root, findings)
@@ -8227,6 +8315,55 @@ def _check_implementation_run_docs(root: Path, findings: list[PackFinding]) -> N
             PackFinding(
                 "pack_implementation_run_doc_missing",
                 f"{rel} must document guarded implementation runner phrase(s): {', '.join(missing)}",
+                rel,
+            )
+        )
+
+
+def _check_implementation_review_source(root: Path, findings: list[PackFinding]) -> None:
+    path = root / IMPLEMENTATION_REVIEW_SOURCE_PATH
+    if not path.is_file():
+        findings.append(
+            PackFinding(
+                "pack_implementation_review_source_missing",
+                f"missing implementation review evidence source: {IMPLEMENTATION_REVIEW_SOURCE_PATH}",
+                IMPLEMENTATION_REVIEW_SOURCE_PATH,
+            )
+        )
+        return
+    text = _read_utf8_text_or_none(path)
+    if text is None:
+        return
+    missing = [
+        phrase for phrase in IMPLEMENTATION_REVIEW_SOURCE_REQUIRED_PHRASES if phrase not in text
+    ]
+    if not missing:
+        return
+    findings.append(
+        PackFinding(
+            "pack_implementation_review_source_incomplete",
+            (
+                f"{IMPLEMENTATION_REVIEW_SOURCE_PATH} must preserve Git-backed task baselines, complete "
+                "change-set hashing, authority provenance, structured reports, and stale-evidence checks; "
+                f"missing phrase(s): {', '.join(missing)}"
+            ),
+            IMPLEMENTATION_REVIEW_SOURCE_PATH,
+        )
+    )
+
+
+def _check_implementation_review_docs(root: Path, findings: list[PackFinding]) -> None:
+    for rel, required_phrases in IMPLEMENTATION_REVIEW_DOC_REQUIREMENTS.items():
+        text = _read_utf8_text_or_none(root / rel)
+        if text is None:
+            continue
+        missing = [phrase for phrase in required_phrases if phrase not in text]
+        if not missing:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_implementation_review_doc_missing",
+                f"{rel} must document implementation review phrase(s): {', '.join(missing)}",
                 rel,
             )
         )

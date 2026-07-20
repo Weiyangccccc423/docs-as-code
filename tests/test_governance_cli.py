@@ -410,6 +410,14 @@ def _implementation_ready_target(
     product = root / "product.md"
     product.write_text("# Product\n", encoding="utf-8")
     _run_governance_json(case, ["init", "--target", str(target), "--product", str(product)])
+    git_init = subprocess.run(
+        ["git", "init", "-q", "-b", "main"],
+        cwd=target,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    case.assertEqual(0, git_init.returncode, git_init.stderr)
 
     (target / "docs/product/01-goals.md").write_text("# Goals\n\nSource: [PRD](core/PRD.md).\n", encoding="utf-8")
     _append_index(target / "docs/product/README.md", "01-goals.md")
@@ -507,6 +515,66 @@ def _implementation_ready_target(
         _record_all_test_design_reviews(case, target)
         _run_governance_json(case, ["advance", "implementation", str(target)])
     return target
+
+
+def _write_test_implementation_change(target: Path) -> None:
+    path = target / "src/reviewed_task.py"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("def reviewed_task_ready():\n    return True\n", encoding="utf-8")
+
+
+def _record_test_code_review(case: unittest.TestCase, target: Path) -> dict[str, object]:
+    report = target / ".governance/code-review-reports/TASK-001.json"
+    report.parent.mkdir(parents=True, exist_ok=True)
+    report.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "task_id": "TASK-001",
+                "reviewer": {"kind": "agent", "id": "governance-cli-test-reviewer"},
+                "verdict": "approved",
+                "summary": "Reviewed the complete current task change set and passing verification evidence.",
+                "findings": [],
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return _run_governance_json(
+        case,
+        [
+            "implementation",
+            "review",
+            str(target),
+            "--task",
+            "TASK-001",
+            "--report",
+            str(report),
+            "--reviewed",
+        ],
+    )
+
+
+def _prepare_reviewed_task_with_passing_log(
+    case: unittest.TestCase,
+    target: Path,
+) -> None:
+    started = _run_governance_json(
+        case,
+        ["implementation", "start", str(target), "--task", "TASK-001", "--apply"],
+    )
+    case.assertTrue(started["applied"] or started["already_current"])
+    _write_test_implementation_change(target)
+    (target / "docs/development/03-verification-log.md").write_text(
+        _verification_log_doc(
+            "| TASK-001 | task-tests | pass | 2026-07-08 | Local verification passed. |\n"
+        ),
+        encoding="utf-8",
+    )
+    reviewed = _record_test_code_review(case, target)
+    case.assertTrue(reviewed["evidence_current"])
 
 
 def _design_scaffold_target(case: unittest.TestCase, tmp: str) -> Path:
@@ -6247,7 +6315,11 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertTrue(payload["applied"])
             self.assertFalse(payload["already_current"])
             self.assertEqual(
-                ["docs/development/02-task-board.md", "docs/development/01-roadmap.md"],
+                [
+                    ".governance/implementation-change-baselines.json",
+                    "docs/development/02-task-board.md",
+                    "docs/development/01-roadmap.md",
+                ],
                 payload["updated_paths"],
             )
             self.assertEqual("In Progress", payload["task"]["status"])
@@ -6666,6 +6738,7 @@ class GovernanceCliTest(unittest.TestCase):
                 self,
                 ["implementation", "start", str(target), "--task", "TASK-001", "--apply"],
             )
+            _write_test_implementation_change(target)
 
             payload = _run_governance_json(
                 self,
@@ -6706,6 +6779,7 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn(f"| TASK-001 | task-tests | pass | {execution_date} |", verification_log)
             self.assertIn("[task-tests evidence](04-implementation-evidence.md#vr-20260713t120000000000z-01234567)", task_board)
             self.assertTrue(_run_governance_json(self, ["verify", str(target), "--check"])["ok"])
+            self.assertTrue(_record_test_code_review(self, target)["evidence_current"])
             closeout = _run_governance_json(
                 self,
                 ["implementation", "closeout", str(target), "--task", "TASK-001"],
@@ -6771,6 +6845,7 @@ class GovernanceCliTest(unittest.TestCase):
                 self,
                 ["implementation", "start", str(target), "--task", "TASK-001", "--apply"],
             )
+            _write_test_implementation_change(target)
             _run_governance_json(
                 self,
                 [
@@ -6810,6 +6885,7 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn("| TASK-001 | task-tests | pass |", log)
             self.assertIn("## VR-20260713T120000000000Z-11111111", evidence)
             self.assertIn("## VR-20260713T120100000000Z-22222222", evidence)
+            self.assertTrue(_record_test_code_review(self, target)["evidence_current"])
             closeout = _run_governance_json(
                 self,
                 ["implementation", "closeout", str(target), "--task", "TASK-001"],
@@ -7153,6 +7229,7 @@ class GovernanceCliTest(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
+            _prepare_reviewed_task_with_passing_log(self, target)
 
             result = subprocess.run(
                 [
@@ -7200,21 +7277,21 @@ class GovernanceCliTest(unittest.TestCase):
                         "path": "docs/development/02-task-board.md",
                         "task_id": "TASK-001",
                         "field": "Status",
-                        "from": "Ready",
+                        "from": "In Progress",
                         "to": "Done",
                     },
                     {
                         "path": "docs/development/01-roadmap.md",
                         "task_id": "TASK-001",
                         "field": "Status",
-                        "from": "Ready",
+                        "from": "In Progress",
                         "to": "Done",
                     },
                 ],
                 payload["status_update_plan"]["updates"],
             )
-            self.assertIn("| TASK-001 | Ready | Implement goal flow |", (target / "docs/development/02-task-board.md").read_text(encoding="utf-8"))
-            self.assertIn("| TASK-001 | Ready | Goal flow |", (target / "docs/development/01-roadmap.md").read_text(encoding="utf-8"))
+            self.assertIn("| TASK-001 | In Progress | Implement goal flow |", (target / "docs/development/02-task-board.md").read_text(encoding="utf-8"))
+            self.assertIn("| TASK-001 | In Progress | Goal flow |", (target / "docs/development/01-roadmap.md").read_text(encoding="utf-8"))
 
     def test_implementation_closeout_apply_refuses_without_verification_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -7264,6 +7341,7 @@ class GovernanceCliTest(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
+            _prepare_reviewed_task_with_passing_log(self, target)
 
             result = subprocess.run(
                 [
@@ -7318,11 +7396,7 @@ class GovernanceCliTest(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            start = _run_governance_json(
-                self,
-                ["implementation", "start", str(target), "--task", "TASK-001", "--apply"],
-            )
-            self.assertTrue(start["applied"])
+            _prepare_reviewed_task_with_passing_log(self, target)
 
             result = subprocess.run(
                 [
@@ -7386,6 +7460,7 @@ class GovernanceCliTest(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
+            _prepare_reviewed_task_with_passing_log(self, target)
             apply_result = subprocess.run(
                 [
                     sys.executable,
@@ -7441,6 +7516,7 @@ class GovernanceCliTest(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
+            _prepare_reviewed_task_with_passing_log(self, target)
             apply_result = subprocess.run(
                 [
                     sys.executable,

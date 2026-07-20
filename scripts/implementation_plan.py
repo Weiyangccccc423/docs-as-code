@@ -8,6 +8,12 @@ try:
     from .bootstrap_tree import target_local_commands_payload
     from .design_plan import _skill_requirement_fields
     from .gates import evaluate_gate
+    from .implementation_review_evidence import (
+        CODE_REVIEW_EVIDENCE_REL,
+        build_implementation_baseline_capture,
+        build_implementation_review,
+        capture_implementation_baseline,
+    )
     from .state import load_state
     from .verify_governance import (
         ACCEPTANCE_MATRIX_REL,
@@ -41,6 +47,12 @@ except ImportError:  # pragma: no cover - direct script execution
     from bootstrap_tree import target_local_commands_payload
     from design_plan import _skill_requirement_fields
     from gates import evaluate_gate
+    from implementation_review_evidence import (
+        CODE_REVIEW_EVIDENCE_REL,
+        build_implementation_baseline_capture,
+        build_implementation_review,
+        capture_implementation_baseline,
+    )
     from state import load_state
     from verify_governance import (
         ACCEPTANCE_MATRIX_REL,
@@ -79,6 +91,7 @@ IMPLEMENTATION_SKILLS = (
     "verifying-governance-docs",
 )
 BASE_SPECIALIST_SKILLS = (
+    "code-reviewer",
     "senior-fullstack",
     "senior-qa",
     "senior-security",
@@ -86,6 +99,7 @@ BASE_SPECIALIST_SKILLS = (
 BASE_SOURCE_DOCUMENTS = (
     TASK_BOARD_REL.as_posix(),
     VERIFICATION_LOG_REL.as_posix(),
+    CODE_REVIEW_EVIDENCE_REL.as_posix(),
     "docs/agent-workflow/command-contract.md",
     ACCEPTANCE_MATRIX_REL.as_posix(),
 )
@@ -181,6 +195,17 @@ def build_implementation_start(root: Path, task_id: str) -> dict[str, object]:
     gate = evaluate_gate(root, IMPLEMENTATION_PHASE).to_dict() if state else {}
     roadmap_row = _roadmap_row_for_task(root, task_id)
     requirements = _start_requirements(root, row, task_id, gate, roadmap_row, rows)
+    baseline_plan = build_implementation_baseline_capture(root, task_id)
+    requirements.append(
+        _closeout_requirement(
+            "implementation_change_baseline_ready",
+            baseline_plan.get("capture_ready") is True,
+            "Git-backed implementation change baseline must be capturable before first claim and present on resume",
+            path=str(baseline_plan.get("path", "")),
+            detail="; ".join(str(error) for error in baseline_plan.get("errors", [])),
+            repair_strategy="initialize_git_then_retry_claim_before_editing_or_restore_original_task_baseline",
+        )
+    )
     ready = not errors and all(requirement["status"] == "satisfied" for requirement in requirements)
     status_update_plan = (
         _status_update_plan(
@@ -211,6 +236,7 @@ def build_implementation_start(root: Path, task_id: str) -> dict[str, object]:
         "gate_ok": gate.get("ok") is True,
         "task": _closeout_task_payload(root, row) if row is not None else {},
         "requirements": requirements,
+        "baseline_plan": baseline_plan,
         "blocking_requirements": [
             requirement for requirement in requirements if requirement.get("status") != "satisfied"
         ],
@@ -259,6 +285,7 @@ def build_implementation_closeout(root: Path, task_id: str) -> dict[str, object]
     verification_rows = _verification_rows_for_task(root, task_id)
     roadmap_row = _roadmap_row_for_task(root, task_id)
     required_verification = _required_verification_evidence(root, row, verification_rows)
+    code_review = build_implementation_review(root, task_id)
     requirements = _closeout_requirements(
         root,
         row,
@@ -269,6 +296,21 @@ def build_implementation_closeout(root: Path, task_id: str) -> dict[str, object]
         roadmap_row,
         required_verification,
     )
+    requirements.append(
+        _closeout_requirement(
+            "code_review_evidence_current",
+            code_review.get("evidence_current") is True,
+            "code review evidence must approve the complete current task change set with locked code-reviewer provenance",
+            path=CODE_REVIEW_EVIDENCE_REL.as_posix(),
+            detail="; ".join(
+                [
+                    *[str(reason) for reason in code_review.get("stale_reasons", [])],
+                    *[str(error) for error in code_review.get("errors", [])],
+                ]
+            ),
+            repair_strategy="load_code_reviewer_then_record_current_task_review",
+        )
+    )
     evidence_summary = _closeout_evidence_summary(
         root,
         row,
@@ -276,6 +318,13 @@ def build_implementation_closeout(root: Path, task_id: str) -> dict[str, object]
         verification_rows,
         roadmap_row,
         required_verification,
+    )
+    evidence_summary["code_review_evidence_current"] = code_review.get("evidence_current") is True
+    evidence_summary["code_review_status"] = str(code_review.get("status", ""))
+    evidence_summary["code_review_id"] = str(
+        code_review.get("review", {}).get("review_id", "")
+        if isinstance(code_review.get("review"), dict)
+        else ""
     )
     ready = not errors and all(requirement["status"] == "satisfied" for requirement in requirements)
     status_update_plan = _status_update_plan(root, row, roadmap_row, "Done", can_auto_apply=ready) if row is not None else {}
@@ -294,6 +343,8 @@ def build_implementation_closeout(root: Path, task_id: str) -> dict[str, object]
         "verification_ok": verification_report.ok,
         "task": _closeout_task_payload(root, row) if row is not None else {},
         "evidence_summary": evidence_summary,
+        "code_review": code_review,
+        "code_review_command": code_review.get("review_command", {}),
         "requirements": requirements,
         "blocking_requirements": [
             requirement for requirement in requirements if requirement.get("status") != "satisfied"
@@ -346,6 +397,14 @@ def apply_implementation_start(root: Path, task_id: str) -> dict[str, object]:
     updates = pre_apply_plan.get("updates")
     if not isinstance(updates, list):
         return _status_apply_failed(pre_apply, "implementation start status_update_plan updates are unavailable")
+    baseline_capture = capture_implementation_baseline(root, task_id)
+    pre_apply["baseline_capture"] = baseline_capture
+    if baseline_capture.get("ok") is not True:
+        return _status_apply_failed(
+            pre_apply,
+            "; ".join(str(error) for error in baseline_capture.get("errors", []))
+            or "implementation change baseline capture failed",
+        )
     if not updates:
         pre_apply["already_current"] = True
         return pre_apply
@@ -356,7 +415,9 @@ def apply_implementation_start(root: Path, task_id: str) -> dict[str, object]:
         return _status_apply_failed(pre_apply, validation_error)
 
     next_texts: dict[Path, str] = {}
-    updated_paths: list[str] = []
+    updated_paths: list[str] = [
+        str(path) for path in baseline_capture.get("updated_paths", []) if isinstance(path, str)
+    ]
     try:
         for update in updates:
             if not isinstance(update, dict):
@@ -390,6 +451,7 @@ def apply_implementation_start(root: Path, task_id: str) -> dict[str, object]:
             "updated_paths": updated_paths,
             "pre_apply_status_update_plan": pre_apply_plan,
             "post_apply_status_update_plan": payload.get("status_update_plan", {}),
+            "baseline_capture": baseline_capture,
             "apply_errors": [],
         }
     )

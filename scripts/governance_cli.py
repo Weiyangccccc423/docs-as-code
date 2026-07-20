@@ -63,6 +63,10 @@ from implementation_plan import (
     build_implementation_plan,
     build_implementation_start,
 )
+from implementation_review_evidence import (
+    build_implementation_review,
+    record_implementation_review,
+)
 from implementation_run import run_implementation_task
 from implementation_verify import build_implementation_verify, run_implementation_verify
 from reliability_review_evidence import (
@@ -1627,6 +1631,39 @@ def _cmd_implementation_verify(args: argparse.Namespace) -> int:
     return 0 if payload.get("ok") is True else 1
 
 
+def _cmd_implementation_review(args: argparse.Namespace) -> int:
+    target = Path(args.target)
+    report = Path(args.report) if args.report else None
+    if report is not None and not args.check:
+        payload = record_implementation_review(
+            target,
+            args.task,
+            report_path=report,
+            reviewed=args.reviewed,
+            skill_roots=list(args.skill_root),
+        )
+    else:
+        payload = build_implementation_review(
+            target,
+            args.task,
+            report_path=report,
+            reviewed=args.reviewed,
+            check=args.check,
+            skill_roots=list(args.skill_root),
+        )
+    if args.json:
+        _print_json(payload)
+    elif payload.get("ok") is not True:
+        print("Implementation code review failed:")
+        for error in payload.get("errors", []):
+            print(f"- ERROR: {error}")
+    else:
+        print(f"Implementation code review: {payload.get('task_id', '')}")
+        print(f"- status: {payload.get('status', '')}")
+        print(f"- evidence_current: {str(payload.get('evidence_current') is True).lower()}")
+    return 0 if payload.get("ok") is True else 1
+
+
 def _cmd_implementation_run(args: argparse.Namespace) -> int:
     payload = run_implementation_task(
         Path(args.target),
@@ -2225,6 +2262,36 @@ def build_parser() -> argparse.ArgumentParser:
     )
     implementation_verify.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     implementation_verify.set_defaults(func=_cmd_implementation_verify)
+    implementation_review = implementation_sub.add_parser(
+        "review",
+        help="Inspect or record a provenance-bound review of the complete current task change set.",
+    )
+    implementation_review.add_argument("target", nargs="?", default=".")
+    implementation_review.add_argument("--task", required=True, help="In Progress TASK-NNN task ID to review.")
+    implementation_review.add_argument(
+        "--report",
+        default="",
+        help="Structured repository-local report under .governance/code-review-reports/.",
+    )
+    implementation_review.add_argument(
+        "--reviewed",
+        action="store_true",
+        help="Confirm the complete change set was reviewed using the returned code-reviewer context.",
+    )
+    implementation_review.add_argument(
+        "--check",
+        action="store_true",
+        help="Validate report, change set, and authority provenance without writing evidence.",
+    )
+    implementation_review.add_argument(
+        "--skill-root",
+        action="append",
+        type=Path,
+        default=[],
+        help="Additional agent skill root to inspect. Repeat for multiple roots.",
+    )
+    implementation_review.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    implementation_review.set_defaults(func=_cmd_implementation_review)
     implementation_run = implementation_sub.add_parser(
         "run",
         help="Run a snapshot-guarded task claim, verification, repair, and closeout controller.",

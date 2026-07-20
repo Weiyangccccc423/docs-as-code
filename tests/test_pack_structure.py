@@ -74,6 +74,13 @@ class PackStructureTest(unittest.TestCase):
     def test_implementation_verify_runtime_is_required_in_generated_targets(self) -> None:
         self.assertIn(Path("scripts/implementation_verify.py"), RUNTIME_REQUIRED_PATHS)
 
+    def test_implementation_review_runtime_and_template_are_required(self) -> None:
+        self.assertIn(Path("scripts/implementation_review_evidence.py"), RUNTIME_REQUIRED_PATHS)
+        self.assertIn(
+            "templates/docs/development/05-code-review-evidence.json",
+            WORKFLOW_PACK_REQUIRED_PATHS,
+        )
+
     def test_project_environment_runtime_is_required_in_generated_targets(self) -> None:
         self.assertIn(Path("scripts/project_environment.py"), RUNTIME_REQUIRED_PATHS)
 

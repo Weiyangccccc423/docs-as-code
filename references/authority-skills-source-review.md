@@ -2,7 +2,7 @@
 
 ## Decision
 
-The workflow pack accepts the 20 authority-routing skills in `references/authority-skills.lock.json` from the community-maintained `alirezarezvani/claude-skills` repository under the controls below.
+The workflow pack accepts the 21 authority-routing skills in `references/authority-skills.lock.json` from the community-maintained `alirezarezvani/claude-skills` repository under the controls below.
 
 This approval means the pinned skill trees are allowed as reviewed Agent guidance and deterministic review tooling. It does not make the skills official OpenAI, Anthropic, standards-body, or vendor guidance. Architecture, backend, security, API, data, reliability, and test decisions must still cite primary standards and project evidence, pass the workflow's deterministic checks, and receive the required human or authority review.
 
@@ -20,8 +20,8 @@ This approval means the pinned skill trees are allowed as reviewed Agent guidanc
 ## Review Evidence
 
 - Resolved upstream `HEAD` with `git ls-remote`, then cloned the exact revision for inspection.
-- Compared every selected upstream skill directory to the installed Agent-environment copy with recursive file comparison; all 20 trees matched.
-- Confirmed the selected 266 files contain no symbolic links.
+- Compared every selected upstream skill directory to the installed Agent-environment copy with recursive file comparison; all 21 trees matched.
+- Confirmed the selected 297 files contain no symbolic links.
 - Recomputed every complete skill-tree digest with the same `skill-tree-sha256-v1` algorithm used by `scripts/authority_skills.py`.
 - Confirmed the repository root MIT license and reviewed upstream security and contribution policies.
 - Scanned selected scripts for subprocess, shell execution, network, dynamic evaluation, destructive filesystem, and write patterns. The reviewed trees include explicit output-file writers and a backend load-test client; these capabilities must run only through task-specific reviewed commands and workflow approval boundaries.
@@ -33,6 +33,7 @@ This approval means the pinned skill trees are allowed as reviewed Agent guidanc
 | --- | --- |
 | `a11y-audit` | `engineering-team/a11y-audit/skills/a11y-audit` |
 | `api-design-reviewer` | `engineering/skills/api-design-reviewer` |
+| `code-reviewer` | `engineering-team/skills/code-reviewer` |
 | `ci-cd-pipeline-builder` | `engineering/skills/ci-cd-pipeline-builder` |
 | `database-designer` | `engineering/skills/database-designer` |
 | `database-schema-designer` | `engineering/skills/database-schema-designer` |

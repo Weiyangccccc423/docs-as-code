@@ -329,7 +329,35 @@ def _run_from_resume(
         )
         return base
 
+    preexisting_closeout = build_implementation_closeout(root, selected_task_id)
+    base["closeout_preview"] = preexisting_closeout
     if not execute and not closeout:
+        if preexisting_closeout.get("closeout_ready") is True:
+            refreshed = build_workflow_resume(root)
+            base.update(
+                {
+                    "status": "closeout_ready",
+                    "run_ready": True,
+                    "snapshot_after": _mapping(refreshed.get("snapshot")),
+                    "next_action": _run_command(
+                        root,
+                        selected_task_id,
+                        action="--closeout",
+                        expect_snapshot=str(_mapping(refreshed.get("snapshot")).get("id", "")),
+                    ),
+                }
+            )
+            return base
+        if _code_review_is_only_closeout_blocker(preexisting_closeout):
+            base.update(
+                {
+                    "status": "code_review_required",
+                    "run_ready": False,
+                    "stop_reasons": ["code_review_evidence_current"],
+                    "next_action": _mapping(preexisting_closeout.get("code_review_command")),
+                }
+            )
+            return base
         base.update(
             {
                 "status": "verification_ready",
@@ -378,6 +406,11 @@ def _run_from_resume(
     closeout_preview = build_implementation_closeout(root, selected_task_id)
     base["closeout_preview"] = closeout_preview
     if closeout_preview.get("closeout_ready") is not True:
+        next_action = (
+            _mapping(closeout_preview.get("code_review_command"))
+            if _code_review_is_only_closeout_blocker(closeout_preview)
+            else _mapping(closeout_preview.get("refresh_command"))
+        )
         base.update(
             {
                 "ok": not closeout,
@@ -387,7 +420,7 @@ def _run_from_resume(
                     str(item.get("code"))
                     for item in _dicts(closeout_preview.get("blocking_requirements"))
                 ],
-                "next_action": _mapping(closeout_preview.get("refresh_command")),
+                "next_action": next_action,
             }
         )
         return base
@@ -432,6 +465,15 @@ def _run_from_resume(
         }
     )
     return base
+
+
+def _code_review_is_only_closeout_blocker(closeout: dict[str, object]) -> bool:
+    blocking_codes = {
+        str(item.get("code", ""))
+        for item in _dicts(closeout.get("blocking_requirements"))
+        if item.get("status") != "satisfied"
+    }
+    return blocking_codes == {"code_review_evidence_current"}
 
 
 def _verification_preflights(

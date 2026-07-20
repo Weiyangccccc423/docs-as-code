@@ -307,12 +307,15 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertEqual("TASK-001", payload["implementation_start"]["task_id"])
             self.assertTrue(payload["implementation_start"]["ready"])
             self.assertTrue(payload["implementation_start"]["applied_status_updates"])
+            self.assertTrue(payload["implementation_start"]["baseline_captured"])
             self.assertTrue(payload["implementation_start"]["implementation_plan_in_progress"])
             self.assertTrue(payload["implementation_run"]["ready_check"])
             self.assertTrue(payload["implementation_run"]["snapshot_guarded_start"])
             self.assertTrue(payload["implementation_run"]["start_applied"])
             self.assertTrue(payload["implementation_run"]["verification_ready"])
             self.assertTrue(payload["implementation_run"]["executed_all_required"])
+            self.assertTrue(payload["implementation_run"]["review_required_after_execution"])
+            self.assertTrue(payload["implementation_run"]["reviewed_closeout_ready"])
             self.assertEqual(2, payload["implementation_run"]["required_count"])
             self.assertEqual(2, payload["implementation_run"]["passed_count"])
             self.assertTrue(payload["implementation_run"]["snapshot_guarded_closeout"])
@@ -335,6 +338,11 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertTrue(payload["implementation_verification"]["evidence_recorded"])
             self.assertTrue(payload["implementation_verification"]["command_passed"])
             self.assertTrue(payload["implementation_verification"]["all_current_results_passing"])
+            self.assertEqual("code-reviewer", payload["implementation_review"]["authority_skill"])
+            self.assertTrue(payload["implementation_review"]["provenance_ready"])
+            self.assertTrue(payload["implementation_review"]["change_set_bound"])
+            self.assertTrue(payload["implementation_review"]["preview_ready"])
+            self.assertTrue(payload["implementation_review"]["evidence_current"])
             stack_acceptance = payload["stack_acceptance"]
             self.assertTrue(stack_acceptance["all_required_passed"])
             self.assertTrue(stack_acceptance["all_available_passed"])
@@ -409,6 +417,7 @@ class DryRunWorkflowTest(unittest.TestCase):
                     "bin/governance",
                     "scripts/governance_cli.py",
                     "scripts/implementation_run.py",
+                    "scripts/implementation_review_evidence.py",
                     "scripts/implementation_verify.py",
                     "scripts/project_environment.py",
                     "scripts/bounded_process.py",
@@ -436,6 +445,7 @@ class DryRunWorkflowTest(unittest.TestCase):
                     "required_verification_commands_passing",
                     "verification_results_all_passing",
                     "task_verification_links_local_evidence",
+                    "code_review_evidence_current",
                 ],
                 payload["implementation_closeout"]["blocking_codes_without_evidence"],
             )
@@ -506,6 +516,10 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertIn("implementation_run_apply_start", step_ids)
             self.assertIn("implementation_run_check_in_progress", step_ids)
             self.assertIn("implementation_run_execute", step_ids)
+            self.assertIn("implementation_review_plan", step_ids)
+            self.assertIn("implementation_review_preview", step_ids)
+            self.assertIn("implementation_review_record", step_ids)
+            self.assertIn("implementation_run_reviewed_check", step_ids)
             self.assertIn("implementation_run_closeout", step_ids)
             self.assertIn("make_check_env", step_ids)
             self.assertIn("make_repair_env_check", step_ids)
@@ -538,6 +552,7 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertTrue((target / "docs/decisions/design-reviews.json").is_file())
             self.assertTrue((target / "docs/api/endpoints/01-endpoint-contract.md").is_file())
             self.assertTrue((target / "docs/development/04-implementation-evidence.md").is_file())
+            self.assertTrue((target / "docs/development/05-code-review-evidence.json").is_file())
             self.assertTrue((target / ".governance/project-environment-repairs.json").is_file())
 
     def test_dry_run_handles_realistic_multi_acceptance_product_fixture(self) -> None:

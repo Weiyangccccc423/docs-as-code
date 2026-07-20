@@ -36,6 +36,13 @@
 | --- | --- | --- |
 | - | - | - |
 
+## Code Review Record
+
+- Review authority: `code-reviewer`
+- Complete change-set evidence: `docs/development/05-code-review-evidence.json`
+- Review ID:
+- Residual accepted suggestions:
+
 ## Handoff Notes
 
 - Open follow-ups:

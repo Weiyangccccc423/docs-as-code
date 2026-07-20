@@ -206,6 +206,7 @@ AUTHORITY_ROUTING_SPECIALIST_SKILLS = frozenset(
     {
         "a11y-audit",
         "api-design-reviewer",
+        "code-reviewer",
         "ci-cd-pipeline-builder",
         "database-designer",
         "database-schema-designer",

@@ -52,6 +52,7 @@ RUNTIME_SCRIPT_FILES = [
     "gates.py",
     "governance_cli.py",
     "implementation_plan.py",
+    "implementation_review_evidence.py",
     "implementation_run.py",
     "implementation_verify.py",
     "phases.py",

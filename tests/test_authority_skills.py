@@ -190,6 +190,7 @@ class AuthoritySkillsTest(unittest.TestCase):
 
         skills = {skill["name"]: skill for skill in payload["skills"]}
         for name in (
+            "code-reviewer",
             "senior-architect",
             "api-design-reviewer",
             "senior-backend",
@@ -220,6 +221,12 @@ class AuthoritySkillsTest(unittest.TestCase):
             for entry in skills["senior-fullstack"]["required_by"]
         }
         self.assertIn(("implementation", "base", "BASE_SPECIALIST_SKILLS"), fullstack_sources)
+
+        reviewer_sources = {
+            (entry["phase"], entry.get("track"), entry["source"])
+            for entry in skills["code-reviewer"]["required_by"]
+        }
+        self.assertIn(("implementation", "base", "BASE_SPECIALIST_SKILLS"), reviewer_sources)
 
         devops_sources = {
             (entry["phase"], entry.get("track"), entry["source"])

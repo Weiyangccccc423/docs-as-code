@@ -15,6 +15,7 @@ from tests.test_governance_cli import (
     _implementation_ready_target,
     _run_governance_json,
 )
+from tests.test_implementation_review import _write_review_report
 
 
 def _run(
@@ -202,18 +203,22 @@ class ImplementationRunTest(unittest.TestCase):
             payload = _run(self, target, "--task", "TASK-001", "--execute")
 
             self.assertTrue(payload["ok"])
-            self.assertEqual("closeout_ready", payload["status"])
+            self.assertEqual("closeout_blocked", payload["status"])
             self.assertTrue(payload["executed"])
             self.assertEqual(1, payload["verification_summary"]["passed_count"])
             self.assertTrue(payload["verification_runs"][0]["command_passed"])
-            self.assertTrue(payload["closeout_preview"]["closeout_ready"])
+            self.assertFalse(payload["closeout_preview"]["closeout_ready"])
+            self.assertEqual(
+                "inspect-implementation-code-review",
+                payload["next_action"]["id"],
+            )
             self.assertFalse(payload["closeout_applied"])
             self.assertIn(
                 "| TASK-001 | In Progress |",
                 (target / "docs/development/02-task-board.md").read_text(encoding="utf-8"),
             )
 
-    def test_execute_and_closeout_completes_task(self) -> None:
+    def test_reviewed_change_can_close_out_without_rerunning_verification(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = _implementation_ready_target(self, tmp)
             _append_project_command(
@@ -225,14 +230,51 @@ class ImplementationRunTest(unittest.TestCase):
                 self,
                 ["implementation", "start", str(target), "--task", "TASK-001", "--apply"],
             )
+            source = target / "src/goal_flow.py"
+            source.parent.mkdir(parents=True)
+            source.write_text("def goal_flow():\n    return 'ready'\n", encoding="utf-8")
 
-            payload = _run(self, target, "--task", "TASK-001", "--execute", "--closeout")
+            executed = _run(self, target, "--task", "TASK-001", "--execute")
+
+            self.assertTrue(executed["ok"])
+            self.assertEqual("closeout_blocked", executed["status"])
+            report = _write_review_report(target)
+            _run_governance_json(
+                self,
+                [
+                    "implementation",
+                    "review",
+                    str(target),
+                    "--task",
+                    "TASK-001",
+                    "--report",
+                    str(report),
+                    "--reviewed",
+                ],
+            )
+            preview = _run(self, target, "--task", "TASK-001", "--check")
+
+            self.assertEqual("closeout_ready", preview["status"])
+            self.assertIn("--closeout", preview["next_action"]["argv"])
+            self.assertNotIn("--execute", preview["next_action"]["argv"])
+            payload = _run(
+                self,
+                target,
+                "--task",
+                "TASK-001",
+                "--closeout",
+                "--expect-snapshot",
+                preview["snapshot_after"]["id"],
+            )
 
             self.assertTrue(payload["ok"])
             self.assertEqual("complete", payload["status"])
-            self.assertTrue(payload["executed"])
+            self.assertFalse(payload["executed"])
             self.assertTrue(payload["closeout_applied"])
             self.assertEqual("Done", payload["closeout_apply"]["task"]["status"])
+            self.assertTrue(
+                payload["closeout_apply"]["evidence_summary"]["code_review_evidence_current"]
+            )
             self.assertIn(
                 "| TASK-001 | Done |",
                 (target / "docs/development/02-task-board.md").read_text(encoding="utf-8"),
@@ -429,7 +471,8 @@ class ImplementationRunTest(unittest.TestCase):
             )
 
             self.assertTrue(repaired["ok"])
-            self.assertEqual("closeout_ready", repaired["status"])
+            self.assertEqual("closeout_blocked", repaired["status"])
+            self.assertEqual("inspect-implementation-code-review", repaired["next_action"]["id"])
             self.assertTrue(repaired["environment_repairs"][0]["applied"])
             self.assertTrue(repaired["verification_runs"][0]["command_passed"])
             self.assertTrue((target / ".governance/project-environment-repairs.json").is_file())

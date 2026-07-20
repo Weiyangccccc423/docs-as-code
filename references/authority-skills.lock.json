@@ -51,6 +51,27 @@
       }
     },
     {
+      "name": "code-reviewer",
+      "source": {
+        "kind": "github",
+        "repo": "alirezarezvani/claude-skills",
+        "path": "engineering-team/skills/code-reviewer",
+        "ref": "b2aa395350c5a96d094c0fea116636bfa25ad1d0"
+      },
+      "integrity": {
+        "algorithm": "sha256",
+        "scope": "skill-tree",
+        "digest": "13a4a4aaf78431321aea2498f3db59efb167fd4d84ca6f45adf34f187d4c1a36"
+      },
+      "trust": {
+        "status": "approved",
+        "approved_by": "workflow-pack-maintainers",
+        "approved_at": "2026-07-20",
+        "license": "MIT",
+        "review_evidence": "references/authority-skills-source-review.md"
+      }
+    },
+    {
       "name": "ci-cd-pipeline-builder",
       "source": {
         "kind": "github",
