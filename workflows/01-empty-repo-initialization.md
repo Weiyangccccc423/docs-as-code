@@ -74,7 +74,16 @@ Load:
 
    When `--json` is used, the success payload includes `local_commands` with target-local `make` entries plus `next_actions` with the next preflight/apply workflow commands. Both payloads include `cwd`, `argv`, `writes_state`, and `approval_required` for direct agent execution. `next_actions` also include `sequence`, `success_condition`, and either `preflight_for` or `requires_action`; run them by ascending `sequence` and run an apply action only after its `requires_action` reports `ok: true`. Follow `next_actions` instead of assuming product structuring is immediately available.
 
-6. Inspect generated root files:
+6. After governance files exist, initialize reviewed local Git metadata. Ask for the default branch, commit author name, commit author email, and optional origin URL; do not inherit or guess them from global Git configuration:
+
+   ```bash
+   bin/governance repository init <target> --default-branch <branch> --author-name "<name>" --author-email "<email>" --reviewed --check --json
+   bin/governance repository init <target> --default-branch <branch> --author-name "<name>" --author-email "<email>" --reviewed --json
+   ```
+
+   Add `--origin <url>` only after the URL is reviewed. The command uses repository-local `user.name` and `user.email`, refuses a parent repository or conflicting existing metadata, and never creates a commit, authenticates, or pushes. The Git credential used for a later push determines the hosting account independently of commit authorship; verify that identity before the first explicit push.
+
+7. Inspect generated root files:
 
    - `README.md`
    - `AGENTS.md`
@@ -91,7 +100,7 @@ Load:
 
    In root `AGENTS.md`, require the `Workflow Startup` contract: read the target-local workflow overview, run `make workflow-resume`, enforce `assert_snapshot_command.argv`, read `work_package.read_order`, and follow `skill_loading_plan.steps[]`. Local workflow skills must be read from their exact path under `docs/agent-workflow/workflow-pack/skills/`; authority-routing skills must be loaded from the Agent environment or stop under `missing_policy`. Execute one selected action, run `refresh_command.argv`, then resume.
 
-7. Inspect generated docs domains:
+8. Inspect generated docs domains:
 
    - `docs/product/`
    - `docs/architecture/`
@@ -104,7 +113,7 @@ Load:
    - `docs/development/`
    - `docs/agent-workflow/`
 
-8. Verify:
+9. Verify:
 
    ```bash
    bin/governance verify <target>
@@ -163,4 +172,6 @@ Target safety, environment repair, generated entry points, runtime snapshot inte
 - Product document path is missing or unreadable.
 - Product document discovery returns multiple candidates and the user has not selected one with `--product`.
 - The target project type is unclear and would change the top-level code layout.
+- Default branch, repository-local author, or optional origin has not been reviewed.
+- The target resolves inside a parent Git repository, or existing local Git metadata conflicts with reviewed values.
 - Authority skill lock validation fails, or strict provenance is required and any skill is missing, drifted, unmanaged, or source-unregistered.

@@ -59,6 +59,7 @@ RUNTIME_SCRIPT_FILES = [
     "product_dispositions.py",
     "product_import.py",
     "project_environment.py",
+    "repository_git.py",
     "product_structure.py",
     "scaffold.py",
     "state.py",
@@ -1374,7 +1375,10 @@ def _write_bootstrap_outputs(
         + _target_local_commands_readme()
         + "\nPreview one registered reviewed-command repair with "
         "`bin/governance project-env repair . --tool-id <tool-id> --check --json`; "
-        "run its apply action only after explicit approval.\n",
+        "run its apply action only after explicit approval.\n\n"
+        "Preview reviewed repository-local Git initialization with "
+        "`bin/governance repository init . --default-branch <branch> --author-name \"<name>\" "
+        "--author-email \"<email>\" --reviewed --check --json`. The command never commits or pushes.\n",
         force,
     )
     _safe_write(
@@ -1414,6 +1418,7 @@ def _write_bootstrap_outputs(
         "# Local caches\n"
         ".governance/\n"
         ".lycheecache\n"
+        "/docs-as-code-workflow-pack/\n"
         "__pycache__/\n"
         "*.pyc\n"
         "node_modules/\n"

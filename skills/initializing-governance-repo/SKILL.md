@@ -41,13 +41,22 @@ Create the minimum structure needed for reliable docs-as-code work.
 
    Inspect generated root `AGENTS.md` and require its `Workflow Startup` section. It must route the next Agent through `make workflow-resume`, `assert_snapshot_command.argv`, `work_package.read_order`, and ordered `skill_loading_plan.steps[]`. Load local workflow skills from exact paths under `docs/agent-workflow/workflow-pack/skills/`; load authority-routing skills from the Agent environment and stop when `missing_policy` requires it. Run `refresh_command.argv` after exactly one selected action.
 
-6. Verify:
+6. Ask for reviewed Git defaults, then initialize repository-local metadata without creating a commit or pushing:
+
+   ```bash
+   bin/governance repository init <target> --default-branch <branch> --author-name "<name>" --author-email "<email>" --reviewed --check --json
+   bin/governance repository init <target> --default-branch <branch> --author-name "<name>" --author-email "<email>" --reviewed --json
+   ```
+
+   Add `--origin <url>` only when reviewed. Stop on parent-repository detection or metadata conflicts. Do not treat commit author name/email as proof of the credential or hosting account that a later push will use.
+
+7. Verify:
 
    ```bash
    bin/governance verify <target>
    ```
 
-7. Check the first downstream phase gate:
+8. Check the first downstream phase gate:
 
    ```bash
    bin/governance advance product-structuring <target> --check --json
@@ -56,7 +65,7 @@ Create the minimum structure needed for reliable docs-as-code work.
 
    Stop on `ok: false` and repair by `requirements[].code`.
 
-8. When working inside the initialized target, switch to the copied target-local runtime:
+9. When working inside the initialized target, switch to the copied target-local runtime:
 
    ```bash
    bin/governance verify .
@@ -75,7 +84,7 @@ Create the minimum structure needed for reliable docs-as-code work.
    make project-env-plan
    ```
 
-9. If generated runtime or workflow-pack snapshot integrity fails, repair it from a trusted source workflow-pack checkout:
+10. If generated runtime or workflow-pack snapshot integrity fails, repair it from a trusted source workflow-pack checkout:
 
    ```bash
    bin/governance runtime refresh <target> --check --json
@@ -102,4 +111,6 @@ Create the minimum structure needed for reliable docs-as-code work.
 - Product document cannot be read.
 - Product document discovery is ambiguous and no explicit `--product` was selected.
 - Project type is unclear and affects code-directory choices.
+- Default branch, repository-local author, or optional origin has not been reviewed.
+- The target resolves inside a parent Git repository, or existing local Git metadata conflicts with reviewed values.
 - Authority skill lock validation fails, or required strict provenance is not current.

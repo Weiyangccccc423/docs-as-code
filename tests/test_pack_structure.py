@@ -51,6 +51,14 @@ class PackStructureTest(unittest.TestCase):
         self.assertIn("node-version: '22'", text)
         self.assertIn("run: make stack-acceptance", text)
 
+    def test_target_runtime_includes_repository_git_workflow(self) -> None:
+        self.assertIn(Path("scripts/repository_git.py"), RUNTIME_REQUIRED_PATHS)
+        text = (ROOT / "scripts/bootstrap_tree.py").read_text(encoding="utf-8")
+        self.assertIn('"repository_git.py"', text)
+        cli = (ROOT / "scripts/governance_cli.py").read_text(encoding="utf-8")
+        self.assertIn('sub.add_parser("repository"', cli)
+        self.assertIn('repository_sub.add_parser(\n        "init"', cli)
+
     def test_api_review_runtime_is_required_in_generated_targets(self) -> None:
         self.assertIn(Path("scripts/api_review_evidence.py"), RUNTIME_REQUIRED_PATHS)
 

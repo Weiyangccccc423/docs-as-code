@@ -91,6 +91,7 @@ from project_environment import (
     repair_project_environment_tool,
     register_project_environment_tool,
 )
+from repository_git import RepositoryRequest, configure_repository, plan_repository
 from scaffold import (
     PRODUCT_CHAPTER_CHOICES,
     ScaffoldResult,
@@ -728,6 +729,34 @@ def _cmd_runtime_refresh(args: argparse.Namespace) -> int:
     for path in result.refreshed:
         print(f"- REFRESHED: {path}")
     return 0
+
+
+def _cmd_repository_init(args: argparse.Namespace) -> int:
+    request = RepositoryRequest(
+        target=Path(args.target),
+        default_branch=args.default_branch,
+        author_name=args.author_name,
+        author_email=args.author_email,
+        origin=args.origin,
+        reviewed=args.reviewed,
+    )
+    payload = (
+        plan_repository(request)
+        if args.check
+        else configure_repository(request)
+    )
+    if args.json:
+        _print_json(payload)
+    elif payload.get("ok") is True:
+        print(f"Repository Git status: {payload.get('status', '')}")
+    else:
+        print("Repository Git initialization blocked:")
+        for blocker in payload.get("blockers", []):
+            if isinstance(blocker, dict):
+                print(f"- {blocker.get('code')}: {blocker.get('message')}")
+        for error in payload.get("errors", []):
+            print(f"- ERROR: {error}")
+    return 0 if payload.get("ok") is True else 1
 
 
 def _cmd_gate(args: argparse.Namespace) -> int:
@@ -1826,6 +1855,26 @@ def build_parser() -> argparse.ArgumentParser:
     runtime_refresh.add_argument("--check", action="store_true", help="Run refresh preflight without writing files.")
     runtime_refresh.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     runtime_refresh.set_defaults(func=_cmd_runtime_refresh)
+
+    repository = sub.add_parser("repository", help="Configure reviewed local repository metadata.")
+    repository_sub = repository.add_subparsers(dest="repository_command", required=True)
+    repository_init = repository_sub.add_parser(
+        "init",
+        help="Initialize local Git metadata without committing, authenticating, or pushing.",
+    )
+    repository_init.add_argument("target", nargs="?", default=".")
+    repository_init.add_argument("--default-branch", required=True)
+    repository_init.add_argument("--author-name", required=True)
+    repository_init.add_argument("--author-email", required=True)
+    repository_init.add_argument("--origin", default="")
+    repository_init.add_argument(
+        "--reviewed",
+        action="store_true",
+        help="Confirm default branch, repository-local author, and optional origin were reviewed.",
+    )
+    repository_init.add_argument("--check", action="store_true", help="Preview Git writes without changing the target.")
+    repository_init.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    repository_init.set_defaults(func=_cmd_repository_init)
 
     gate = sub.add_parser("gate", help="Check whether a workflow phase gate can be entered.")
     gate.add_argument("gate", choices=GATE_NAMES)

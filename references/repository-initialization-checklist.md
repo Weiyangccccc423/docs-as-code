@@ -69,7 +69,12 @@ Reference: `https://docs.github.com/en/repositories/managing-your-repositorys-se
 ## Git Readiness
 
 - If the target is under Git, is the repository initialized deliberately and ready for small traceable commits?
+- Was `bin/governance repository init <target> ... --reviewed --check --json` run before its write-mode equivalent?
+- Are `user.name` and `user.email` set with repository-local scope from explicit reviewed values rather than silently inherited from global Git configuration?
+- Did initialization refuse to mutate a parent repository or overwrite conflicting branch, author, or origin metadata?
+- Is it explicit that repository initialization does not create a commit, authenticate, or push, and that hosting-account identity must be checked separately before a push?
 - Are generated runtime, workflow-pack snapshot, templates, and governance docs intended to be versioned?
+- Is the unpacked source workflow pack excluded while its generated manifest-bound snapshot remains versioned?
 - Are local caches, secrets, credentials, environment files, and build outputs excluded before the first commit?
 - Is the default branch, remote, and author identity a user decision rather than a workflow-pack assumption?
 

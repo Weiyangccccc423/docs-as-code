@@ -269,6 +269,7 @@ RUNTIME_REQUIRED_SCRIPT_FILES = (
     "product_dispositions.py",
     "product_import.py",
     "project_environment.py",
+    "repository_git.py",
     "product_structure.py",
     "scaffold.py",
     "state.py",
@@ -578,6 +579,7 @@ TARGET_ENTRY_DOC_GUARDRAILS = {
 TARGET_GITIGNORE_REQUIRED_PATTERNS = (
     ".governance/",
     ".lycheecache",
+    "/docs-as-code-workflow-pack/",
     "__pycache__/",
     "*.pyc",
     "node_modules/",

@@ -26,3 +26,4 @@ One-sentence project summary.
 - `make repair-env-check` - preview environment repair without writing files.
 - `make project-env-plan` - print reviewed project runtime tool registration plan as JSON.
 - `bin/governance project-env repair . --tool-id <tool-id> --check --json` - preview one registered reviewed-command repair before requesting approval.
+- `bin/governance repository init . --default-branch <branch> --author-name "<name>" --author-email "<email>" --reviewed --check --json` - preview repository-local Git initialization without committing or pushing.
