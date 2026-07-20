@@ -261,6 +261,27 @@
       }
     },
     {
+      "name": "senior-devops",
+      "source": {
+        "kind": "github",
+        "repo": "alirezarezvani/claude-skills",
+        "path": "engineering-team/skills/senior-devops",
+        "ref": "b2aa395350c5a96d094c0fea116636bfa25ad1d0"
+      },
+      "integrity": {
+        "algorithm": "sha256",
+        "scope": "skill-tree",
+        "digest": "698ebc3a12ae6f160b9344a48ab72ebb87011751ba5a71ea1a0bb63810487d2b"
+      },
+      "trust": {
+        "status": "approved",
+        "approved_by": "workflow-pack-maintainers",
+        "approved_at": "2026-07-20",
+        "license": "MIT",
+        "review_evidence": "references/authority-skills-source-review.md"
+      }
+    },
+    {
       "name": "senior-frontend",
       "source": {
         "kind": "github",

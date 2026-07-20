@@ -216,6 +216,7 @@ AUTHORITY_ROUTING_SPECIALIST_SKILLS = frozenset(
         "security-pen-testing",
         "senior-architect",
         "senior-backend",
+        "senior-devops",
         "senior-frontend",
         "senior-fullstack",
         "senior-qa",

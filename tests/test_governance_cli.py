@@ -4115,6 +4115,7 @@ class GovernanceCliTest(unittest.TestCase):
                     "test-strategy-authoring",
                     "implementation-planning-authoring",
                     "architecture-decisions-authoring",
+                    "project-runtime",
                 ],
                 list(queues),
             )
@@ -4192,6 +4193,7 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn("senior-backend", payload["skill_summary"]["authority_routing_skills"])
             self.assertIn("database-schema-designer", payload["skill_summary"]["authority_routing_skills"])
             self.assertIn("senior-security", payload["skill_summary"]["authority_routing_skills"])
+            self.assertIn("tech-stack-evaluator", payload["skill_summary"]["authority_routing_skills"])
             self.assertIn("senior-architect", [step["name"] for step in payload["skill_loading_plan"]["steps"]])
             self.assertIn("database-schema-designer", [step["name"] for step in payload["skill_loading_plan"]["steps"]])
             self.assertEqual(
@@ -4245,6 +4247,21 @@ class GovernanceCliTest(unittest.TestCase):
                 commands["ui-interaction-authoring"]["argv"],
             )
             self.assertFalse(commands["ui-interaction-authoring"]["writes_state"])
+            self.assertEqual("complete", queues["project-runtime"]["status"])
+            self.assertEqual("not_required", queues["project-runtime"]["summary"]["coverage_status"])
+            self.assertTrue(queues["project-runtime"]["summary"]["configuration_complete"])
+            self.assertIn(
+                "configuring-project-runtime",
+                queues["project-runtime"]["summary"]["skill_summary"]["local_workflow_skills"],
+            )
+            self.assertIn(
+                "tech-stack-evaluator",
+                queues["project-runtime"]["summary"]["skill_summary"]["authority_routing_skills"],
+            )
+            self.assertEqual(
+                ["bin/governance", "project-env", "plan", ".", "--json"],
+                commands["project-runtime"]["argv"],
+            )
 
             isolated_env = _agent_env()
             isolated_env["HOME"] = str(Path(tmp) / "isolated-home")
@@ -4308,6 +4325,98 @@ class GovernanceCliTest(unittest.TestCase):
                 local_skill_payload["skill_readiness"]["resolved_requirements"]
             )
             self.assertIn(".agents/skills/senior-architect/SKILL.md", resolved_requirements["senior-architect"]["resolved_path"])
+
+    def test_project_runtime_work_package_blocks_implementation_until_registered_and_ready(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(self, tmp, advance_implementation=False)
+            architecture = target / "docs/architecture/02-containers.md"
+            architecture.write_text(
+                architecture.read_text(encoding="utf-8")
+                + "\n## Runtime Toolchain\n\n- The reviewed implementation runtime is Node.js 20 or newer.\n",
+                encoding="utf-8",
+            )
+            _append_project_command(
+                target,
+                name="node-stack-tests",
+                argv=["node", "--test"],
+                environment="project-runtime",
+            )
+            _record_all_test_design_reviews(self, target)
+            _install_test_authority_skills(target, ("tech-stack-evaluator", "senior-devops"))
+
+            workflow_plan = _run_governance_json(self, ["workflow", "plan", str(target)])
+            runtime_queue = next(queue for queue in workflow_plan["queues"] if queue["id"] == "project-runtime")
+            self.assertEqual("blocked", runtime_queue["status"])
+            self.assertEqual("registration_required", runtime_queue["summary"]["coverage_status"])
+            self.assertEqual("project-runtime", workflow_plan["active_work"]["queue_id"])
+
+            work_package = _run_governance_json(self, ["workflow", "work-package", str(target)])
+            self.assertTrue(work_package["package_available"])
+            self.assertEqual("registration_required", work_package["status"])
+            self.assertTrue(work_package["can_start"], work_package)
+            self.assertFalse(work_package["stop_before_work"])
+            package = work_package["work_package"]
+            self.assertEqual("project-runtime-configuration", package["kind"])
+            self.assertEqual("project-runtime", package["queue_id"])
+            self.assertEqual("node", package["missing_command_registrations"][0]["executable"])
+            self.assertIn("docs/agent-workflow/command-contract.md", package["read_order"])
+            self.assertIn("docs/agent-workflow/project-environment.json", package["write_scope"]["primary_paths"])
+            self.assertEqual("register-project-runtime-tool", work_package["next_action"]["kind"])
+
+            failed_gate = _run_governance_json(
+                self,
+                ["gate", "implementation", str(target)],
+                expected_returncode=1,
+            )
+            requirements = {item["code"]: item for item in failed_gate["requirements"]}
+            self.assertFalse(requirements["project_runtime_ready"]["ok"])
+            self.assertEqual(
+                "docs/agent-workflow/project-environment.json",
+                requirements["project_runtime_ready"]["path"],
+            )
+
+            registered = _run_governance_json(
+                self,
+                [
+                    "project-env",
+                    "register",
+                    str(target),
+                    "--tool-id",
+                    "node-runtime",
+                    "--executable",
+                    "node",
+                    "--version-probe",
+                    "double-dash-version",
+                    "--probe-output",
+                    "stdout",
+                    "--version-prefix",
+                    "v",
+                    "--minimum-version",
+                    "20.0.0",
+                    "--maximum-exclusive-version",
+                    "26.0.0",
+                    "--repair-source-type",
+                    "official-url",
+                    "--repair-source",
+                    "https://nodejs.org/en/download",
+                    "--review-evidence",
+                    "docs/architecture/02-containers.md",
+                    "--repair-instructions",
+                    "Install the reviewed Node.js runtime from the official source.",
+                    "--reviewed",
+                ],
+            )
+            self.assertTrue(registered["applied"])
+
+            completed_package = _run_governance_json(self, ["workflow", "work-package", str(target)])
+            self.assertFalse(completed_package["package_available"])
+            self.assertEqual("complete", completed_package["status"])
+            self.assertFalse(completed_package["blocked"])
+
+            passed_gate = _run_governance_json(self, ["gate", "implementation", str(target)])
+            passed_requirements = {item["code"]: item for item in passed_gate["requirements"]}
+            self.assertTrue(passed_gate["ok"], passed_gate)
+            self.assertTrue(passed_requirements["project_runtime_ready"]["ok"])
 
     def test_design_work_package_authors_own_track_before_downstream_link_repairs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -6302,6 +6411,10 @@ class GovernanceCliTest(unittest.TestCase):
     def test_implementation_verify_blocks_unsatisfied_declared_runtime_version_with_manual_repair(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = _implementation_ready_target(self, tmp)
+            _run_governance_json(
+                self,
+                ["implementation", "start", str(target), "--task", "TASK-001", "--apply"],
+            )
             environment_path = target / "docs/agent-workflow/project-environment.json"
             environment_contract = json.loads(environment_path.read_text(encoding="utf-8"))
             project_runtime = next(
@@ -6337,10 +6450,6 @@ class GovernanceCliTest(unittest.TestCase):
                 name="future-python-tests",
                 argv=["python3", "-c", "print('must not run')"],
                 environment="project-runtime",
-            )
-            _run_governance_json(
-                self,
-                ["implementation", "start", str(target), "--task", "TASK-001", "--apply"],
             )
 
             payload = _run_governance_json(

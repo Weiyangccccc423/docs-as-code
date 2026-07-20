@@ -8,6 +8,7 @@ import re
 import shutil
 import time
 from contextlib import contextmanager
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath, PureWindowsPath
@@ -29,6 +30,7 @@ except ImportError:  # pragma: no cover - direct script execution
 
 
 PROJECT_ENVIRONMENT_REL = Path("docs/agent-workflow/project-environment.json")
+PROJECT_COMMAND_CONTRACT_REL = Path("docs/agent-workflow/command-contract.md")
 PROJECT_ENVIRONMENT_SCHEMA_VERSION = 1
 PROJECT_ENVIRONMENT_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 PROJECT_ENVIRONMENT_TOOL_ID_RE = PROJECT_ENVIRONMENT_ID_RE
@@ -328,6 +330,15 @@ def build_project_environment_plan(root: Path) -> dict[str, object]:
         for record in repair_record_items
         if isinstance(record, dict) and record.get("status") == "pending"
     ]
+    coverage = _project_runtime_command_coverage(
+        root,
+        environment,
+        tool_items,
+        pending_repair_ids=pending_repair_ids,
+    )
+    command_contract_errors = [
+        str(error) for error in coverage.get("command_contract_errors", []) if isinstance(error, str)
+    ]
     status = (
         "repair_evidence_pending"
         if pending_repair_ids
@@ -359,7 +370,7 @@ def build_project_environment_plan(root: Path) -> dict[str, object]:
     ]
     return {
         "target": str(root),
-        "ok": True,
+        "ok": not command_contract_errors,
         "workflow": PROJECT_ENVIRONMENT_WORKFLOW,
         "decision_policy": PROJECT_ENVIRONMENT_DECISION_POLICY,
         "environment_id": PROJECT_RUNTIME_ID,
@@ -369,6 +380,7 @@ def build_project_environment_plan(root: Path) -> dict[str, object]:
         "status": status,
         "tool_count": len(tool_items),
         "tools": tool_items,
+        **coverage,
         "repair_evidence_path": PROJECT_ENVIRONMENT_REPAIR_EVIDENCE_REL.as_posix(),
         "repair_evidence_summary": {
             "record_count": len(repair_record_items),
@@ -402,14 +414,22 @@ def build_project_environment_plan(root: Path) -> dict[str, object]:
             "docs/decisions/README.md",
         ],
         "active_work": {
-            "status": status,
+            "status": coverage["coverage_status"],
             "next_action": (
                 "investigate-pending-project-runtime-repair"
                 if pending_repair_ids
                 else (
-                    "review-stack-decision-and-register-tool"
-                    if not tool_items
-                    else "preflight-registered-project-runtime-tools"
+                    "repair-command-contract"
+                    if command_contract_errors
+                    else (
+                        "complete"
+                        if coverage["configuration_complete"]
+                        else (
+                            "review-stack-decision-and-register-tool"
+                            if coverage["missing_command_registrations"]
+                            else "preflight-registered-project-runtime-tools"
+                        )
+                    )
                 )
             ),
             "stop_condition": (
@@ -433,8 +453,229 @@ def build_project_environment_plan(root: Path) -> dict[str, object]:
             "writes_state": True,
             "approval_required": False,
         },
-        "errors": [],
+        "errors": command_contract_errors,
     }
+
+
+def _project_runtime_command_coverage(
+    root: Path,
+    environment: dict[str, object],
+    tools: list[dict[str, object]],
+    *,
+    pending_repair_ids: list[str],
+) -> dict[str, object]:
+    try:
+        from .verify_governance import load_command_contract_entries
+    except ImportError:  # pragma: no cover - direct script execution
+        from verify_governance import load_command_contract_entries
+
+    entries, errors = load_command_contract_entries(root)
+    required_commands = [
+        copy.deepcopy(entry)
+        for entry in entries
+        if entry.get("environment") == PROJECT_RUNTIME_ID
+    ]
+    tool_ids = [str(tool.get("id", "")) for tool in tools]
+    base: dict[str, object] = {
+        "command_contract_path": PROJECT_COMMAND_CONTRACT_REL.as_posix(),
+        "command_contract_errors": list(errors),
+        "required_command_count": len(required_commands),
+        "required_commands": required_commands,
+        "command_coverage": [],
+        "missing_command_registrations": [],
+        "tool_readiness": [],
+        "unready_tool_ids": [],
+        "unused_tool_ids": tool_ids,
+        "configuration_complete": False,
+        "coverage_status": "command_contract_invalid" if errors else "registration_required",
+    }
+    if errors:
+        return base
+    if pending_repair_ids:
+        base["coverage_status"] = "repair_evidence_pending"
+        return base
+    if not required_commands:
+        base["configuration_complete"] = True
+        base["coverage_status"] = "not_required"
+        return base
+
+    tools_by_executable = {
+        str(tool.get("executable", "")): tool
+        for tool in tools
+        if str(tool.get("executable", ""))
+    }
+    command_requests: list[tuple[dict[str, object], Path | None, dict[str, object] | None, Path | None]] = []
+    probe_requests: dict[tuple[str, str, str], tuple[Path, dict[str, object], Path | None]] = {}
+    tool_command_keys: dict[str, list[tuple[str, str, str]]] = {}
+    used_tool_ids: set[str] = set()
+    missing_registrations: list[dict[str, object]] = []
+
+    for command in required_commands:
+        command_cwd = _project_runtime_command_cwd(root, str(command.get("cwd", "")))
+        argv = command.get("argv")
+        executable = argv[0] if isinstance(argv, list) and argv and isinstance(argv[0], str) else ""
+        candidate = Path(executable) if executable else Path()
+        repository_executable = bool(executable and "/" in executable and not candidate.is_absolute())
+        declared_executable = candidate.name if candidate.is_absolute() else executable
+        tool = None if repository_executable else tools_by_executable.get(declared_executable)
+        resolved_override = candidate if candidate.is_absolute() else None
+        command_requests.append((command, command_cwd, tool, resolved_override))
+        if tool is None:
+            if not repository_executable:
+                missing_registrations.append(
+                    {
+                        "command_name": str(command.get("name", "")),
+                        "executable": declared_executable,
+                    }
+                )
+            continue
+        tool_id = str(tool.get("id", ""))
+        used_tool_ids.add(tool_id)
+        if command_cwd is not None:
+            key = (tool_id, str(command_cwd), str(resolved_override or ""))
+            probe_requests[key] = (command_cwd, tool, resolved_override)
+            tool_command_keys.setdefault(tool_id, []).append(key)
+
+    for tool in tools:
+        tool_id = str(tool.get("id", ""))
+        if tool_command_keys.get(tool_id):
+            continue
+        key = (tool_id, str(root), "")
+        probe_requests[key] = (root, tool, None)
+        tool_command_keys.setdefault(tool_id, []).append(key)
+
+    probe_results: dict[tuple[str, str, str], dict[str, object]] = {}
+    requests = list(probe_requests.items())
+    if requests:
+        with ThreadPoolExecutor(max_workers=min(4, len(requests))) as executor:
+            results = executor.map(
+                lambda item: inspect_project_environment_tool(
+                    item[1][0],
+                    item[1][1],
+                    resolved_override=item[1][2],
+                ),
+                requests,
+            )
+            for (key, _), result in zip(requests, results):
+                probe_results[key] = result
+
+    tool_readiness: list[dict[str, object]] = []
+    for tool in tools:
+        keys = tool_command_keys[str(tool.get("id", ""))]
+        readiness_items = [probe_results[key] for key in keys]
+        selected = next((item for item in readiness_items if item.get("ready") is not True), readiness_items[0])
+        tool_readiness.append(copy.deepcopy(selected))
+    command_coverage: list[dict[str, object]] = []
+    for command, command_cwd, tool, resolved_override in command_requests:
+        argv = command.get("argv")
+        executable = argv[0] if isinstance(argv, list) and argv and isinstance(argv[0], str) else ""
+        candidate = Path(executable) if executable else Path()
+        repository_executable = bool(executable and "/" in executable and not candidate.is_absolute())
+        coverage = {
+            "command_name": str(command.get("name", "")),
+            "cwd": str(command.get("cwd", "")),
+            "argv": copy.deepcopy(argv) if isinstance(argv, list) else [],
+            "executable": executable,
+            "coverage_type": "repository-executable" if repository_executable else "registered-tool",
+            "tool_id": str(tool.get("id", "")) if tool is not None else "",
+            "ready": False,
+            "blocker_code": "",
+        }
+        if command_cwd is None:
+            coverage["blocker_code"] = "command_environment_cwd_unavailable"
+        elif repository_executable:
+            ready, blocker_code, resolved_path = _repository_command_executable_readiness(
+                root,
+                command_cwd,
+                executable,
+                allow_repository_executables=environment.get("allow_repository_executables") is True,
+            )
+            coverage["ready"] = ready
+            coverage["blocker_code"] = blocker_code
+            coverage["resolved_path"] = resolved_path
+        elif tool is None:
+            coverage["blocker_code"] = "command_environment_tool_undeclared"
+        else:
+            key = (str(tool.get("id", "")), str(command_cwd), str(resolved_override or ""))
+            readiness = probe_results[key]
+            coverage["ready"] = readiness.get("ready") is True
+            coverage["blocker_code"] = str(readiness.get("blocker_code", ""))
+            coverage["tool_readiness"] = copy.deepcopy(readiness)
+        command_coverage.append(coverage)
+
+    unready_tool_ids = [
+        str(item.get("id", ""))
+        for item in tool_readiness
+        if item.get("ready") is not True
+    ]
+    unused_tool_ids = [tool_id for tool_id in tool_ids if tool_id not in used_tool_ids]
+    missing_registrations = list(
+        {
+            (str(item["command_name"]), str(item["executable"])): item
+            for item in missing_registrations
+        }.values()
+    )
+    configuration_complete = (
+        not missing_registrations
+        and not unready_tool_ids
+        and all(item.get("ready") is True for item in command_coverage)
+    )
+    coverage_status = (
+        "registration_required"
+        if missing_registrations
+        else "ready"
+        if configuration_complete
+        else "repair_required"
+    )
+    base.update(
+        {
+            "command_coverage": command_coverage,
+            "missing_command_registrations": missing_registrations,
+            "tool_readiness": tool_readiness,
+            "unready_tool_ids": unready_tool_ids,
+            "unused_tool_ids": unused_tool_ids,
+            "configuration_complete": configuration_complete,
+            "coverage_status": coverage_status,
+        }
+    )
+    return base
+
+
+def _project_runtime_command_cwd(root: Path, value: str) -> Path | None:
+    candidate = root if value == "." else root.joinpath(*PurePosixPath(value).parts)
+    if candidate.is_symlink() or not candidate.is_dir():
+        return None
+    try:
+        resolved = candidate.resolve()
+        resolved.relative_to(root)
+    except (OSError, RuntimeError, ValueError):
+        return None
+    return resolved
+
+
+def _repository_command_executable_readiness(
+    root: Path,
+    command_cwd: Path,
+    executable: str,
+    *,
+    allow_repository_executables: bool,
+) -> tuple[bool, str, str]:
+    if not allow_repository_executables:
+        return False, "repository_executable_not_allowed_by_environment", ""
+    candidate = command_cwd.joinpath(*PurePosixPath(executable).parts)
+    if candidate.is_symlink():
+        return False, "repository_executable_symlink", str(candidate)
+    try:
+        resolved = candidate.resolve()
+        resolved.relative_to(root)
+    except (OSError, RuntimeError, ValueError):
+        return False, "command_executable_outside_repository", str(candidate)
+    available, executable_ready = _project_environment_executable_status(resolved)
+    if not available:
+        return False, "command_executable_unavailable", str(resolved)
+    if not executable_ready:
+        return False, "command_executable_not_executable", str(resolved)
+    return True, "", str(resolved)
 
 
 def check_project_environment_tool_registration(

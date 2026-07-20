@@ -985,6 +985,19 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         "project runtime repair evidence summary is incomplete",
         payload=repaired_project_plan,
     )
+    _remove_dry_run_runtime_registration(target)
+    project_plan_after_repair_fixture_cleanup = _run_json(
+        steps,
+        "project_environment_plan_after_repair_fixture_cleanup",
+        ["bin/governance", "project-env", "plan", ".", "--json"],
+        target,
+    )
+    _require(
+        project_plan_after_repair_fixture_cleanup.get("tool_count") == 0
+        and project_plan_after_repair_fixture_cleanup.get("coverage_status") == "not_required",
+        "dry-run repair fixture registration cleanup failed",
+        payload=project_plan_after_repair_fixture_cleanup,
+    )
 
     design_scaffold_check = _run_json(
         steps,
@@ -2081,13 +2094,6 @@ def _register_implementation_verification_command(target: Path) -> None:
             False,
             "project-runtime",
         ),
-        (
-            RUST_IMPLEMENTATION_VERIFICATION_COMMAND,
-            "Run real Rust stack tests offline without third-party crates.",
-            ["cargo", "test", "--offline", "--manifest-path", "stack-fixtures/rust/Cargo.toml"],
-            True,
-            "project-runtime",
-        ),
     )
     rows = "".join(
         f"| {name} | {purpose} | `.` | `{json.dumps(argv)}` | {str(writes_state).lower()} | false | "
@@ -2095,6 +2101,35 @@ def _register_implementation_verification_command(target: Path) -> None:
         for name, purpose, argv, writes_state, environment in commands
     )
     path.write_text(text.replace("\n## Project Commands", f"\n{rows}\n## Project Commands", 1), encoding="utf-8")
+
+
+def _register_optional_rust_verification_command(target: Path) -> None:
+    path = target / "docs/agent-workflow/command-contract.md"
+    text = path.read_text(encoding="utf-8")
+    argv = ["cargo", "test", "--offline", "--manifest-path", "stack-fixtures/rust/Cargo.toml"]
+    row = (
+        f"| {RUST_IMPLEMENTATION_VERIFICATION_COMMAND} | Run real Rust stack tests offline without third-party "
+        f"crates. | `.` | `{json.dumps(argv)}` | true | false | "
+        "`docs/development/04-implementation-evidence.md` | project-runtime |\n"
+    )
+    path.write_text(text.replace("\n## Project Commands", f"\n{row}\n## Project Commands", 1), encoding="utf-8")
+
+
+def _remove_dry_run_runtime_registration(target: Path) -> None:
+    path = target / "docs/agent-workflow/project-environment.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    environments = payload.get("environments", [])
+    for environment in environments:
+        if not isinstance(environment, dict) or environment.get("id") != "project-runtime":
+            continue
+        tools = environment.get("tools", [])
+        if isinstance(tools, list):
+            environment["tools"] = [
+                tool
+                for tool in tools
+                if not isinstance(tool, dict) or tool.get("id") != "dry-run-runtime"
+            ]
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
 def _write_stack_acceptance_fixtures(target: Path) -> None:
@@ -2242,6 +2277,7 @@ def _run_optional_rust_stack_acceptance(
     with tempfile.TemporaryDirectory(prefix="docs-as-code-rust-", dir=target.parent) as tmp:
         rust_target = Path(tmp) / "target"
         shutil.copytree(target, rust_target)
+        _register_optional_rust_verification_command(rust_target)
         registration = _register_stack_runtime(
             rust_target,
             steps,

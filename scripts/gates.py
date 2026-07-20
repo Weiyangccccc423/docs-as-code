@@ -10,11 +10,13 @@ from typing import Any
 
 try:
     from .bootstrap_tree import target_local_commands_payload
+    from .project_environment import PROJECT_ENVIRONMENT_REL, build_project_environment_plan
     from .state import STATE_REL, StateFileError, load_state
     from .verify_governance import product_acceptance_ids, task_board_executable_tasks, verify
     from .workflow_actions import next_actions_payload
 except ImportError:  # pragma: no cover - direct script execution
     from bootstrap_tree import target_local_commands_payload
+    from project_environment import PROJECT_ENVIRONMENT_REL, build_project_environment_plan
     from state import STATE_REL, StateFileError, load_state
     from verify_governance import product_acceptance_ids, task_board_executable_tasks, verify
     from workflow_actions import next_actions_payload
@@ -499,6 +501,14 @@ def _load_product_source_manifest(root: Path) -> dict[str, Any]:
 
 
 def _add_implementation_requirements(requirements: list[GateRequirement], root: Path) -> None:
+    project_environment = build_project_environment_plan(root)
+    _add(
+        requirements,
+        "project_runtime_ready",
+        project_environment.get("configuration_complete") is True,
+        PROJECT_ENVIRONMENT_REL.as_posix(),
+        "every project-runtime command has reviewed and ready executable coverage",
+    )
     for domain, message in [
         ("architecture", "architecture docs exist"),
         ("ui", "UI interaction docs exist"),

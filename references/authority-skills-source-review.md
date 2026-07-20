@@ -2,7 +2,7 @@
 
 ## Decision
 
-The workflow pack accepts the 19 authority-routing skills in `references/authority-skills.lock.json` from the community-maintained `alirezarezvani/claude-skills` repository under the controls below.
+The workflow pack accepts the 20 authority-routing skills in `references/authority-skills.lock.json` from the community-maintained `alirezarezvani/claude-skills` repository under the controls below.
 
 This approval means the pinned skill trees are allowed as reviewed Agent guidance and deterministic review tooling. It does not make the skills official OpenAI, Anthropic, standards-body, or vendor guidance. Architecture, backend, security, API, data, reliability, and test decisions must still cite primary standards and project evidence, pass the workflow's deterministic checks, and receive the required human or authority review.
 
@@ -12,7 +12,7 @@ This approval means the pinned skill trees are allowed as reviewed Agent guidanc
 | --- | --- |
 | Repository | `https://github.com/alirezarezvani/claude-skills` |
 | Immutable revision | `b2aa395350c5a96d094c0fea116636bfa25ad1d0` |
-| Review date | `2026-07-17` |
+| Review date | `2026-07-20` |
 | License | MIT, copyright Alireza Rezvani |
 | Upstream controls observed | `SECURITY.md`, `CONTRIBUTING.md`, source-visible skills and scripts |
 | Integrity scope | Complete selected skill tree, SHA-256 over relative path and file SHA-256 |
@@ -20,8 +20,8 @@ This approval means the pinned skill trees are allowed as reviewed Agent guidanc
 ## Review Evidence
 
 - Resolved upstream `HEAD` with `git ls-remote`, then cloned the exact revision for inspection.
-- Compared every selected upstream skill directory to the installed Agent-environment copy with recursive file comparison; all 19 trees matched.
-- Confirmed the selected 259 files contain no symbolic links.
+- Compared every selected upstream skill directory to the installed Agent-environment copy with recursive file comparison; all 20 trees matched.
+- Confirmed the selected 266 files contain no symbolic links.
 - Recomputed every complete skill-tree digest with the same `skill-tree-sha256-v1` algorithm used by `scripts/authority_skills.py`.
 - Confirmed the repository root MIT license and reviewed upstream security and contribution policies.
 - Scanned selected scripts for subprocess, shell execution, network, dynamic evaluation, destructive filesystem, and write patterns. The reviewed trees include explicit output-file writers and a backend load-test client; these capabilities must run only through task-specific reviewed commands and workflow approval boundaries.
@@ -43,6 +43,7 @@ This approval means the pinned skill trees are allowed as reviewed Agent guidanc
 | `security-pen-testing` | `engineering-team/skills/security-pen-testing` |
 | `senior-architect` | `engineering-team/skills/senior-architect` |
 | `senior-backend` | `engineering-team/skills/senior-backend` |
+| `senior-devops` | `engineering-team/skills/senior-devops` |
 | `senior-frontend` | `engineering-team/skills/senior-frontend` |
 | `senior-fullstack` | `engineering-team/skills/senior-fullstack` |
 | `senior-qa` | `engineering-team/skills/senior-qa` |

@@ -1645,10 +1645,15 @@ def _active_implementation_work(
         }
     blockers = selected.get("blockers") if isinstance(selected.get("blockers"), list) else []
     specialist_skills = selected.get("specialist_skills") if isinstance(selected.get("specialist_skills"), list) else []
-    status = "ready" if selected.get("actionable") is True and gate.get("ok") is True else "blocked"
     normalized_selected_status = _normalize_cell(str(selected.get("status", "")))
-    if selected.get("actionable") is True and gate.get("ok") is True and normalized_selected_status == "in progress":
+    if (
+        selected.get("actionable") is True
+        and normalized_selected_status == "in progress"
+        and _gate_allows_project_runtime_repair(gate)
+    ):
         status = "in_progress"
+    else:
+        status = "ready" if selected.get("actionable") is True and gate.get("ok") is True else "blocked"
     return {
         "kind": "implementation-task",
         "task_id": str(selected.get("task_id", "")),
@@ -1675,6 +1680,20 @@ def _active_implementation_work(
         "closeout_command": _embedded_command(root, "implementation-closeout", "Check task closeout evidence before marking Done.", ["bin/governance", "implementation", "closeout", ".", "--task", str(selected.get("task_id", "")), "--json"]),
         "refresh_command": _embedded_command(root, "refresh-implementation-plan", "Refresh the implementation task plan.", ["bin/governance", "implementation", "plan", ".", "--json"]),
     }
+
+
+def _gate_allows_project_runtime_repair(gate: dict[str, object]) -> bool:
+    if gate.get("ok") is True:
+        return True
+    requirements = gate.get("requirements")
+    if not isinstance(requirements, list):
+        return False
+    failing_codes = {
+        str(requirement.get("code", ""))
+        for requirement in requirements
+        if isinstance(requirement, dict) and requirement.get("ok") is not True
+    }
+    return failing_codes == {"project_runtime_ready"}
 
 
 def _selected_task(tasks: list[dict[str, object]]) -> dict[str, object]:

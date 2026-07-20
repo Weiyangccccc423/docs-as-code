@@ -197,6 +197,7 @@ class AuthoritySkillsTest(unittest.TestCase):
             "database-schema-designer",
             "migration-architect",
             "senior-security",
+            "senior-devops",
             "ci-cd-pipeline-builder",
         ):
             self.assertIn(name, skills)
@@ -219,6 +220,15 @@ class AuthoritySkillsTest(unittest.TestCase):
             for entry in skills["senior-fullstack"]["required_by"]
         }
         self.assertIn(("implementation", "base", "BASE_SPECIALIST_SKILLS"), fullstack_sources)
+
+        devops_sources = {
+            (entry["phase"], entry.get("track"), entry["source"])
+            for entry in skills["senior-devops"]["required_by"]
+        }
+        self.assertIn(
+            ("design-derivation", "project-runtime", "PROJECT_ENVIRONMENT_SPECIALIST_SKILLS"),
+            devops_sources,
+        )
 
         backend_sources = {
             (entry["phase"], entry.get("track"), entry["source"])

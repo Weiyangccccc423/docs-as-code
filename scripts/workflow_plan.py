@@ -25,6 +25,7 @@ try:
         build_ui_interaction_authoring,
     )
     from .implementation_plan import build_implementation_plan
+    from .project_environment import build_project_environment_plan
     from .product_structure import build_product_plan
     from .reliability_review_evidence import (
         build_reliability_review_evidence_inventory,
@@ -62,6 +63,7 @@ except ImportError:  # pragma: no cover - direct script execution
         build_ui_interaction_authoring,
     )
     from implementation_plan import build_implementation_plan
+    from project_environment import build_project_environment_plan
     from product_structure import build_product_plan
     from reliability_review_evidence import (
         build_reliability_review_evidence_inventory,
@@ -375,7 +377,7 @@ def _design_work_package(root: Path) -> tuple[dict[str, object], list[str], str]
         if selected is not None:
             break
     if selected is None:
-        return {}, [], "complete"
+        return _project_runtime_work_package(root)
 
     track, queue_id, authoring_payload, task, stage = selected
     track_id = str(track.get("id", ""))
@@ -536,6 +538,95 @@ def _design_work_package(root: Path) -> tuple[dict[str, object], list[str], str]
         "steps": _dict_items(task.get("steps")) or _dict_items(track.get("steps")),
         "verify_command": _dict_value(active_work.get("verify_command")),
         "refresh_command": _dict_value(active_work.get("refresh_command")),
+    }, [], ""
+
+
+def _project_runtime_work_package(root: Path) -> tuple[dict[str, object], list[str], str]:
+    payload = build_project_environment_plan(root)
+    coverage_status = str(payload.get("coverage_status", ""))
+    if not coverage_status:
+        return {}, _string_list(payload.get("errors")), "failed"
+    if payload.get("configuration_complete") is True:
+        return {}, [], "complete"
+
+    references = _target_read_paths(
+        root,
+        [
+            "references/project-environment-contract.md",
+            "references/runtime-strategy.md",
+            "references/community-practices.md",
+        ],
+    )
+    read_order = _dedupe_strings(
+        [
+            *_string_list(payload.get("read_order")),
+            *references,
+        ]
+    )
+    return {
+        "package_id": _package_id(DESIGN_PHASE, "project-runtime", "project-runtime"),
+        "kind": "project-runtime-configuration",
+        "phase": DESIGN_PHASE,
+        "queue_id": "project-runtime",
+        "work_id": "project-runtime",
+        "status": coverage_status,
+        "title": "Project runtime configuration",
+        "objective": "Cover every project-runtime command with a reviewed and ready executable contract.",
+        "decision_policy": str(payload.get("decision_policy", "")),
+        "references": references,
+        "read_order": read_order,
+        "write_scope": {
+            "mode": "reviewed_project_runtime_contract",
+            "primary_paths": [
+                "docs/agent-workflow/project-environment.json",
+                "docs/agent-workflow/command-contract.md",
+            ],
+            "supporting_paths": [
+                "docs/architecture",
+                "docs/decisions",
+                ".governance/project-environment-repairs.json",
+            ],
+            "requires_codebase_mapping": False,
+        },
+        "command_contract_path": str(payload.get("command_contract_path", "")),
+        "command_contract_errors": _string_list(payload.get("command_contract_errors")),
+        "required_commands": _dict_items(payload.get("required_commands")),
+        "command_coverage": _dict_items(payload.get("command_coverage")),
+        "missing_command_registrations": _dict_items(payload.get("missing_command_registrations")),
+        "tool_readiness": _dict_items(payload.get("tool_readiness")),
+        "unready_tool_ids": _string_list(payload.get("unready_tool_ids")),
+        "unused_tool_ids": _string_list(payload.get("unused_tool_ids")),
+        "repair_evidence_summary": _dict_value(payload.get("repair_evidence_summary")),
+        "repair_routes": _dict_items(payload.get("repair_routes")),
+        "register_command": _dict_value(payload.get("register_command")),
+        "skill_requirements": _dict_items(payload.get("skill_requirements")),
+        "specialist_skills": _string_list(payload.get("specialist_skills")),
+        "steps": [
+            {
+                "id": "inspect-project-runtime-contracts",
+                "action": "Read the command contract, reviewed stack evidence, and project environment inventory.",
+            },
+            {
+                "id": "register-or-repair-project-runtime",
+                "action": "Preview and apply only source-backed runtime registration or approved repair actions.",
+            },
+            {
+                "id": "verify-project-runtime",
+                "action": "Refresh project-env plan and governance verification until configuration_complete is true.",
+            },
+        ],
+        "verify_command": {
+            "argv": ["bin/governance", "verify", ".", "--check", "--json"],
+            "cwd": ".",
+            "writes_state": False,
+            "approval_required": False,
+        },
+        "refresh_command": {
+            "argv": ["bin/governance", "project-env", "plan", ".", "--json"],
+            "cwd": ".",
+            "writes_state": False,
+            "approval_required": False,
+        },
     }, [], ""
 
 
@@ -864,6 +955,22 @@ def _work_package_next_action(
 ) -> dict[str, object]:
     if not package:
         return next((dict(action) for action in workflow_next_actions if isinstance(action, dict)), {})
+    if package.get("kind") == "project-runtime-configuration":
+        status = str(package.get("status", ""))
+        if status == "command_contract_invalid":
+            return {
+                "kind": "repair-command-contract",
+                "path": str(package.get("command_contract_path", "")),
+                "errors": _string_list(package.get("command_contract_errors")),
+                "decision_policy": "repair_deterministic_contract_errors_before_runtime_registration",
+            }
+        if status == "repair_evidence_pending":
+            return {
+                "kind": "investigate-pending-project-runtime-repair",
+                "path": ".governance/project-environment-repairs.json",
+                "repair_evidence_summary": _dict_value(package.get("repair_evidence_summary")),
+                "decision_policy": "pending_repair_evidence_never_implies_success",
+            }
     missing_local = _string_list(skill_readiness.get("missing_local_workflow_skills"))
     if missing_local:
         return {
@@ -884,6 +991,49 @@ def _work_package_next_action(
             "approval_required": True,
             "missing_policy": "load_from_agent_environment_or_stop_before_guessing",
         }
+    if package.get("kind") == "project-runtime-configuration":
+        missing_registrations = _dict_items(package.get("missing_command_registrations"))
+        if missing_registrations:
+            return {
+                "kind": "register-project-runtime-tool",
+                "missing_command_registrations": missing_registrations,
+                "register_command": _dict_value(package.get("register_command")),
+                "decision_policy": str(package.get("decision_policy", "")),
+                "success_condition": "registration is reviewed and every affected command reports ready coverage",
+            }
+        unready_tool_ids = _string_list(package.get("unready_tool_ids"))
+        if unready_tool_ids:
+            tool_id = unready_tool_ids[0]
+            return {
+                "kind": "preflight-project-runtime-repair",
+                "tool_id": tool_id,
+                "command": _command(
+                    root,
+                    f"project-runtime-repair-{tool_id}-check",
+                    "Preview the registered project runtime repair without applying it.",
+                    [
+                        "bin/governance",
+                        "project-env",
+                        "repair",
+                        ".",
+                        "--tool-id",
+                        tool_id,
+                        "--check",
+                        "--json",
+                    ],
+                ),
+            }
+        blocked_commands = [
+            item
+            for item in _dict_items(package.get("command_coverage"))
+            if item.get("ready") is not True
+        ]
+        if blocked_commands:
+            return {
+                "kind": "repair-project-runtime-command",
+                "command_coverage": blocked_commands[0],
+                "decision_policy": "repair_declared_command_path_without_inferring_a_tool_or_install_command",
+            }
     if package.get("kind") == "product-authoring" and not _dict_value(package.get("disposition")):
         chapter = str(package.get("chapter", ""))
         return {
@@ -1309,7 +1459,42 @@ def _design_queues(root: Path) -> list[dict[str, object]]:
                 payload.get("errors"),
             )
         )
+    queues.append(_project_runtime_queue(root))
     return queues
+
+
+def _project_runtime_queue(root: Path) -> dict[str, object]:
+    payload = build_project_environment_plan(root)
+    summary = {
+        "coverage_status": str(payload.get("coverage_status", "")),
+        "configuration_complete": payload.get("configuration_complete") is True,
+        "required_command_count": int(payload.get("required_command_count", 0)),
+        "command_coverage": _dict_items(payload.get("command_coverage")),
+        "missing_command_registrations": _dict_items(payload.get("missing_command_registrations")),
+        "unready_tool_ids": _string_list(payload.get("unready_tool_ids")),
+        "unused_tool_ids": _string_list(payload.get("unused_tool_ids")),
+        "repair_evidence_summary": _dict_value(payload.get("repair_evidence_summary")),
+        "active_work": _payload_active_work(payload),
+        "skill_summary": _payload_skill_summary(payload),
+        "skill_loading_plan": _payload_skill_loading_plan(payload),
+    }
+    configuration_complete = summary["configuration_complete"] is True
+    return _queue(
+        "project-runtime",
+        DESIGN_PHASE,
+        "project-runtime-plan",
+        payload.get("ok") is True,
+        not configuration_complete,
+        _command(
+            root,
+            "project-runtime",
+            "Inspect project-runtime command coverage, tool readiness, and reviewed repair routes.",
+            ["bin/governance", "project-env", "plan", ".", "--json"],
+        ),
+        summary,
+        payload.get("errors"),
+        complete=configuration_complete,
+    )
 
 
 def _implementation_plan_queue(root: Path) -> dict[str, object]:

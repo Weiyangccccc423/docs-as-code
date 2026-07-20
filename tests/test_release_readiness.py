@@ -219,7 +219,7 @@ class ReleaseReadinessTest(unittest.TestCase):
         )
         self.assertTrue(criteria["authority-skill-inventory"]["details"]["manifest_ok"])
         self.assertTrue(criteria["authority-skill-inventory"]["details"]["manifest_aligned_with_routing"])
-        self.assertEqual(19, sum(criteria["authority-skill-inventory"]["details"]["status_counts"].values()))
+        self.assertEqual(20, sum(criteria["authority-skill-inventory"]["details"]["status_counts"].values()))
         self.assertTrue(criteria["authority-skill-inventory"]["details"]["repair_plan"]["requested"])
         self.assertTrue(criteria["authority-skill-inventory"]["details"]["repair_plan"]["check"])
         self.assertFalse(criteria["authority-skill-inventory"]["details"]["repair_plan"]["writes_state"])

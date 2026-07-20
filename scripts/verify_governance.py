@@ -603,6 +603,7 @@ COMMAND_CONTRACT_REQUIRED_COLUMNS = {
     "environment": "Environment",
 }
 COMMAND_CONTRACT_BOOLEAN_VALUES = {"true", "false"}
+COMMAND_CONTRACT_MAX_BYTES = 1_048_576
 COMMAND_CONTRACT_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 COMMAND_CONTRACT_SHELL_EVAL_FLAGS = {"-c", "/c", "-command"}
 COMMAND_CONTRACT_HIGH_RISK_COMMANDS: dict[str, set[str]] = {
@@ -1811,41 +1812,82 @@ def _project_environment_local_file(root: Path, rel: str) -> bool:
     return resolved.is_file()
 
 
-def load_command_contract_entry(root: Path, command_name: str) -> tuple[dict[str, object], list[str]]:
+def _load_command_contract_rows(root: Path) -> tuple[list[dict[str, str]], list[str]]:
     path = root / COMMAND_CONTRACT_REL
+    if path.is_symlink() or (path.exists() and not path.is_file()):
+        return [], [f"command contract must be a regular file: {COMMAND_CONTRACT_REL.as_posix()}"]
+    try:
+        if path.is_file() and path.stat().st_size > COMMAND_CONTRACT_MAX_BYTES:
+            return [], [f"command contract exceeds {COMMAND_CONTRACT_MAX_BYTES} bytes"]
+    except OSError as error:
+        return [], [f"command contract cannot be inspected: {error.strerror or error}"]
     try:
         text = path.read_text(encoding="utf-8")
     except FileNotFoundError:
-        return {}, [f"command contract is missing: {COMMAND_CONTRACT_REL.as_posix()}"]
+        return [], [f"command contract is missing: {COMMAND_CONTRACT_REL.as_posix()}"]
     except UnicodeDecodeError:
-        return {}, [f"command contract must be UTF-8: {COMMAND_CONTRACT_REL.as_posix()}"]
+        return [], [f"command contract must be UTF-8: {COMMAND_CONTRACT_REL.as_posix()}"]
     except OSError as error:
-        return {}, [f"command contract cannot be read: {error.strerror or error}"]
+        return [], [f"command contract cannot be read: {error.strerror or error}"]
 
     sections = _markdown_sections(text, min_level=2)
     table = _markdown_table(sections.get("command table", ""))
     if not table:
-        return {}, ["command contract Command Table is missing"]
+        return [], ["command contract Command Table is missing"]
     header = [_normalize_cell(cell) for cell in table[0]]
     missing = [column for column in COMMAND_CONTRACT_REQUIRED_COLUMNS if column not in header]
     if missing:
-        return {}, [f"command contract is missing columns: {', '.join(missing)}"]
-    matching: list[dict[str, str]] = []
+        return [], [f"command contract is missing columns: {', '.join(missing)}"]
+    rows: list[dict[str, str]] = []
     for data in table[1:]:
         if _is_separator_row(data):
             continue
-        row = {
-            column: _table_cell(data, header.index(column))
-            for column in COMMAND_CONTRACT_REQUIRED_COLUMNS
-        }
-        if row["name"].strip() == command_name:
-            matching.append(row)
+        rows.append(
+            {
+                column: _table_cell(data, header.index(column))
+                for column in COMMAND_CONTRACT_REQUIRED_COLUMNS
+            }
+        )
+    return rows, []
+
+
+def load_command_contract_entries(root: Path) -> tuple[list[dict[str, object]], list[str]]:
+    rows, errors = _load_command_contract_rows(root)
+    if errors:
+        return [], errors
+    entries: list[dict[str, object]] = []
+    parse_errors: list[str] = []
+    seen_names: set[str] = set()
+    for row in rows:
+        command_name = row["name"].strip()
+        if not command_name:
+            parse_errors.append("command contract command name is missing")
+            continue
+        if command_name in seen_names:
+            parse_errors.append(f"command contract command must be unique: {command_name}")
+        seen_names.add(command_name)
+        entry, entry_errors = _parse_command_contract_row(row, command_name)
+        entries.append(entry)
+        parse_errors.extend(entry_errors)
+    return entries, parse_errors
+
+
+def load_command_contract_entry(root: Path, command_name: str) -> tuple[dict[str, object], list[str]]:
+    rows, errors = _load_command_contract_rows(root)
+    if errors:
+        return {}, errors
+    matching = [row for row in rows if row["name"].strip() == command_name]
     if not matching:
         return {}, [f"command contract command not found: {command_name}"]
     if len(matching) != 1:
         return {}, [f"command contract command must be unique: {command_name}"]
+    return _parse_command_contract_row(matching[0], command_name)
 
-    row = matching[0]
+
+def _parse_command_contract_row(
+    row: dict[str, str],
+    command_name: str,
+) -> tuple[dict[str, object], list[str]]:
     errors: list[str] = []
     try:
         argv = json.loads(row["argv"].strip().strip("`"))

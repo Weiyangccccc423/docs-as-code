@@ -12,6 +12,7 @@ from unittest import mock
 import scripts.bootstrap_tree as bootstrap_module
 import scripts.check_env as check_env_module
 import scripts.gates as gates_module
+import scripts.implementation_plan as implementation_plan_module
 import scripts.implementation_verify as implementation_verify_module
 import scripts.project_environment as project_environment_module
 import scripts.phases as phases_module
@@ -20,6 +21,7 @@ import scripts.scaffold as scaffold_module
 import scripts.state as state_module
 import scripts.verify_governance as verify_governance_module
 import scripts.workflow_actions as workflow_actions_module
+import scripts.workflow_plan as workflow_plan_module
 from scripts.check_env import (
     PackageManager,
     ToolStatus,
@@ -53,6 +55,18 @@ def _write_indexed_doc(root: Path, rel: str, text: str = "# Test\n") -> None:
 def _append_product_meta_chapter(root: Path, filename: str) -> None:
     meta = root / "docs/product/core/product-meta.md"
     meta.write_text(meta.read_text(encoding="utf-8") + f"\n- [{filename}](../{filename})\n", encoding="utf-8")
+
+
+def _append_project_runtime_command(root: Path, name: str, argv: list[str]) -> None:
+    path = root / "docs/agent-workflow/command-contract.md"
+    row = (
+        f"| {name} | Verify the reviewed project runtime. | `.` | `{json.dumps(argv)}` | "
+        "false | false | `docs/development/03-verification-log.md` | project-runtime |\n"
+    )
+    path.write_text(
+        path.read_text(encoding="utf-8").replace("\n## Project Commands", f"\n{row}\n## Project Commands", 1),
+        encoding="utf-8",
+    )
 
 
 def _set_design_derivation_phase(root: Path) -> None:
@@ -577,6 +591,75 @@ def _endpoint_contract_doc(
 
 
 class GovernanceScriptsTest(unittest.TestCase):
+    def test_in_progress_task_can_repair_only_project_runtime_gate_drift(self) -> None:
+        task = {
+            "actionable": True,
+            "status": "In Progress",
+            "task_id": "TASK-001",
+            "blockers": [],
+            "specialist_skills": [],
+            "read_order": [],
+        }
+        runtime_gate = {
+            "ok": False,
+            "requirements": [
+                {
+                    "code": "project_runtime_ready",
+                    "ok": False,
+                    "path": "docs/agent-workflow/project-environment.json",
+                    "message": "project runtime drifted",
+                }
+            ],
+        }
+        unrelated_gate = {
+            "ok": False,
+            "requirements": [
+                {
+                    "code": "architecture_design_ready",
+                    "ok": False,
+                    "path": "docs/architecture",
+                    "message": "architecture evidence is invalid",
+                }
+            ],
+        }
+
+        recoverable = implementation_plan_module._active_implementation_work(Path("/tmp/target"), [task], runtime_gate)
+        blocked = implementation_plan_module._active_implementation_work(Path("/tmp/target"), [task], unrelated_gate)
+
+        self.assertEqual("in_progress", recoverable["status"])
+        self.assertFalse(recoverable["gate_ok"])
+        self.assertEqual("blocked", blocked["status"])
+
+    def test_project_runtime_deterministic_blockers_route_before_missing_authority_skills(self) -> None:
+        skill_readiness = {
+            "missing_local_workflow_skills": [],
+            "missing_authority_routing_skills": ["senior-devops"],
+        }
+        invalid = workflow_plan_module._work_package_next_action(
+            Path("/tmp/target"),
+            {
+                "kind": "project-runtime-configuration",
+                "status": "command_contract_invalid",
+                "command_contract_path": "docs/agent-workflow/command-contract.md",
+                "command_contract_errors": ["invalid command table"],
+            },
+            skill_readiness,
+            [],
+        )
+        pending = workflow_plan_module._work_package_next_action(
+            Path("/tmp/target"),
+            {
+                "kind": "project-runtime-configuration",
+                "status": "repair_evidence_pending",
+                "repair_evidence_summary": {"pending_count": 1},
+            },
+            skill_readiness,
+            [],
+        )
+
+        self.assertEqual("repair-command-contract", invalid["kind"])
+        self.assertEqual("investigate-pending-project-runtime-repair", pending["kind"])
+
     def test_project_environment_numeric_version_helpers_are_deterministic(self) -> None:
         self.assertEqual((3, 10, 0, 0), project_environment_module.parse_numeric_version("3.10"))
         self.assertIsNone(project_environment_module.parse_numeric_version("v3.10.0"))
@@ -696,6 +779,202 @@ class GovernanceScriptsTest(unittest.TestCase):
             project_runtime = project_environment_module.project_environment_by_id(contract, "project-runtime")
             self.assertIsNotNone(project_runtime)
             self.assertEqual([tool], project_runtime["tools"])
+
+    def test_project_environment_plan_requires_ready_registration_for_runtime_commands(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _set_design_derivation_phase(root)
+            _append_project_runtime_command(root, "node-tests", ["node", "--test"])
+            evidence = root / "docs/decisions/001-stack.md"
+            evidence.write_text("# Stack Decision\n\nReviewed Node.js runtime selection.\n", encoding="utf-8")
+            tool = {
+                "id": "node-runtime",
+                "executable": "node",
+                "version_probe": {"args": ["--version"], "output": "stdout", "prefix": "v"},
+                "version_requirement": {"minimum": "20.0.0", "maximum_exclusive": "26.0.0"},
+                "repair": {
+                    "strategy": "manual",
+                    "source": {
+                        "type": "official-url",
+                        "location": "https://nodejs.org/en/download",
+                        "review_evidence": "docs/decisions/001-stack.md",
+                    },
+                    "instructions": "Install the reviewed Node.js runtime from the official source.",
+                },
+            }
+
+            initial = project_environment_module.build_project_environment_plan(root)
+
+            self.assertTrue(initial["ok"], initial)
+            self.assertEqual("registration_required", initial["status"])
+            self.assertEqual("registration_required", initial["coverage_status"])
+            self.assertFalse(initial["configuration_complete"])
+            self.assertEqual(1, initial["required_command_count"])
+            self.assertEqual("node", initial["missing_command_registrations"][0]["executable"])
+
+            registered = project_environment_module.register_project_environment_tool(root, tool, reviewed=True)
+            self.assertTrue(registered.ok, registered.to_dict())
+            readiness = {
+                "id": "node-runtime",
+                "executable": "node",
+                "available": True,
+                "executable_ready": True,
+                "probe_executed": True,
+                "probe_passed": True,
+                "observed_version": "22.0.0",
+                "version_satisfies": True,
+                "ready": True,
+                "blocker_code": "",
+            }
+            with mock.patch.object(
+                project_environment_module,
+                "inspect_project_environment_tool",
+                return_value=readiness,
+            ):
+                complete = project_environment_module.build_project_environment_plan(root)
+
+            self.assertTrue(complete["ok"], complete)
+            self.assertEqual("registered_tools_present", complete["status"])
+            self.assertEqual("ready", complete["coverage_status"])
+            self.assertTrue(complete["configuration_complete"])
+            self.assertEqual("node-runtime", complete["command_coverage"][0]["tool_id"])
+            self.assertTrue(complete["command_coverage"][0]["ready"])
+            self.assertEqual([], complete["missing_command_registrations"])
+            self.assertEqual([], complete["unready_tool_ids"])
+
+            unready = dict(readiness)
+            unready.update(
+                {
+                    "ready": False,
+                    "version_satisfies": False,
+                    "blocker_code": "environment_tool_version_unsatisfied",
+                }
+            )
+            with mock.patch.object(
+                project_environment_module,
+                "inspect_project_environment_tool",
+                return_value=unready,
+            ):
+                blocked = project_environment_module.build_project_environment_plan(root)
+
+            self.assertEqual("repair_required", blocked["coverage_status"])
+            self.assertFalse(blocked["configuration_complete"])
+            self.assertEqual(["node-runtime"], blocked["unready_tool_ids"])
+
+    def test_project_environment_plan_rejects_invalid_command_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _append_project_runtime_command(root, "node-tests", ["node", "--test"])
+            contract = root / "docs/agent-workflow/command-contract.md"
+            contract.write_text(
+                contract.read_text(encoding="utf-8").replace('`["node", "--test"]`', "`not-json`"),
+                encoding="utf-8",
+            )
+
+            plan = project_environment_module.build_project_environment_plan(root)
+
+            self.assertFalse(plan["ok"])
+            self.assertEqual("command_contract_invalid", plan["coverage_status"])
+            self.assertFalse(plan["configuration_complete"])
+            self.assertTrue(any("node-tests" in error for error in plan["command_contract_errors"]))
+
+    def test_project_environment_plan_rejects_symlinked_command_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            contract = root / "docs/agent-workflow/command-contract.md"
+            real_contract = contract.with_name("command-contract-real.md")
+            contract.rename(real_contract)
+            contract.symlink_to(real_contract.name)
+
+            plan = project_environment_module.build_project_environment_plan(root)
+
+            self.assertFalse(plan["ok"])
+            self.assertEqual("command_contract_invalid", plan["coverage_status"])
+            self.assertTrue(any("regular file" in error for error in plan["command_contract_errors"]))
+
+    def test_project_environment_plan_requires_explicit_repository_executable_policy(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            executable = root / "tools/runtime-check"
+            executable.parent.mkdir()
+            executable.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            executable.chmod(0o755)
+            _append_project_runtime_command(root, "runtime-check", ["tools/runtime-check"])
+            contract_path = root / "docs/agent-workflow/project-environment.json"
+            contract = json.loads(contract_path.read_text(encoding="utf-8"))
+            project_runtime = next(item for item in contract["environments"] if item["id"] == "project-runtime")
+            project_runtime["allow_repository_executables"] = False
+            contract_path.write_text(json.dumps(contract, indent=2) + "\n", encoding="utf-8")
+            denied = project_environment_module.build_project_environment_plan(root)
+            project_runtime["allow_repository_executables"] = True
+            contract_path.write_text(json.dumps(contract, indent=2) + "\n", encoding="utf-8")
+            allowed = project_environment_module.build_project_environment_plan(root)
+            real_executable = executable.with_name("runtime-check-real")
+            executable.rename(real_executable)
+            executable.symlink_to(real_executable.name)
+            symlinked = project_environment_module.build_project_environment_plan(root)
+
+            self.assertEqual("repair_required", denied["coverage_status"])
+            self.assertEqual(
+                "repository_executable_not_allowed_by_environment",
+                denied["command_coverage"][0]["blocker_code"],
+            )
+            self.assertEqual("ready", allowed["coverage_status"])
+            self.assertTrue(allowed["configuration_complete"])
+            self.assertEqual("repository-executable", allowed["command_coverage"][0]["coverage_type"])
+            self.assertEqual([], allowed["missing_command_registrations"])
+            self.assertEqual("repair_required", symlinked["coverage_status"])
+            self.assertEqual("repository_executable_symlink", symlinked["command_coverage"][0]["blocker_code"])
+
+    def test_project_environment_plan_probes_exact_registered_absolute_executable(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+            _set_design_derivation_phase(root)
+            executable = root / "tools/runtime-check"
+            executable.parent.mkdir()
+            executable.write_text("#!/bin/sh\nprintf 'Runtime 2.0.0\\n'\n", encoding="utf-8")
+            executable.chmod(0o755)
+            _append_project_runtime_command(root, "runtime-check", [str(executable), "test"])
+            evidence = root / "docs/architecture/README.md"
+            tool = {
+                "id": "runtime-check",
+                "executable": "runtime-check",
+                "version_probe": {"args": ["--version"], "output": "stdout", "prefix": "Runtime "},
+                "version_requirement": {"minimum": "2.0.0", "maximum_exclusive": "3.0.0"},
+                "repair": {
+                    "strategy": "manual",
+                    "source": {
+                        "type": "repository-doc",
+                        "location": "docs/architecture/README.md",
+                        "review_evidence": "docs/architecture/README.md",
+                    },
+                    "instructions": "Restore the reviewed repository-local test runtime.",
+                },
+            }
+            registered = project_environment_module.register_project_environment_tool(root, tool, reviewed=True)
+
+            self.assertTrue(registered.ok, registered.to_dict())
+            plan = project_environment_module.build_project_environment_plan(root)
+
+            self.assertEqual("ready", plan["coverage_status"], plan)
+            self.assertTrue(plan["configuration_complete"])
+            self.assertEqual(str(executable), plan["command_coverage"][0]["tool_readiness"]["resolved_path"])
+            self.assertEqual(str(executable), plan["tool_readiness"][0]["resolved_path"])
 
     def test_project_environment_registration_requires_replace_for_conflicts_and_local_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1474,6 +1753,8 @@ class GovernanceScriptsTest(unittest.TestCase):
                 {finding.code for finding in report.findings},
             )
             self.assertEqual("repair_evidence_pending", plan["status"])
+            self.assertEqual("repair_evidence_pending", plan["coverage_status"])
+            self.assertFalse(plan["configuration_complete"])
             self.assertEqual(1, plan["repair_evidence_summary"]["pending_count"])
             self.assertFalse(repair.ok)
             self.assertEqual("repair-evidence-pending", repair.action)

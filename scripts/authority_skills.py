@@ -18,6 +18,7 @@ try:
         DESIGN_TRACKS,
     )
     from .implementation_plan import BASE_SPECIALIST_SKILLS
+    from .project_environment import PROJECT_ENVIRONMENT_SPECIALIST_SKILLS
 except ImportError:  # pragma: no cover - direct script execution
     from bounded_process import run_bounded_command
     from design_plan import (
@@ -26,6 +27,7 @@ except ImportError:  # pragma: no cover - direct script execution
         DESIGN_TRACKS,
     )
     from implementation_plan import BASE_SPECIALIST_SKILLS
+    from project_environment import PROJECT_ENVIRONMENT_SPECIALIST_SKILLS
 
 
 AUTHORITY_SKILL_TYPE = "authority-routing"
@@ -887,6 +889,17 @@ def _authority_skill_requirements() -> dict[str, list[dict[str, str]]]:
                 "track": "base",
                 "title": "Implementation base routing",
                 "source": "BASE_SPECIALIST_SKILLS",
+            },
+        )
+    for skill in PROJECT_ENVIRONMENT_SPECIALIST_SKILLS:
+        _append_requirement(
+            required_by,
+            skill,
+            {
+                "phase": "design-derivation",
+                "track": "project-runtime",
+                "title": "Project runtime configuration",
+                "source": "PROJECT_ENVIRONMENT_SPECIALIST_SKILLS",
             },
         )
     for skill, trigger in IMPLEMENTATION_CONDITIONAL_SPECIALIST_SKILLS:

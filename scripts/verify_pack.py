@@ -3322,6 +3322,9 @@ IMPLEMENTATION_VERIFY_DOC_REQUIREMENTS = {
         "--approved",
         ".governance/project-environment-repairs.json",
         "pending",
+        "coverage_status",
+        "configuration_complete",
+        "project_runtime_ready",
     ),
     "references/runtime-strategy.md": (
         "project-env plan",
@@ -3340,6 +3343,9 @@ IMPLEMENTATION_VERIFY_DOC_REQUIREMENTS = {
         "project-env plan",
         "project-env register --reviewed --check",
         "project-env repair --tool-id <tool-id> --check --json",
+        "project-runtime-configuration",
+        "configuration_complete",
+        "project_runtime_ready",
     ),
     "skills/configuring-project-runtime/SKILL.md": (
         "configuring-project-runtime",
@@ -3351,6 +3357,9 @@ IMPLEMENTATION_VERIFY_DOC_REQUIREMENTS = {
         "approval-required",
         ".governance/project-environment-repairs.json",
         "--replace",
+        "coverage_status",
+        "configuration_complete",
+        "project_runtime_ready",
     ),
 }
 WORK_PACKAGE_SOURCE_PATH = "scripts/workflow_plan.py"
@@ -3383,6 +3392,8 @@ WORK_PACKAGE_SOURCE_REQUIRED_PHRASES = (
     "author-design-documents",
     "record-design-review",
     "design_review_orphan",
+    "project-runtime-configuration",
+    "register-project-runtime-tool",
 )
 WORKFLOW_RESUME_SOURCE_PATH = "scripts/workflow_resume.py"
 WORKFLOW_RESUME_SOURCE_REQUIRED_PHRASES = (
@@ -5570,6 +5581,7 @@ AUTHORITY_ROUTING_SPECIALIST_SKILLS = frozenset(
         "security-pen-testing",
         "senior-architect",
         "senior-backend",
+        "senior-devops",
         "senior-frontend",
         "senior-fullstack",
         "senior-qa",

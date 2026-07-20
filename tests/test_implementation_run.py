@@ -337,6 +337,10 @@ class ImplementationRunTest(unittest.TestCase):
     def test_auto_repair_requires_explicit_approval_for_reviewed_command(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = _implementation_ready_target(self, tmp)
+            _run_governance_json(
+                self,
+                ["implementation", "start", str(target), "--task", "TASK-001", "--apply"],
+            )
             installer = target / "tools/install-demo-runtime"
             installer.parent.mkdir(parents=True, exist_ok=True)
             installer.write_text(
@@ -395,10 +399,6 @@ class ImplementationRunTest(unittest.TestCase):
                 name="task-tests",
                 argv=["demo-runtime"],
                 environment="project-runtime",
-            )
-            _run_governance_json(
-                self,
-                ["implementation", "start", str(target), "--task", "TASK-001", "--apply"],
             )
 
             blocked = _run(
