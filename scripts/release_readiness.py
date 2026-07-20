@@ -11,6 +11,8 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
+LOCAL_TEST_RUNNER_PATH = "scripts/run_tests.py"
+LOCAL_TEST_EVIDENCE = "python3 scripts/run_tests.py"
 MULTI_ACCEPTANCE_PRODUCT_FIXTURE = ROOT / "tests/fixtures/product-docs/field-service-ops.md"
 TARGET_LOCAL_MAKE_STEP_IDS = [
     "make_verify_governance",
@@ -882,6 +884,31 @@ def _authority_skill_inventory_ok(payload: dict[str, object] | None) -> bool:
     )
 
 
+def _run_local_unit_test_gate(
+    steps: list[dict[str, object]],
+    criteria: list[dict[str, object]],
+    *,
+    skip_tests: bool,
+) -> None:
+    if skip_tests:
+        _criterion(
+            criteria,
+            "unit-tests",
+            False,
+            evidence=LOCAL_TEST_EVIDENCE,
+            skipped=True,
+        )
+        return
+
+    _run_step(steps, "unit_tests", [sys.executable, LOCAL_TEST_RUNNER_PATH])
+    _criterion(
+        criteria,
+        "unit-tests",
+        bool(steps[-1]["ok"]),
+        evidence=LOCAL_TEST_EVIDENCE,
+    )
+
+
 def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
     steps: list[dict[str, object]] = []
     criteria: list[dict[str, object]] = []
@@ -902,22 +929,7 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
         evidence="git diff --cached --check",
     )
 
-    if skip_tests:
-        _criterion(
-            criteria,
-            "unit-tests",
-            False,
-            evidence="python3 -m unittest discover -s tests",
-            skipped=True,
-        )
-    else:
-        _run_step(steps, "unit_tests", [sys.executable, "-m", "unittest", "discover", "-s", "tests"])
-        _criterion(
-            criteria,
-            "unit-tests",
-            bool(steps[-1]["ok"]),
-            evidence="python3 -m unittest discover -s tests",
-        )
+    _run_local_unit_test_gate(steps, criteria, skip_tests=skip_tests)
 
     pack_payload = _run_step(
         steps,

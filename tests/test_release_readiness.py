@@ -3,12 +3,14 @@ import subprocess
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from scripts.release_readiness import (
     _artifact_smoke_design_authoring_summary_ok,
     _artifact_smoke_work_package_ok,
     _dry_run_implementation_task_package_ok,
     _dry_run_implementation_runner_ok,
+    _run_local_unit_test_gate,
 )
 
 
@@ -17,6 +19,47 @@ RELEASE = ROOT / "scripts" / "release_readiness.py"
 
 
 class ReleaseReadinessTest(unittest.TestCase):
+    def test_local_unit_test_gate_uses_parallel_runner(self) -> None:
+        steps: list[dict[str, object]] = []
+        criteria: list[dict[str, object]] = []
+
+        def record_step(
+            target_steps: list[dict[str, object]],
+            step_id: str,
+            argv: list[str | Path],
+            **_kwargs: object,
+        ) -> None:
+            target_steps.append(
+                {
+                    "id": step_id,
+                    "argv": [str(item) for item in argv],
+                    "ok": True,
+                }
+            )
+
+        with mock.patch("scripts.release_readiness._run_step", side_effect=record_step) as run_step:
+            _run_local_unit_test_gate(steps, criteria, skip_tests=False)
+
+        run_step.assert_called_once_with(
+            steps,
+            "unit_tests",
+            [sys.executable, "scripts/run_tests.py"],
+        )
+        self.assertEqual("pass", criteria[0]["status"])
+        self.assertEqual("python3 scripts/run_tests.py", criteria[0]["evidence"])
+
+    def test_local_unit_test_gate_preserves_skip_evidence(self) -> None:
+        steps: list[dict[str, object]] = []
+        criteria: list[dict[str, object]] = []
+
+        with mock.patch("scripts.release_readiness._run_step") as run_step:
+            _run_local_unit_test_gate(steps, criteria, skip_tests=True)
+
+        run_step.assert_not_called()
+        self.assertEqual([], steps)
+        self.assertEqual("skipped", criteria[0]["status"])
+        self.assertEqual("python3 scripts/run_tests.py", criteria[0]["evidence"])
+
     def test_dry_run_implementation_runner_check_requires_guarded_complete_execution(self) -> None:
         payload = {
             "implementation_run": {

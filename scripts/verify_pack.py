@@ -2097,6 +2097,7 @@ RELEASE_READINESS_REQUIRED_PHRASES = (
     "diff_check",
     "cached_diff_check",
     "unit_tests",
+    "python3 scripts/run_tests.py",
     "pack_verification",
     "environment_inventory",
     "authority_skill_inventory",

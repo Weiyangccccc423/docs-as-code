@@ -159,6 +159,7 @@ python3 scripts/release_readiness.py --json
 ```
 
 `make test` is the authoritative local unit-test entry. It runs discovered `tests/test_*.py` modules in isolated subprocesses with bounded module-level parallelism, a 15-minute per-module timeout, and stable reporting. If it fails, use `make test-serial` to reproduce the same suite through standard serial `unittest` discovery; do not require both commands to pass as separate gates. Do not trigger `.github/workflows/ci.yml` unless a reviewed remote-environment run is explicitly required.
+`make release-check` reuses the same `scripts/run_tests.py` runner for its unit-test criterion, so release validation must not introduce a separate serial discovery path.
 
 The default stack acceptance gate requires real dependency-free Python and Node tests. Use `--strict-rust` only when the release environment is required to provide Cargo; otherwise a missing Rust runtime must remain visible as reviewed manual repair routing.
 

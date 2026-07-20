@@ -2051,6 +2051,7 @@ class PackStructureTest(unittest.TestCase):
     def test_verify_pack_reports_incomplete_release_readiness_script(self) -> None:
         cases = (
             ("release_ready", "handoff_ready"),
+            ("python3 scripts/run_tests.py", "python3 -m unittest discover -s tests"),
             ("_dry_run_design_reviews_ok", "_dry_run_design_approvals_ok"),
             ("_artifact_smoke_design_reviews_ok", "_artifact_smoke_design_approvals_ok"),
             ("_dry_run_reliability_review_ok", "_dry_run_service_level_ok"),
