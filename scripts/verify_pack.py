@@ -752,6 +752,7 @@ FRESH_TARGET_SMOKE_TEST_REQUIRED_PHRASES = (
 DRY_RUN_WORKFLOW_PATH = "scripts/dry_run_workflow.py"
 DRY_RUN_WORKFLOW_REQUIRED_PHRASES = (
     "run_dry_run",
+    "DRY_RUN_STEP_TIMEOUT_SECONDS",
     "fresh-target-governance-dry-run",
     "SAMPLE_PRODUCT",
     "DESIGN_REVIEW_TRACK_ORDER",
@@ -1817,6 +1818,7 @@ CONSUMER_BOOTSTRAP_DOC_REQUIREMENTS = {
 ARTIFACT_SMOKE_PATH = "scripts/smoke_workflow_pack_artifact.py"
 ARTIFACT_SMOKE_REQUIRED_PHRASES = (
     "run_artifact_smoke",
+    "ARTIFACT_SMOKE_STEP_TIMEOUT_SECONDS",
     "export_artifact",
     "unpacked_verify_pack_manifest",
     "unpacked_verify_pack",
@@ -2092,6 +2094,7 @@ ARTIFACT_SMOKE_DOC_REQUIREMENTS = {
 RELEASE_READINESS_PATH = "scripts/release_readiness.py"
 RELEASE_READINESS_REQUIRED_PHRASES = (
     "run_release_readiness",
+    "RELEASE_STEP_TIMEOUT_SECONDS",
     "release_ready",
     "criteria",
     "diff_check",

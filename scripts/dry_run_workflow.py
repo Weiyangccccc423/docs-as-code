@@ -18,6 +18,7 @@ except ImportError:  # pragma: no cover - direct script execution
 
 
 ROOT = Path(__file__).resolve().parents[1]
+DRY_RUN_STEP_TIMEOUT_SECONDS = 900.0
 CLI = ROOT / "scripts" / "governance_cli.py"
 CONSUMER_BOOTSTRAP = ROOT / "scripts" / "bootstrap_consumer_project.py"
 
@@ -135,6 +136,14 @@ def _stringify_argv(argv: list[str | Path]) -> list[str]:
     return [str(item) for item in argv]
 
 
+def _timeout_output(value: str | bytes | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value
+
+
 def _make_clock_skew_warnings(command: list[str], stderr: str) -> list[str]:
     if not stderr or not command or Path(command[0]).name != "make":
         return []
@@ -152,22 +161,41 @@ def _run_json(
     *,
     expected_returncode: int = 0,
     env: dict[str, str] | None = None,
+    timeout_seconds: float = DRY_RUN_STEP_TIMEOUT_SECONDS,
 ) -> dict[str, object]:
     command = _stringify_argv(argv)
-    result = subprocess.run(
-        command,
-        cwd=cwd,
-        env=env or _agent_env(),
-        text=True,
-        capture_output=True,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            command,
+            cwd=cwd,
+            env=env or _agent_env(),
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired as error:
+        failed = {
+            "id": step_id,
+            "argv": command,
+            "cwd": str(cwd),
+            "returncode": None,
+            "expected_returncode": expected_returncode,
+            "timed_out": True,
+            "timeout_seconds": timeout_seconds,
+            "stdout": _timeout_output(error.stdout),
+            "stderr": _timeout_output(error.stderr),
+        }
+        steps.append(failed)
+        raise DryRunFailure(f"step timed out: {step_id}", step=failed) from error
     step = {
         "id": step_id,
         "argv": command,
         "cwd": str(cwd),
         "returncode": result.returncode,
         "expected_returncode": expected_returncode,
+        "timed_out": False,
+        "timeout_seconds": timeout_seconds,
     }
     warnings = _make_clock_skew_warnings(command, result.stderr)
     if warnings:
@@ -202,22 +230,41 @@ def _run_text(
     cwd: Path,
     *,
     expected_returncode: int = 0,
+    timeout_seconds: float = DRY_RUN_STEP_TIMEOUT_SECONDS,
 ) -> str:
     command = _stringify_argv(argv)
-    result = subprocess.run(
-        command,
-        cwd=cwd,
-        env=_agent_env(),
-        text=True,
-        capture_output=True,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            command,
+            cwd=cwd,
+            env=_agent_env(),
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired as error:
+        failed = {
+            "id": step_id,
+            "argv": command,
+            "cwd": str(cwd),
+            "returncode": None,
+            "expected_returncode": expected_returncode,
+            "timed_out": True,
+            "timeout_seconds": timeout_seconds,
+            "stdout": _timeout_output(error.stdout),
+            "stderr": _timeout_output(error.stderr),
+        }
+        steps.append(failed)
+        raise DryRunFailure(f"step timed out: {step_id}", step=failed) from error
     step = {
         "id": step_id,
         "argv": command,
         "cwd": str(cwd),
         "returncode": result.returncode,
         "expected_returncode": expected_returncode,
+        "timed_out": False,
+        "timeout_seconds": timeout_seconds,
     }
     warnings = _make_clock_skew_warnings(command, result.stderr)
     if warnings:

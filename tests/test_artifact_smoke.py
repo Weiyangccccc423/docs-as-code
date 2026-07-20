@@ -4,6 +4,9 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
+
+from scripts import smoke_workflow_pack_artifact
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -11,6 +14,34 @@ SMOKE = ROOT / "scripts" / "smoke_workflow_pack_artifact.py"
 
 
 class ArtifactSmokeTest(unittest.TestCase):
+    def test_run_json_reports_timeout_as_a_structured_failure(self) -> None:
+        steps: list[dict[str, object]] = []
+        timeout = subprocess.TimeoutExpired(
+            cmd=["slow-command"],
+            timeout=0.05,
+            output='{"partial": true}',
+            stderr="still running",
+        )
+
+        with mock.patch.object(
+            smoke_workflow_pack_artifact.subprocess,
+            "run",
+            side_effect=timeout,
+        ):
+            with self.assertRaises(smoke_workflow_pack_artifact.ArtifactSmokeError) as raised:
+                smoke_workflow_pack_artifact._run_json(
+                    steps,
+                    "slow_step",
+                    ["slow-command"],
+                    Path("."),
+                    timeout_seconds=0.05,
+                )
+
+        self.assertTrue(raised.exception.step["timed_out"])
+        self.assertEqual(0.05, raised.exception.step["timeout_seconds"])
+        self.assertEqual('{"partial": true}', raised.exception.step["stdout"])
+        self.assertEqual("still running", raised.exception.step["stderr"])
+
     def test_artifact_smoke_unpacks_and_runs_checks_from_exported_pack(self) -> None:
         result = subprocess.run(
             [

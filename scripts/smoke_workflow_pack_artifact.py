@@ -14,6 +14,7 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
+ARTIFACT_SMOKE_STEP_TIMEOUT_SECONDS = 900.0
 PACK_DIR_NAME = "docs-as-code-workflow-pack"
 TARGET_LOCAL_MAKE_STEP_IDS = [
     "make_verify_governance",
@@ -87,6 +88,14 @@ def _agent_env() -> dict[str, str]:
     return env
 
 
+def _timeout_output(value: str | bytes | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value
+
+
 def _run_json(
     steps: list[dict[str, object]],
     step_id: str,
@@ -94,22 +103,41 @@ def _run_json(
     cwd: Path,
     *,
     expected_returncode: int = 0,
+    timeout_seconds: float = ARTIFACT_SMOKE_STEP_TIMEOUT_SECONDS,
 ) -> dict[str, object]:
     command = [str(item) for item in argv]
-    result = subprocess.run(
-        command,
-        cwd=cwd,
-        env=_agent_env(),
-        text=True,
-        capture_output=True,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            command,
+            cwd=cwd,
+            env=_agent_env(),
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired as error:
+        failed = {
+            "id": step_id,
+            "argv": command,
+            "cwd": str(cwd),
+            "returncode": None,
+            "expected_returncode": expected_returncode,
+            "timed_out": True,
+            "timeout_seconds": timeout_seconds,
+            "stdout": _timeout_output(error.stdout),
+            "stderr": _timeout_output(error.stderr),
+        }
+        steps.append(failed)
+        raise ArtifactSmokeError(f"step timed out: {step_id}", step=failed) from error
     step = {
         "id": step_id,
         "argv": command,
         "cwd": str(cwd),
         "returncode": result.returncode,
         "expected_returncode": expected_returncode,
+        "timed_out": False,
+        "timeout_seconds": timeout_seconds,
     }
     steps.append(step)
     if result.returncode != expected_returncode:

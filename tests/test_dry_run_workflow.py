@@ -14,6 +14,30 @@ DRY_RUN = ROOT / "scripts" / "dry_run_workflow.py"
 
 
 class DryRunWorkflowTest(unittest.TestCase):
+    def test_run_json_reports_timeout_as_a_structured_failure(self) -> None:
+        steps: list[dict[str, object]] = []
+        timeout = subprocess.TimeoutExpired(
+            cmd=["slow-command"],
+            timeout=0.05,
+            output='{"partial": true}',
+            stderr="still running",
+        )
+
+        with mock.patch.object(dry_run_workflow.subprocess, "run", side_effect=timeout):
+            with self.assertRaises(dry_run_workflow.DryRunFailure) as raised:
+                dry_run_workflow._run_json(
+                    steps,
+                    "slow_step",
+                    ["slow-command"],
+                    Path("."),
+                    timeout_seconds=0.05,
+                )
+
+        self.assertTrue(raised.exception.step["timed_out"])
+        self.assertEqual(0.05, raised.exception.step["timeout_seconds"])
+        self.assertEqual('{"partial": true}', raised.exception.step["stdout"])
+        self.assertEqual("still running", raised.exception.step["stderr"])
+
     def test_run_json_records_make_clock_skew_warnings_without_masking_other_stderr(self) -> None:
         clock_skew = (
             "make: Warning: File 'Makefile' has modification time 1.2 s in the future\n"

@@ -11,6 +11,7 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
+RELEASE_STEP_TIMEOUT_SECONDS = 3600.0
 LOCAL_TEST_RUNNER_PATH = "scripts/run_tests.py"
 LOCAL_TEST_EVIDENCE = "python3 scripts/run_tests.py"
 MULTI_ACCEPTANCE_PRODUCT_FIXTURE = ROOT / "tests/fixtures/product-docs/field-service-ops.md"
@@ -55,6 +56,14 @@ def _agent_env() -> dict[str, str]:
     return env
 
 
+def _timeout_output(value: str | bytes | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value
+
+
 def _run_step(
     steps: list[dict[str, object]],
     step_id: str,
@@ -62,16 +71,35 @@ def _run_step(
     *,
     parse_json: bool = False,
     expected_returncode: int = 0,
+    timeout_seconds: float = RELEASE_STEP_TIMEOUT_SECONDS,
 ) -> dict[str, object] | None:
     command = [str(item) for item in argv]
-    result = subprocess.run(
-        command,
-        cwd=ROOT,
-        env=_agent_env(),
-        text=True,
-        capture_output=True,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            command,
+            cwd=ROOT,
+            env=_agent_env(),
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired as error:
+        steps.append(
+            {
+                "id": step_id,
+                "argv": command,
+                "cwd": str(ROOT),
+                "returncode": None,
+                "expected_returncode": expected_returncode,
+                "ok": False,
+                "timed_out": True,
+                "timeout_seconds": timeout_seconds,
+                "stdout": _timeout_output(error.stdout),
+                "stderr": _timeout_output(error.stderr),
+            }
+        )
+        return None
     step: dict[str, object] = {
         "id": step_id,
         "argv": command,
@@ -79,6 +107,8 @@ def _run_step(
         "returncode": result.returncode,
         "expected_returncode": expected_returncode,
         "ok": result.returncode == expected_returncode,
+        "timed_out": False,
+        "timeout_seconds": timeout_seconds,
     }
     payload: dict[str, object] | None = None
     if parse_json and result.stdout:

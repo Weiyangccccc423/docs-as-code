@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from scripts import release_readiness
 from scripts.release_readiness import (
     _artifact_smoke_design_authoring_summary_ok,
     _artifact_smoke_work_package_ok,
@@ -19,6 +20,30 @@ RELEASE = ROOT / "scripts" / "release_readiness.py"
 
 
 class ReleaseReadinessTest(unittest.TestCase):
+    def test_release_step_records_timeout_as_structured_failure(self) -> None:
+        steps: list[dict[str, object]] = []
+        timeout = subprocess.TimeoutExpired(
+            cmd=["slow-command"],
+            timeout=0.05,
+            output="partial stdout",
+            stderr="partial stderr",
+        )
+
+        with mock.patch.object(release_readiness.subprocess, "run", side_effect=timeout):
+            payload = release_readiness._run_step(
+                steps,
+                "slow_step",
+                ["slow-command"],
+                timeout_seconds=0.05,
+            )
+
+        self.assertIsNone(payload)
+        self.assertFalse(steps[0]["ok"])
+        self.assertTrue(steps[0]["timed_out"])
+        self.assertEqual(0.05, steps[0]["timeout_seconds"])
+        self.assertEqual("partial stdout", steps[0]["stdout"])
+        self.assertEqual("partial stderr", steps[0]["stderr"])
+
     def test_local_unit_test_gate_uses_parallel_runner(self) -> None:
         steps: list[dict[str, object]] = []
         criteria: list[dict[str, object]] = []

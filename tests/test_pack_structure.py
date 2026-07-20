@@ -598,6 +598,7 @@ class PackStructureTest(unittest.TestCase):
 
     def test_verify_pack_reports_incomplete_dry_run_workflow_script(self) -> None:
         cases = (
+            ("DRY_RUN_STEP_TIMEOUT_SECONDS", "DRY_RUN_WAIT_FOREVER"),
             ("implementation_advance_check", "implementation_gate_preview"),
             ("make_verify_check", "local_verify_check"),
             ("make_workflow_plan_implementation", "local_workflow_plan_implementation"),
@@ -1851,6 +1852,7 @@ class PackStructureTest(unittest.TestCase):
 
     def test_verify_pack_reports_incomplete_artifact_smoke_script(self) -> None:
         cases = (
+            ("ARTIFACT_SMOKE_STEP_TIMEOUT_SECONDS", "ARTIFACT_SMOKE_WAIT_FOREVER"),
             ("unpacked_dry_run", "unpacked_preview"),
             ("_dry_run_target_local_make_details", "_dry_run_local_command_details"),
             (
@@ -2051,6 +2053,7 @@ class PackStructureTest(unittest.TestCase):
     def test_verify_pack_reports_incomplete_release_readiness_script(self) -> None:
         cases = (
             ("release_ready", "handoff_ready"),
+            ("RELEASE_STEP_TIMEOUT_SECONDS", "RELEASE_WAIT_FOREVER"),
             ("python3 scripts/run_tests.py", "python3 -m unittest discover -s tests"),
             ("_dry_run_design_reviews_ok", "_dry_run_design_approvals_ok"),
             ("_artifact_smoke_design_reviews_ok", "_artifact_smoke_design_approvals_ok"),
