@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import scripts.check_env as check_env_module
 import scripts.product_conversion as product_conversion_module
 from scripts.bootstrap_tree import bootstrap
 from scripts.check_env import PackageManager, ToolStatus, build_install_plan, environment_ok
@@ -19,6 +20,14 @@ class ProductConversionTest(unittest.TestCase):
         statuses = [
             ToolStatus("git", True, "git version 2.34.1", "Required.", "required", "git"),
             ToolStatus("pandoc", False, "", "Convert product documents.", "recommended", "pandoc"),
+            ToolStatus(
+                "pdftotext",
+                False,
+                "",
+                "Extract PDF product text.",
+                "recommended",
+                "poppler-utils",
+            ),
             ToolStatus("lychee", False, "", "Check links.", "recommended", None),
         ]
         package_manager = PackageManager("apt", "/usr/bin/apt-get", True)
@@ -33,6 +42,15 @@ class ProductConversionTest(unittest.TestCase):
         self.assertEqual(["pandoc"], [item.tool for item in plan])
         self.assertFalse(environment_ok(statuses, strict=False, required_tools=("pandoc",)))
         self.assertTrue(environment_ok(statuses, strict=False))
+        pdf_plan = build_install_plan(
+            statuses,
+            strict=False,
+            package_manager=package_manager,
+            required_tools=("pdftotext",),
+        )
+        self.assertEqual([("pdftotext", "poppler-utils")], [(item.tool, item.package) for item in pdf_plan])
+        specs = {spec.name: spec for spec in check_env_module.TOOLS}
+        self.assertEqual("poppler-utils", specs["pdftotext"].apt_package)
 
     def test_txt_conversion_check_is_no_write_and_apply_routes_to_review(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -249,7 +267,7 @@ class ProductConversionTest(unittest.TestCase):
                 )
             )
 
-    def test_pdf_conversion_stops_without_guessing(self) -> None:
+    def test_pdf_conversion_requires_pdftotext_and_returns_targeted_repair(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
             source = base / "product.pdf"
@@ -257,15 +275,126 @@ class ProductConversionTest(unittest.TestCase):
             target = base / "target"
             bootstrap(target, product_doc=source)
 
-            result = check_product_conversion(target)
+            with mock.patch.object(product_conversion_module.shutil, "which", return_value=None):
+                result = check_product_conversion(target)
 
             self.assertFalse(result.ok)
-            self.assertFalse(result.repair_required)
-            self.assertEqual("manual-reviewed-pdf-to-markdown", result.review_method)
-            self.assertIn(
-                "automatic PDF conversion is unsupported; extract and review Markdown manually",
-                result.errors,
+            self.assertTrue(result.repair_required)
+            self.assertEqual("pdftotext", result.required_tool)
+            self.assertEqual("reviewed-pdftotext-pdf-to-utf8-text", result.review_method)
+            self.assertIn("required conversion tool is missing: pdftotext", result.errors)
+            self.assertEqual(
+                [
+                    "bin/governance",
+                    "env",
+                    "--repair",
+                    "--require-tool",
+                    "pdftotext",
+                    "--check",
+                    "--target",
+                    ".",
+                    "--json",
+                ],
+                result.repair_check_command["argv"],
             )
+
+    def test_pdf_conversion_records_pdftotext_evidence_and_requires_review(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            source = base / "product.pdf"
+            source.write_bytes(b"%PDF-1.7\n")
+            target = base / "target"
+            bootstrap(target, product_doc=source)
+            fake_pdftotext = base / "pdftotext"
+            fake_pdftotext.write_text(
+                "#!/usr/bin/env python3\n"
+                "import pathlib\n"
+                "import sys\n"
+                "if '-v' in sys.argv:\n"
+                "    print('pdftotext version 24.02.0', file=sys.stderr)\n"
+                "    raise SystemExit(0)\n"
+                "pathlib.Path(sys.argv[-1]).write_text(\n"
+                "    '# PDF Product\\n\\nGoals\\n- Preserve field constraints.\\n',\n"
+                "    encoding='utf-8',\n"
+                ")\n",
+                encoding="utf-8",
+            )
+            fake_pdftotext.chmod(0o755)
+
+            with mock.patch.object(
+                product_conversion_module.shutil,
+                "which",
+                return_value=str(fake_pdftotext),
+            ):
+                check = check_product_conversion(target)
+                result = convert_product_document(target)
+
+            self.assertTrue(check.ok, check.errors)
+            self.assertTrue(result.ok, result.errors)
+            self.assertEqual("pdftotext-pdf-to-utf8-text", result.method)
+            self.assertEqual("pdftotext version 24.02.0", result.converter_version)
+            self.assertEqual(
+                ["-enc", "UTF-8", "-layout", "-nopgbrk"],
+                result.command_argv[1:5],
+            )
+            self.assertEqual("pass", result.execution["result"])
+            self.assertEqual(
+                "# PDF Product\n\nGoals\n- Preserve field constraints.\n",
+                (target / "docs/product/core/PRD.md").read_text(encoding="utf-8"),
+            )
+            report = json.loads(
+                (target / "docs/product/core/source/conversion-report.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual("pdftotext", report["conversion"]["tool"])
+            self.assertEqual("pdftotext version 24.02.0", report["conversion"]["tool_version"])
+            self.assertEqual("pending", report["review"]["status"])
+            self.assertEqual(result.output_sha256, report["output"]["sha256"])
+            self.assertEqual("pending_review", load_state(target)["product_conversion_status"])
+
+            ready = mark_product_import_ready(target, method=result.review_method, reviewed=True)
+
+            self.assertTrue(ready.ok, ready.errors)
+            reviewed_report = json.loads(
+                (target / "docs/product/core/source/conversion-report.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual("reviewed", reviewed_report["review"]["status"])
+            self.assertEqual(result.review_method, reviewed_report["review"]["method"])
+            self.assertEqual("reviewed", load_state(target)["product_conversion_status"])
+            self.assertTrue(verify(target).ok)
+
+    def test_pdf_conversion_rejects_empty_extraction_without_target_writes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            source = base / "scanned-product.pdf"
+            source.write_bytes(b"%PDF-1.7\n")
+            target = base / "target"
+            bootstrap(target, product_doc=source)
+            placeholder = (target / "docs/product/core/PRD.md").read_text(encoding="utf-8")
+            fake_pdftotext = base / "pdftotext"
+            fake_pdftotext.write_text(
+                "#!/usr/bin/env python3\n"
+                "import pathlib\n"
+                "import sys\n"
+                "if '-v' in sys.argv:\n"
+                "    print('pdftotext version 24.02.0')\n"
+                "    raise SystemExit(0)\n"
+                "pathlib.Path(sys.argv[-1]).write_text('   \\n', encoding='utf-8')\n",
+                encoding="utf-8",
+            )
+            fake_pdftotext.chmod(0o755)
+
+            with mock.patch.object(
+                product_conversion_module.shutil,
+                "which",
+                return_value=str(fake_pdftotext),
+            ):
+                result = convert_product_document(target)
+
+            self.assertFalse(result.ok)
+            self.assertTrue(any("contains no readable text" in error for error in result.errors))
+            self.assertEqual(placeholder, (target / "docs/product/core/PRD.md").read_text(encoding="utf-8"))
+            self.assertFalse((target / "docs/product/core/source/conversion-report.json").exists())
+            self.assertFalse((target / "docs/product/core/.PRD.md.conversion.tmp").exists())
 
 
 if __name__ == "__main__":

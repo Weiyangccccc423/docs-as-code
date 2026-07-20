@@ -46,6 +46,12 @@ TOOLS = [
     ToolSpec("node", "Recommended for frontend projects and markdown tooling.", "recommended", None),
     ToolSpec("corepack", "Recommended for pnpm-managed frontend projects.", "recommended", None),
     ToolSpec("pandoc", "Recommended for converting docx/html product documents to Markdown.", "recommended", "pandoc"),
+    ToolSpec(
+        "pdftotext",
+        "Recommended for extracting PDF product documents into reviewable UTF-8 text.",
+        "recommended",
+        "poppler-utils",
+    ),
     ToolSpec("lychee", "Recommended for link verification.", "recommended", None),
 ]
 
@@ -976,7 +982,10 @@ def main() -> int:
     if missing and not args.json:
         print("\nRepair guidance:")
         print("- Install missing system tools with your OS package manager.")
-        print("- `pandoc` and `lychee` are optional during early product archiving but required for strict docs CI.")
+        print(
+            "- `pandoc`, `pdftotext`, and `lychee` are optional during early product archiving "
+            "but required for strict docs CI."
+        )
         print("- Re-run `python3 scripts/check_env.py --strict` before declaring the workflow environment ready.")
     if args.repair:
         target_error = repair_target_error(target)

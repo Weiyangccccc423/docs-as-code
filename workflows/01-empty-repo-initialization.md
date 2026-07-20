@@ -34,7 +34,7 @@ Load:
 
    Omit `--git-origin` when no remote is approved. The target directory must already exist. Require `repository_git_check_ok: true` with no `.git` write in check mode, then `repository_git_initialized: true` in apply mode. This creates no commit and never authenticates or pushes.
 
-   TXT input is converted automatically with the Python standard library and stops at `product_conversion_status: pending_review`. DOCX/HTML first elevate only `pandoc` through `--require-tool pandoc`, then run bounded no-shell conversion. Require `product_conversion_applied: true`, `docs/product/core/source/conversion-report.json`, and a guarded `product-mark-ready` handoff. PDF remains a manual extraction stop. No non-Markdown path may advance product structuring before source review closes `U-001`.
+   TXT input is converted automatically with the Python standard library and stops at `product_conversion_status: pending_review`. DOCX/HTML first elevate only `pandoc` through `--require-tool pandoc`; PDF elevates only Poppler `pdftotext` through `--require-tool pdftotext`. Both external paths use bounded no-shell conversion. Require `product_conversion_applied: true`, `docs/product/core/source/conversion-report.json`, and a guarded `product-mark-ready` handoff. PDF tables, diagrams, columns, and layout-dependent meaning require explicit source comparison. No non-Markdown path may advance product structuring before source review closes `U-001`.
 
 2. From the trusted workflow-pack checkout, inventory authority skills and build the offline repair plan:
 

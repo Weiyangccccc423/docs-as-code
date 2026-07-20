@@ -1907,7 +1907,7 @@ def build_parser() -> argparse.ArgumentParser:
     product_sub = product.add_subparsers(dest="product_command", required=True)
     product_convert = product_sub.add_parser(
         "convert",
-        help="Convert an archived TXT, DOCX, or HTML product source into reviewable Markdown.",
+        help="Convert an archived TXT, DOCX, HTML, or PDF product source into reviewable Markdown.",
     )
     product_convert.add_argument("target", nargs="?", default=".")
     product_convert.add_argument("--check", action="store_true", help="Preview conversion without writing files.")

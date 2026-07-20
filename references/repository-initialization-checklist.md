@@ -25,7 +25,7 @@ Reference: `https://git-scm.com/book/en/v2/Git-Basics-Getting-a-Git-Repository`
 - Are `repair_actions` sorted by `sequence` before any environment repair action is executed?
 - Are package-manager repair commands treated as approval-requiring actions when `needs_escalation` is true?
 - Can initialization proceed with POSIX shell plus Python standard-library runtime and no project package install?
-- For DOCX/HTML input, does `--require-tool pandoc` elevate only the converter needed by that operation, leaving unrelated recommended tools non-blocking?
+- For DOCX/HTML input, does `--require-tool pandoc` elevate only Pandoc, and for PDF input does `--require-tool pdftotext` elevate only Poppler text extraction, leaving unrelated recommended tools non-blocking?
 - Are target-local continuation commands used from returned `cwd` and `argv` instead of reparsing display text?
 
 ## Authority Skill Readiness
@@ -62,8 +62,8 @@ Reference: `https://docs.github.com/en/repositories/managing-your-repositorys-se
 
 - Are `docs/product/core/PRD.md`, `docs/product/core/product-meta.md`, `docs/product/core/source/source-manifest.json`, `docs/unresolved.md`, and `docs/glossary.md` initialized?
 - Is the original product source archived or represented as conversion-required before product structuring begins?
-- For TXT/DOCX/HTML, does initialization create `docs/product/core/source/conversion-report.json`, record generated output SHA-256, remain `pending_review`, and route to guarded `product-mark-ready`?
-- Is PDF explicitly routed to reviewed manual extraction instead of guessed automatic conversion?
+- For TXT/DOCX/HTML/PDF, does initialization create `docs/product/core/source/conversion-report.json`, record generated output SHA-256, remain `pending_review`, and route to guarded `product-mark-ready`?
+- Does PDF extraction use fixed bounded `pdftotext` arguments and require source comparison for tables, diagrams, columns, and layout-dependent meaning?
 - Does initialization JSON record product selection as `explicit`, `auto-discovered`, `none`, or `ambiguous` so agents can branch deterministically?
 - Does `.governance/state.json` record phase, profile, product source, archive path, and product import readiness consistently?
 

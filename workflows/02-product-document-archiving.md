@@ -29,17 +29,21 @@ Load:
 5. Record navigational metadata in `docs/product/core/product-meta.md`.
 6. Do not edit product meaning during archiving.
 7. If conversion is incomplete, register the limitation in `docs/unresolved.md` and stop before design derivation. Bootstrap registers `U-001` automatically for conversion-required sources.
-8. For TXT, DOCX, HTML, or HTM input, run the deterministic conversion preflight and apply pair. DOCX/HTML conversion requires Pandoc; request only that operation-specific environment capability instead of enabling every recommended tool:
+8. For TXT, DOCX, HTML, HTM, or PDF input, run the deterministic conversion preflight and apply pair. DOCX/HTML conversion requires Pandoc; PDF extraction requires Poppler `pdftotext`. Request only the operation-specific environment capability instead of enabling every recommended tool. Run only the matching converter repair pair:
 
    ```bash
+   # DOCX/HTML only
    bin/governance env --repair --require-tool pandoc --check --target <target> --json
    bin/governance env --repair --require-tool pandoc --target <target> --json
+   # PDF only
+   bin/governance env --repair --require-tool pdftotext --check --target <target> --json
+   bin/governance env --repair --require-tool pdftotext --target <target> --json
    bin/governance product convert <target> --check --json
    bin/governance product convert <target> --json
    ```
 
-   `product convert --check` is no-write. Write mode validates the archived size and SHA-256 first, uses bounded no-shell execution, writes `docs/product/core/PRD.md`, records `docs/product/core/source/conversion-report.json`, and leaves `product_conversion_status: pending_review`. TXT uses the Python standard library; DOCX/HTML use Pandoc to GitHub-Flavored Markdown. The command does not resolve `U-001` and does not allow design derivation.
-9. PDF remains a manual stop: archive it, extract Markdown with a reviewed PDF tool, record fidelity limits, and do not claim automatic support.
+   `product convert --check` is no-write. Write mode validates the archived size and SHA-256 first, uses bounded no-shell execution, writes `docs/product/core/PRD.md`, records `docs/product/core/source/conversion-report.json`, and leaves `product_conversion_status: pending_review`. TXT uses the Python standard library; DOCX/HTML use Pandoc to GitHub-Flavored Markdown; PDF uses `pdftotext -enc UTF-8 -layout -nopgbrk` to produce reviewable text. The command does not resolve `U-001` and does not allow design derivation.
+9. Treat PDF output as a text extraction draft, not a structural interpretation. Compare tables, diagrams, columns, page order, constraints, and acceptance rules against the archived PDF; record losses in `docs/unresolved.md` and keep import blocked when layout carries unresolved meaning.
 10. Compare the readable Markdown PRD against the archived source. Use the `review_method` returned by `product convert` when conversion evidence exists; `manual-reviewed-markdown` remains the method for a fully manual conversion. Then use the deterministic closeout command instead of editing manifest metadata by hand:
 
    ```bash
@@ -55,7 +59,7 @@ Load:
 | --- | --- | --- |
 | Markdown | copy to `PRD.md` | preserve source and copy text manually |
 | DOCX | convert with `pandoc` | archive source and create conversion-required PRD wrapper |
-| PDF | extract text with a PDF tool | archive source and ask for a Markdown export |
+| PDF | extract UTF-8 text with Poppler `pdftotext`, then review | archive source and ask for a Markdown export |
 | HTML | convert with `pandoc` | archive source and normalize manually |
 
 ## Output

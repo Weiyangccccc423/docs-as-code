@@ -25,15 +25,15 @@ Reference: `https://csrc.nist.gov/pubs/fips/180-4/upd1/final`
 ## Conversion Fidelity
 
 - Is `docs/product/core/PRD.md` a readable Markdown representation of the archived product source, not a summary?
-- For TXT, DOCX, HTML, or HTM, did `bin/governance product convert <target> --check --json` pass before write mode?
-- When Pandoc is required, was it routed through `bin/governance env --repair --require-tool pandoc --check --target <target> --json` rather than broad strict-environment installation?
+- For TXT, DOCX, HTML, HTM, or PDF, did `bin/governance product convert <target> --check --json` pass before write mode?
+- When Pandoc or Poppler `pdftotext` is required, was only that converter routed through `bin/governance env --repair --require-tool <tool> --check --target <target> --json` rather than broad strict-environment installation?
 - Does `docs/product/core/source/conversion-report.json` bind the archive path/hash, converter and version, logical arguments, generated PRD hash, and `pending_review` status?
 - Was converter execution bounded by timeout/output limits and invoked without a shell?
 - Are tables, acceptance rules, field names, constraints, diagrams, and hidden or linked content checked after conversion?
 - Are format-specific conversion limitations, such as complex tables or layout-dependent PDF meaning, documented before closeout?
 - Is `conversion_required` retained when conversion or manual review is incomplete?
 
-Reference: `https://pandoc.org/MANUAL.html`
+References: `https://pandoc.org/MANUAL.html`, `https://poppler.freedesktop.org/`, and `https://manpages.debian.org/pdftotext`
 
 ## Markdown Portability
 

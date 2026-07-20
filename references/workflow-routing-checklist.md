@@ -9,9 +9,9 @@ Calibrate against explicit process modeling, machine-readable JSON contracts, sc
 - Is the target state classified from current files and governance state rather than from conversation memory?
 - Is an empty or missing-governance target routed to `initializing-governance-repo`?
 - Is an unarchived or conversion-required product source routed to `archiving-product-document`?
-- For TXT/DOCX/HTML, does `workflow resume` select the guarded `product-convert` sequence until `product_conversion_status` becomes `pending_review`, then select `product-mark-ready` with the recorded `review_method`?
+- For TXT/DOCX/HTML/PDF, does `workflow resume` select the guarded `product-convert` sequence until `product_conversion_status` becomes `pending_review`, then select `product-mark-ready` with the recorded `review_method`?
 - If Pandoc is missing, does conversion preflight return the operation-scoped `--require-tool pandoc` repair route and stop before target writes when approval/manual repair is required?
-- Is PDF kept on a reviewed manual extraction stop instead of being routed through an unproven automatic converter?
+- Does PDF route only through reviewed Poppler `pdftotext` extraction and remain stopped for source-fidelity review before product readiness?
 - Is a reviewed PRD without sourced product chapters routed to `structuring-product-requirements`?
 - Is structured product with acceptance criteria routed through design skills in the Phase Map order?
 - Is a repository with a passing implementation gate and one selected `Ready` or `In Progress` `TASK-NNN` routed to `executing-implementation-task`?

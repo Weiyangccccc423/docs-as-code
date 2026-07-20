@@ -1226,6 +1226,77 @@ class ConsumerBootstrapTest(unittest.TestCase):
                 payload["workflow_resume"]["selected_action"]["steps"][0]["argv"],
             )
 
+    def test_exported_pack_wrapper_converts_pdf_and_pauses_for_source_review(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "field-service-console"
+            pack = target / "workflow-pack"
+            fake_bin = Path(tmp) / "bin"
+            target.mkdir()
+            fake_bin.mkdir()
+            (target / "product.pdf").write_bytes(b"%PDF-1.7\n")
+            fake_pdftotext = fake_bin / "pdftotext"
+            fake_pdftotext.write_text(
+                "#!/usr/bin/env python3\n"
+                "import pathlib\n"
+                "import sys\n"
+                "if any(arg in {'--version', '-V', '-v'} for arg in sys.argv):\n"
+                "    print('pdftotext version 24.02.0')\n"
+                "    raise SystemExit(0)\n"
+                "pathlib.Path(sys.argv[-1]).write_text(\n"
+                "    '# Field Service Console\\n\\n## Goals\\n\\n- Dispatch work.\\n',\n"
+                "    encoding='utf-8',\n"
+                ")\n",
+                encoding="utf-8",
+            )
+            fake_pdftotext.chmod(0o755)
+            env = os.environ.copy()
+            env["PATH"] = os.pathsep.join([str(fake_bin), env.get("PATH", "")])
+            export = subprocess.run(
+                [
+                    sys.executable,
+                    str(EXPORT),
+                    "--output",
+                    str(pack),
+                    "--no-archive",
+                    "--force",
+                    "--json",
+                ],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, export.returncode, export.stdout + export.stderr)
+            wrapper = pack / "bin/governance-bootstrap"
+
+            result = subprocess.run(
+                [str(wrapper), "--json"],
+                cwd=target,
+                text=True,
+                capture_output=True,
+                check=False,
+                env=env,
+            )
+
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertTrue(payload["product_conversion_requested"])
+            self.assertEqual(["pdftotext"], payload["product_conversion_required_tools"])
+            self.assertTrue(payload["product_conversion_applied"])
+            self.assertTrue(payload["target_local"]["pending_product_review"])
+            self.assertEqual(
+                "# Field Service Console\n\n## Goals\n\n- Dispatch work.\n",
+                (target / "docs/product/core/PRD.md").read_text(encoding="utf-8"),
+            )
+            self.assertEqual(
+                "product-mark-ready",
+                payload["workflow_resume"]["selected_action"]["id"],
+            )
+            self.assertIn(
+                "reviewed-pdftotext-pdf-to-utf8-text",
+                payload["workflow_resume"]["selected_action"]["steps"][0]["argv"],
+            )
+
     def test_strict_authority_skills_blocks_bootstrap_when_agent_skills_are_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)

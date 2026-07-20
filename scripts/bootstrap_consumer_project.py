@@ -79,8 +79,13 @@ IMPLEMENTATION_RUN_PREVIEW_STATUSES = {
     "stale",
     "verification_ready",
 }
-AUTO_CONVERT_PRODUCT_SUFFIXES = {".docx", ".html", ".htm", ".txt"}
-PANDOC_PRODUCT_SUFFIXES = {".docx", ".html", ".htm"}
+PRODUCT_CONVERSION_REQUIRED_TOOLS = {
+    ".docx": ("pandoc",),
+    ".html": ("pandoc",),
+    ".htm": ("pandoc",),
+    ".pdf": ("pdftotext",),
+}
+AUTO_CONVERT_PRODUCT_SUFFIXES = {".txt", *PRODUCT_CONVERSION_REQUIRED_TOOLS}
 
 
 class ConsumerBootstrapError(Exception):
@@ -298,9 +303,7 @@ def run_consumer_bootstrap(
             )
         product_suffix = _init_product_suffix(init_check)
         product_conversion_requested = product_suffix in AUTO_CONVERT_PRODUCT_SUFFIXES
-        product_conversion_required_tools = (
-            ("pandoc",) if product_suffix in PANDOC_PRODUCT_SUFFIXES else ()
-        )
+        product_conversion_required_tools = PRODUCT_CONVERSION_REQUIRED_TOOLS.get(product_suffix, ())
         if product_conversion_required_tools:
             product_conversion_env_check = _run_json(
                 steps,

@@ -31,6 +31,7 @@ PANDOC_SUFFIX_FORMATS = {
     ".html": ("html", "pandoc-html-to-gfm"),
     ".htm": ("html", "pandoc-html-to-gfm"),
 }
+PDF_SUFFIX_METHODS = {".pdf": "pdftotext-pdf-to-utf8-text"}
 BUILTIN_SUFFIX_METHODS = {".txt": "utf8-text-to-markdown"}
 MAX_CONVERTED_BYTES = 32 * 1024 * 1024
 CONVERSION_TIMEOUT_SECONDS = 120.0
@@ -168,8 +169,6 @@ class _ConversionPlan:
     def review_method(self) -> str:
         if self.method:
             return f"reviewed-{self.method}"
-        if self.source_suffix == ".pdf":
-            return "manual-reviewed-pdf-to-markdown"
         return "manual-reviewed-markdown"
 
 
@@ -363,7 +362,7 @@ def _build_conversion_plan(root: Path) -> _ConversionPlan:
         if not converter_path:
             repair_required = True
             errors.append("required conversion tool is missing: pandoc")
-            repair_check_command, repair_apply_command = _pandoc_repair_commands(target)
+            repair_check_command, repair_apply_command = _conversion_tool_repair_commands(target, "pandoc")
         else:
             probe = run_bounded_command(
                 [converter_path, "--version"],
@@ -374,8 +373,10 @@ def _build_conversion_plan(root: Path) -> _ConversionPlan:
             if probe.get("result") != "pass":
                 errors.append("required conversion tool version probe failed: pandoc")
             else:
-                converter_version = str(probe.get("stdout", "")).strip().splitlines()[0][:120]
-                if not converter_version:
+                version_lines = str(probe.get("stdout", "")).strip().splitlines()
+                if version_lines:
+                    converter_version = version_lines[0][:120]
+                else:
                     errors.append("required conversion tool returned an empty version: pandoc")
             if archived_path is not None:
                 command_argv = [
@@ -387,8 +388,40 @@ def _build_conversion_plan(root: Path) -> _ConversionPlan:
                     "--output",
                     str(_conversion_temp_path(target / PRD_REL)),
                 ]
-    elif source_suffix == ".pdf":
-        errors.append("automatic PDF conversion is unsupported; extract and review Markdown manually")
+    elif source_suffix in PDF_SUFFIX_METHODS:
+        method = PDF_SUFFIX_METHODS[source_suffix]
+        converter = "pdftotext"
+        required_tool = "pdftotext"
+        converter_path = shutil.which("pdftotext") or ""
+        if not converter_path:
+            repair_required = True
+            errors.append("required conversion tool is missing: pdftotext")
+            repair_check_command, repair_apply_command = _conversion_tool_repair_commands(target, "pdftotext")
+        else:
+            probe = run_bounded_command(
+                [converter_path, "-v"],
+                cwd=target,
+                timeout_seconds=5.0,
+                max_output_bytes=MAX_PROCESS_OUTPUT_BYTES,
+            )
+            if probe.get("result") != "pass":
+                errors.append("required conversion tool version probe failed: pdftotext")
+            else:
+                version_lines = str(probe.get("stdout") or probe.get("stderr") or "").strip().splitlines()
+                if version_lines:
+                    converter_version = version_lines[0][:120]
+                else:
+                    errors.append("required conversion tool returned an empty version: pdftotext")
+            if archived_path is not None:
+                command_argv = [
+                    converter_path,
+                    "-enc",
+                    "UTF-8",
+                    "-layout",
+                    "-nopgbrk",
+                    str(archived_path),
+                    str(_conversion_temp_path(target / PRD_REL)),
+                ]
     elif source_suffix:
         errors.append(f"unsupported product conversion source suffix: {source_suffix}")
 
@@ -479,12 +512,27 @@ def _conversion_report(
     output_sha256: str,
 ) -> dict[str, object]:
     archive = plan.manifest.get("archive") if isinstance(plan.manifest.get("archive"), dict) else {}
-    logical_argv = [
-        plan.converter,
-        plan.archived_rel,
-        *([f"--from={PANDOC_SUFFIX_FORMATS[plan.source_suffix][0]}", "--to=gfm", "--wrap=none"] if plan.converter == "pandoc" else []),
-        *( ["--output", PRD_REL.as_posix()] if plan.converter == "pandoc" else []),
-    ]
+    logical_argv = [plan.converter, plan.archived_rel]
+    if plan.converter == "pandoc":
+        logical_argv.extend(
+            [
+                f"--from={PANDOC_SUFFIX_FORMATS[plan.source_suffix][0]}",
+                "--to=gfm",
+                "--wrap=none",
+                "--output",
+                PRD_REL.as_posix(),
+            ]
+        )
+    elif plan.converter == "pdftotext":
+        logical_argv = [
+            plan.converter,
+            "-enc",
+            "UTF-8",
+            "-layout",
+            "-nopgbrk",
+            plan.archived_rel,
+            PRD_REL.as_posix(),
+        ]
     return {
         "schema_version": CONVERSION_REPORT_SCHEMA_VERSION,
         "generated_at": utc_now(),
@@ -584,13 +632,16 @@ def _conversion_outputs() -> list[str]:
     return [PRD_REL.as_posix(), CONVERSION_REPORT_REL.as_posix(), STATE_REL.as_posix()]
 
 
-def _pandoc_repair_commands(target: Path) -> tuple[dict[str, object], dict[str, object]]:
+def _conversion_tool_repair_commands(
+    target: Path,
+    tool: str,
+) -> tuple[dict[str, object], dict[str, object]]:
     check_argv = [
         "bin/governance",
         "env",
         "--repair",
         "--require-tool",
-        "pandoc",
+        tool,
         "--check",
         "--target",
         ".",

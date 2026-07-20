@@ -5,10 +5,11 @@ from typing import Any
 
 
 TARGET_WORKFLOW_ROOT = "docs/agent-workflow/workflow-pack"
-CONVERTIBLE_PRODUCT_SUFFIXES = {".docx", ".html", ".htm", ".txt"}
+CONVERTIBLE_PRODUCT_SUFFIXES = {".docx", ".html", ".htm", ".pdf", ".txt"}
 RECORDED_CONVERSION_METHODS = {
     "pandoc-docx-to-gfm",
     "pandoc-html-to-gfm",
+    "pdftotext-pdf-to-utf8-text",
     "utf8-text-to-markdown",
 }
 
@@ -23,7 +24,7 @@ PRODUCT_CONVERSION_ACTIONS: tuple[dict[str, object], ...] = (
         "argv": ("bin/governance", "product", "convert", ".", "--check", "--json"),
         "writes_state": False,
         "approval_required": False,
-        "requires": "the archived TXT, DOCX, or HTML source passes hash and converter preflight",
+        "requires": "the archived TXT, DOCX, HTML, or PDF source passes hash and converter preflight",
         "sequence": 1,
         "preflight_for": "product-convert",
         "success_condition": "ok:true",
