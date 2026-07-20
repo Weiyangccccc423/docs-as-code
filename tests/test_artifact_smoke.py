@@ -119,6 +119,13 @@ class ArtifactSmokeTest(unittest.TestCase):
         self.assertEqual("target-directory-name", one_command["project_name_selection"])
         self.assertEqual("auto-discovered", one_command["product_selection"])
         self.assertTrue(one_command["workflow_resume_ok"])
+        self.assertTrue(one_command["repository_git_check_ok"])
+        self.assertTrue(one_command["repository_git_initialized"])
+        self.assertTrue(one_command["repository_git_apply_ok"])
+        self.assertEqual("main", one_command["repository_git_branch"])
+        self.assertEqual("Artifact Consumer", one_command["repository_git_author_name"])
+        self.assertEqual("artifact-consumer@example.com", one_command["repository_git_author_email"])
+        self.assertFalse(one_command["repository_git_has_commits"])
         conversion = payload["consumer_bootstrap_product_conversion"]
         self.assertTrue(conversion["ok"])
         self.assertTrue(conversion["check_ok"])

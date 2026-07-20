@@ -7,6 +7,7 @@ Calibrate against Git repository initialization, repository entry-point document
 ## Target Safety
 
 - When using the one-command entry, did `./docs-as-code-workflow-pack/bin/governance-bootstrap --check --json` pass before `./docs-as-code-workflow-pack/bin/governance-bootstrap --json`?
+- When Git initialization is requested, did `./docs-as-code-workflow-pack/bin/governance-bootstrap --initialize-git --git-default-branch main --git-author-name "<name>" --git-author-email "<email>" --git-origin "<url>" --reviewed-git --check --json` pass before `./docs-as-code-workflow-pack/bin/governance-bootstrap --initialize-git --git-default-branch main --git-author-name "<name>" --git-author-email "<email>" --git-origin "<url>" --reviewed-git --json`?
 - Does `input_resolution` prove current-directory target selection, target-directory-name project naming, and reviewed product/profile inputs, and are the workflow-pack root and its descendants excluded as targets?
 - Did wrapper-driven `--auto-repair-env` remain no-write in check mode and apply only no-approval, non-manual repairs in write mode?
 - Is the target folder empty or near-empty enough that generated governance files can be created without hiding user work?
@@ -69,6 +70,7 @@ Reference: `https://docs.github.com/en/repositories/managing-your-repositorys-se
 ## Git Readiness
 
 - If the target is under Git, is the repository initialized deliberately and ready for small traceable commits?
+- Does consumer bootstrap report `repository_git_check_ok: true` before apply and `repository_git_initialized: true` afterward, while check mode leaves `.git` absent?
 - Was `bin/governance repository init <target> ... --reviewed --check --json` run before its write-mode equivalent?
 - Are `user.name` and `user.email` set with repository-local scope from explicit reviewed values rather than silently inherited from global Git configuration?
 - Did initialization refuse to mutate a parent repository or overwrite conflicting branch, author, or origin metadata?

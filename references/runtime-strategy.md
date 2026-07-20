@@ -74,6 +74,15 @@ For an unpacked source pack placed inside a new project folder with one product 
 
 The wrapper does not become part of generated target runtime. It enables safe `--auto-repair-env`, selects the current directory only when `--target` is absent, derives the default project name from that directory, and leaves profile as `unknown`; target-root product discovery still requires exactly one candidate. Check mode stays no-write, and write mode applies only repairs already classified as no-approval and non-manual. Inspect `input_resolution`. The workflow-pack root and its descendants are rejected as targets; the pack may be nested inside the target. TXT conversion uses Python standard-library UTF-8 handling. DOCX/HTML conversion elevates only `pandoc` with `--require-tool pandoc`, so unrelated recommended tools do not become blockers. Conversion runs without a shell under fixed timeout/output limits and stops at `pending_review`.
 
+Optional reviewed Git initialization is composed into that source-only entry with an existing target folder:
+
+```bash
+./docs-as-code-workflow-pack/bin/governance-bootstrap --initialize-git --git-default-branch main --git-author-name "<name>" --git-author-email "<email>" --git-origin "<url>" --reviewed-git --check --json
+./docs-as-code-workflow-pack/bin/governance-bootstrap --initialize-git --git-default-branch main --git-author-name "<name>" --git-author-email "<email>" --git-origin "<url>" --reviewed-git --json
+```
+
+Omit `--git-origin` when no remote is approved. Git options without `--initialize-git`, incomplete metadata, and missing review are blockers. Check mode leaves `.git` absent and reports `repository_git_check_ok`; apply uses the generated target-local runtime and reports `repository_git_initialized`. Neither path commits, authenticates, or pushes.
+
 Use `runtime refresh --check --json` before repair when an agent needs a no-write preflight. It reports `would_refresh` and `would_remove` paths while leaving target files and `.governance/state.json` unchanged.
 
 After successful write-mode `runtime refresh --json`, JSON includes `local_commands` and `next_actions` when the refreshed target state is readable. Agents should run each returned `argv` from its `cwd` instead of reconstructing commands or rerunning `status`.

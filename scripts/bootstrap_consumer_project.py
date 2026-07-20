@@ -158,6 +158,12 @@ def run_consumer_bootstrap(
     project_name: str = "Project Workspace",
     check: bool = False,
     force: bool = False,
+    initialize_git: bool = False,
+    git_default_branch: str = "",
+    git_author_name: str = "",
+    git_author_email: str = "",
+    git_origin: str = "",
+    reviewed_git: bool = False,
     advance_product_structuring: bool = False,
     product_scaffold_preview: bool = False,
     product_structure_preview: bool = False,
@@ -193,10 +199,20 @@ def run_consumer_bootstrap(
     product_conversion_required_tools: tuple[str, ...] = ()
     authority_skill_inventory: dict[str, object] = {}
     authority_skill_auto_repair = _empty_authority_skill_auto_repair(approve_authority_installs)
+    repository_git_check: dict[str, object] = {}
+    repository_git_apply: dict[str, object] = {}
     try:
         _require(
             not _path_is_within(target, pack_root),
             "consumer target must not be the workflow-pack root or its descendant",
+        )
+        _validate_repository_git_options(
+            initialize_git=initialize_git,
+            default_branch=git_default_branch,
+            author_name=git_author_name,
+            author_email=git_author_email,
+            origin=git_origin,
+            reviewed=reviewed_git,
         )
         expanded_flags = _workflow_preset_flags(workflow_preset)
         advance_product_structuring = advance_product_structuring or "advance_product_structuring" in expanded_flags
@@ -258,6 +274,28 @@ def run_consumer_bootstrap(
             allowed_returncodes=(0, 1),
         )
         _require(init_check.get("ok") is True, "initialization preflight failed", payload=init_check)
+        if initialize_git:
+            repository_git_check = _run_json(
+                steps,
+                "repository_git_check",
+                _repository_git_argv(
+                    target=target,
+                    default_branch=git_default_branch,
+                    author_name=git_author_name,
+                    author_email=git_author_email,
+                    origin=git_origin,
+                    reviewed=reviewed_git,
+                    check=True,
+                    target_local=False,
+                ),
+                pack_root,
+                allowed_returncodes=(0, 1),
+            )
+            _require(
+                repository_git_check.get("ok") is True,
+                "repository Git preflight failed",
+                payload=repository_git_check,
+            )
         product_suffix = _init_product_suffix(init_check)
         product_conversion_requested = product_suffix in AUTO_CONVERT_PRODUCT_SUFFIXES
         product_conversion_required_tools = (
@@ -390,6 +428,12 @@ def run_consumer_bootstrap(
             "profile": profile,
             "project_name": project_name,
             "force": force,
+            "repository_git_requested": initialize_git,
+            "repository_git_check_ok": repository_git_check.get("ok") is True if initialize_git else True,
+            "repository_git_initialized": False,
+            "repository_git_apply_ok": not initialize_git,
+            "repository_git_check": repository_git_check,
+            "repository_git_apply": repository_git_apply,
             "workflow_preset": workflow_preset,
             "workflow_preset_expanded_flags": list(expanded_flags),
             "auto_repair_env": auto_repair_env,
@@ -472,6 +516,29 @@ def run_consumer_bootstrap(
         )
         _require(init_payload.get("ok") is True, "initialization failed", payload=init_payload)
 
+        if initialize_git:
+            repository_git_apply = _run_json(
+                steps,
+                "target_local_repository_git_apply",
+                _repository_git_argv(
+                    target=target,
+                    default_branch=git_default_branch,
+                    author_name=git_author_name,
+                    author_email=git_author_email,
+                    origin=git_origin,
+                    reviewed=reviewed_git,
+                    check=False,
+                    target_local=True,
+                ),
+                target,
+                allowed_returncodes=(0, 1),
+            )
+            _require(
+                repository_git_apply.get("ok") is True,
+                "repository Git initialization failed",
+                payload=repository_git_apply,
+            )
+
         product_conversion_check: dict[str, object] = {}
         product_conversion_apply: dict[str, object] = {}
         if product_conversion_requested:
@@ -532,6 +599,9 @@ def run_consumer_bootstrap(
         payload = {
             **base_payload,
             "initialized": True,
+            "repository_git_initialized": repository_git_apply.get("ok") is True if initialize_git else False,
+            "repository_git_apply_ok": repository_git_apply.get("ok") is True if initialize_git else True,
+            "repository_git_apply": repository_git_apply,
             "product_conversion_applied": bool(product_conversion_apply),
             "product_conversion_ok": (
                 product_conversion_apply.get("ok") is True
@@ -845,6 +915,12 @@ def run_consumer_bootstrap(
             "profile": profile,
             "project_name": project_name,
             "force": force,
+            "repository_git_requested": initialize_git,
+            "repository_git_check_ok": repository_git_check.get("ok") is True if initialize_git else True,
+            "repository_git_initialized": repository_git_apply.get("ok") is True if initialize_git else False,
+            "repository_git_apply_ok": repository_git_apply.get("ok") is True if initialize_git else True,
+            "repository_git_check": repository_git_check,
+            "repository_git_apply": repository_git_apply,
             "workflow_preset": workflow_preset,
             "workflow_preset_expanded_flags": list(expanded_flags),
             "auto_repair_env": auto_repair_env,
@@ -924,6 +1000,12 @@ def run_consumer_bootstrap(
             "profile": profile,
             "project_name": project_name,
             "force": force,
+            "repository_git_requested": initialize_git,
+            "repository_git_check_ok": repository_git_check.get("ok") is True if initialize_git else True,
+            "repository_git_initialized": repository_git_apply.get("ok") is True if initialize_git else False,
+            "repository_git_apply_ok": repository_git_apply.get("ok") is True if initialize_git else True,
+            "repository_git_check": repository_git_check,
+            "repository_git_apply": repository_git_apply,
             "workflow_preset": workflow_preset,
             "workflow_preset_expanded_flags": list(expanded_flags),
             "auto_repair_env": auto_repair_env,
@@ -1320,6 +1402,84 @@ def _init_argv(
         argv.append("--check")
     if force:
         argv.append("--force")
+    return argv
+
+
+def _validate_repository_git_options(
+    *,
+    initialize_git: bool,
+    default_branch: str,
+    author_name: str,
+    author_email: str,
+    origin: str,
+    reviewed: bool,
+) -> None:
+    metadata_supplied = any((default_branch, author_name, author_email, origin, reviewed))
+    _require(
+        initialize_git or not metadata_supplied,
+        "Git metadata options require --initialize-git",
+    )
+    if not initialize_git:
+        return
+    missing = [
+        flag
+        for flag, value in (
+            ("--git-default-branch", default_branch),
+            ("--git-author-name", author_name),
+            ("--git-author-email", author_email),
+        )
+        if not value
+    ]
+    _require(
+        not missing,
+        f"--initialize-git requires {', '.join(missing)}",
+    )
+
+
+def _repository_git_argv(
+    *,
+    target: Path,
+    default_branch: str,
+    author_name: str,
+    author_email: str,
+    origin: str,
+    reviewed: bool,
+    check: bool,
+    target_local: bool,
+) -> list[str | Path]:
+    argv: list[str | Path]
+    if target_local:
+        argv = [
+            "bin/governance",
+            "repository",
+            "init",
+            ".",
+        ]
+    else:
+        argv = [
+            sys.executable,
+            "scripts/governance_cli.py",
+            "repository",
+            "init",
+            target,
+        ]
+    argv.extend(
+        [
+            "--default-branch",
+            default_branch,
+            "--author-name",
+            author_name,
+            "--author-email",
+            author_email,
+        ]
+    )
+    if origin:
+        argv.extend(["--origin", origin])
+    if reviewed:
+        argv.append("--reviewed")
+    if check:
+        argv.append("--check")
+    argv.append("--json")
     return argv
 
 
@@ -3467,6 +3627,20 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Resume an existing governed target without replaying initialization or overwriting authored files.",
     )
+    parser.add_argument(
+        "--initialize-git",
+        action="store_true",
+        help="Initialize reviewed repository-local Git metadata after governance files are generated.",
+    )
+    parser.add_argument("--git-default-branch", default="", help="Reviewed initial Git branch name.")
+    parser.add_argument("--git-author-name", default="", help="Reviewed repository-local Git author name.")
+    parser.add_argument("--git-author-email", default="", help="Reviewed repository-local Git author email.")
+    parser.add_argument("--git-origin", default="", help="Optional reviewed origin URL; no authentication or push occurs.")
+    parser.add_argument(
+        "--reviewed-git",
+        action="store_true",
+        help="Confirm the Git branch, local author, and optional origin were explicitly reviewed.",
+    )
     parser.add_argument("--check", action="store_true", help="Run source-pack, environment, and init checks without writing.")
     parser.add_argument(
         "--workflow-preset",
@@ -3661,6 +3835,12 @@ def main() -> int:
             (
                 args.profile != "unknown",
                 args.project_name is not None,
+                args.initialize_git,
+                bool(args.git_default_branch),
+                bool(args.git_author_name),
+                bool(args.git_author_email),
+                bool(args.git_origin),
+                args.reviewed_git,
                 args.advance_product_structuring,
                 args.product_scaffold_preview,
                 args.product_structure_preview,
@@ -3699,6 +3879,12 @@ def main() -> int:
             project_name=project_name,
             check=args.check,
             force=args.force,
+            initialize_git=args.initialize_git,
+            git_default_branch=args.git_default_branch,
+            git_author_name=args.git_author_name,
+            git_author_email=args.git_author_email,
+            git_origin=args.git_origin,
+            reviewed_git=args.reviewed_git,
             advance_product_structuring=args.advance_product_structuring,
             product_scaffold_preview=args.product_scaffold_preview,
             product_structure_preview=args.product_structure_preview,
@@ -3746,6 +3932,12 @@ def main() -> int:
         "profile_selection": profile_selection,
         "project_name": resolved_project_name,
         "project_name_selection": resolved_project_name_selection,
+        "repository_git_requested": args.initialize_git,
+        "git_default_branch": args.git_default_branch,
+        "git_author_name": args.git_author_name,
+        "git_author_email": args.git_author_email,
+        "git_origin_supplied": bool(args.git_origin),
+        "git_reviewed": args.reviewed_git,
     }
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))

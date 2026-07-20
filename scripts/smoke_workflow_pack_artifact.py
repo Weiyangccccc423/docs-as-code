@@ -52,6 +52,18 @@ DESIGN_AUTHORING_QUEUE_IDS = [
     "implementation-planning-authoring",
     "architecture-decisions-authoring",
 ]
+ONE_COMMAND_GIT_ARGS = [
+    "--initialize-git",
+    "--git-default-branch",
+    "main",
+    "--git-author-name",
+    "Artifact Consumer",
+    "--git-author-email",
+    "artifact-consumer@example.com",
+    "--git-origin",
+    "https://github.com/example/artifact-consumer.git",
+    "--reviewed-git",
+]
 
 
 class ArtifactSmokeError(Exception):
@@ -193,14 +205,14 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
         one_command_check_payload = _run_json(
             steps,
             "unpacked_consumer_bootstrap_one_command_check",
-            [one_command_wrapper, "--check", "--json"],
+            [one_command_wrapper, *ONE_COMMAND_GIT_ARGS, "--check", "--json"],
             one_command_target,
         )
         one_command_check_left_target_uninitialized = not (one_command_target / "README.md").exists()
         one_command_apply_payload = _run_json(
             steps,
             "unpacked_consumer_bootstrap_one_command_apply",
-            [one_command_wrapper, "--json"],
+            [one_command_wrapper, *ONE_COMMAND_GIT_ARGS, "--json"],
             one_command_target,
         )
         consumer_bootstrap_one_command = _consumer_bootstrap_one_command_details(
@@ -1282,6 +1294,10 @@ def _consumer_bootstrap_one_command_details(
     init_check_map = init_check if isinstance(init_check, dict) else {}
     product = init_check_map.get("product")
     product_map = product if isinstance(product, dict) else {}
+    repository_git_apply = apply_payload.get("repository_git_apply")
+    repository_git_apply_map = repository_git_apply if isinstance(repository_git_apply, dict) else {}
+    repository_git_current = repository_git_apply_map.get("current")
+    repository_git_current_map = repository_git_current if isinstance(repository_git_current, dict) else {}
     return {
         "ok": (
             check_payload.get("ok") is True
@@ -1294,6 +1310,17 @@ def _consumer_bootstrap_one_command_details(
             and apply_resolution_map.get("project_name_selection") == "target-directory-name"
             and product_map.get("selection") == "auto-discovered"
             and apply_payload.get("workflow_resume_ok") is True
+            and check_payload.get("repository_git_check_ok") is True
+            and check_payload.get("repository_git_initialized") is False
+            and apply_payload.get("repository_git_initialized") is True
+            and apply_payload.get("repository_git_apply_ok") is True
+            and repository_git_apply_map.get("commit_created") is False
+            and repository_git_apply_map.get("push_attempted") is False
+            and repository_git_current_map.get("branch") == "main"
+            and repository_git_current_map.get("local_author_name") == "Artifact Consumer"
+            and repository_git_current_map.get("local_author_email") == "artifact-consumer@example.com"
+            and repository_git_current_map.get("has_commits") is False
+            and (target / ".git").is_dir()
             and (target / "README.md").is_file()
             and (target / "AGENTS.md").is_file()
             and (target / "docs/product/core/source/source-manifest.json").is_file()
@@ -1308,6 +1335,13 @@ def _consumer_bootstrap_one_command_details(
         "project_name_selection": str(apply_resolution_map.get("project_name_selection", "")),
         "product_selection": str(product_map.get("selection", "")),
         "workflow_resume_ok": apply_payload.get("workflow_resume_ok") is True,
+        "repository_git_check_ok": check_payload.get("repository_git_check_ok") is True,
+        "repository_git_initialized": apply_payload.get("repository_git_initialized") is True,
+        "repository_git_apply_ok": apply_payload.get("repository_git_apply_ok") is True,
+        "repository_git_branch": str(repository_git_current_map.get("branch", "")),
+        "repository_git_author_name": str(repository_git_current_map.get("local_author_name", "")),
+        "repository_git_author_email": str(repository_git_current_map.get("local_author_email", "")),
+        "repository_git_has_commits": repository_git_current_map.get("has_commits") is True,
     }
 
 

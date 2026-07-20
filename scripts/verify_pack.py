@@ -1106,6 +1106,8 @@ CONSUMER_BOOTSTRAP_PATH = "scripts/bootstrap_consumer_project.py"
 CONSUMER_BOOTSTRAP_WRAPPER_PATH = "bin/governance-bootstrap"
 ONE_COMMAND_CONSUMER_CHECK = "./docs-as-code-workflow-pack/bin/governance-bootstrap --check --json"
 ONE_COMMAND_CONSUMER_APPLY = "./docs-as-code-workflow-pack/bin/governance-bootstrap --json"
+ONE_COMMAND_CONSUMER_GIT_CHECK = './docs-as-code-workflow-pack/bin/governance-bootstrap --initialize-git --git-default-branch main --git-author-name "<name>" --git-author-email "<email>" --git-origin "<url>" --reviewed-git --check --json'
+ONE_COMMAND_CONSUMER_GIT_APPLY = './docs-as-code-workflow-pack/bin/governance-bootstrap --initialize-git --git-default-branch main --git-author-name "<name>" --git-author-email "<email>" --git-origin "<url>" --reviewed-git --json'
 CONSUMER_BOOTSTRAP_REQUIRED_PHRASES = (
     "run_consumer_bootstrap",
     "run_consumer_resume",
@@ -1130,6 +1132,15 @@ CONSUMER_BOOTSTRAP_REQUIRED_PHRASES = (
     "current-directory",
     "target-directory-name",
     "consumer target must not be the workflow-pack root or its descendant",
+    "--initialize-git",
+    "--git-default-branch",
+    "--git-author-name",
+    "--git-author-email",
+    "--git-origin",
+    "--reviewed-git",
+    "repository_git_check",
+    "target_local_repository_git_apply",
+    "repository_git_initialized",
     "product_conversion_env_repair_check",
     "target_local_product_conversion_check",
     "target_local_product_conversion_apply",
@@ -1420,6 +1431,8 @@ CONSUMER_BOOTSTRAP_DOC_REQUIREMENTS = {
     "README.md": (
         ONE_COMMAND_CONSUMER_CHECK,
         ONE_COMMAND_CONSUMER_APPLY,
+        ONE_COMMAND_CONSUMER_GIT_CHECK,
+        ONE_COMMAND_CONSUMER_GIT_APPLY,
         "python3 scripts/bootstrap_consumer_project.py --target /path/to/new-project --product /path/to/product.md --profile web-app --project-name \"Project Name\" --check --json",
         "python3 scripts/bootstrap_consumer_project.py --target /path/to/new-project --product /path/to/product.md --profile web-app --project-name \"Project Name\" --json",
         "python3 scripts/bootstrap_consumer_project.py --target /path/to/new-project --product /path/to/product.md --profile web-app --project-name \"Project Name\" --workflow-preset product-structure --json",
@@ -1534,6 +1547,8 @@ CONSUMER_BOOTSTRAP_DOC_REQUIREMENTS = {
     "workflows/00-overview.md": (
         ONE_COMMAND_CONSUMER_CHECK,
         ONE_COMMAND_CONSUMER_APPLY,
+        ONE_COMMAND_CONSUMER_GIT_CHECK,
+        ONE_COMMAND_CONSUMER_GIT_APPLY,
         "python3 scripts/bootstrap_consumer_project.py --target /path/to/new-project --product /path/to/product.md --profile web-app --project-name \"Project Name\" --check --json",
         "python3 scripts/bootstrap_consumer_project.py --target /path/to/new-project --product /path/to/product.md --profile web-app --project-name \"Project Name\" --workflow-preset product-structure --json",
         "python3 scripts/bootstrap_consumer_project.py --target /path/to/new-project --product /path/to/product.md --profile web-app --project-name \"Project Name\" --workflow-preset implementation-routing --json",
@@ -1742,22 +1757,34 @@ CONSUMER_BOOTSTRAP_DOC_REQUIREMENTS = {
     "workflows/01-empty-repo-initialization.md": (
         ONE_COMMAND_CONSUMER_CHECK,
         ONE_COMMAND_CONSUMER_APPLY,
+        ONE_COMMAND_CONSUMER_GIT_CHECK,
+        ONE_COMMAND_CONSUMER_GIT_APPLY,
         "target-root-auto-discovery",
+        "repository_git_initialized",
     ),
     "skills/initializing-governance-repo/SKILL.md": (
         ONE_COMMAND_CONSUMER_CHECK,
         ONE_COMMAND_CONSUMER_APPLY,
+        ONE_COMMAND_CONSUMER_GIT_CHECK,
+        ONE_COMMAND_CONSUMER_GIT_APPLY,
         "target-root-auto-discovery",
+        "repository_git_initialized",
     ),
     "references/runtime-strategy.md": (
         ONE_COMMAND_CONSUMER_CHECK,
         ONE_COMMAND_CONSUMER_APPLY,
+        ONE_COMMAND_CONSUMER_GIT_CHECK,
+        ONE_COMMAND_CONSUMER_GIT_APPLY,
         "input_resolution",
+        "repository_git_initialized",
     ),
     "references/repository-initialization-checklist.md": (
         ONE_COMMAND_CONSUMER_CHECK,
         ONE_COMMAND_CONSUMER_APPLY,
+        ONE_COMMAND_CONSUMER_GIT_CHECK,
+        ONE_COMMAND_CONSUMER_GIT_APPLY,
         "input_resolution",
+        "repository_git_initialized",
     ),
 }
 ARTIFACT_SMOKE_PATH = "scripts/smoke_workflow_pack_artifact.py"
@@ -1772,6 +1799,11 @@ ARTIFACT_SMOKE_REQUIRED_PHRASES = (
     "unpacked_consumer_bootstrap_one_command_apply",
     "consumer_bootstrap_one_command",
     "_consumer_bootstrap_one_command_details",
+    "ONE_COMMAND_GIT_ARGS",
+    "repository_git_check_ok",
+    "repository_git_initialized",
+    "repository_git_apply_ok",
+    "repository_git_has_commits",
     "unpacked_consumer_bootstrap_product_conversion_check",
     "unpacked_consumer_bootstrap_product_conversion_apply",
     "consumer_bootstrap_product_conversion",
@@ -1977,6 +2009,7 @@ ARTIFACT_SMOKE_DOC_REQUIREMENTS = {
         "initializes a fresh target folder",
         "target-local verify/status/workflow-plan/work-package/workflow-resume commands",
         "consumer_bootstrap_one_command.ok: true",
+        "consumer_bootstrap_one_command.repository_git_initialized: true",
         "consumer_bootstrap_product_conversion.ok: true",
         "--auto-repair-env --workflow-preset product-structure",
         "--auto-repair-env --workflow-preset design-scaffold",
@@ -1992,6 +2025,7 @@ ARTIFACT_SMOKE_DOC_REQUIREMENTS = {
         "unpacks the tar.gz artifact",
         "fresh target",
         "consumer_bootstrap_one_command.ok: true",
+        "consumer_bootstrap_one_command.repository_git_initialized: true",
         "consumer_bootstrap_product_conversion.ok: true",
         "--auto-repair-env --workflow-preset product-structure",
         "--auto-repair-env --workflow-preset design-scaffold",
@@ -2007,6 +2041,7 @@ ARTIFACT_SMOKE_DOC_REQUIREMENTS = {
         "unpacked artifact",
         "fresh_target_init.ok: true",
         "consumer_bootstrap_one_command.ok: true",
+        "consumer_bootstrap_one_command.repository_git_initialized: true",
         "consumer_bootstrap_product_conversion.ok: true",
         "design_reviews.ok: true",
         "consumer_bootstrap_implementation_routing.ok: true",

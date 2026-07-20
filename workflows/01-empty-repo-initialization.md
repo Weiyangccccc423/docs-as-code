@@ -25,6 +25,15 @@ Load:
 
    The wrapper enables safe `--auto-repair-env`, uses current-directory target selection, target-directory-name project naming, and target-root-auto-discovery for the product. Check mode stays no-write; write mode applies only no-approval, non-manual environment repairs. Inspect `input_resolution`; stop on ambiguous product selection, and pass `--profile`, `--project-name`, or `--product` only when reviewed explicit values are available. Never use the workflow-pack root or its descendants as targets; nesting the pack inside the target is valid.
 
+   When branch, repository-local author, and optional origin have been reviewed, include local Git initialization in the same existing-folder check/apply sequence:
+
+   ```bash
+   ./docs-as-code-workflow-pack/bin/governance-bootstrap --initialize-git --git-default-branch main --git-author-name "<name>" --git-author-email "<email>" --git-origin "<url>" --reviewed-git --check --json
+   ./docs-as-code-workflow-pack/bin/governance-bootstrap --initialize-git --git-default-branch main --git-author-name "<name>" --git-author-email "<email>" --git-origin "<url>" --reviewed-git --json
+   ```
+
+   Omit `--git-origin` when no remote is approved. The target directory must already exist. Require `repository_git_check_ok: true` with no `.git` write in check mode, then `repository_git_initialized: true` in apply mode. This creates no commit and never authenticates or pushes.
+
    TXT input is converted automatically with the Python standard library and stops at `product_conversion_status: pending_review`. DOCX/HTML first elevate only `pandoc` through `--require-tool pandoc`, then run bounded no-shell conversion. Require `product_conversion_applied: true`, `docs/product/core/source/conversion-report.json`, and a guarded `product-mark-ready` handoff. PDF remains a manual extraction stop. No non-Markdown path may advance product structuring before source review closes `U-001`.
 
 2. From the trusted workflow-pack checkout, inventory authority skills and build the offline repair plan:

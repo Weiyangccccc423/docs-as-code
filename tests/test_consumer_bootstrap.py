@@ -29,6 +29,18 @@ ROOT = Path(__file__).resolve().parents[1]
 EXPORT = ROOT / "scripts" / "export_workflow_pack.py"
 
 
+def _git_output(target: Path, *args: str, expected_returncode: int = 0) -> str:
+    result = subprocess.run(
+        ["git", "-C", str(target), *args],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != expected_returncode:
+        raise AssertionError(result.stdout + result.stderr)
+    return result.stdout.strip()
+
+
 def _runner_preview_contract(
     target: Path,
     *,
@@ -1003,9 +1015,34 @@ class ConsumerBootstrapTest(unittest.TestCase):
             wrapper = pack / "bin/governance-bootstrap"
             self.assertTrue(wrapper.is_file())
             self.assertTrue(wrapper.stat().st_mode & 0o111)
+            git_args = [
+                "--initialize-git",
+                "--git-default-branch",
+                "main",
+                "--git-author-name",
+                "Consumer Author",
+                "--git-author-email",
+                "consumer@example.com",
+                "--git-origin",
+                "https://github.com/example/consumer.git",
+                "--reviewed-git",
+            ]
+
+            invalid_git_result = subprocess.run(
+                [str(wrapper), "--git-author-name", "Consumer Author", "--check", "--json"],
+                cwd=target,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(1, invalid_git_result.returncode, invalid_git_result.stdout + invalid_git_result.stderr)
+            invalid_git_payload = json.loads(invalid_git_result.stdout)
+            self.assertFalse(invalid_git_payload["ok"])
+            self.assertIn("require --initialize-git", invalid_git_payload["error"])
+            self.assertFalse((target / ".git").exists())
 
             check_result = subprocess.run(
-                [str(wrapper), "--check", "--json"],
+                [str(wrapper), *git_args, "--check", "--json"],
                 cwd=target,
                 text=True,
                 capture_output=True,
@@ -1024,7 +1061,13 @@ class ConsumerBootstrapTest(unittest.TestCase):
                 "target-directory-name",
                 check_payload["input_resolution"]["project_name_selection"],
             )
+            self.assertTrue(check_payload["repository_git_requested"])
+            self.assertTrue(check_payload["repository_git_check_ok"])
+            self.assertFalse(check_payload["repository_git_initialized"])
+            self.assertEqual("ready_to_apply", check_payload["repository_git_check"]["status"])
+            self.assertIn("repository_git_check", {step["id"] for step in check_payload["steps"]})
             self.assertFalse((target / "README.md").exists())
+            self.assertFalse((target / ".git").exists())
 
             second_product = target / "other-product.md"
             second_product.write_text("# Other Product\n", encoding="utf-8")
@@ -1048,7 +1091,7 @@ class ConsumerBootstrapTest(unittest.TestCase):
             second_product.unlink()
 
             apply_result = subprocess.run(
-                [str(wrapper), "--json"],
+                [str(wrapper), *git_args, "--json"],
                 cwd=target,
                 text=True,
                 capture_output=True,
@@ -1061,9 +1104,26 @@ class ConsumerBootstrapTest(unittest.TestCase):
             self.assertTrue(apply_payload["auto_repair_env"])
             self.assertEqual("field-service-console", apply_payload["project_name"])
             self.assertEqual("auto-discovered", apply_payload["target_local"]["product_selection"])
+            self.assertTrue(apply_payload["repository_git_requested"])
+            self.assertTrue(apply_payload["repository_git_check_ok"])
+            self.assertTrue(apply_payload["repository_git_initialized"])
+            self.assertTrue(apply_payload["repository_git_apply_ok"])
+            self.assertEqual("configured", apply_payload["repository_git_apply"]["status"])
             self.assertTrue((target / "README.md").is_file())
             self.assertTrue((target / "AGENTS.md").is_file())
             self.assertTrue((target / "docs/product/core/source/source-manifest.json").is_file())
+            self.assertEqual("main", _git_output(target, "branch", "--show-current"))
+            self.assertEqual("Consumer Author", _git_output(target, "config", "--local", "--get", "user.name"))
+            self.assertEqual(
+                "consumer@example.com",
+                _git_output(target, "config", "--local", "--get", "user.email"),
+            )
+            self.assertEqual(
+                "https://github.com/example/consumer.git",
+                _git_output(target, "remote", "get-url", "origin"),
+            )
+            _git_output(target, "rev-parse", "--verify", "HEAD", expected_returncode=128)
+            self.assertIn("target_local_repository_git_apply", {step["id"] for step in apply_payload["steps"]})
 
             resume_result = subprocess.run(
                 [str(wrapper), "--resume", "--check", "--json"],
