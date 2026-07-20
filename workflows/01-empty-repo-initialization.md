@@ -25,6 +25,8 @@ Load:
 
    The wrapper enables safe `--auto-repair-env`, uses current-directory target selection, target-directory-name project naming, and target-root-auto-discovery for the product. Check mode stays no-write; write mode applies only no-approval, non-manual environment repairs. Inspect `input_resolution`; stop on ambiguous product selection, and pass `--profile`, `--project-name`, or `--product` only when reviewed explicit values are available. Never use the workflow-pack root or its descendants as targets; nesting the pack inside the target is valid.
 
+   Before any pack or target check, require the wrapper's Python 3.10 probe to pass. Use `DOCS_AS_CODE_PYTHON` only when selecting an already installed compatible interpreter. Treat `bootstrap_python_unavailable` and `bootstrap_python_incompatible` as `writes_state: false` stop states and follow the returned `manual-runtime-repair` route; the bootstrap cannot safely auto-install its own required runtime.
+
    When branch, repository-local author, and optional origin have been reviewed, include local Git initialization in the same existing-folder check/apply sequence:
 
    ```bash
@@ -179,6 +181,7 @@ Target safety, environment repair, generated entry points, runtime snapshot inte
 - Target folder has existing governance files and the user did not approve overwrite.
 - `init --check` returns conflicts.
 - Product document path is missing or unreadable.
+- Bootstrap reports `bootstrap_python_unavailable` or `bootstrap_python_incompatible`.
 - Product document discovery returns multiple candidates and the user has not selected one with `--product`.
 - The target project type is unclear and would change the top-level code layout.
 - Default branch, repository-local author, or optional origin has not been reviewed.

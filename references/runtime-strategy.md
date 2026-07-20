@@ -7,7 +7,7 @@ The workflow pack separates mandatory governance runtime from optional project t
 Core governance commands must remain runnable with:
 
 - POSIX shell for `bin/` wrappers
-- `python3` standard library for `scripts/`
+- Python 3.10 or newer, using only the standard library for `scripts/`
 - no package installation for normal checks and initialization
 - no network access during normal checks or initialization; approved `env --repair` and authority-skill apply are separate explicit repair boundaries
 
@@ -73,6 +73,8 @@ For an unpacked source pack placed inside a new project folder with one product 
 ```
 
 The wrapper does not become part of generated target runtime. It enables safe `--auto-repair-env`, selects the current directory only when `--target` is absent, derives the default project name from that directory, and leaves profile as `unknown`; target-root product discovery still requires exactly one candidate. Check mode stays no-write, and write mode applies only repairs already classified as no-approval and non-manual. Inspect `input_resolution`. The workflow-pack root and its descendants are rejected as targets; the pack may be nested inside the target. TXT conversion uses Python standard-library UTF-8 handling. DOCX/HTML conversion elevates only `pandoc` with `--require-tool pandoc`; PDF conversion elevates only Poppler `pdftotext` with `--require-tool pdftotext`, so unrelated recommended tools do not become blockers. Conversion runs without a shell under fixed timeout/output limits and stops at `pending_review`.
+
+Because this is the first executable entry, it probes Python 3.10 before any Python-based environment inspection. `DOCS_AS_CODE_PYTHON` may select an already installed compatible interpreter. JSON `bootstrap_python_unavailable` and `bootstrap_python_incompatible` failures set `writes_state: false`, stop the workflow, and return `manual-runtime-repair`; automatically installing the interpreter that the repair engine itself requires is outside the safe repair boundary. A successful probe uses `exec` for direct signal and exit-code propagation.
 
 Optional reviewed Git initialization is composed into that source-only entry with an existing target folder:
 

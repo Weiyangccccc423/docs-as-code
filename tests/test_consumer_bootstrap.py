@@ -41,6 +41,18 @@ def _git_output(target: Path, *args: str, expected_returncode: int = 0) -> str:
     return result.stdout.strip()
 
 
+def _export_pack(output: Path) -> None:
+    result = subprocess.run(
+        [sys.executable, str(EXPORT), "--output", str(output), "--force", "--json"],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise AssertionError(result.stdout + result.stderr)
+
+
 def _runner_preview_contract(
     target: Path,
     *,
@@ -67,6 +79,82 @@ def _runner_preview_contract(
 
 
 class ConsumerBootstrapTest(unittest.TestCase):
+    def test_wrapper_reports_bootstrap_python_failures_without_target_writes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            target = base / "fresh-target"
+            pack = target / "workflow-pack"
+            target.mkdir()
+            (target / "product.md").write_text("# Product\n", encoding="utf-8")
+            _export_pack(pack)
+            incompatible = base / "incompatible-python"
+            incompatible.write_text("#!/usr/bin/env bash\nexit 1\n", encoding="utf-8")
+            incompatible.chmod(0o755)
+
+            cases = (
+                (base / "missing-python", 127, "bootstrap_python_unavailable"),
+                (incompatible, 2, "bootstrap_python_incompatible"),
+            )
+            for interpreter, returncode, error_code in cases:
+                with self.subTest(error_code=error_code):
+                    env = os.environ.copy()
+                    env["DOCS_AS_CODE_PYTHON"] = str(interpreter)
+                    result = subprocess.run(
+                        [str(pack / "bin/governance-bootstrap"), "--check", "--json"],
+                        cwd=target,
+                        env=env,
+                        text=True,
+                        capture_output=True,
+                        check=False,
+                    )
+
+                    self.assertEqual(returncode, result.returncode, result.stdout + result.stderr)
+                    payload = json.loads(result.stdout)
+                    self.assertFalse(payload["ok"])
+                    self.assertEqual(error_code, payload["error_code"])
+                    self.assertEqual("python", payload["repair"]["tool"])
+                    self.assertEqual("3.10", payload["repair"]["minimum_version"])
+                    self.assertEqual("DOCS_AS_CODE_PYTHON", payload["repair"]["environment_override"])
+                    self.assertFalse(payload["writes_state"])
+                    self.assertFalse((target / "README.md").exists())
+                    self.assertFalse((target / ".governance").exists())
+
+    def test_wrapper_uses_explicit_compatible_python_for_probe_and_bootstrap(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            target = base / "fresh-target"
+            pack = target / "workflow-pack"
+            target.mkdir()
+            (target / "product.md").write_text("# Product\n", encoding="utf-8")
+            _export_pack(pack)
+            marker = base / "python-invocations.txt"
+            shim = base / "python-shim"
+            shim.write_text(
+                "#!/usr/bin/env bash\n"
+                "printf 'invoked\\n' >> \"$DOCS_AS_CODE_PYTHON_TEST_MARKER\"\n"
+                "exec \"$DOCS_AS_CODE_PYTHON_TEST_REAL\" \"$@\"\n",
+                encoding="utf-8",
+            )
+            shim.chmod(0o755)
+            env = os.environ.copy()
+            env["DOCS_AS_CODE_PYTHON"] = str(shim)
+            env["DOCS_AS_CODE_PYTHON_TEST_MARKER"] = str(marker)
+            env["DOCS_AS_CODE_PYTHON_TEST_REAL"] = sys.executable
+
+            result = subprocess.run(
+                [str(pack / "bin/governance-bootstrap"), "--check", "--json"],
+                cwd=target,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertTrue(json.loads(result.stdout)["ok"])
+            self.assertEqual(["invoked", "invoked"], marker.read_text(encoding="utf-8").splitlines())
+            self.assertFalse((target / "README.md").exists())
+
     def test_consumer_bootstrap_refuses_workflow_pack_as_target_before_commands(self) -> None:
         for target in (ROOT, ROOT / "nested-consumer-target"):
             with self.subTest(target=target), patch("scripts.bootstrap_consumer_project._run_json") as run_json:

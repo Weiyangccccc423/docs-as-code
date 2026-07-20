@@ -31,6 +31,62 @@ class PackStructureTest(unittest.TestCase):
     def test_one_command_consumer_bootstrap_wrapper_is_required(self) -> None:
         self.assertIn("bin/governance-bootstrap", SOURCE_PACK_REQUIRED_PATHS)
 
+    def test_verify_pack_requires_consumer_bootstrap_python_preflight(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            wrapper = target / "bin/governance-bootstrap"
+            text = wrapper.read_text(encoding="utf-8")
+            self.assertIn("DOCS_AS_CODE_PYTHON", text)
+            wrapper.write_text(
+                text.replace("DOCS_AS_CODE_PYTHON", "GOVERNANCE_PYTHON"),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_consumer_bootstrap_runtime_guard_missing"
+                    and finding.path == "bin/governance-bootstrap"
+                    and "DOCS_AS_CODE_PYTHON" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_requires_consumer_bootstrap_runtime_repair_docs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            readme = target / "README.md"
+            text = readme.read_text(encoding="utf-8")
+            self.assertIn("DOCS_AS_CODE_PYTHON", text)
+            readme.write_text(
+                text.replace("DOCS_AS_CODE_PYTHON", "GOVERNANCE_PYTHON"),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_consumer_bootstrap_doc_missing"
+                    and finding.path == "README.md"
+                    and "DOCS_AS_CODE_PYTHON" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_authority_skill_source_review_is_required_in_generated_targets(self) -> None:
         self.assertIn("references/authority-skills-source-review.md", WORKFLOW_PACK_REQUIRED_PATHS)
 

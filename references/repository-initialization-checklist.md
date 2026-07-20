@@ -21,6 +21,7 @@ Reference: `https://git-scm.com/book/en/v2/Git-Basics-Getting-a-Git-Repository`
 
 ## Environment and Repair
 
+- Does the one-command wrapper require Python 3.10 before any pack or target checks, honor `DOCS_AS_CODE_PYTHON` for an already installed interpreter, and return no-write `bootstrap_python_unavailable` or `bootstrap_python_incompatible` plus `manual-runtime-repair` when bootstrap cannot start safely?
 - Does `bin/governance env --repair --check --target <target> --json` pass or produce actionable `would_repair`, `install_commands`, `repair_commands`, `repair_actions`, `manual_repairs`, and `needs_escalation` fields?
 - Are `repair_actions` sorted by `sequence` before any environment repair action is executed?
 - Are package-manager repair commands treated as approval-requiring actions when `needs_escalation` is true?

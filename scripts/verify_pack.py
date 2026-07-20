@@ -1449,8 +1449,14 @@ CONSUMER_BOOTSTRAP_REQUIRED_PHRASES = (
     "make",
     "workflow-plan",
 )
+CONSUMER_BOOTSTRAP_RUNTIME_DOC_REQUIRED_PHRASES = (
+    "DOCS_AS_CODE_PYTHON",
+    "bootstrap_python_unavailable",
+    "bootstrap_python_incompatible",
+)
 CONSUMER_BOOTSTRAP_DOC_REQUIREMENTS = {
     "README.md": (
+        *CONSUMER_BOOTSTRAP_RUNTIME_DOC_REQUIRED_PHRASES,
         ONE_COMMAND_CONSUMER_CHECK,
         ONE_COMMAND_CONSUMER_APPLY,
         ONE_COMMAND_CONSUMER_GIT_CHECK,
@@ -1569,6 +1575,7 @@ CONSUMER_BOOTSTRAP_DOC_REQUIREMENTS = {
         "selected_action",
     ),
     "workflows/00-overview.md": (
+        *CONSUMER_BOOTSTRAP_RUNTIME_DOC_REQUIRED_PHRASES,
         ONE_COMMAND_CONSUMER_CHECK,
         ONE_COMMAND_CONSUMER_APPLY,
         ONE_COMMAND_CONSUMER_GIT_CHECK,
@@ -1784,6 +1791,7 @@ CONSUMER_BOOTSTRAP_DOC_REQUIREMENTS = {
         "next_actions",
     ),
     "workflows/01-empty-repo-initialization.md": (
+        *CONSUMER_BOOTSTRAP_RUNTIME_DOC_REQUIRED_PHRASES,
         ONE_COMMAND_CONSUMER_CHECK,
         ONE_COMMAND_CONSUMER_APPLY,
         ONE_COMMAND_CONSUMER_GIT_CHECK,
@@ -1792,6 +1800,7 @@ CONSUMER_BOOTSTRAP_DOC_REQUIREMENTS = {
         "repository_git_initialized",
     ),
     "skills/initializing-governance-repo/SKILL.md": (
+        *CONSUMER_BOOTSTRAP_RUNTIME_DOC_REQUIRED_PHRASES,
         ONE_COMMAND_CONSUMER_CHECK,
         ONE_COMMAND_CONSUMER_APPLY,
         ONE_COMMAND_CONSUMER_GIT_CHECK,
@@ -1800,6 +1809,7 @@ CONSUMER_BOOTSTRAP_DOC_REQUIREMENTS = {
         "repository_git_initialized",
     ),
     "references/runtime-strategy.md": (
+        *CONSUMER_BOOTSTRAP_RUNTIME_DOC_REQUIRED_PHRASES,
         ONE_COMMAND_CONSUMER_CHECK,
         ONE_COMMAND_CONSUMER_APPLY,
         ONE_COMMAND_CONSUMER_GIT_CHECK,
@@ -1808,6 +1818,7 @@ CONSUMER_BOOTSTRAP_DOC_REQUIREMENTS = {
         "repository_git_initialized",
     ),
     "references/repository-initialization-checklist.md": (
+        *CONSUMER_BOOTSTRAP_RUNTIME_DOC_REQUIRED_PHRASES,
         ONE_COMMAND_CONSUMER_CHECK,
         ONE_COMMAND_CONSUMER_APPLY,
         ONE_COMMAND_CONSUMER_GIT_CHECK,
@@ -5350,7 +5361,7 @@ MAKEFILE_REQUIRED_TARGET_RECIPES = {
 RUNTIME_WRAPPER_REQUIRED_COMMANDS = {
     "bin/governance": 'python3 "$ROOT_DIR/scripts/governance_cli.py" "$@"',
     CONSUMER_BOOTSTRAP_WRAPPER_PATH: (
-        'python3 "$ROOT_DIR/scripts/bootstrap_consumer_project.py" --auto-repair-env "$@"'
+        'exec "$PYTHON_BIN" "$ROOT_DIR/scripts/bootstrap_consumer_project.py" --auto-repair-env "$@"'
     ),
     "bin/governance-init": 'python3 "$ROOT_DIR/scripts/governance_cli.py" init "$@"',
     "bin/governance-verify": 'python3 "$ROOT_DIR/scripts/governance_cli.py" verify "$@"',
@@ -5467,6 +5478,13 @@ RUNTIME_WRAPPER_REQUIRED_GUARDS = (
     "set -euo pipefail",
 )
 RUNTIME_WRAPPER_ROOT_DIR_LINE = 'ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"'
+CONSUMER_BOOTSTRAP_WRAPPER_RUNTIME_GUARDS = (
+    "DOCS_AS_CODE_PYTHON",
+    "bootstrap_python_unavailable",
+    "bootstrap_python_incompatible",
+    "sys.version_info[:2] >= (3, 10)",
+    '"writes_state":false',
+)
 CONTINUATION_RUNTIME_SCRIPT_PATHS = (
     "scripts/bootstrap_tree.py",
     "scripts/check_env.py",
@@ -7582,6 +7600,17 @@ def _check_runtime_wrapper_commands(root: Path, findings: list[PackFinding]) -> 
                     rel,
                 )
             )
+        if rel == CONSUMER_BOOTSTRAP_WRAPPER_PATH:
+            for phrase in CONSUMER_BOOTSTRAP_WRAPPER_RUNTIME_GUARDS:
+                if phrase in text:
+                    continue
+                findings.append(
+                    PackFinding(
+                        "pack_consumer_bootstrap_runtime_guard_missing",
+                        f"consumer bootstrap wrapper must preserve runtime guard: {phrase}",
+                        rel,
+                    )
+                )
         if command in text:
             continue
         findings.append(

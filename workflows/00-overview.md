@@ -17,7 +17,7 @@ Use `references/community-practices.md` to calibrate this workflow against recog
 
 ## Runtime Model
 
-Core governance commands are implemented as POSIX shell wrappers plus Python standard-library scripts. Normal operation must run without package installation or network access; `env --repair` may install supported system packages only under the repair policy in `references/runtime-strategy.md`.
+Core governance commands are implemented as POSIX shell wrappers plus Python 3.10+ standard-library scripts. Normal operation must run without package installation or network access; `env --repair` may install supported system packages only under the repair policy in `references/runtime-strategy.md`.
 
 Project implementation runtimes use a separate reviewed contract. During design derivation, `workflow plan` appends the `project-runtime` queue after design authoring and authority reviews. `workflow work-package` returns `project-runtime-configuration` until `project-env plan` reports `configuration_complete: true`; implementation gate requirement `project_runtime_ready` enforces the same result even when the gate is called directly. No `project-runtime` command means `coverage_status: not_required`; otherwise every external executable must be registered and version-ready or every explicitly allowed repository executable must pass path and executable checks.
 
@@ -78,6 +78,8 @@ From a new project folder containing exactly one supported product document and 
 ```
 
 The wrapper enables safe `--auto-repair-env`: check mode stays no-write and write mode applies only no-approval, non-manual repairs. Omitting `--target` selects the current directory, omitting `--project-name` uses its directory name, and omitting `--product` delegates to target-root auto-discovery, which stops on zero or multiple candidates instead of guessing. `profile` remains `unknown` unless supplied. Inspect `input_resolution` before trusting the selected inputs. The workflow-pack root and its descendants cannot be consumer targets; the pack may be nested inside the target.
+
+The wrapper first requires Python 3.10 or newer. Use `DOCS_AS_CODE_PYTHON` only to select an already installed compatible interpreter. JSON failures `bootstrap_python_unavailable` and `bootstrap_python_incompatible` are no-write `manual-runtime-repair` stop states; this bootstrap prerequisite cannot be installed by the Python-based environment repair workflow itself. A passing probe transfers control with `exec`.
 
 When reviewed Git metadata is available, the same existing-folder bootstrap can initialize the local repository after generating governance files:
 
