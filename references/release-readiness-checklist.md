@@ -41,6 +41,7 @@ Use this checklist before tagging, exporting, or handing off this source workflo
 - Preserve explicit artifact fields `design_reviews.ok: true` and `consumer_bootstrap_implementation_routing.ok: true` in release evidence.
 - Preserve consumer summaries `consumer_bootstrap_product_structure.ok: true`, `consumer_bootstrap_design_scaffold.ok: true`, `consumer_bootstrap_design_routing.ok: true`, and `consumer_bootstrap_implementation_routing.ok: true`; each must expose `authority_skill_inventory` and `env_auto_repair` evidence.
 - For blocked implementation routing, require `readiness_blocker_codes`, `readiness_next_repair_action`, `advance_preview_not_ready`, `readiness_preview_not_ready`, `start_preview_not_ready`, `start_apply_not_applied`, and `closeout_preview_not_ready` instead of treating skipped writes as success.
+- For an implementation target waiting on review, require `implementation_review_ready: true`, preview `review_ready: true`, top-level propagation of the exact read-only `implementation review` action, and `implementation_continuation_ready: false`; reject any malformed task, cwd, argv, write, or approval field.
 
 ## Environment and Tooling
 

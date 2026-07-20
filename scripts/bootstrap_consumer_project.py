@@ -72,6 +72,7 @@ IMPLEMENTATION_RUN_PREVIEW_STATUSES = {
     "blocked",
     "closeout_blocked",
     "closeout_ready",
+    "code_review_required",
     "complete",
     "ready_to_start",
     "repair_required",
@@ -1206,10 +1207,12 @@ def run_consumer_resume(
             "implementation_routing_ok": implementation_routing_ok,
             "implementation_routing": route,
             "implementation_handoff_ready": route.get("handoff_ready") is True,
+            "implementation_review_ready": route.get("review_ready") is True,
             "implementation_continuation_ready": route.get("continuation_ready") is True,
             "implementation_terminal": route.get("terminal") is True,
             "implementation_route_ready": (
                 route.get("handoff_ready") is True
+                or route.get("review_ready") is True
                 or route.get("continuation_ready") is True
                 or route.get("terminal") is True
             ),
@@ -1226,6 +1229,7 @@ def run_consumer_resume(
             payload["local_commands"] = final["status"]["local_commands"]
         if (
             implementation_run_preview.get("handoff_ready") is True
+            or implementation_run_preview.get("review_ready") is True
             or implementation_run_preview.get("continuation_ready") is True
         ):
             payload["next_action"] = dict(implementation_run_preview.get("next_action", {}))
@@ -1267,6 +1271,7 @@ def run_consumer_resume(
             "implementation_routing_ok": False,
             "implementation_routing": {},
             "implementation_handoff_ready": False,
+            "implementation_review_ready": False,
             "implementation_continuation_ready": False,
             "implementation_terminal": False,
             "implementation_route_ready": False,
@@ -1306,6 +1311,7 @@ def run_consumer_resume(
             "implementation_routing_ok": False,
             "implementation_routing": {},
             "implementation_handoff_ready": False,
+            "implementation_review_ready": False,
             "implementation_continuation_ready": False,
             "implementation_terminal": False,
             "implementation_route_ready": False,
@@ -2975,6 +2981,7 @@ def _preview_guarded_implementation_run(
         "runner_contract_valid": False,
         "routing_status": "",
         "handoff_ready": False,
+        "review_ready": False,
         "continuation_ready": False,
         "continuation_kind": "",
         "terminal": False,
@@ -3033,9 +3040,16 @@ def _preview_guarded_implementation_run(
             snapshot_id=snapshot_id,
         )
     )
-    continuation_kind = "apply-start" if handoff_ready else ""
+    continuation_kind = ""
     action_snapshot_id = snapshot_id if handoff_ready else ""
-    continuation_ready = handoff_ready
+    continuation_ready = False
+    review_ready = (
+        runner_identity_valid
+        and implementation_run.get("ok") is True
+        and status == "code_review_required"
+        and TASK_ID_PATTERN.fullmatch(task_id) is not None
+        and _review_runner_action_ready(next_action, target, task_id=task_id)
+    )
     if status == "verification_ready":
         continuation_kind = "execute"
         action_snapshot_id = snapshot_id
@@ -3073,6 +3087,8 @@ def _preview_guarded_implementation_run(
     terminal = runner_identity_valid and implementation_run.get("ok") is True and status == "complete"
     if status == "ready_to_start":
         runner_contract_valid = runner_identity_valid and handoff_ready
+    elif status == "code_review_required":
+        runner_contract_valid = runner_identity_valid and review_ready
     elif status in {"verification_ready", "closeout_ready"}:
         runner_contract_valid = runner_identity_valid and continuation_ready
     elif status == "complete":
@@ -3087,6 +3103,7 @@ def _preview_guarded_implementation_run(
             "runner_contract_valid": runner_contract_valid,
             "routing_status": routing_status,
             "handoff_ready": handoff_ready,
+            "review_ready": review_ready,
             "continuation_ready": continuation_ready,
             "continuation_kind": continuation_kind,
             "terminal": terminal,
@@ -3111,7 +3128,7 @@ def _snapshot_guarded_runner_action_ready(
     action_flag: str,
     snapshot_id: str,
 ) -> bool:
-    expected_argv = [
+    expected_snapshot_argv = [
         "bin/governance",
         "implementation",
         "run",
@@ -3124,11 +3141,36 @@ def _snapshot_guarded_runner_action_ready(
         "--json",
     ]
     return (
-        next_action.get("argv") == expected_argv
+        next_action.get("argv") == expected_snapshot_argv
         and next_action.get("id") == action_id
         and next_action.get("kind") == "command"
         and next_action.get("cwd") == str(target)
         and next_action.get("writes_state") is True
+        and next_action.get("approval_required") is False
+    )
+
+
+def _review_runner_action_ready(
+    next_action: dict[str, object],
+    target: Path,
+    *,
+    task_id: str,
+) -> bool:
+    expected_review_argv = [
+        "bin/governance",
+        "implementation",
+        "review",
+        ".",
+        "--task",
+        task_id,
+        "--json",
+    ]
+    return (
+        next_action.get("argv") == expected_review_argv
+        and next_action.get("id") == "inspect-implementation-code-review"
+        and next_action.get("kind") == "command"
+        and next_action.get("cwd") == str(target)
+        and next_action.get("writes_state") is False
         and next_action.get("approval_required") is False
     )
 
@@ -3194,6 +3236,7 @@ def _route_consumer_resume_to_implementation(
 
     phase_after = "implementation" if transition_applied or transition_already_current else phase
     handoff_ready = run_preview.get("handoff_ready") is True
+    review_ready = run_preview.get("review_ready") is True
     continuation_ready = run_preview.get("continuation_ready") is True
     terminal = run_preview.get("terminal") is True
     route_ok = (
@@ -3219,6 +3262,7 @@ def _route_consumer_resume_to_implementation(
         "transition_applied": transition_applied,
         "transition_already_current": transition_already_current,
         "handoff_ready": handoff_ready,
+        "review_ready": review_ready,
         "continuation_ready": continuation_ready,
         "continuation_kind": _string_value(run_preview.get("continuation_kind")),
         "terminal": terminal,

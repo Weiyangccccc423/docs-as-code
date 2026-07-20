@@ -1508,7 +1508,7 @@ class PackStructureTest(unittest.TestCase):
             script = target / "scripts/bootstrap_consumer_project.py"
             script.write_text(
                 script.read_text(encoding="utf-8").replace(
-                    'next_action.get("argv") == expected_argv',
+                    'next_action.get("argv") == expected_snapshot_argv',
                     '"--apply-start" in argv',
                     1,
                 ),
@@ -1522,7 +1522,37 @@ class PackStructureTest(unittest.TestCase):
                 any(
                     finding.code == "pack_consumer_bootstrap_incomplete"
                     and finding.path == "scripts/bootstrap_consumer_project.py"
-                    and 'next_action.get("argv") == expected_argv' in finding.message
+                    and 'next_action.get("argv") == expected_snapshot_argv' in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_consumer_bootstrap_unbounded_review_handoff(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            script = target / "scripts/bootstrap_consumer_project.py"
+            script.write_text(
+                script.read_text(encoding="utf-8").replace(
+                    'next_action.get("argv") == expected_review_argv',
+                    '"implementation" in argv',
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_consumer_bootstrap_incomplete"
+                    and finding.path == "scripts/bootstrap_consumer_project.py"
+                    and 'next_action.get("argv") == expected_review_argv' in finding.message
                     for finding in report.findings
                 )
             )

@@ -113,6 +113,8 @@ Load:
 
    Require `evidence_current: true` and the recorded entry in `docs/development/05-code-review-evidence.json`. The evidence binds the task fields, baseline, per-file content, type and Git mode changes, verification rows, and authority skill digest. Any later code, task traceability, verification evidence, or `code-reviewer` provenance change makes it stale and requires a fresh review. Runner `status: code_review_required` or `closeout_blocked` with sole blocker `code_review_evidence_current` is the normal review handoff, not permission to close.
 
+   When routing through consumer bootstrap resume, require top-level `implementation_review_ready: true`, preview `review_ready: true`, and the exact `inspect-implementation-code-review` action before review. That action must use the selected `TASK-NNN`, the target `cwd`, `writes_state: false`, and `approval_required: false`. It is a read-only review inspection and therefore has no snapshot guard and does not set `implementation_continuation_ready`; execute and closeout remain the only continuation routes.
+
 11. Re-run governance verification and refresh the implementation plan when docs, task status, review, or handoff evidence changes. Only after a runner check returns `status: closeout_ready`, use its returned snapshot-guarded closeout action:
 
    ```bash

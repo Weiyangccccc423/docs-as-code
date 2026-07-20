@@ -369,6 +369,97 @@ class ConsumerBootstrapTest(unittest.TestCase):
         self.assertTrue(payload["transition_already_current"])
         self.assertTrue(payload["handoff_ready"])
 
+    def test_consumer_resume_exposes_read_only_review_handoff(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            (target / "bin").mkdir(parents=True)
+            (target / "bin/governance").write_text("#!/bin/sh\n", encoding="utf-8")
+            next_action = {
+                "id": "inspect-implementation-code-review",
+                "kind": "command",
+                "cwd": str(target),
+                "argv": [
+                    "bin/governance",
+                    "implementation",
+                    "review",
+                    ".",
+                    "--task",
+                    "TASK-001",
+                    "--json",
+                ],
+                "writes_state": False,
+                "approval_required": False,
+            }
+            workflow_resume = {
+                "ok": True,
+                "workflow": "workflow-resume",
+                "phase": "implementation",
+                "stale": False,
+                "snapshot": {"id": "a" * 64},
+                "action_count": 0,
+                "selected_action": {},
+                "assert_snapshot_command": {"argv": ["bin/governance"]},
+                "refresh_command": {"argv": ["bin/governance"]},
+            }
+            current = {
+                "verify": {"ok": True, "findings": []},
+                "status": {"ok": True, "state": {"phase": "implementation"}},
+                "workflow_plan": {"ok": True},
+                "work_package": {"ok": True},
+                "workflow_resume": workflow_resume,
+            }
+            preflight = {
+                "pack_manifest_verification": {"ok": True},
+                "pack_verification": {"ok": True},
+                "authority_skill_inventory": {"ok": True},
+                "env_check": {"ok": True},
+                "env_auto_repair": {},
+                "authority_skill_auto_repair": {},
+            }
+            run_preview = {
+                "ok": True,
+                "review_ready": True,
+                "handoff_ready": False,
+                "continuation_ready": False,
+                "terminal": False,
+                "next_action": next_action,
+            }
+            route = {
+                "ok": True,
+                "writes_state": False,
+                "review_ready": True,
+                "handoff_ready": False,
+                "continuation_ready": False,
+                "terminal": False,
+                "implementation_run_preview": run_preview,
+            }
+
+            with (
+                patch(
+                    "scripts.bootstrap_consumer_project._consumer_pack_environment_preflight",
+                    return_value=preflight,
+                ),
+                patch(
+                    "scripts.bootstrap_consumer_project._collect_consumer_resume_state",
+                    return_value=current,
+                ),
+                patch(
+                    "scripts.bootstrap_consumer_project._route_consumer_resume_to_implementation",
+                    return_value=route,
+                ),
+            ):
+                payload = run_consumer_resume(
+                    target=target,
+                    workflow_preset="implementation-routing",
+                )
+
+        self.assertTrue(payload["ok"])
+        self.assertTrue(payload["implementation_routing_ok"])
+        self.assertTrue(payload["implementation_review_ready"])
+        self.assertTrue(payload["implementation_route_ready"])
+        self.assertFalse(payload["implementation_continuation_ready"])
+        self.assertEqual(next_action, payload["next_action"])
+
     def test_consumer_resume_rejects_fresh_only_product_input_before_commands(self) -> None:
         with patch("scripts.bootstrap_consumer_project._run_json") as run_json:
             payload = run_consumer_resume(
@@ -593,6 +684,8 @@ class ConsumerBootstrapTest(unittest.TestCase):
         self.assertTrue(payload["required_advance_applied"])
         self.assertTrue(payload["runner_ok"])
         self.assertTrue(payload["handoff_ready"])
+        self.assertFalse(payload["continuation_ready"])
+        self.assertEqual("", payload["continuation_kind"])
         self.assertEqual("ready_to_start", payload["status"])
         self.assertEqual("TASK-001", payload["task_id"])
         self.assertEqual({"id": snapshot_id}, payload["snapshot"])
@@ -745,6 +838,78 @@ class ConsumerBootstrapTest(unittest.TestCase):
         self.assertEqual("closeout", payload["continuation_kind"])
         self.assertEqual(snapshot_id, payload["action_snapshot_id"])
         self.assertEqual(next_action, payload["next_action"])
+
+    def test_recorded_implementation_resume_returns_read_only_review_action(self) -> None:
+        steps: list[dict[str, object]] = []
+        target = Path("/tmp/consumer-target")
+        next_action = {
+            "id": "inspect-implementation-code-review",
+            "kind": "command",
+            "cwd": str(target),
+            "argv": [
+                "bin/governance",
+                "implementation",
+                "review",
+                ".",
+                "--task",
+                "TASK-001",
+                "--json",
+            ],
+            "writes_state": False,
+            "approval_required": False,
+        }
+        runner = _runner_preview_contract(
+            target,
+            status="code_review_required",
+            task_id="TASK-001",
+            next_action=next_action,
+        )
+
+        with patch("scripts.bootstrap_consumer_project._run_json", return_value=runner):
+            payload = _preview_recorded_implementation_run(steps, target)
+
+        self.assertTrue(payload["runner_ok"])
+        self.assertTrue(payload["runner_contract_valid"])
+        self.assertTrue(payload["review_ready"])
+        self.assertFalse(payload["handoff_ready"])
+        self.assertFalse(payload["continuation_ready"])
+        self.assertFalse(payload["terminal"])
+        self.assertEqual("", payload["action_snapshot_id"])
+        self.assertEqual(next_action, payload["next_action"])
+
+    def test_recorded_implementation_resume_rejects_malformed_review_action(self) -> None:
+        steps: list[dict[str, object]] = []
+        target = Path("/tmp/consumer-target")
+        runner = _runner_preview_contract(
+            target,
+            status="code_review_required",
+            task_id="TASK-001",
+            next_action={
+                "id": "inspect-implementation-code-review",
+                "kind": "command",
+                "cwd": str(target),
+                "argv": [
+                    "bin/governance",
+                    "implementation",
+                    "review",
+                    ".",
+                    "--task",
+                    "TASK-001",
+                    "--json",
+                ],
+                "writes_state": True,
+                "approval_required": False,
+            },
+        )
+
+        with patch("scripts.bootstrap_consumer_project._run_json", return_value=runner):
+            payload = _preview_recorded_implementation_run(steps, target)
+
+        self.assertFalse(payload["ok"])
+        self.assertFalse(payload["runner_ok"])
+        self.assertFalse(payload["runner_contract_valid"])
+        self.assertFalse(payload["review_ready"])
+        self.assertEqual("invalid_runner_payload", payload["routing_status"])
 
     def test_recorded_implementation_resume_reports_terminal_state(self) -> None:
         steps: list[dict[str, object]] = []
