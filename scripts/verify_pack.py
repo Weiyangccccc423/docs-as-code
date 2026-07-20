@@ -5417,6 +5417,7 @@ CI_WORKFLOW_PATH = ".github/workflows/ci.yml"
 CI_WORKFLOW_REQUIRED_PHRASES = (
     "name: CI",
     "on:",
+    "workflow_dispatch:",
     "push:",
     "pull_request:",
     "timeout-minutes: 30",
