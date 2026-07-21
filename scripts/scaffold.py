@@ -993,15 +993,17 @@ def _section_lines(path: str, section: str) -> list[str]:
         ]
     if key == ("docs/development/02-task-board.md", "Task Table"):
         return [
-            "| ID | Status | Task | Product | Design | API | Acceptance | Verification |",
-            "| --- | --- | --- | --- | --- | --- | --- | --- |",
-            "| TASK-NNN | Backlog | Product-derived task | [Product](../product/NN-scope.md) | [Design](../architecture/NN-design.md) | [Endpoint](../api/endpoints/NN-endpoint.md) | [A-NNN](../product/NN-acceptance.md#a-nnn) | [Verification plan](03-verification-log.md#task-nnn) |",
+            "| ID | Status | Task | Product | Design | API | Acceptance | Verification | Risk |",
+            "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+            "| TASK-NNN | Backlog | Product-derived task | [Product](../product/NN-scope.md) | [Design](../architecture/NN-design.md) | [Endpoint](../api/endpoints/NN-endpoint.md) | [A-NNN](../product/NN-acceptance.md#a-nnn) | [Verification plan](03-verification-log.md#task-nnn) | none |",
         ]
     if key == ("docs/development/02-task-board.md", "Status Policy"):
         return ["- Allowed statuses: Backlog, Ready, In Progress, Blocked, Done, Deferred."]
     if key == ("docs/development/02-task-board.md", "Traceability Rules"):
         return [
             "- Product, Design, API, and Acceptance cells must reference existing local Markdown sources.",
+            "- Ready and In Progress tasks must bind every required check as `command:<registered-name>`.",
+            "- Use only `risk:dependencies`, `risk:secrets`, and `risk:containers`; every task Risk must match a bound command-contract Risk.",
             "- Done tasks must link Verification to local Markdown evidence.",
         ]
     if key == ("docs/development/03-verification-log.md", "Verification Runs"):

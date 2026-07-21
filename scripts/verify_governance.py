@@ -468,6 +468,11 @@ TASK_BOARD_RISK_TAG_RE = re.compile(
     r"(?<![A-Za-z0-9-])risk:[A-Za-z][A-Za-z0-9-]*(?![A-Za-z0-9-])",
     re.IGNORECASE,
 )
+TASK_BOARD_VERIFICATION_COMMAND_REFERENCE_RE = re.compile(
+    r"(?<![a-z0-9-])command:(?P<token>[^\s|;,]*)",
+    re.IGNORECASE,
+)
+TASK_BOARD_VERIFICATION_COMMAND_NAME_RE = re.compile(r"[a-z0-9][a-z0-9-]*")
 TASK_BOARD_TRACE_COLUMNS = ("product", "design", "api", "acceptance", "verification")
 TASK_BOARD_REFERENCE_COLUMNS = ("product", "design", "api", "acceptance")
 TASK_BOARD_ALLOWED_STATUSES = {
@@ -617,6 +622,9 @@ COMMAND_CONTRACT_REQUIRED_COLUMNS = {
     "approval required": "Approval Required",
     "evidence": "Evidence",
     "environment": "Environment",
+}
+COMMAND_CONTRACT_OPTIONAL_COLUMNS = {
+    "risk": "Risk",
 }
 COMMAND_CONTRACT_BOOLEAN_VALUES = {"true", "false"}
 COMMAND_CONTRACT_MAX_BYTES = 1_048_576
@@ -1854,6 +1862,10 @@ def _load_command_contract_rows(root: Path) -> tuple[list[dict[str, str]], list[
     missing = [column for column in COMMAND_CONTRACT_REQUIRED_COLUMNS if column not in header]
     if missing:
         return [], [f"command contract is missing columns: {', '.join(missing)}"]
+    columns = [
+        *COMMAND_CONTRACT_REQUIRED_COLUMNS,
+        *(column for column in COMMAND_CONTRACT_OPTIONAL_COLUMNS if column in header),
+    ]
     rows: list[dict[str, str]] = []
     for data in table[1:]:
         if _is_separator_row(data):
@@ -1861,7 +1873,7 @@ def _load_command_contract_rows(root: Path) -> tuple[list[dict[str, str]], list[
         rows.append(
             {
                 column: _table_cell(data, header.index(column))
-                for column in COMMAND_CONTRACT_REQUIRED_COLUMNS
+                for column in columns
             }
         )
     return rows, []
@@ -1921,6 +1933,16 @@ def _parse_command_contract_row(
         errors.append(f"command contract Writes State must be true or false: {command_name}")
     if approval_required is None:
         errors.append(f"command contract Approval Required must be true or false: {command_name}")
+    risk = row.get("risk", "").strip()
+    risk_cell_error = _task_board_risk_cell_error(risk)
+    risk_tags = _task_board_risk_tags(risk)
+    unknown_risk_tags = [tag for tag in risk_tags if tag not in TASK_BOARD_ALLOWED_RISK_TAGS]
+    if risk_cell_error:
+        errors.append(f"command contract Risk is invalid: {command_name}: {risk_cell_error}")
+    if unknown_risk_tags:
+        errors.append(
+            f"command contract has unknown Risk tags: {command_name}: {', '.join(unknown_risk_tags)}"
+        )
     return {
         "name": row["name"].strip(),
         "purpose": row["purpose"].strip(),
@@ -1930,6 +1952,8 @@ def _parse_command_contract_row(
         "approval_required": approval_required,
         "evidence": row["evidence"].strip(),
         "environment": row["environment"].strip().strip("`").strip(),
+        "risk": risk,
+        "risk_tags": risk_tags,
     }, errors
 
 
@@ -1983,6 +2007,10 @@ def _check_command_contract(root: Path, report: VerificationReport) -> None:
             rel,
         )
         return
+    columns = [
+        *COMMAND_CONTRACT_REQUIRED_COLUMNS,
+        *(column for column in COMMAND_CONTRACT_OPTIONAL_COLUMNS if column in header),
+    ]
     rows: list[dict[str, str]] = []
     for data in table[1:]:
         if _is_separator_row(data):
@@ -1990,7 +2018,7 @@ def _check_command_contract(root: Path, report: VerificationReport) -> None:
         rows.append(
             {
                 column: _table_cell(data, header.index(column))
-                for column in COMMAND_CONTRACT_REQUIRED_COLUMNS
+                for column in columns
             }
         )
     if not rows:
@@ -2086,6 +2114,23 @@ def _check_command_contract(root: Path, report: VerificationReport) -> None:
             report.add_error(
                 "target_command_contract_approval_required_false",
                 f"command contract row {command_name} Approval Required must be true for high-risk Argv",
+                rel,
+            )
+        risk = row.get("risk", "")
+        risk_cell_error = _task_board_risk_cell_error(risk)
+        unknown_risk_tags = [
+            tag for tag in _task_board_risk_tags(risk) if tag not in TASK_BOARD_ALLOWED_RISK_TAGS
+        ]
+        if risk_cell_error:
+            report.add_error(
+                "target_command_contract_risk_invalid",
+                f"command contract row {command_name} Risk is invalid: {risk_cell_error}",
+                rel,
+            )
+        elif unknown_risk_tags:
+            report.add_error(
+                "target_command_contract_risk_unknown",
+                f"command contract row {command_name} has unknown Risk tags: {', '.join(unknown_risk_tags)}",
                 rel,
             )
     _check_default_command_contract_rows(rows, rel, report)
@@ -5065,6 +5110,16 @@ def _check_task_board(root: Path, report: VerificationReport) -> None:
                 rel,
             )
             continue
+        normalized_status = _normalize_cell(status)
+        if normalized_status in TASK_BOARD_EXECUTABLE_STATUSES | TASK_BOARD_DONE_STATUSES:
+            missing_risk_bindings = _task_board_missing_risk_command_bindings(root, row)
+            if missing_risk_bindings:
+                report.add_error(
+                    "task_board_risk_command_binding_missing",
+                    f"task board row {task_id} Risk labels lack matching valid command bindings: "
+                    + ", ".join(missing_risk_bindings),
+                    rel,
+                )
         task_key = _normalize_cell(task_id)
         if task_key in seen_ids:
             report.add_error(
@@ -5584,6 +5639,49 @@ def _task_board_risk_cell_error(value: str) -> str:
     if residual:
         return "use only risk:* labels separated by commas, semicolons, slashes, spaces, or HTML line breaks"
     return ""
+
+
+def _task_board_verification_command_references(value: str) -> list[tuple[str, str | None]]:
+    references: list[tuple[str, str | None]] = []
+    seen: set[str] = set()
+    for match in TASK_BOARD_VERIFICATION_COMMAND_REFERENCE_RE.finditer(value):
+        token = match.group("token")
+        normalized = token.lower()
+        dedupe_key = normalized or "(missing)"
+        if dedupe_key in seen:
+            continue
+        seen.add(dedupe_key)
+        references.append(
+            (
+                token or "(missing)",
+                normalized
+                if TASK_BOARD_VERIFICATION_COMMAND_NAME_RE.fullmatch(normalized) is not None
+                else None,
+            )
+        )
+    return references
+
+
+def _task_board_missing_risk_command_bindings(
+    root: Path,
+    row: dict[str, str],
+) -> list[str]:
+    risk_tags = _task_board_risk_tags(row.get("risk", ""))
+    if not risk_tags:
+        return []
+    command_risk_tags: set[str] = set()
+    for _token, command_name in _task_board_verification_command_references(
+        row.get("verification", "")
+    ):
+        if command_name is None:
+            continue
+        contract, errors = load_command_contract_entry(root, command_name)
+        if errors or contract.get("approval_required") is not False:
+            continue
+        tags = contract.get("risk_tags")
+        if isinstance(tags, list):
+            command_risk_tags.update(str(tag) for tag in tags)
+    return [risk_tag for risk_tag in risk_tags if risk_tag not in command_risk_tags]
 
 
 def _rows_with_columns(text: str, columns: tuple[str, ...]) -> list[dict[str, str]]:

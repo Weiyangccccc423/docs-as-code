@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -41,6 +40,7 @@ try:
         _task_board_row_trace_reference_errors,
         _task_board_risk_cell_error,
         _task_board_risk_tags,
+        _task_board_verification_command_references,
         _task_board_rows,
         _verification_log_rows,
         _verification_log_task_ids,
@@ -83,6 +83,7 @@ except ImportError:  # pragma: no cover - direct script execution
         _task_board_row_trace_reference_errors,
         _task_board_risk_cell_error,
         _task_board_risk_tags,
+        _task_board_verification_command_references,
         _task_board_rows,
         _verification_log_rows,
         _verification_log_task_ids,
@@ -203,11 +204,6 @@ OPTIONAL_SOURCE_DOCUMENTS = (
 )
 ROADMAP_REL = Path("docs/development/01-roadmap.md")
 PASSING_VERIFICATION_RESULTS = {"ok", "pass", "passed", "success", "succeeded", "green"}
-VERIFICATION_COMMAND_REFERENCE_RE = re.compile(
-    r"(?<![a-z0-9-])command:(?P<token>[^\s|;,]*)",
-    re.IGNORECASE,
-)
-VERIFICATION_COMMAND_NAME_RE = re.compile(r"[a-z0-9][a-z0-9-]*")
 
 
 def build_implementation_plan(root: Path) -> dict[str, object]:
@@ -819,6 +815,17 @@ def _closeout_requirements(
                 repair_strategy="register_or_repair_each_required_non_approval_verification_command",
             ),
             _closeout_requirement(
+                "required_risk_verification_commands_registered",
+                required_verification.get("risk_verification_commands_registered") is True,
+                "every task Risk label must be covered by at least one bound valid command contract row",
+                path=COMMAND_CONTRACT_REL.as_posix(),
+                detail=", ".join(
+                    str(tag)
+                    for tag in required_verification.get("missing_risk_command_bindings", [])
+                ),
+                repair_strategy="bind_each_task_risk_to_a_matching_non_approval_verification_command",
+            ),
+            _closeout_requirement(
                 "verification_log_row_present",
                 bool(verification_rows),
                 "verification log must contain a row for the task",
@@ -840,6 +847,17 @@ def _closeout_requirements(
                 path=VERIFICATION_LOG_REL.as_posix(),
                 detail=_required_verification_result_detail(required_verification),
                 repair_strategy="run_each_required_command_through_implementation_verify_until_passing",
+            ),
+            _closeout_requirement(
+                "required_risk_verification_passing",
+                required_verification.get("required_risk_verification_passing") is True,
+                "every task Risk label must have current passing evidence from a matching bound command",
+                path=VERIFICATION_LOG_REL.as_posix(),
+                detail=", ".join(
+                    str(tag)
+                    for tag in required_verification.get("missing_risk_verification_evidence", [])
+                ),
+                repair_strategy="run_each_risk_matching_command_through_implementation_verify_until_passing",
             ),
             _closeout_requirement(
                 "verification_results_all_passing",
@@ -905,6 +923,13 @@ def _start_requirements(
     matrix_ids = _acceptance_matrix_mapped_acceptance_ids(root)
     trace_errors = _task_board_row_trace_reference_errors(root, row, task_id)
     other_in_progress = _other_in_progress_task_ids(rows, task_id)
+    risk_tags = _task_board_risk_tags(row.get("risk", ""))
+    verification_commands = _task_verification_commands(
+        root,
+        task_id,
+        row.get("verification", ""),
+    )
+    risk_coverage = _risk_command_coverage(risk_tags, verification_commands)
     requirements.extend(
         [
             _closeout_requirement(
@@ -967,6 +992,14 @@ def _start_requirements(
                 path=TASK_BOARD_REL.as_posix(),
                 detail=", ".join(other_in_progress),
                 repair_strategy="finish_block_or_defer_existing_in_progress_task_before_claiming_another",
+            ),
+            _closeout_requirement(
+                "required_risk_verification_commands_registered",
+                not risk_coverage["missing_risk_command_bindings"],
+                "every task Risk label must be covered by at least one bound valid command contract row",
+                path=COMMAND_CONTRACT_REL.as_posix(),
+                detail=", ".join(risk_coverage["missing_risk_command_bindings"]),
+                repair_strategy="bind_each_task_risk_to_a_matching_non_approval_verification_command",
             ),
         ]
     )
@@ -1058,10 +1091,20 @@ def _required_verification_evidence(
             "failing_verification_commands": [],
             "verification_commands_registered": False,
             "required_verification_commands_passing": False,
+            "required_risk_tags": [],
+            "covered_risk_tags": [],
+            "missing_risk_command_bindings": [],
+            "risk_verification_commands": {},
+            "passing_risk_tags": [],
+            "missing_risk_verification_evidence": [],
+            "risk_verification_commands_registered": False,
+            "required_risk_verification_passing": False,
         }
 
     task_id = row.get("id", "").strip()
     commands = _task_verification_commands(root, task_id, row.get("verification", ""))
+    risk_tags = _task_board_risk_tags(row.get("risk", ""))
+    risk_coverage = _risk_command_coverage(risk_tags, commands)
     required_names = [str(command.get("name", "")) for command in commands]
     invalid_commands = [
         {
@@ -1085,6 +1128,22 @@ def _required_verification_evidence(
             missing_names.append(name)
         elif not all(_verification_row_passed(item) for item in command_rows):
             failing_names.append(name)
+    risk_commands = risk_coverage["risk_verification_commands"]
+    passing_risk_tags: list[str] = []
+    missing_risk_evidence: list[str] = []
+    for risk_tag in risk_tags:
+        matching_names = risk_commands.get(risk_tag, [])
+        if any(
+            rows_by_command.get(_normalize_cell(name))
+            and all(
+                _verification_row_passed(item)
+                for item in rows_by_command[_normalize_cell(name)]
+            )
+            for name in matching_names
+        ):
+            passing_risk_tags.append(risk_tag)
+        else:
+            missing_risk_evidence.append(risk_tag)
     return {
         "required_verification_commands": required_names,
         "invalid_verification_commands": invalid_commands,
@@ -1094,6 +1153,13 @@ def _required_verification_evidence(
         "required_verification_commands_passing": bool(required_names)
         and not missing_names
         and not failing_names,
+        "required_risk_tags": risk_tags,
+        **risk_coverage,
+        "passing_risk_tags": passing_risk_tags,
+        "missing_risk_verification_evidence": missing_risk_evidence,
+        "risk_verification_commands_registered": not risk_coverage["missing_risk_command_bindings"],
+        "required_risk_verification_passing": not risk_coverage["missing_risk_command_bindings"]
+        and not missing_risk_evidence,
     }
 
 
@@ -1354,6 +1420,7 @@ def _implementation_task(
     acceptance_id = _task_board_acceptance_id(row.get("acceptance", ""))
     verification_commands = _task_verification_commands(root, task_id, row.get("verification", ""))
     verification_command_summary = _verification_command_summary(verification_commands)
+    risk_coverage = _risk_command_coverage(risk_tags, verification_commands)
     blockers = _task_blockers(
         root,
         row,
@@ -1363,6 +1430,7 @@ def _implementation_task(
         matrix_ids,
         seen_ids,
         verification_commands,
+        risk_tags,
     )
     source_references = _source_references(root, row)
     specialist_skills = _task_specialist_skills(source_references, risk_tags)
@@ -1390,6 +1458,7 @@ def _implementation_task(
         "verification_command_names": [str(item.get("name", "")) for item in verification_commands],
         "verification_commands": verification_commands,
         "verification_command_summary": verification_command_summary,
+        **risk_coverage,
         "verification_logged": task_id in verification_task_ids if verification_task_ids is not None else False,
         "passing_verification_logged": task_id in passing_verification_task_ids if passing_verification_task_ids is not None else False,
         "all_verification_results_passing": task_id in all_passing_verification_task_ids
@@ -1416,6 +1485,7 @@ def _task_blockers(
     matrix_ids: set[str] | None,
     seen_ids: set[str],
     verification_commands: list[dict[str, object]],
+    risk_tags: list[str],
 ) -> list[dict[str, object]]:
     blockers: list[dict[str, object]] = []
     missing_fields = [
@@ -1494,31 +1564,24 @@ def _task_blockers(
                     + "; ".join(str(error) for error in command.get("errors", [])),
                 )
             )
-    return blockers
-
-
-def _task_verification_command_references(value: str) -> list[tuple[str, str | None]]:
-    references: list[tuple[str, str | None]] = []
-    seen: set[str] = set()
-    for match in VERIFICATION_COMMAND_REFERENCE_RE.finditer(value):
-        token = match.group("token")
-        normalized = token.lower()
-        dedupe_key = normalized or "(missing)"
-        if dedupe_key in seen:
-            continue
-        seen.add(dedupe_key)
-        references.append(
-            (
-                token or "(missing)",
-                normalized if VERIFICATION_COMMAND_NAME_RE.fullmatch(normalized) is not None else None,
+        risk_coverage = _risk_command_coverage(risk_tags, verification_commands)
+        missing_risk_bindings = risk_coverage["missing_risk_command_bindings"]
+        if missing_risk_bindings:
+            blockers.append(
+                _blocker(
+                    root,
+                    "task_risk_verification_command_missing",
+                    COMMAND_CONTRACT_REL.as_posix(),
+                    f"{task_id or '(missing id)'} Risk labels lack matching command bindings: "
+                    + ", ".join(missing_risk_bindings),
+                )
             )
-        )
-    return references
+    return blockers
 
 
 def _task_verification_commands(root: Path, task_id: str, value: str) -> list[dict[str, object]]:
     commands: list[dict[str, object]] = []
-    for token, name in _task_verification_command_references(value):
+    for token, name in _task_board_verification_command_references(value):
         if name is None:
             commands.append(
                 {
@@ -1533,6 +1596,8 @@ def _task_verification_commands(root: Path, task_id: str, value: str) -> list[di
                     "approval_required": False,
                     "evidence": "",
                     "environment": "",
+                    "risk": "",
+                    "risk_tags": [],
                     "preflight_command": {},
                     "execute_command": {},
                     "errors": [
@@ -1591,6 +1656,10 @@ def _task_verification_commands(root: Path, task_id: str, value: str) -> list[di
                 "approval_required": approval_required,
                 "evidence": str(contract.get("evidence", "")),
                 "environment": str(contract.get("environment", "")),
+                "risk": str(contract.get("risk", "")),
+                "risk_tags": list(contract.get("risk_tags", []))
+                if isinstance(contract.get("risk_tags"), list)
+                else [],
                 "preflight_command": preflight_command,
                 "execute_command": execute_command,
                 "errors": errors,
@@ -1610,6 +1679,33 @@ def _verification_command_summary(commands: list[dict[str, object]]) -> dict[str
         ),
         "writes_state_count": sum(1 for command in commands if command.get("writes_state") is True),
         "all_ready": bool(commands) and ready_count == len(commands),
+    }
+
+
+def _risk_command_coverage(
+    risk_tags: list[str],
+    commands: list[dict[str, object]],
+) -> dict[str, object]:
+    risk_verification_commands: dict[str, list[str]] = {}
+    covered_risk_tags: list[str] = []
+    missing_risk_bindings: list[str] = []
+    for risk_tag in risk_tags:
+        matching_names = [
+            str(command.get("name", ""))
+            for command in commands
+            if command.get("ready") is True
+            and isinstance(command.get("risk_tags"), list)
+            and risk_tag in command["risk_tags"]
+        ]
+        risk_verification_commands[risk_tag] = matching_names
+        if matching_names:
+            covered_risk_tags.append(risk_tag)
+        else:
+            missing_risk_bindings.append(risk_tag)
+    return {
+        "covered_risk_tags": covered_risk_tags,
+        "missing_risk_command_bindings": missing_risk_bindings,
+        "risk_verification_commands": risk_verification_commands,
     }
 
 
@@ -1657,6 +1753,8 @@ def _repair_strategy(code: str) -> str:
         return "replace_with_non_approval_task_check_or_route_external_authorized_evidence"
     if code == "task_verification_command_invalid":
         return "repair_or_register_the_named_structured_command_before_editing_code"
+    if code == "task_risk_verification_command_missing":
+        return "bind_each_task_risk_to_a_matching_non_approval_verification_command"
     return "repair_task_board_row_before_editing_code"
 
 

@@ -17,6 +17,7 @@ Calibrate execution against DORA small-batch integration and test automation, Go
 - Has the agent read the target-local `docs/agent-workflow/task-handoff.md` when present?
 - Were all source-derived `specialist_skills` loaded through `skill_loading_plan` in local-then-authority order, including architecture, DevOps, database/migration, reliability, accessibility, performance, E2E, or security authority only when the linked design paths require them?
 - Were all explicit task `risk_tags` validated and routed, with `dependency-auditor` for `risk:dependencies`, `env-secrets-manager` for `risk:secrets`, and `docker-development` plus `senior-devops` for `risk:containers`?
+- Does every task Risk appear on at least one bound command-contract `Risk` cell, with empty `missing_risk_command_bindings` before claim?
 
 Reference: `https://google.github.io/eng-practices/review/developer/`
 
@@ -41,6 +42,7 @@ Reference: `https://dora.dev/capabilities/trunk-based-development/`
 ## Verification Execution
 
 - Is each task verification command registered with structured `Argv` and `Cwd` in `docs/agent-workflow/command-contract.md`?
+- Does each risk-specific command use the matching supported `Risk` label, and was the project-native audit command selected with the routed authority specialist instead of treating skill loading as evidence?
 - Does the implementation work package resolve every binding into `verification_commands[]` with exact `preflight_command.argv` and `execute_command.argv`, with no invalid or approval-required entry?
 - After code edits, did `implementation run --check` preflight every binding before any task command executed, with `ready_count == required_count` and `all_ready: true`?
 - Was runner execution bound to the current workflow snapshot, serialized by its repository-local lock, and stopped on stale context or the first failed command?
@@ -97,5 +99,6 @@ Reference: `https://openssf.org/projects/scorecard/`
 - Did the runner closeout use the post-execution snapshot and return `status: complete` plus `closeout_applied: true`?
 - Is `code_review_evidence_current` satisfied for the complete current task change set before closeout?
 - Are `required_verification_commands_registered` and `required_verification_commands_passing` satisfied, with empty `missing_verification_commands` and `failing_verification_commands`?
+- Are `required_risk_verification_commands_registered` and `required_risk_verification_passing` satisfied, with empty `missing_risk_command_bindings` and `missing_risk_verification_evidence`?
 - Are failing checks, unresolved questions, or out-of-scope discoveries reflected as `Blocked`, `Deferred`, or follow-up tasks instead of hidden in prose?
 - Are all source-of-truth docs, implementation files, tests, and evidence committed as one coherent change when the repository uses Git?

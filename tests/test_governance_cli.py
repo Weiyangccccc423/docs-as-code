@@ -188,18 +188,89 @@ def _append_project_command(
     approval_required: bool = False,
     cwd: str = ".",
     environment: str = "core-governance",
+    risk: str | None = None,
 ) -> None:
     path = target / "docs/agent-workflow/command-contract.md"
+    if risk is not None:
+        _set_command_contract_risks(target, {name: risk})
     text = path.read_text(encoding="utf-8")
+    has_risk_column = "| Risk |" in text.split("## Project Commands", 1)[0]
     row = (
         f"| {name} | Verify one implementation task. | `{cwd}` | `{json.dumps(argv)}` | "
         f"{str(writes_state).lower()} | {str(approval_required).lower()} | "
-        f"`docs/development/04-implementation-evidence.md` | {environment} |\n"
+        f"`docs/development/04-implementation-evidence.md` | {environment} |"
+        + (f" {risk or 'none'} |" if has_risk_column else "")
+        + "\n"
     )
     lines = text.splitlines(keepends=True)
     prefix = f"| {name} |"
     text = "".join(line for line in lines if not line.startswith(prefix))
     path.write_text(text.replace("\n## Project Commands", f"\n{row}\n## Project Commands", 1), encoding="utf-8")
+
+
+def _set_command_contract_risks(target: Path, risks_by_name: dict[str, str]) -> None:
+    path = target / "docs/agent-workflow/command-contract.md"
+    lines = path.read_text(encoding="utf-8").splitlines()
+    in_table = False
+    risk_index: int | None = None
+    updated: list[str] = []
+    for line in lines:
+        if line.startswith("| Name | Purpose |"):
+            in_table = True
+            cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+            if "Risk" not in cells:
+                cells.append("Risk")
+            risk_index = cells.index("Risk")
+            updated.append("| " + " | ".join(cells) + " |")
+            continue
+        if in_table and line.startswith("## "):
+            in_table = False
+        if in_table and line.startswith("|") and risk_index is not None:
+            cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+            if all(set(cell) <= {"-", ":"} for cell in cells):
+                while len(cells) <= risk_index:
+                    cells.append("---")
+            else:
+                while len(cells) <= risk_index:
+                    cells.append("none")
+                cells[risk_index] = risks_by_name.get(cells[0], cells[risk_index] or "none")
+            updated.append("| " + " | ".join(cells) + " |")
+            continue
+        updated.append(line)
+    path.write_text("\n".join(updated) + "\n", encoding="utf-8")
+
+
+def _set_task_risk(target: Path, risk: str, task_id: str = "TASK-001") -> None:
+    path = target / "docs/development/02-task-board.md"
+    lines = path.read_text(encoding="utf-8").splitlines()
+    in_table = False
+    risk_index: int | None = None
+    updated: list[str] = []
+    for line in lines:
+        if line.startswith("| ID | Status |"):
+            in_table = True
+            cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+            if "Risk" not in cells:
+                cells.append("Risk")
+            risk_index = cells.index("Risk")
+            updated.append("| " + " | ".join(cells) + " |")
+            continue
+        if in_table and line.startswith("## "):
+            in_table = False
+        if in_table and line.startswith("|") and risk_index is not None:
+            cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+            if all(set(cell) <= {"-", ":"} for cell in cells):
+                while len(cells) <= risk_index:
+                    cells.append("---")
+            else:
+                while len(cells) <= risk_index:
+                    cells.append("none")
+                if cells[0] == task_id:
+                    cells[risk_index] = risk
+            updated.append("| " + " | ".join(cells) + " |")
+            continue
+        updated.append(line)
+    path.write_text("\n".join(updated) + "\n", encoding="utf-8")
 
 
 def _backend_external_services_doc() -> str:
@@ -404,6 +475,8 @@ def _implementation_ready_target(
     tmp: str,
     *,
     advance_implementation: bool = True,
+    task_risk: str | None = None,
+    command_risk: str | None = None,
 ) -> Path:
     root = Path(tmp)
     target = root / "target"
@@ -509,6 +582,10 @@ def _implementation_ready_target(
         ),
         encoding="utf-8",
     )
+    if task_risk is not None:
+        _set_task_risk(target, task_risk)
+    if command_risk is not None:
+        _set_command_contract_risks(target, {"task-tests": command_risk})
     _write_test_openapi(target)
 
     if advance_implementation:
@@ -6230,6 +6307,55 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertTrue(command["ready"])
             self.assertIn("--allow-writes", command["preflight_command"]["argv"])
             self.assertIn("--allow-writes", command["execute_command"]["argv"])
+
+    def test_implementation_plan_blocks_task_risk_without_matching_command_binding(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(
+                self,
+                tmp,
+                task_risk="risk:dependencies",
+                command_risk="risk:dependencies",
+            )
+            _set_command_contract_risks(target, {"task-tests": "none"})
+
+            verification = _run_governance_json(
+                self,
+                ["verify", str(target), "--check"],
+                expected_returncode=1,
+            )
+
+            payload = _run_governance_json(self, ["implementation", "plan", str(target)])
+
+            task = payload["tasks"][0]
+            self.assertIn(
+                "task_board_risk_command_binding_missing",
+                {item["code"] for item in verification["findings"]},
+            )
+            self.assertTrue(payload["blocked"])
+            self.assertEqual(["risk:dependencies"], task["missing_risk_command_bindings"])
+            self.assertIn(
+                "task_risk_verification_command_missing",
+                {item["code"] for item in task["blockers"]},
+            )
+
+    def test_implementation_plan_accepts_task_risk_with_matching_command_binding(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(
+                self,
+                tmp,
+                task_risk="risk:dependencies",
+                command_risk="risk:dependencies",
+            )
+
+            payload = _run_governance_json(self, ["implementation", "plan", str(target)])
+            verification = _run_governance_json(self, ["verify", str(target), "--check"])
+
+            task = payload["tasks"][0]
+            self.assertTrue(verification["ok"])
+            self.assertFalse(payload["blocked"])
+            self.assertEqual([], task["missing_risk_command_bindings"])
+            self.assertEqual(["risk:dependencies"], task["covered_risk_tags"])
+            self.assertEqual(["risk:dependencies"], task["verification_commands"][0]["risk_tags"])
 
     def test_implementation_start_reports_in_progress_status_sync_plan(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -11,6 +11,7 @@ Calibrate implementation readiness against the Scrum Guide's transparency and De
 - Are dependencies, sequencing, blocked questions, and out-of-scope work explicit enough that an agent can start without inventing requirements?
 - Do the linked design paths provide enough machine-readable scope for `implementation plan` to route the required architecture, backend, data, reliability, frontend, test, and delivery authority skills without task-title guessing?
 - Does the optional Risk cell use only `risk:dependencies`, `risk:secrets`, and `risk:containers`, include every label implied by the expected change surface, and use `none` when none apply?
+- Does every task Risk have at least one matching bound command-contract Risk before the task becomes Ready?
 - Do dependency, environment/secret, and container tasks route `dependency-auditor`, `env-secrets-manager`, and `docker-development` plus `senior-devops` respectively before implementation?
 
 Reference: `https://scrumguides.org/scrum-guide.html`
@@ -18,6 +19,7 @@ Reference: `https://scrumguides.org/scrum-guide.html`
 ## Definition of Done
 
 - Does Done require working code, synchronized docs, passing verification commands, and local Markdown evidence?
+- Does Done require current passing risk evidence, with empty `missing_risk_command_bindings` and `missing_risk_verification_evidence`?
 - Are acceptance criteria, tests, migrations, security checks, operational notes, and compatibility notes included when the task scope needs them?
 - Is work that fails the repository Definition of Done returned to Backlog or Blocked instead of being presented as complete?
 
@@ -26,6 +28,7 @@ Reference: `https://scrumguides.org/scrum-guide.html`
 ## Verification Plan
 
 - Does each task name the exact commands, test layers, expected evidence target, and fallback when a command cannot run?
+- Does each risk-specific command carry the matching command-contract `Risk` label so `required_risk_verification_passing` can be proved at closeout?
 - Are unit, integration, contract, end-to-end, accessibility, performance, security, or manual-review checks selected from product acceptance and design risk?
 - Are flaky, skipped, unavailable, or environment-dependent checks recorded as evidence with follow-up ownership?
 

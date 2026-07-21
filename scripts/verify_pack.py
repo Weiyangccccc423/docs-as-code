@@ -80,7 +80,7 @@ TEMPLATE_REQUIRED_GUARDRAILS = {
     ),
     "templates/docs/agent-workflow/command-contract.md": (
         "# Agent Command Contract",
-        "| Name | Purpose | Cwd | Argv | Writes State | Approval Required | Evidence | Environment |",
+        "| Name | Purpose | Cwd | Argv | Writes State | Approval Required | Evidence | Environment | Risk |",
         '`["bin/governance", "verify", ".", "--check", "--json"]`',
         "| governance-status |",
         '`["bin/governance", "status", ".", "--json"]`',
@@ -108,6 +108,11 @@ TEMPLATE_REQUIRED_GUARDRAILS = {
         "environment_readiness.ok: true",
         "docs/development/04-implementation-evidence.md",
         "requires `--allow-writes` for state-writing rows",
+        "risk:dependencies",
+        "risk:secrets",
+        "risk:containers",
+        "missing_risk_command_bindings",
+        "missing_risk_verification_evidence",
     ),
     "templates/docs/agent-workflow/project-environment.json": (
         '"schema_version": 1',
@@ -3380,6 +3385,9 @@ IMPLEMENTATION_VERIFY_DOC_REQUIREMENTS = {
         "command:<registered-name>",
         "verification_command_names",
         "required_verification_commands_passing",
+        "missing_risk_command_bindings",
+        "missing_risk_verification_evidence",
+        "required_risk_verification_passing",
     ),
     "workflows/00-overview.md": (
         "implementation verify --task TASK-NNN --command command-name --check --json",
@@ -3393,6 +3401,8 @@ IMPLEMENTATION_VERIFY_DOC_REQUIREMENTS = {
         "command:<registered-name>",
         "verification_command_names",
         "required_verification_commands_passing",
+        "missing_risk_command_bindings",
+        "required_risk_verification_passing",
     ),
     "workflows/05-verification-and-drift-control.md": (
         "verification-log rows are unique by `(Task, Command)`",
@@ -3416,6 +3426,10 @@ IMPLEMENTATION_VERIFY_DOC_REQUIREMENTS = {
         "verification_command_names",
         "missing_verification_commands",
         "required_verification_commands_passing",
+        "covered_risk_tags",
+        "missing_risk_command_bindings",
+        "missing_risk_verification_evidence",
+        "required_risk_verification_passing",
     ),
     "skills/executing-implementation-task/SKILL.md": (
         "implementation verify . --task TASK-NNN --command command-name --check --json",
@@ -3431,6 +3445,10 @@ IMPLEMENTATION_VERIFY_DOC_REQUIREMENTS = {
         "verification_command_names",
         "missing_verification_commands",
         "required_verification_commands_passing",
+        "covered_risk_tags",
+        "missing_risk_command_bindings",
+        "missing_risk_verification_evidence",
+        "required_risk_verification_passing",
     ),
     "references/implementation-execution-checklist.md": (
         "implementation verify --task TASK-NNN --command command-name --check --json",
@@ -3447,6 +3465,9 @@ IMPLEMENTATION_VERIFY_DOC_REQUIREMENTS = {
         "verification_commands[]",
         "missing_verification_commands",
         "required_verification_commands_passing",
+        "missing_risk_command_bindings",
+        "missing_risk_verification_evidence",
+        "required_risk_verification_passing",
     ),
     "templates/docs/agent-workflow/command-contract.md": (
         "environment_readiness.ok: true",
@@ -5123,6 +5144,7 @@ METHOD_REFERENCE_BASELINES = {
             (
                 "## Ready Task Contract",
                 "Product, Design, API, Acceptance, and Verification cells",
+                "matching bound command-contract Risk",
                 "https://scrumguides.org/scrum-guide.html",
             ),
         ),
@@ -5131,6 +5153,7 @@ METHOD_REFERENCE_BASELINES = {
             (
                 "## Definition of Done",
                 "working code, synchronized docs, passing verification commands",
+                "missing_risk_verification_evidence",
                 "https://scrumguides.org/scrum-guide.html",
             ),
         ),
@@ -5139,6 +5162,7 @@ METHOD_REFERENCE_BASELINES = {
             (
                 "## Verification Plan",
                 "exact commands, test layers, expected evidence target",
+                "required_risk_verification_passing",
                 "https://dora.dev/capabilities/test-automation/",
             ),
         ),
@@ -9507,6 +9531,7 @@ def _check_command_contract_template_row(
         "Approval Required": "false",
         "Evidence": _command_contract_evidence(target),
         "Environment": "core-governance",
+        "Risk": "none",
     }
     for column, expected in expected_cells.items():
         actual = row.get(column, "").strip()

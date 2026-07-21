@@ -7616,8 +7616,8 @@ class PackStructureTest(unittest.TestCase):
             template = target / "templates/docs/agent-workflow/command-contract.md"
             template.write_text(
                 template.read_text(encoding="utf-8").replace(
-                    "| Name | Purpose | Cwd | Argv | Writes State | Approval Required | Evidence | Environment |\n",
-                    "| Name | Purpose | Cwd | Command | Writes State | Approval Required | Evidence | Environment |\n",
+                    "| Name | Purpose | Cwd | Argv | Writes State | Approval Required | Evidence | Environment | Risk |\n",
+                    "| Name | Purpose | Cwd | Command | Writes State | Approval Required | Evidence | Environment | Risk |\n",
                     1,
                 ),
                 encoding="utf-8",
@@ -7648,7 +7648,7 @@ class PackStructureTest(unittest.TestCase):
                 template.read_text(encoding="utf-8").replace(
                     "| governance-status | Print workflow state as JSON. | `.` | `"
                     '["bin/governance", "status", ".", "--json"]'
-                    "` | false | false | `docs/development/03-verification-log.md` | core-governance |\n",
+                    "` | false | false | `docs/development/03-verification-log.md` | core-governance | none |\n",
                     "",
                     1,
                 ),

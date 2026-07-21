@@ -1706,8 +1706,8 @@ def _command_contract() -> str:
     return (
         "# Agent Command Contract\n\n"
         "## Command Table\n\n"
-        "| Name | Purpose | Cwd | Argv | Writes State | Approval Required | Evidence | Environment |\n"
-        "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+        "| Name | Purpose | Cwd | Argv | Writes State | Approval Required | Evidence | Environment | Risk |\n"
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n"
         + _command_contract_rows()
         + "\n"
         "## Project Commands\n\n"
@@ -1720,7 +1720,9 @@ def _command_contract() -> str:
         "- Mark `Approval Required` as `true` for dependency installation, credential access, production access, "
         "publishing, release, destructive migration, or external state mutation commands.\n"
         "- Link command evidence to `docs/development/03-verification-log.md` or another local Markdown evidence file.\n"
-        "- Set `Environment` to an ID declared in `project-environment.json`; use `project-env register --reviewed --check` plus apply for reviewed tools, version requirements, probes, and repair sources before using `project-runtime`.\n\n"
+        "- Set `Environment` to an ID declared in `project-environment.json`; use `project-env register --reviewed --check` plus apply for reviewed tools, version requirements, probes, and repair sources before using `project-runtime`.\n"
+        "- Set optional `Risk` to `none` or one or more supported labels: `risk:dependencies`, `risk:secrets`, and `risk:containers`.\n"
+        "- Every task Risk label must appear on at least one command row bound from that task's Verification cell; choose the real project audit command with the routed authority specialist.\n\n"
         "## Usage Rules\n\n"
         "- Prefer command rows from this file before reconstructing commands from prose.\n"
         "- Run read-only commands before state-writing commands when both exist.\n"
@@ -1730,6 +1732,7 @@ def _command_contract() -> str:
         "- Require `environment_readiness.ok: true` before execution. Inspect `required_tools` version evidence and follow only repair actions backed by `project-environment.json`; never guess installation commands.\n"
         "- Preview a `reviewed-command` repair with `project-env repair --tool-id <tool-id> --check`; request approval for its apply action and require completed repair evidence plus a passing post-repair version probe.\n"
         "- Run the returned structured command to append `docs/development/04-implementation-evidence.md` and update the current `(Task, Command)` summary without deleting prior runs.\n"
+        "- Treat `missing_risk_command_bindings` or `missing_risk_verification_evidence` as a blocker; loading a risk specialist alone is not audit evidence.\n"
         "- `implementation verify` refuses approval-required rows and requires `--allow-writes` for state-writing rows.\n"
     )
 
@@ -1746,7 +1749,7 @@ def _command_contract_row(target: str, recipe: str, description: str, writes_sta
     return (
         f"| {target} | {_sentence_case(description)} | `.` | "
         f"`{argv}` | {str(writes_state).lower()} | false | "
-        f"{_command_contract_evidence(target)} | core-governance |\n"
+        f"{_command_contract_evidence(target)} | core-governance | none |\n"
     )
 
 

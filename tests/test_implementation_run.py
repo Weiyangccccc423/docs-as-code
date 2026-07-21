@@ -280,6 +280,68 @@ class ImplementationRunTest(unittest.TestCase):
                 (target / "docs/development/02-task-board.md").read_text(encoding="utf-8"),
             )
 
+    def test_risk_command_passing_evidence_is_required_and_reported_at_closeout(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _implementation_ready_target(
+                self,
+                tmp,
+                task_risk="risk:dependencies",
+                command_risk="risk:dependencies",
+            )
+            _append_project_command(
+                target,
+                name="task-tests",
+                argv=["python3", "-c", "print('dependency audit passed')"],
+                risk="risk:dependencies",
+            )
+            _run_governance_json(
+                self,
+                ["implementation", "start", str(target), "--task", "TASK-001", "--apply"],
+            )
+            source = target / "src/dependency_change.py"
+            source.parent.mkdir(parents=True)
+            source.write_text("DEPENDENCY_CHANGE_REVIEWED = True\n", encoding="utf-8")
+
+            before_execution = _run(self, target, "--task", "TASK-001", "--check")
+            self.assertEqual("verification_ready", before_execution["status"])
+            self.assertFalse(
+                before_execution["closeout_preview"]["evidence_summary"][
+                    "required_risk_verification_passing"
+                ]
+            )
+
+            executed = _run(self, target, "--task", "TASK-001", "--execute")
+            self.assertTrue(executed["verification_runs"][0]["command_passed"])
+            report = _write_review_report(target)
+            _run_governance_json(
+                self,
+                [
+                    "implementation",
+                    "review",
+                    str(target),
+                    "--task",
+                    "TASK-001",
+                    "--report",
+                    str(report),
+                    "--reviewed",
+                ],
+            )
+            preview = _run(self, target, "--task", "TASK-001", "--check")
+
+            evidence = preview["closeout_preview"]["evidence_summary"]
+            self.assertEqual(["risk:dependencies"], evidence["required_risk_tags"])
+            self.assertEqual(["risk:dependencies"], evidence["passing_risk_tags"])
+            self.assertEqual([], evidence["missing_risk_verification_evidence"])
+            self.assertTrue(evidence["required_risk_verification_passing"])
+            requirements = {
+                item["code"]: item
+                for item in preview["closeout_preview"]["requirements"]
+            }
+            self.assertEqual(
+                "satisfied",
+                requirements["required_risk_verification_passing"]["status"],
+            )
+
     def test_execute_stops_after_failing_command_and_preserves_in_progress(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = _implementation_ready_target(self, tmp)

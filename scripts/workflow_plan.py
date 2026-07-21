@@ -787,6 +787,9 @@ def _implementation_work_package(root: Path) -> tuple[dict[str, object], list[st
         "decision_policy": str(payload.get("decision_policy", "execute_exactly_one_ready_task")),
         "acceptance_id": str(task.get("acceptance_id", "")),
         "risk_tags": _string_list(task.get("risk_tags")),
+        "covered_risk_tags": _string_list(task.get("covered_risk_tags")),
+        "missing_risk_command_bindings": _string_list(task.get("missing_risk_command_bindings")),
+        "risk_verification_commands": _dict_value(task.get("risk_verification_commands")),
         "source_documents": source_documents,
         "references": references,
         "read_order": read_order,
@@ -867,6 +870,7 @@ def _implementation_execution_contract(root: Path, package: dict[str, object]) -
             "apply_condition": "start_ready:true and status_update_plan.can_auto_apply:true",
         },
         "verification_commands": _dict_items(package.get("verification_commands")),
+        "risk_verification_commands": _dict_value(package.get("risk_verification_commands")),
         "verification_policy": "run_each_preflight_then_execute_only_when_verification_ready_true",
         "closeout": {
             "preflight_command": _dict_value(package.get("closeout_command")),

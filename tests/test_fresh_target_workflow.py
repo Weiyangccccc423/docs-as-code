@@ -479,7 +479,11 @@ class FreshTargetWorkflowTest(unittest.TestCase):
             self.assertIn("METHOD /product-derived-path", endpoint_contract)
             self.assertIn("| Acceptance | Design | API | Test |", acceptance_matrix)
             self.assertIn("| ID | Status | Milestone |", roadmap)
-            self.assertIn("| ID | Status | Task | Product | Design | API | Acceptance | Verification |", task_board)
+            self.assertIn(
+                "| ID | Status | Task | Product | Design | API | Acceptance | Verification | Risk |",
+                task_board,
+            )
+            self.assertIn("| none |", task_board)
 
             design_blocked_verify = _run_json(
                 self,

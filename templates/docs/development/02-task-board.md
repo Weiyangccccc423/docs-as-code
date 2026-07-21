@@ -17,4 +17,5 @@
 - Keep the local Markdown evidence path in Verification so closeout can prove durable evidence after the bound commands pass.
 - Use only `risk:dependencies`, `risk:secrets`, and `risk:containers` in the optional Risk cell; use `none` when no listed risk applies.
 - Add every applicable Risk label from the expected change surface. Unknown `risk:*` labels block implementation until the workflow pack defines their authority route.
+- For every Risk label, bind at least one command-contract row carrying the same Risk label; closeout requires current passing evidence from a matching command.
 - Done tasks must link Verification to local Markdown evidence.

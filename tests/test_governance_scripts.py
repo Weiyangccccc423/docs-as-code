@@ -613,6 +613,63 @@ class GovernanceScriptsTest(unittest.TestCase):
         self.assertEqual([], risk_missing)
         self.assertEqual("risk:dependencies, risk:secrets", risk_rows[0]["risk"])
 
+    def test_command_contract_optional_risk_column_preserves_legacy_and_parses_supported_tags(self) -> None:
+        legacy = (
+            "# Agent Command Contract\n\n## Command Table\n\n"
+            "| Name | Purpose | Cwd | Argv | Writes State | Approval Required | Evidence | Environment |\n"
+            "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+            "| legacy-test | Test. | `.` | `[\"python3\", \"-V\"]` | false | false | evidence.md | runtime |\n"
+        )
+        with_risk = legacy.replace(
+            "| Environment |\n| --- | --- | --- | --- | --- | --- | --- | --- |\n",
+            "| Environment | Risk |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n",
+        ).replace("| runtime |\n", "| runtime | risk:dependencies, risk:secrets |\n")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            path = root / "docs/agent-workflow/command-contract.md"
+            path.parent.mkdir(parents=True)
+            path.write_text(legacy, encoding="utf-8")
+            legacy_entry, legacy_errors = verify_governance_module.load_command_contract_entry(
+                root, "legacy-test"
+            )
+            path.write_text(with_risk, encoding="utf-8")
+            risk_entry, risk_errors = verify_governance_module.load_command_contract_entry(
+                root, "legacy-test"
+            )
+
+        self.assertEqual([], legacy_errors)
+        self.assertEqual([], legacy_entry["risk_tags"])
+        self.assertEqual([], risk_errors)
+        self.assertEqual(
+            ["risk:dependencies", "risk:secrets"],
+            risk_entry["risk_tags"],
+        )
+
+    def test_command_contract_rejects_unknown_and_malformed_risk_cells(self) -> None:
+        row = {
+            "name": "dependency-audit",
+            "purpose": "Audit dependencies.",
+            "cwd": "`.`",
+            "argv": "`[\"python3\", \"-V\"]`",
+            "writes state": "false",
+            "approval required": "false",
+            "evidence": "evidence.md",
+            "environment": "runtime",
+            "risk": "risk:dependencies, unsupported text",
+        }
+
+        _entry, malformed_errors = verify_governance_module._parse_command_contract_row(
+            row, "dependency-audit"
+        )
+        row["risk"] = "risk:unreviewed-domain"
+        _entry, unknown_errors = verify_governance_module._parse_command_contract_row(
+            row, "dependency-audit"
+        )
+
+        self.assertTrue(any("Risk is invalid" in error for error in malformed_errors))
+        self.assertTrue(any("unknown Risk tags" in error for error in unknown_errors))
+
     def test_implementation_risk_tags_route_authority_specialists(self) -> None:
         cases = (
             ("risk:dependencies", {"dependency-auditor"}),
@@ -676,6 +733,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             {"A-001"},
             set(),
             [],
+            ["risk:dependencies"],
         )
 
         self.assertTrue(any(blocker["code"] == "task_board_invalid_risk_cell" for blocker in blockers))
@@ -693,6 +751,9 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "title": "Update dependencies",
                     "acceptance_id": "A-001",
                     "risk_tags": ["risk:dependencies"],
+                    "covered_risk_tags": ["risk:dependencies"],
+                    "missing_risk_command_bindings": [],
+                    "risk_verification_commands": {"risk:dependencies": ["dependency-audit"]},
                     "read_order": [],
                     "source_references": {},
                     "verification_command_names": [],
@@ -714,6 +775,16 @@ class GovernanceScriptsTest(unittest.TestCase):
         self.assertEqual([], errors)
         self.assertEqual("", status)
         self.assertEqual(["risk:dependencies"], package["risk_tags"])
+        self.assertEqual(["risk:dependencies"], package["covered_risk_tags"])
+        self.assertEqual([], package["missing_risk_command_bindings"])
+        self.assertEqual(
+            {"risk:dependencies": ["dependency-audit"]},
+            package["risk_verification_commands"],
+        )
+        self.assertEqual(
+            package["risk_verification_commands"],
+            package["execution_contract"]["risk_verification_commands"],
+        )
 
     def test_implementation_specialists_follow_referenced_risk_domains(self) -> None:
         cases = (
@@ -7389,8 +7460,8 @@ class GovernanceScriptsTest(unittest.TestCase):
             contract = root / "docs/agent-workflow/command-contract.md"
             contract.write_text(
                 contract.read_text(encoding="utf-8").replace(
-                    "| Name | Purpose | Cwd | Argv | Writes State | Approval Required | Evidence | Environment |\n",
-                    "| Name | Purpose | Cwd | Command | Writes State | Approval Required | Evidence | Environment |\n",
+                    "| Name | Purpose | Cwd | Argv | Writes State | Approval Required | Evidence | Environment | Risk |\n",
+                    "| Name | Purpose | Cwd | Command | Writes State | Approval Required | Evidence | Environment | Risk |\n",
                     1,
                 ),
                 encoding="utf-8",
@@ -7425,6 +7496,11 @@ class GovernanceScriptsTest(unittest.TestCase):
                 argv = json.dumps(bootstrap_module._target_local_command_argv(recipe))
                 self.assertIn(f"| {target} |", contract)
                 self.assertIn(f"`{argv}` | {str(writes_state).lower()} | false |", contract)
+            self.assertIn(
+                "| Name | Purpose | Cwd | Argv | Writes State | Approval Required | Evidence | Environment | Risk |",
+                contract,
+            )
+            self.assertIn("| core-governance | none |", contract)
             self.assertIn('`["bin/governance", "env", "--target", ".", "--json"]`', contract)
             self.assertIn(
                 '| repair-env-check | Preview environment repair without writing files. | `.` | '
@@ -7444,7 +7520,7 @@ class GovernanceScriptsTest(unittest.TestCase):
                 contract.read_text(encoding="utf-8").replace(
                     "| governance-status | Print workflow state as JSON. | `.` | `"
                     '["bin/governance", "status", ".", "--json"]'
-                    "` | false | false | `docs/development/03-verification-log.md` | core-governance |\n",
+                    "` | false | false | `docs/development/03-verification-log.md` | core-governance | none |\n",
                     "",
                     1,
                 ),
@@ -7598,6 +7674,60 @@ class GovernanceScriptsTest(unittest.TestCase):
                     "message": "command contract row verify-check Approval Required must be true or false",
                 },
                 [finding.to_dict() for finding in report.findings],
+            )
+
+    def test_verify_reports_command_contract_malformed_risk(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            contract = root / "docs/agent-workflow/command-contract.md"
+            contract.write_text(
+                contract.read_text(encoding="utf-8").replace(
+                    "| core-governance | none |",
+                    "| core-governance | risk:dependencies plus prose |",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertTrue(
+                any(
+                    finding.code == "target_command_contract_risk_invalid"
+                    and "verify-governance" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_reports_command_contract_unknown_risk(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            contract = root / "docs/agent-workflow/command-contract.md"
+            contract.write_text(
+                contract.read_text(encoding="utf-8").replace(
+                    "| core-governance | none |",
+                    "| core-governance | risk:unreviewed-domain |",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify(root)
+
+            self.assertTrue(
+                any(
+                    finding.code == "target_command_contract_risk_unknown"
+                    and "risk:unreviewed-domain" in finding.message
+                    for finding in report.findings
+                )
             )
 
     def test_verify_reports_command_contract_dependency_install_without_approval(self) -> None:

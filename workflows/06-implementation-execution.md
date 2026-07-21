@@ -6,7 +6,7 @@
 - One `Ready` `TASK-NNN` row whose Verification cell binds every required check as `command:<registered-name>`
 - Optional task-board `Risk` cell using only `risk:dependencies`, `risk:secrets`, and `risk:containers`
 - Local product, design, API, acceptance, and verification sources linked from the task
-- Target-local command contract at `docs/agent-workflow/command-contract.md`
+- Target-local command contract at `docs/agent-workflow/command-contract.md`, with optional command `Risk` labels matching task risks
 - Initialized Git work tree for immutable task-start change baselines
 - Optional `docs/agent-workflow/task-handoff.md`
 
@@ -43,7 +43,7 @@ Load:
    make work-package
    ```
 
-   The implementation work package must select the same `TASK-NNN`, expose `requires_codebase_mapping: true`, resolve all required local and authority skills, and return `claim-implementation-task` before a Ready task is edited. Inspect `verification_command_names`, `verification_commands`, `verification_command_summary`, and `execution_contract`; every binding must be registered, non-approval, and ready before work starts.
+   The implementation work package must select the same `TASK-NNN`, expose `requires_codebase_mapping: true`, resolve all required local and authority skills, and return `claim-implementation-task` before a Ready task is edited. Inspect `verification_command_names`, `verification_commands`, `verification_command_summary`, `covered_risk_tags`, `missing_risk_command_bindings`, and `execution_contract`; every binding must be registered, non-approval, and ready before work starts, and every task Risk must be covered by a bound command carrying the same label.
 
    Stop on `ok: false`; route repair through `verifying-governance-docs` and the owning design or planning skill before editing code. When these checks come from consumer bootstrap `implementation_readiness_preview`, follow its ordered `blockers[]`, `readiness_summary`, `next_blocker`, and `next_repair_action` instead of independently reordering verify findings, gate requirements, and implementation-plan errors.
 
@@ -93,7 +93,7 @@ Load:
    bin/governance implementation verify <target> --task TASK-NNN --command command-name --json
    ```
 
-   Before adding the row, load `configuring-project-runtime`, run `project-env plan`, and use `project-env register --reviewed --check` plus apply to record the reviewed environment in `docs/agent-workflow/project-environment.json` using `references/project-environment-contract.md`. The `Environment` cell is a required environment ID. Declare every required external tool, an allowlisted read-only version probe, numeric version constraints, and a reviewed manual or exact reviewed-command repair source.
+   Before adding the row, load `configuring-project-runtime`, run `project-env plan`, and use `project-env register --reviewed --check` plus apply to record the reviewed environment in `docs/agent-workflow/project-environment.json` using `references/project-environment-contract.md`. The `Environment` cell is a required environment ID. Set optional command `Risk` to `none` or the supported task risks the command actually checks. Declare every required external tool, an allowlisted read-only version probe, numeric version constraints, and a reviewed manual or exact reviewed-command repair source. Use the routed authority specialist to select a real project-native dependency, secret, or container audit; authority skill loading is not evidence by itself.
 
    The runner reads the exact structured `Argv` and `Cwd`; it never reconstructs a shell string. The task must be `In Progress`. `--check` does not execute the registered task command and writes no evidence, but after governance verification passes it executes declared version probes with no shell, a five-second timeout, and bounded output. Inspect `environment_readiness.ok`, `environment_contract`, `environment_probe_executed`, `required_tools`, `repair_actions`, `repair_decision`, `repair_preflight_command`, and `refresh_command` before execution. Bare tools resolve through the effective `PATH`; repository executable paths resolve from `Cwd` and must stay inside the repository. Missing or incompatible `governance-env` tools route to `env --repair --check --strict`; reviewed-command tools route to `project-env repair --check` and an approval-required apply action; manual and undeclared tools never receive guessed installation commands. Approved repair is not successful until the post-repair probe passes and audit evidence is complete.
 
@@ -127,7 +127,7 @@ Load:
    bin/governance implementation closeout <target> --task TASK-NNN --json
    ```
 
-12. Before marking `Done`, inspect the runner's embedded `closeout_preview`. It reuses `implementation closeout` and its `decision_policy: do_not_mark_done_without_passing_evidence`; inspect `closeout_ready`, `requirements[]`, `blocking_requirements[]`, `evidence_summary.required_verification_commands`, `missing_verification_commands`, `failing_verification_commands`, `verification_commands_registered`, `required_verification_commands_passing`, `evidence_summary.all_verification_results_passing`, `evidence_summary.code_review_evidence_current`, and `status_update_plan`. Do not mark `Done` unless every bound command is registered and passing, every additional current verification row also passes, and `code_review_evidence_current` is satisfied. Successful runner closeout must return `status: complete`, `closeout_applied: true`, and synchronized `Done` status in `docs/development/02-task-board.md` and `docs/development/01-roadmap.md`.
+12. Before marking `Done`, inspect the runner's embedded `closeout_preview`. It reuses `implementation closeout` and its `decision_policy: do_not_mark_done_without_passing_evidence`; inspect `closeout_ready`, `requirements[]`, `blocking_requirements[]`, `evidence_summary.required_verification_commands`, `missing_verification_commands`, `failing_verification_commands`, `verification_commands_registered`, `required_verification_commands_passing`, `required_risk_tags`, `missing_risk_command_bindings`, `missing_risk_verification_evidence`, `required_risk_verification_passing`, `evidence_summary.all_verification_results_passing`, `evidence_summary.code_review_evidence_current`, and `status_update_plan`. Do not mark `Done` unless every bound command is registered and passing, every task Risk has current passing evidence from a matching command, every additional current verification row also passes, and `code_review_evidence_current` is satisfied. Successful runner closeout must return `status: complete`, `closeout_applied: true`, and synchronized `Done` status in `docs/development/02-task-board.md` and `docs/development/01-roadmap.md`.
 
 13. Keep `docs/development/02-task-board.md` and `docs/development/01-roadmap.md` statuses synchronized:
    - `In Progress` only through `implementation start --apply` when one Ready task is claimed or resumed
