@@ -1205,6 +1205,9 @@ VERSIONING_POLICY_REQUIRED_PHRASES = (
     "--expect-migration-plan",
     "plan_id",
     "previously verified artifact",
+    "source_identity.artifact_verification",
+    "pack-manifest.json",
+    "approval cannot waive",
 )
 PACK_MANIFEST_VERIFY_DOC_REQUIREMENTS = {
     "README.md": (
@@ -2503,6 +2506,8 @@ RUNTIME_REFRESH_DOC_REQUIREMENTS = {
         "plan_id",
         "source_identity",
         "target_identity",
+        "source_identity.artifact_verification",
+        "trusted-artifact-verification",
         "without rewriting product, design, planning, or implementation documents",
     ),
     "workflows/00-overview.md": (
@@ -2515,6 +2520,8 @@ RUNTIME_REFRESH_DOC_REQUIREMENTS = {
         "--approve-version-transition",
         "--expect-migration-plan",
         "plan_id",
+        "source_identity.artifact_verification",
+        "trusted-artifact-verification",
         "local_commands",
         "next_actions",
         "docs/agent-workflow/workflow-pack/",
@@ -2530,6 +2537,8 @@ RUNTIME_REFRESH_DOC_REQUIREMENTS = {
         "--approve-version-transition",
         "--expect-migration-plan",
         "plan_id",
+        "source_identity.artifact_verification",
+        "trusted-artifact-verification",
     ),
     "workflows/05-verification-and-drift-control.md": (
         "target-local runtime or workflow-pack snapshot drift",
@@ -2546,6 +2555,8 @@ RUNTIME_REFRESH_DOC_REQUIREMENTS = {
         "plan_id",
         "source_identity",
         "target_identity",
+        "source_identity.artifact_verification",
+        "trusted-artifact-verification",
         "local_commands",
         "next_actions",
     ),
@@ -2566,6 +2577,8 @@ RUNTIME_REFRESH_DOC_REQUIREMENTS = {
         "plan_id",
         "source_identity",
         "target_identity",
+        "source_identity.artifact_verification",
+        "trusted-artifact-verification",
         "leaving target files and `.governance/state.json` unchanged",
         "local_commands",
         "next_actions",
@@ -2585,6 +2598,8 @@ RUNTIME_REFRESH_DOC_REQUIREMENTS = {
         "--approve-version-transition",
         "--expect-migration-plan",
         "plan_id",
+        "source_identity.artifact_verification",
+        "trusted-artifact-verification",
     ),
     "skills/verifying-governance-docs/SKILL.md": (
         "bin/governance runtime refresh <target> --check --json",
@@ -2602,16 +2617,26 @@ RUNTIME_REFRESH_DOC_REQUIREMENTS = {
         "plan_id",
         "source_identity",
         "target_identity",
+        "source_identity.artifact_verification",
+        "trusted-artifact-verification",
         "local_commands",
         "next_actions",
     ),
 }
 RUNTIME_REFRESH_TEST_PATH = "tests/test_governance_cli.py"
+RUNTIME_REFRESH_SOURCE_PATH = "scripts/bootstrap_tree.py"
+RUNTIME_REFRESH_SOURCE_REQUIRED_PHRASES = (
+    "verify_pack_manifest",
+    '"artifact_verification"',
+    '"trusted-artifact-verification"',
+    "verified workflow-pack artifact",
+)
 RUNTIME_REFRESH_TEST_REQUIRED_PHRASES = (
     "test_runtime_refresh_repairs_target_runtime_and_workflow_pack",
     "test_runtime_refresh_requires_explicit_approval_for_breaking_upgrade",
     "test_runtime_refresh_blocks_unapproved_rollback_without_writing",
     "test_runtime_refresh_rejects_plan_drift_without_writing",
+    "test_runtime_refresh_rejects_unverified_high_risk_sources_without_writing",
     '"version_transition"',
     '"--approve-version-transition"',
     '"--expect-migration-plan"',
@@ -2623,6 +2648,8 @@ RUNTIME_REFRESH_TEST_REQUIRED_PHRASES = (
     "migration_plan",
     "preserved_project_document_roots",
     "requires_trusted_artifact",
+    "artifact_verification",
+    "trusted-artifact-verification",
     "advance-product-structuring-check",
     "_agent_env()",
 )
@@ -8281,6 +8308,21 @@ def _check_runtime_refresh_docs(root: Path, findings: list[PackFinding]) -> None
 
 
 def _check_runtime_refresh_test_coverage(root: Path, findings: list[PackFinding]) -> None:
+    source_text = _read_utf8_text_or_none(root / RUNTIME_REFRESH_SOURCE_PATH)
+    if source_text is not None:
+        source_missing = [
+            phrase for phrase in RUNTIME_REFRESH_SOURCE_REQUIRED_PHRASES if phrase not in source_text
+        ]
+        if source_missing:
+            findings.append(
+                PackFinding(
+                    "pack_runtime_refresh_source_missing",
+                    f"{RUNTIME_REFRESH_SOURCE_PATH} must enforce runtime artifact trust phrase(s): "
+                    + ", ".join(source_missing),
+                    RUNTIME_REFRESH_SOURCE_PATH,
+                )
+            )
+
     path = root / RUNTIME_REFRESH_TEST_PATH
     text = _read_utf8_text_or_none(path)
     if text is None:

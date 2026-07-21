@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-07-21
+
+### Added
+
+- Added `source_identity.artifact_verification` evidence with manifest presence, verification status, manifest SHA-256, and finding codes.
+- Added high-risk refresh coverage for missing, tampered, valid, and drifted workflow-pack artifacts.
+
+### Changed
+
+- Breaking upgrades, rollbacks, version replacements, and invalid or conflicting installed-version repairs now require an exported workflow-pack artifact whose `pack-manifest.json` verifies successfully.
+- Same-version, compatible-upgrade, and clean legacy-install refreshes remain usable from a source checkout.
+
+### Security
+
+- Version-transition approval and a matching migration plan can no longer override missing or failed workflow-pack artifact integrity evidence.
+
 ## [1.0.0] - 2026-07-21
 
 ### Added
@@ -48,7 +64,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Added target-local governance commands, environment inventory and reviewed repair, authority-skill provenance locks, structured design and implementation review evidence, and snapshot-guarded resume behavior.
 - Added deterministic source-pack export, integrity manifests, artifact smoke tests, real-stack acceptance fixtures, and a local-first release gate.
 
-[Unreleased]: https://github.com/Weiyangccccc423/docs-as-code/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/Weiyangccccc423/docs-as-code/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/Weiyangccccc423/docs-as-code/compare/v1.0.0...v2.0.0
 [1.0.0]: https://github.com/Weiyangccccc423/docs-as-code/compare/v0.3.0...v1.0.0
 [0.3.0]: https://github.com/Weiyangccccc423/docs-as-code/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Weiyangccccc423/docs-as-code/compare/v0.1.0...v0.2.0

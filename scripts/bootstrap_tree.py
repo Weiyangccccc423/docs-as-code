@@ -641,6 +641,54 @@ def _validate_runtime_source_identity(value: object) -> None:
         raise ValueError("runtime refresh result migration_plan source_identity file_count must be positive")
     if not _is_sha256_digest(value.get("sha256")):
         raise ValueError("runtime refresh result migration_plan source_identity sha256 is invalid")
+    artifact_verification = value.get("artifact_verification")
+    if not isinstance(artifact_verification, dict):
+        raise ValueError(
+            "runtime refresh result migration_plan source_identity artifact_verification must be an object"
+        )
+    if artifact_verification.get("manifest") != "pack-manifest.json":
+        raise ValueError(
+            "runtime refresh result migration_plan source_identity artifact_verification manifest is invalid"
+        )
+    for field_name in ("present", "verified"):
+        if not isinstance(artifact_verification.get(field_name), bool):
+            raise ValueError(
+                "runtime refresh result migration_plan source_identity artifact_verification "
+                f"{field_name} must be a boolean"
+            )
+    manifest_sha256 = artifact_verification.get("manifest_sha256")
+    if manifest_sha256 is not None and not _is_sha256_digest(manifest_sha256):
+        raise ValueError(
+            "runtime refresh result migration_plan source_identity artifact_verification "
+            "manifest_sha256 is invalid"
+        )
+    if artifact_verification["verified"] and (
+        not artifact_verification["present"] or manifest_sha256 is None
+    ):
+        raise ValueError(
+            "runtime refresh result migration_plan source_identity artifact_verification "
+            "verified evidence requires a present hashed manifest"
+        )
+    if not artifact_verification["present"] and manifest_sha256 is not None:
+        raise ValueError(
+            "runtime refresh result migration_plan source_identity artifact_verification "
+            "manifest_sha256 requires a present manifest"
+        )
+    finding_codes = artifact_verification.get("finding_codes")
+    if (
+        not isinstance(finding_codes, list)
+        or not all(isinstance(code, str) and code for code in finding_codes)
+        or finding_codes != sorted(set(finding_codes))
+    ):
+        raise ValueError(
+            "runtime refresh result migration_plan source_identity artifact_verification "
+            "finding_codes must be sorted unique strings"
+        )
+    if artifact_verification["verified"] and finding_codes:
+        raise ValueError(
+            "runtime refresh result migration_plan source_identity artifact_verification "
+            "verified evidence cannot contain finding codes"
+        )
 
 
 def _validate_runtime_target_identity(value: object) -> None:
@@ -946,8 +994,13 @@ class RuntimeRefreshResult:
                 )
             expected_status = "not_required"
             if self.migration_plan["required"]:
+                artifact_verified = bool(
+                    self.migration_plan["source_identity"]["artifact_verification"]["verified"]
+                )
                 expected_status = (
-                    "approved" if self.version_transition["approval_granted"] else "review_required"
+                    "approved"
+                    if self.version_transition["approval_granted"] and artifact_verified
+                    else "review_required"
                 )
             if self.migration_plan["status"] != expected_status:
                 raise ValueError(
@@ -1371,6 +1424,7 @@ def _build_runtime_refresh_source_identity(
     workflow_pack_files: list[Path],
     source_version: str,
 ) -> dict[str, object]:
+    artifact_verification = _runtime_refresh_artifact_verification(pack_root)
     entries: list[dict[str, object]] = []
     for rel in _runtime_file_paths():
         source = pack_root / rel
@@ -1398,12 +1452,54 @@ def _build_runtime_refresh_source_identity(
         "algorithm": RUNTIME_REFRESH_SOURCE_IDENTITY_ALGORITHM,
         "pack_version": source_version,
         "files": entries,
+        "artifact_verification": artifact_verification,
     }
     return {
         "algorithm": RUNTIME_REFRESH_SOURCE_IDENTITY_ALGORITHM,
         "pack_version": source_version,
         "file_count": len(entries),
         "sha256": _canonical_sha256(material),
+        "artifact_verification": artifact_verification,
+    }
+
+
+def _runtime_refresh_artifact_verification(pack_root: Path) -> dict[str, object]:
+    manifest_path = pack_root / "pack-manifest.json"
+    present = manifest_path.exists()
+    manifest_sha256: str | None = None
+    try:
+        try:
+            from .verify_pack_manifest import sha256_file, verify_pack_manifest
+        except ImportError:  # pragma: no cover - direct script execution
+            from verify_pack_manifest import sha256_file, verify_pack_manifest
+    except ImportError:
+        return {
+            "manifest": "pack-manifest.json",
+            "present": present,
+            "verified": False,
+            "manifest_sha256": None,
+            "finding_codes": ["pack_manifest_verifier_unavailable"],
+        }
+
+    try:
+        if manifest_path.is_file():
+            manifest_sha256 = sha256_file(manifest_path)
+        report = verify_pack_manifest(pack_root)
+    except OSError:
+        return {
+            "manifest": "pack-manifest.json",
+            "present": present,
+            "verified": False,
+            "manifest_sha256": manifest_sha256,
+            "finding_codes": ["pack_manifest_verification_unreadable"],
+        }
+    finding_codes = sorted({finding.code for finding in report.findings})
+    return {
+        "manifest": "pack-manifest.json",
+        "present": present,
+        "verified": report.ok,
+        "manifest_sha256": manifest_sha256,
+        "finding_codes": finding_codes,
     }
 
 
@@ -1437,9 +1533,17 @@ def _build_runtime_migration_plan(
     evidence_status = str(version_transition["evidence_status"])
     approval_required = bool(version_transition["approval_required"])
     migration_required = classification in MIGRATION_REQUIRED_CLASSIFICATIONS or evidence_status in MIGRATION_REQUIRED_EVIDENCE_STATUSES
+    artifact_verified = bool(source_identity["artifact_verification"]["verified"])
+    apply_enabled = bool(
+        version_transition["can_apply"] and (not migration_required or artifact_verified)
+    )
     status = "not_required"
     if migration_required:
-        status = "approved" if version_transition["approval_granted"] and approval_required else "review_required"
+        status = (
+            "approved"
+            if version_transition["approval_granted"] and approval_required and artifact_verified
+            else "review_required"
+        )
     reason_code = classification if classification in MIGRATION_REQUIRED_CLASSIFICATIONS else evidence_status
     reason = {
         "breaking_upgrade": "A major workflow-pack transition may require consumer migration review.",
@@ -1491,7 +1595,7 @@ def _build_runtime_migration_plan(
             "argv": apply_argv,
             "writes_state": True,
             "approval_required": approval_required,
-            "enabled": bool(version_transition["can_apply"]),
+            "enabled": apply_enabled,
             "depends_on": "inspect-transition",
         },
         {
@@ -1502,7 +1606,7 @@ def _build_runtime_migration_plan(
             "argv": verify_argv,
             "writes_state": False,
             "approval_required": False,
-            "enabled": bool(version_transition["can_apply"]),
+            "enabled": apply_enabled,
             "depends_on": "apply-runtime-refresh",
         },
         {
@@ -1513,12 +1617,16 @@ def _build_runtime_migration_plan(
             "argv": resume_argv,
             "writes_state": False,
             "approval_required": False,
-            "enabled": bool(version_transition["can_apply"]),
+            "enabled": apply_enabled,
             "depends_on": "verify-target",
         },
     ]
-    if not version_transition["can_apply"]:
-        steps[1]["blocked_by"] = "version-transition-approval"
+    if not apply_enabled:
+        steps[1]["blocked_by"] = (
+            "trusted-artifact-verification"
+            if migration_required and not artifact_verified
+            else "version-transition-approval"
+        )
         steps[2]["blocked_by"] = "apply-runtime-refresh"
         steps[3]["blocked_by"] = "verify-target"
 
@@ -1931,6 +2039,31 @@ def _runtime_refresh_preflight(
                     "runtime refresh migration plan changed after review: "
                     f"expected {expected_migration_plan}, current {migration_plan['plan_id']}; "
                     "rerun --check and review the new plan"
+                ],
+                state=state,
+                version_transition=version_transition,
+                migration_plan=migration_plan,
+            ),
+            [],
+            state,
+            version_transition,
+            migration_plan,
+        )
+    artifact_verification = source_identity["artifact_verification"]
+    if (
+        not check
+        and migration_plan["rollback"]["requires_trusted_artifact"]
+        and not artifact_verification["verified"]
+    ):
+        finding_codes = artifact_verification["finding_codes"]
+        findings = ", ".join(finding_codes) if finding_codes else "unknown verification failure"
+        return (
+            RuntimeRefreshResult(
+                target=str(root),
+                ok=False,
+                errors=[
+                    "runtime refresh high-risk transition requires a verified workflow-pack artifact; "
+                    f"pack-manifest.json verification failed: {findings}"
                 ],
                 state=state,
                 version_transition=version_transition,

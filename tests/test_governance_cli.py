@@ -14,6 +14,7 @@ from types import SimpleNamespace
 from unittest import mock
 
 from scripts.design_reviews import DESIGN_REVIEW_TRACK_SPECS
+from scripts.export_workflow_pack import run_export
 from scripts.pack_version import read_pack_version
 
 
@@ -22,6 +23,36 @@ CLI = ROOT / "scripts" / "governance_cli.py"
 PACK_VERSION = read_pack_version(ROOT)
 BREAKING_PACK_VERSION = f"{int(PACK_VERSION.split('.', 1)[0]) + 1}.0.0"
 ROLLBACK_PACK_VERSION = "0.0.0-0"
+
+
+def _set_candidate_pack_version(root: Path, version: str) -> None:
+    (root / "VERSION").write_text(f"{version}\n", encoding="utf-8")
+    changelog = root / "CHANGELOG.md"
+    text = changelog.read_text(encoding="utf-8")
+    release = (
+        f"## [{version}] - 2026-07-21\n\n"
+        "### Changed\n\n"
+        "- Prepared a test workflow-pack release artifact.\n"
+    )
+    changelog.write_text(
+        text.replace("## [Unreleased]\n", f"## [Unreleased]\n\n{release}", 1),
+        encoding="utf-8",
+    )
+
+
+def _export_candidate_pack(base: Path, version: str, name: str = "artifact") -> Path:
+    candidate = base / f"{name}-source"
+    artifact = base / name
+    shutil.copytree(
+        ROOT,
+        candidate,
+        ignore=shutil.ignore_patterns(".git", "dist", "__pycache__", "*.pyc"),
+    )
+    _set_candidate_pack_version(candidate, version)
+    export = run_export(root=candidate, output=artifact, archive=None)
+    if not export["ok"]:
+        raise AssertionError(f"candidate workflow-pack export failed: {export}")
+    return artifact
 
 
 def _agent_env() -> dict[str, str]:
@@ -3270,6 +3301,16 @@ class GovernanceCliTest(unittest.TestCase):
             migration_plan = payload["migration_plan"]
             self.assertEqual("not_required", migration_plan["status"])
             self.assertFalse(migration_plan["required"])
+            self.assertEqual(
+                {
+                    "manifest": "pack-manifest.json",
+                    "present": False,
+                    "verified": False,
+                    "manifest_sha256": None,
+                    "finding_codes": ["pack_manifest_missing"],
+                },
+                migration_plan["source_identity"]["artifact_verification"],
+            )
             self.assertIn(
                 "docs/agent-workflow/workflow-pack/CHANGELOG.md",
                 migration_plan["scope"]["managed_runtime_paths"],
@@ -3293,6 +3334,89 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn("Tampered.", workflow.read_text(encoding="utf-8"))
             self.assertTrue(stale_workflow.exists())
 
+    def test_runtime_refresh_rejects_unverified_high_risk_sources_without_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            target = base / "target"
+            product = base / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product)],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            state_path = target / ".governance/state.json"
+            snapshot_path = target / "docs/agent-workflow/workflow-pack/VERSION"
+            original_state = state_path.read_text(encoding="utf-8")
+            original_snapshot = snapshot_path.read_text(encoding="utf-8")
+
+            unmanifested = base / "unmanifested-pack"
+            shutil.copytree(
+                ROOT,
+                unmanifested,
+                ignore=shutil.ignore_patterns(".git", "dist", "__pycache__", "*.pyc"),
+            )
+            _set_candidate_pack_version(unmanifested, BREAKING_PACK_VERSION)
+
+            tampered = _export_candidate_pack(base, BREAKING_PACK_VERSION, "tampered-pack")
+            (tampered / "pack-manifest.json").write_text("{\n", encoding="utf-8")
+
+            for name, source, expected_present, expected_finding in (
+                ("unmanifested", unmanifested, False, "pack_manifest_missing"),
+                ("tampered", tampered, True, "pack_manifest_invalid_json"),
+            ):
+                with self.subTest(source=name):
+                    source_cli = source / "scripts/governance_cli.py"
+                    check_result = subprocess.run(
+                        [
+                            sys.executable,
+                            str(source_cli),
+                            "runtime",
+                            "refresh",
+                            str(target),
+                            "--check",
+                            "--json",
+                        ],
+                        text=True,
+                        capture_output=True,
+                        check=False,
+                    )
+                    self.assertEqual(0, check_result.returncode, check_result.stderr)
+                    check_payload = json.loads(check_result.stdout)
+                    self.assertTrue(check_payload["ok"])
+                    plan = check_payload["migration_plan"]
+                    verification = plan["source_identity"]["artifact_verification"]
+                    self.assertEqual(expected_present, verification["present"])
+                    self.assertFalse(verification["verified"])
+                    self.assertIn(expected_finding, verification["finding_codes"])
+                    self.assertFalse(plan["steps"][1]["enabled"])
+                    self.assertEqual("trusted-artifact-verification", plan["steps"][1]["blocked_by"])
+
+                    apply_result = subprocess.run(
+                        [
+                            sys.executable,
+                            str(source_cli),
+                            "runtime",
+                            "refresh",
+                            str(target),
+                            "--approve-version-transition",
+                            "--expect-migration-plan",
+                            plan["plan_id"],
+                            "--json",
+                        ],
+                        text=True,
+                        capture_output=True,
+                        check=False,
+                    )
+                    self.assertEqual(1, apply_result.returncode)
+                    apply_payload = json.loads(apply_result.stdout)
+                    self.assertFalse(apply_payload["ok"])
+                    self.assertIn("verified workflow-pack artifact", apply_payload["errors"][0])
+                    self.assertEqual(original_state, state_path.read_text(encoding="utf-8"))
+                    self.assertEqual(original_snapshot, snapshot_path.read_text(encoding="utf-8"))
+
     def test_runtime_refresh_requires_explicit_approval_for_breaking_upgrade(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
@@ -3312,13 +3436,7 @@ class GovernanceCliTest(unittest.TestCase):
             ).read_text(encoding="utf-8")
             original_state = (target / ".governance/state.json").read_text(encoding="utf-8")
 
-            upgraded_source = base / "upgraded-source-pack"
-            shutil.copytree(
-                ROOT,
-                upgraded_source,
-                ignore=shutil.ignore_patterns(".git", "dist", "__pycache__", "*.pyc"),
-            )
-            (upgraded_source / "VERSION").write_text(f"{BREAKING_PACK_VERSION}\n", encoding="utf-8")
+            upgraded_source = _export_candidate_pack(base, BREAKING_PACK_VERSION, "upgraded-pack")
             upgraded_cli = upgraded_source / "scripts/governance_cli.py"
 
             check_result = subprocess.run(
@@ -3362,6 +3480,11 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual("runtime-refresh-plan-sha256-v1", migration_plan["plan_id_algorithm"])
             self.assertEqual(BREAKING_PACK_VERSION, migration_plan["source_identity"]["pack_version"])
             self.assertRegex(migration_plan["source_identity"]["sha256"], r"^[0-9a-f]{64}$")
+            artifact_verification = migration_plan["source_identity"]["artifact_verification"]
+            self.assertTrue(artifact_verification["present"])
+            self.assertTrue(artifact_verification["verified"])
+            self.assertRegex(artifact_verification["manifest_sha256"], r"^[0-9a-f]{64}$")
+            self.assertEqual([], artifact_verification["finding_codes"])
             self.assertRegex(migration_plan["target_identity"]["sha256"], r"^[0-9a-f]{64}$")
             self.assertFalse(migration_plan["steps"][1]["enabled"])
             self.assertEqual("version-transition-approval", migration_plan["steps"][1]["blocked_by"])
@@ -3482,13 +3605,7 @@ class GovernanceCliTest(unittest.TestCase):
             original_state = (target / ".governance/state.json").read_text(encoding="utf-8")
             original_snapshot = (target / "docs/agent-workflow/workflow-pack/VERSION").read_text(encoding="utf-8")
 
-            upgraded_source = base / "upgraded-source-pack"
-            shutil.copytree(
-                ROOT,
-                upgraded_source,
-                ignore=shutil.ignore_patterns(".git", "dist", "__pycache__", "*.pyc"),
-            )
-            (upgraded_source / "VERSION").write_text(f"{BREAKING_PACK_VERSION}\n", encoding="utf-8")
+            upgraded_source = _export_candidate_pack(base, BREAKING_PACK_VERSION, "drift-pack")
             upgraded_cli = upgraded_source / "scripts/governance_cli.py"
 
             check_result = subprocess.run(
@@ -3508,8 +3625,10 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual(0, check_result.returncode, check_result.stderr)
             plan_id = json.loads(check_result.stdout)["migration_plan"]["plan_id"]
 
-            (upgraded_source / "README.md").write_text(
-                (upgraded_source / "README.md").read_text(encoding="utf-8") + "\nDrifted.\n",
+            upgraded_readme = upgraded_source / "README.md"
+            original_readme = upgraded_readme.read_text(encoding="utf-8")
+            upgraded_readme.write_text(
+                original_readme + "\nDrifted.\n",
                 encoding="utf-8",
             )
             source_drift_result = subprocess.run(
@@ -3533,6 +3652,7 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual(original_state, (target / ".governance/state.json").read_text(encoding="utf-8"))
             self.assertEqual(original_snapshot, (target / "docs/agent-workflow/workflow-pack/VERSION").read_text(encoding="utf-8"))
 
+            upgraded_readme.write_text(original_readme, encoding="utf-8")
             refreshed_check = subprocess.run(
                 [
                     sys.executable,
@@ -3618,9 +3738,10 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual("review_required", migration_plan["status"])
             self.assertEqual("rollback", migration_plan["reason_code"])
             self.assertFalse(migration_plan["steps"][1]["enabled"])
-            self.assertEqual("version-transition-approval", migration_plan["steps"][1]["blocked_by"])
+            self.assertEqual("trusted-artifact-verification", migration_plan["steps"][1]["blocked_by"])
             self.assertTrue(migration_plan["rollback"]["required"])
             self.assertTrue(migration_plan["rollback"]["requires_trusted_artifact"])
+            self.assertIn("verified workflow-pack artifact", payload["errors"][0])
             self.assertEqual(original_state, (target / ".governance/state.json").read_text(encoding="utf-8"))
             self.assertEqual(
                 f"{PACK_VERSION}\n",

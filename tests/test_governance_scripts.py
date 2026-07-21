@@ -4596,6 +4596,13 @@ class GovernanceScriptsTest(unittest.TestCase):
                 "pack_version": "1.0.0",
                 "file_count": 2,
                 "sha256": "a" * 64,
+                "artifact_verification": {
+                    "manifest": "pack-manifest.json",
+                    "present": True,
+                    "verified": True,
+                    "manifest_sha256": "d" * 64,
+                    "finding_codes": [],
+                },
             },
             target_identity,
         )
@@ -4606,6 +4613,7 @@ class GovernanceScriptsTest(unittest.TestCase):
         self.assertRegex(plan["plan_id"], r"^[0-9a-f]{64}$")
         self.assertEqual("runtime-refresh-plan-sha256-v1", plan["plan_id_algorithm"])
         self.assertEqual("1.0.0", plan["source_identity"]["pack_version"])
+        self.assertTrue(plan["source_identity"]["artifact_verification"]["verified"])
         self.assertEqual("b" * 64, plan["target_identity"]["state_sha256"])
         self.assertEqual(
             ["CHANGELOG.md", "bin/governance"],

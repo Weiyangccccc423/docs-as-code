@@ -95,7 +95,7 @@ Create the minimum structure needed for reliable docs-as-code work.
    bin/governance runtime refresh <target> --json
    ```
 
-   Inspect check-result `version_transition` and `migration_plan`, including `plan_id`, `source_identity`, and `target_identity`, before write mode. Follow only enabled plan steps, preserve the declared project-document roots, and stop for explicit `--approve-version-transition --expect-migration-plan <plan_id>` review on a breaking upgrade, rollback, version replacement, or conflicting/invalid installed-version evidence.
+   Inspect check-result `version_transition` and `migration_plan`, including `plan_id`, `source_identity.artifact_verification`, and `target_identity`, before write mode. Same-version, compatible-upgrade, and clean legacy-install refreshes may use a source checkout without an export manifest. For a breaking upgrade, rollback, version replacement, or conflicting/invalid installed-version repair, require an exported artifact with `pack-manifest.json` verification `verified: true`, then use the exact reviewed `--approve-version-transition --expect-migration-plan <plan_id>` command. Treat `blocked_by: trusted-artifact-verification` as a non-waivable stop, follow only enabled plan steps, and preserve the declared project-document roots.
 
 ## Required Output
 

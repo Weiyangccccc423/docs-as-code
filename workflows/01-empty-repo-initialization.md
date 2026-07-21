@@ -161,7 +161,7 @@ bin/governance runtime refresh <target> --check --json
 bin/governance runtime refresh <target> --json
 ```
 
-Inspect `version_transition` and `migration_plan` in the check result, including `plan_id`, `source_identity`, and `target_identity`. A breaking upgrade, rollback, version replacement, or conflicting/invalid installed-version evidence requires the exact reviewed `--approve-version-transition --expect-migration-plan <plan_id>` argv; normal initialization and compatible refresh paths do not. Follow the plan's exact argv and preserve its declared project-document roots.
+Inspect `version_transition` and `migration_plan` in the check result, including `plan_id`, `source_identity`, `source_identity.artifact_verification`, and `target_identity`. A breaking upgrade, rollback, version replacement, or conflicting/invalid installed-version repair requires an exported artifact with `pack-manifest.json` verification `verified: true` and the exact reviewed `--approve-version-transition --expect-migration-plan <plan_id>` argv. Missing or failed artifact verification leaves apply disabled with `blocked_by: trusted-artifact-verification` and cannot be waived by approval. Normal same-version, compatible-upgrade, and clean legacy-install refresh paths may use a source checkout without an export manifest. Follow the plan's exact argv and preserve its declared project-document roots.
 
 The target also receives `.governance/state.json`, which records workflow-pack version, phase, profile, product source, archive path, and last verification status.
 
