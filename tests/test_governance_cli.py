@@ -20,6 +20,8 @@ from scripts.pack_version import read_pack_version
 ROOT = Path(__file__).resolve().parents[1]
 CLI = ROOT / "scripts" / "governance_cli.py"
 PACK_VERSION = read_pack_version(ROOT)
+BREAKING_PACK_VERSION = f"{int(PACK_VERSION.split('.', 1)[0]) + 1}.0.0"
+ROLLBACK_PACK_VERSION = "0.0.0-0"
 
 
 def _agent_env() -> dict[str, str]:
@@ -3271,6 +3273,152 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn("# tampered", runtime.read_text(encoding="utf-8"))
             self.assertIn("Tampered.", workflow.read_text(encoding="utf-8"))
             self.assertTrue(stale_workflow.exists())
+
+    def test_runtime_refresh_requires_explicit_approval_for_breaking_upgrade(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            target = base / "target"
+            product = base / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product)],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            original_snapshot_version = (
+                target / "docs/agent-workflow/workflow-pack/VERSION"
+            ).read_text(encoding="utf-8")
+            original_state = (target / ".governance/state.json").read_text(encoding="utf-8")
+
+            upgraded_source = base / "upgraded-source-pack"
+            shutil.copytree(
+                ROOT,
+                upgraded_source,
+                ignore=shutil.ignore_patterns(".git", "dist", "__pycache__", "*.pyc"),
+            )
+            (upgraded_source / "VERSION").write_text(f"{BREAKING_PACK_VERSION}\n", encoding="utf-8")
+            upgraded_cli = upgraded_source / "scripts/governance_cli.py"
+
+            check_result = subprocess.run(
+                [
+                    sys.executable,
+                    str(upgraded_cli),
+                    "runtime",
+                    "refresh",
+                    str(target),
+                    "--check",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, check_result.returncode, check_result.stderr)
+            check_payload = json.loads(check_result.stdout)
+            self.assertTrue(check_payload["ok"])
+            self.assertEqual(
+                {
+                    "from_version": PACK_VERSION,
+                    "to_version": BREAKING_PACK_VERSION,
+                    "classification": "breaking_upgrade",
+                    "evidence_status": "consistent",
+                    "candidate_versions": [PACK_VERSION],
+                    "approval_required": True,
+                    "approval_flag": "--approve-version-transition",
+                    "approval_granted": False,
+                    "can_apply": False,
+                    "decision": "request_approval",
+                },
+                check_payload["version_transition"],
+            )
+            self.assertEqual(original_snapshot_version, (target / "docs/agent-workflow/workflow-pack/VERSION").read_text(encoding="utf-8"))
+            self.assertEqual(original_state, (target / ".governance/state.json").read_text(encoding="utf-8"))
+
+            blocked_result = subprocess.run(
+                [sys.executable, str(upgraded_cli), "runtime", "refresh", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, blocked_result.returncode)
+            blocked_payload = json.loads(blocked_result.stdout)
+            self.assertFalse(blocked_payload["ok"])
+            self.assertEqual(check_payload["version_transition"], blocked_payload["version_transition"])
+            self.assertIn("--approve-version-transition", blocked_payload["errors"][0])
+            self.assertEqual(original_state, (target / ".governance/state.json").read_text(encoding="utf-8"))
+
+            approved_result = subprocess.run(
+                [
+                    sys.executable,
+                    str(upgraded_cli),
+                    "runtime",
+                    "refresh",
+                    str(target),
+                    "--approve-version-transition",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, approved_result.returncode, approved_result.stderr)
+            approved_payload = json.loads(approved_result.stdout)
+            self.assertTrue(approved_payload["ok"])
+            self.assertTrue(approved_payload["version_transition"]["approval_granted"])
+            self.assertTrue(approved_payload["version_transition"]["can_apply"])
+            self.assertEqual(BREAKING_PACK_VERSION, approved_payload["state"]["workflow_pack_version"])
+            self.assertEqual(
+                f"{BREAKING_PACK_VERSION}\n",
+                (target / "docs/agent-workflow/workflow-pack/VERSION").read_text(encoding="utf-8"),
+            )
+
+    def test_runtime_refresh_blocks_unapproved_rollback_without_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            target = base / "target"
+            product = base / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product)],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            original_state = (target / ".governance/state.json").read_text(encoding="utf-8")
+
+            rollback_source = base / "rollback-source-pack"
+            shutil.copytree(
+                ROOT,
+                rollback_source,
+                ignore=shutil.ignore_patterns(".git", "dist", "__pycache__", "*.pyc"),
+            )
+            (rollback_source / "VERSION").write_text(f"{ROLLBACK_PACK_VERSION}\n", encoding="utf-8")
+            rollback_cli = rollback_source / "scripts/governance_cli.py"
+            result = subprocess.run(
+                [sys.executable, str(rollback_cli), "runtime", "refresh", str(target), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, result.returncode)
+            payload = json.loads(result.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertEqual("rollback", payload["version_transition"]["classification"])
+            self.assertTrue(payload["version_transition"]["approval_required"])
+            self.assertFalse(payload["version_transition"]["can_apply"])
+            self.assertEqual(original_state, (target / ".governance/state.json").read_text(encoding="utf-8"))
+            self.assertEqual(
+                f"{PACK_VERSION}\n",
+                (target / "docs/agent-workflow/workflow-pack/VERSION").read_text(encoding="utf-8"),
+            )
 
     def test_runtime_refresh_rejects_uninitialized_target_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

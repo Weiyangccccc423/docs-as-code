@@ -8,10 +8,12 @@ from pathlib import Path
 from unittest import mock
 
 from scripts import dry_run_workflow
+from scripts.pack_version import read_pack_version
 
 
 ROOT = Path(__file__).resolve().parents[1]
 DRY_RUN = ROOT / "scripts" / "dry_run_workflow.py"
+PACK_VERSION = read_pack_version(ROOT)
 
 
 def _source_result(argv: list[str], **overrides: object) -> dict[str, object]:
@@ -505,6 +507,25 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertTrue(payload["runtime_refresh"]["applied"])
             self.assertTrue(payload["runtime_refresh"]["runtime_refreshed_at"])
             self.assertTrue(payload["runtime_refresh"]["workflow_plan_complete_after_refresh"])
+            self.assertEqual(
+                {
+                    "from_version": PACK_VERSION,
+                    "to_version": PACK_VERSION,
+                    "classification": "same",
+                    "evidence_status": "consistent",
+                    "candidate_versions": [PACK_VERSION],
+                    "approval_required": False,
+                    "approval_flag": "",
+                    "approval_granted": False,
+                    "can_apply": True,
+                    "decision": "apply",
+                },
+                payload["runtime_refresh"]["version_transition"],
+            )
+            self.assertEqual(
+                payload["runtime_refresh"]["version_transition"],
+                payload["runtime_refresh"]["check_version_transition"],
+            )
             self.assertTrue(payload["api_review"]["preflight_ok"])
             self.assertTrue(payload["api_review"]["applied"])
             self.assertTrue(payload["api_review"]["current_after_runtime_refresh"])
@@ -732,6 +753,8 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertTrue(payload["runtime_refresh"]["check_ok"])
             self.assertTrue(payload["runtime_refresh"]["applied"])
             self.assertTrue(payload["runtime_refresh"]["workflow_plan_complete_after_refresh"])
+            self.assertEqual("same", payload["runtime_refresh"]["version_transition"]["classification"])
+            self.assertTrue(payload["runtime_refresh"]["version_transition"]["can_apply"])
             self.assertTrue(payload["stack_acceptance"]["all_required_passed"])
             self.assertEqual("passed", payload["stack_acceptance"]["stacks"]["python"]["status"])
             self.assertEqual("passed", payload["stack_acceptance"]["stacks"]["node"]["status"])

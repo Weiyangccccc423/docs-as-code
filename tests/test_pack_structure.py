@@ -3690,8 +3690,8 @@ class PackStructureTest(unittest.TestCase):
             strategy = target / "references/runtime-strategy.md"
             strategy.write_text(
                 strategy.read_text(encoding="utf-8").replace(
-                    " and `would_remove`",
-                    "",
+                    "`version_transition`",
+                    "`refresh_transition`",
                     1,
                 ),
                 encoding="utf-8",
@@ -3704,7 +3704,7 @@ class PackStructureTest(unittest.TestCase):
                 any(
                     finding.code == "pack_runtime_refresh_doc_missing"
                     and finding.path == "references/runtime-strategy.md"
-                    and "would_remove" in finding.message
+                    and "version_transition" in finding.message
                     for finding in report.findings
                 )
             )

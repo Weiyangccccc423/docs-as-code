@@ -19,9 +19,13 @@ The exported `pack-manifest.json` and every generated target's runtime manifest,
 
 ## Upgrade And Rollback
 
-Use target `runtime refresh --check --json` from a trusted source workflow-pack checkout before applying an upgrade. Write-mode runtime refresh records the new workflow-pack version while replacing only governed runtime and snapshot files; it must not rewrite product, design, planning, or implementation documents.
+Use target `runtime refresh --check --json` from a trusted source workflow-pack checkout before applying an upgrade. Inspect `version_transition.from_version`, `to_version`, `classification`, `evidence_status`, `candidate_versions`, `approval_required`, and `can_apply`. The deterministic classifications are `same`, `compatible_upgrade`, `breaking_upgrade`, `rollback`, `version_replacement`, and `legacy_install`; SemVer precedence ignores build metadata, so changing only build metadata is a `version_replacement` rather than an upgrade.
 
-Rollback uses a previously verified artifact and the same check-then-apply runtime refresh procedure. Do not reconstruct an earlier version by editing generated manifests or state. Re-run target-local verification after either upgrade or rollback.
+Write mode may apply `same`, `compatible_upgrade`, and clean `legacy_install` transitions without extra approval. A breaking upgrade, rollback, build-metadata replacement, invalid version evidence, or disagreement between snapshot `VERSION` and state `workflow_pack_version` requires a reviewed check result plus `--approve-version-transition`. Without that flag, write mode fails before changing any target file. Approval authorizes only the exact source checkout used by that command; it does not waive post-refresh verification or migration work required by a Major release.
+
+Successful write-mode runtime refresh records the new workflow-pack version while replacing only governed runtime and snapshot files; it must not rewrite product, design, planning, or implementation documents.
+
+Rollback uses a previously verified artifact and the same check-then-apply procedure, followed by the explicit version-transition approval. Do not reconstruct an earlier version by editing generated manifests or state. Re-run target-local verification after either upgrade or rollback.
 
 ## References
 

@@ -941,6 +941,8 @@ DRY_RUN_WORKFLOW_REQUIRED_PHRASES = (
     "runtime_refresh_after_complete",
     "make_workflow_plan_after_runtime_refresh",
     "runtime_refresh",
+    "version_transition",
+    "_runtime_refresh_same_version_transition_is_ready",
     "workflow_plan_complete_after_refresh",
     "do_not_mark_done_without_passing_evidence",
     "closeout_ready",
@@ -1138,11 +1140,26 @@ PACK_MANIFEST_VERIFY_REQUIRED_PHRASES = (
     "PureWindowsPath",
 )
 PACK_VERSION_PROPAGATION_REQUIRED_PHRASES = {
+    "scripts/pack_version.py": (
+        "compare_pack_versions",
+        "classify_pack_version_transition",
+        '"breaking_upgrade"',
+        '"rollback"',
+        '"version_replacement"',
+    ),
     "scripts/bootstrap_tree.py": (
         "read_pack_version",
+        "classify_pack_version_transition",
+        "compare_pack_versions",
         '"pack_version"',
         "workflow_pack_version",
+        '"version_transition"',
+        '"--approve-version-transition"',
         '"VERSION"',
+    ),
+    "scripts/governance_cli.py": (
+        '"--approve-version-transition"',
+        "approve_version_transition",
     ),
     "scripts/verify_governance.py": (
         "parse_pack_version",
@@ -1164,6 +1181,10 @@ VERSIONING_POLICY_REQUIRED_PHRASES = (
     "must be reviewed before export or tagging",
     "does not tag or publish automatically",
     "runtime refresh",
+    "version_transition",
+    "breaking_upgrade",
+    "version_replacement",
+    "--approve-version-transition",
     "previously verified artifact",
 )
 PACK_MANIFEST_VERIFY_DOC_REQUIREMENTS = {
@@ -2454,6 +2475,8 @@ RUNTIME_REFRESH_DOC_REQUIREMENTS = {
         "docs/agent-workflow/workflow-pack/",
         "would_refresh",
         "would_remove",
+        "version_transition",
+        "--approve-version-transition",
         "without rewriting product, design, planning, or implementation documents",
     ),
     "workflows/00-overview.md": (
@@ -2461,6 +2484,8 @@ RUNTIME_REFRESH_DOC_REQUIREMENTS = {
         "bin/governance runtime refresh <target> --json",
         "without rewriting product or design documents",
         "no-write plan",
+        "version_transition",
+        "--approve-version-transition",
         "local_commands",
         "next_actions",
         "docs/agent-workflow/workflow-pack/",
@@ -2471,6 +2496,8 @@ RUNTIME_REFRESH_DOC_REQUIREMENTS = {
         "trusted source workflow-pack checkout",
         "bin/governance runtime refresh <target> --check --json",
         "bin/governance runtime refresh <target> --json",
+        "version_transition",
+        "--approve-version-transition",
     ),
     "workflows/05-verification-and-drift-control.md": (
         "target-local runtime or workflow-pack snapshot drift",
@@ -2478,6 +2505,8 @@ RUNTIME_REFRESH_DOC_REQUIREMENTS = {
         "bin/governance runtime refresh <target> --check --json",
         "bin/governance runtime refresh <target> --json",
         "no-write repair plan",
+        "version_transition",
+        "--approve-version-transition",
         "local_commands",
         "next_actions",
     ),
@@ -2489,6 +2518,8 @@ RUNTIME_REFRESH_DOC_REQUIREMENTS = {
         "does not rewrite product, design, planning, or implementation documents",
         "would_refresh",
         "would_remove",
+        "version_transition",
+        "--approve-version-transition",
         "leaving target files and `.governance/state.json` unchanged",
         "local_commands",
         "next_actions",
@@ -2503,6 +2534,8 @@ RUNTIME_REFRESH_DOC_REQUIREMENTS = {
         "bin/governance runtime refresh <target> --json",
         "docs/agent-workflow/workflow-pack/manifest.json",
         "local workflow-pack snapshot",
+        "version_transition",
+        "--approve-version-transition",
     ),
     "skills/verifying-governance-docs/SKILL.md": (
         "bin/governance runtime refresh <target> --check --json",
@@ -2511,6 +2544,8 @@ RUNTIME_REFRESH_DOC_REQUIREMENTS = {
         "workflow_pack_manifest_*",
         "trusted source workflow-pack checkout",
         "no-write plan",
+        "version_transition",
+        "--approve-version-transition",
         "local_commands",
         "next_actions",
     ),
@@ -2518,6 +2553,10 @@ RUNTIME_REFRESH_DOC_REQUIREMENTS = {
 RUNTIME_REFRESH_TEST_PATH = "tests/test_governance_cli.py"
 RUNTIME_REFRESH_TEST_REQUIRED_PHRASES = (
     "test_runtime_refresh_repairs_target_runtime_and_workflow_pack",
+    "test_runtime_refresh_requires_explicit_approval_for_breaking_upgrade",
+    "test_runtime_refresh_blocks_unapproved_rollback_without_writing",
+    '"version_transition"',
+    '"--approve-version-transition"',
     "runtime_local_commands",
     '"verify-check"',
     '"workflow-plan"',

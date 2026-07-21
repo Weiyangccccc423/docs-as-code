@@ -132,6 +132,10 @@ def _dry_run_closeout_evidence_ok(payload: dict[str, object]) -> bool:
     verification = payload.get("implementation_verification")
     closeout = payload.get("implementation_closeout")
     runtime_refresh = payload.get("runtime_refresh")
+    version_transition = runtime_refresh.get("version_transition") if isinstance(runtime_refresh, dict) else None
+    check_version_transition = (
+        runtime_refresh.get("check_version_transition") if isinstance(runtime_refresh, dict) else None
+    )
     return (
         isinstance(gate, dict)
         and gate.get("placeholder_blocked_ok") is False
@@ -158,6 +162,12 @@ def _dry_run_closeout_evidence_ok(payload: dict[str, object]) -> bool:
         and runtime_refresh.get("check_ok") is True
         and runtime_refresh.get("applied") is True
         and runtime_refresh.get("workflow_plan_complete_after_refresh") is True
+        and isinstance(version_transition, dict)
+        and version_transition.get("classification") == "same"
+        and version_transition.get("evidence_status") == "consistent"
+        and version_transition.get("approval_required") is False
+        and version_transition.get("can_apply") is True
+        and check_version_transition == version_transition
     )
 
 
@@ -1041,6 +1051,7 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
             "threat_review": dry_run_payload.get("threat_review") if dry_run_payload else {},
             "reliability_review": dry_run_payload.get("reliability_review") if dry_run_payload else {},
             "migration_review": dry_run_payload.get("migration_review") if dry_run_payload else {},
+            "runtime_refresh": dry_run_payload.get("runtime_refresh") if dry_run_payload else {},
             "design_reviews": dry_run_payload.get("design_reviews") if dry_run_payload else {},
             "target_local_make_coverage": _dry_run_target_local_make_details(dry_run_payload),
         },
@@ -1116,6 +1127,9 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
             if multi_acceptance_payload
             else {},
             "migration_review": multi_acceptance_payload.get("migration_review")
+            if multi_acceptance_payload
+            else {},
+            "runtime_refresh": multi_acceptance_payload.get("runtime_refresh")
             if multi_acceptance_payload
             else {},
             "design_reviews": multi_acceptance_payload.get("design_reviews")

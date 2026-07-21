@@ -2,7 +2,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from scripts.pack_version import PackVersionError, parse_pack_version, read_pack_version
+from scripts.pack_version import (
+    PackVersionError,
+    classify_pack_version_transition,
+    compare_pack_versions,
+    parse_pack_version,
+    read_pack_version,
+)
 
 
 class PackVersionTest(unittest.TestCase):
@@ -14,6 +20,36 @@ class PackVersionTest(unittest.TestCase):
         for value in ("", "1", "1.2", "01.2.3", "1.2.3 ", "v1.2.3"):
             with self.subTest(value=value), self.assertRaises(PackVersionError):
                 parse_pack_version(value)
+
+    def test_compare_follows_semver_prerelease_precedence(self) -> None:
+        ordered = (
+            "1.0.0-alpha",
+            "1.0.0-alpha.1",
+            "1.0.0-alpha.beta",
+            "1.0.0-beta",
+            "1.0.0-beta.2",
+            "1.0.0-beta.11",
+            "1.0.0-rc.1",
+            "1.0.0",
+        )
+        for lower, higher in zip(ordered, ordered[1:]):
+            with self.subTest(lower=lower, higher=higher):
+                self.assertEqual(-1, compare_pack_versions(lower, higher))
+                self.assertEqual(1, compare_pack_versions(higher, lower))
+        self.assertEqual(0, compare_pack_versions("1.0.0+build.1", "1.0.0+build.2"))
+
+    def test_classify_pack_version_transition(self) -> None:
+        cases = (
+            (None, "0.1.0", "legacy_install"),
+            ("0.1.0", "0.1.0", "same"),
+            ("0.1.0", "0.2.0", "compatible_upgrade"),
+            ("0.1.0", "1.0.0", "breaking_upgrade"),
+            ("1.0.0", "0.1.0", "rollback"),
+            ("1.0.0+one", "1.0.0+two", "version_replacement"),
+        )
+        for current, target, expected in cases:
+            with self.subTest(current=current, target=target):
+                self.assertEqual(expected, classify_pack_version_transition(current, target))
 
     def test_read_requires_regular_utf8_single_line_version_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

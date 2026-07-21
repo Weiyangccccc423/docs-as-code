@@ -29,6 +29,69 @@ def parse_pack_version(value: object) -> str:
     return value
 
 
+def compare_pack_versions(left: str, right: str) -> int:
+    """Compare two SemVer values by precedence, ignoring build metadata."""
+    left = parse_pack_version(left)
+    right = parse_pack_version(right)
+    left_match = SEMVER_RE.fullmatch(left)
+    right_match = SEMVER_RE.fullmatch(right)
+    assert left_match is not None
+    assert right_match is not None
+
+    left_core = tuple(int(left_match.group(index)) for index in range(1, 4))
+    right_core = tuple(int(right_match.group(index)) for index in range(1, 4))
+    if left_core < right_core:
+        return -1
+    if left_core > right_core:
+        return 1
+
+    left_prerelease = _prerelease_identifiers(left_match.group(4))
+    right_prerelease = _prerelease_identifiers(right_match.group(4))
+    if not left_prerelease and not right_prerelease:
+        return 0
+    if not left_prerelease:
+        return 1
+    if not right_prerelease:
+        return -1
+    for left_identifier, right_identifier in zip(left_prerelease, right_prerelease):
+        if left_identifier == right_identifier:
+            continue
+        left_numeric = left_identifier.isdigit()
+        right_numeric = right_identifier.isdigit()
+        if left_numeric and right_numeric:
+            return -1 if int(left_identifier) < int(right_identifier) else 1
+        if left_numeric != right_numeric:
+            return -1 if left_numeric else 1
+        return -1 if left_identifier < right_identifier else 1
+    if len(left_prerelease) < len(right_prerelease):
+        return -1
+    if len(left_prerelease) > len(right_prerelease):
+        return 1
+    return 0
+
+
+def classify_pack_version_transition(current: str | None, target: str) -> str:
+    """Classify a target refresh from an installed version to a source version."""
+    target = parse_pack_version(target)
+    if current is None:
+        return "legacy_install"
+    current = parse_pack_version(current)
+    if current == target:
+        return "same"
+    precedence = compare_pack_versions(current, target)
+    if precedence < 0:
+        current_major = int(current.split(".", 1)[0])
+        target_major = int(target.split(".", 1)[0])
+        return "breaking_upgrade" if target_major > current_major else "compatible_upgrade"
+    if precedence > 0:
+        return "rollback"
+    return "version_replacement"
+
+
+def _prerelease_identifiers(value: str | None) -> tuple[str, ...]:
+    return tuple(value.split(".")) if value else ()
+
+
 def read_pack_version(root: Path) -> str:
     path = root / VERSION_FILE_NAME
     if path.is_symlink() or not path.is_file():

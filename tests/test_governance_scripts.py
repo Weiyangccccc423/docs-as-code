@@ -4280,12 +4280,25 @@ class GovernanceScriptsTest(unittest.TestCase):
         source_refreshed = ["bin/governance", "scripts/governance_cli.py"]
         source_removed = ["docs/agent-workflow/workflow-pack/workflows/99-stale.md"]
         source_state = {"runtime_manifest": "docs/agent-workflow/runtime-manifest.json"}
+        source_transition = {
+            "from_version": "0.1.0",
+            "to_version": "0.1.0",
+            "classification": "same",
+            "evidence_status": "consistent",
+            "candidate_versions": ["0.1.0"],
+            "approval_required": False,
+            "approval_flag": "",
+            "approval_granted": False,
+            "can_apply": True,
+            "decision": "apply",
+        }
         valid = bootstrap_module.RuntimeRefreshResult(
             target="/tmp/project",
             ok=True,
             refreshed=source_refreshed,
             removed=source_removed,
             state=source_state,
+            version_transition=source_transition,
         )
         source_refreshed.clear()
         source_removed.clear()
@@ -4301,6 +4314,7 @@ class GovernanceScriptsTest(unittest.TestCase):
                 "would_remove": [],
                 "errors": [],
                 "state": {"runtime_manifest": "docs/agent-workflow/runtime-manifest.json"},
+                "version_transition": source_transition,
             },
             valid.to_dict(),
         )
@@ -4313,6 +4327,7 @@ class GovernanceScriptsTest(unittest.TestCase):
         self.assertIsInstance(payload_removed, list)
         self.assertIsInstance(payload_errors, list)
         self.assertIsInstance(payload_state, dict)
+        self.assertIsInstance(valid.to_dict()["version_transition"], dict)
         payload_refreshed.clear()
         payload_removed.clear()
         payload_errors.append("mutated error")
@@ -4329,6 +4344,7 @@ class GovernanceScriptsTest(unittest.TestCase):
             would_refresh=["bin/governance"],
             would_remove=["docs/agent-workflow/workflow-pack/workflows/99-stale.md"],
             state={"runtime_manifest": "docs/agent-workflow/runtime-manifest.json"},
+            version_transition=source_transition,
         )
         self.assertEqual(["bin/governance"], check_valid.to_dict()["would_refresh"])
 
@@ -4480,11 +4496,63 @@ class GovernanceScriptsTest(unittest.TestCase):
                 },
                 "runtime refresh result failure requires errors",
             ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "version_transition": [],
+                },
+                "runtime refresh result version_transition must be an object",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "version_transition": {"from_version": "0.1.0"},
+                },
+                "runtime refresh result version_transition is missing",
+            ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "version_transition": {
+                        **source_transition,
+                        "approval_required": True,
+                        "approval_flag": "--approve-version-transition",
+                        "can_apply": True,
+                    },
+                },
+                "runtime refresh result version_transition can_apply is inconsistent",
+            ),
         ]
         for values, message in cases:
             with self.subTest(message=message, values=values):
                 with self.assertRaisesRegex(ValueError, message):
                     bootstrap_module.RuntimeRefreshResult(**values)
+
+    def test_runtime_version_transition_requires_approval_for_conflicting_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            snapshot = root / "docs/agent-workflow/workflow-pack"
+            snapshot.mkdir(parents=True)
+            (snapshot / "VERSION").write_text("0.1.0\n", encoding="utf-8")
+            state = {"workflow_pack_version": "0.2.0"}
+
+            transition = bootstrap_module._build_runtime_version_transition(
+                root,
+                state,
+                "0.3.0",
+                False,
+            )
+
+            self.assertEqual("0.2.0", transition["from_version"])
+            self.assertEqual("compatible_upgrade", transition["classification"])
+            self.assertEqual("conflicting", transition["evidence_status"])
+            self.assertEqual(["0.1.0", "0.2.0"], transition["candidate_versions"])
+            self.assertTrue(transition["approval_required"])
+            self.assertFalse(transition["can_apply"])
+            self.assertEqual("request_approval", transition["decision"])
 
     def test_check_env_tool_specs_reject_unstable_inventory_shape(self) -> None:
         required = check_env_module.ToolSpec(

@@ -418,6 +418,15 @@ class ReleaseReadinessTest(unittest.TestCase):
             criteria["fresh-target-dry-run"]["details"]["threat_review"]["current_after_runtime_refresh"]
         )
         self.assertEqual(
+            "same",
+            criteria["fresh-target-dry-run"]["details"]["runtime_refresh"]["version_transition"][
+                "classification"
+            ],
+        )
+        self.assertTrue(
+            criteria["fresh-target-dry-run"]["details"]["runtime_refresh"]["version_transition"]["can_apply"]
+        )
+        self.assertEqual(
             [],
             criteria["multi-acceptance-dry-run"]["details"]["target_local_make_coverage"]["missing_step_ids"],
         )

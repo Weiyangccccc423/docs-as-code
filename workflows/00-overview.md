@@ -204,9 +204,10 @@ From a trusted source workflow-pack checkout, refresh generated target runtime a
 ```bash
 bin/governance runtime refresh <target> --check --json
 bin/governance runtime refresh <target> --json
+bin/governance runtime refresh <target> --approve-version-transition --json
 ```
 
-Use `runtime refresh --check --json` as a no-write plan. Write mode copies the trusted source `VERSION` into the snapshot and records matching `pack_version` and `workflow_pack_version` evidence without rewriting product or design documents. After successful write-mode `runtime refresh --json`, follow returned `local_commands[].argv` and `next_actions[].argv` from their reported `cwd`.
+Use `runtime refresh --check --json` as a no-write plan. Inspect `version_transition.classification`, `evidence_status`, `approval_required`, and `can_apply` before choosing write mode. Same-version, compatible-upgrade, and clean legacy-install transitions need no extra approval; breaking upgrades, rollbacks, version replacements, and conflicting or invalid installed-version evidence require the explicit `--approve-version-transition` form after review. Write mode copies the trusted source `VERSION` into the snapshot and records matching `pack_version` and `workflow_pack_version` evidence without rewriting product or design documents. After successful write-mode refresh, follow returned `local_commands[].argv` and `next_actions[].argv` from their reported `cwd`.
 
 Generated targets also receive `docs/agent-workflow/workflow-pack/`, a hash-manifested snapshot of this pack's workflows, skills, references, and templates. Use it as the target-local operating manual when the source pack repository is not open.
 

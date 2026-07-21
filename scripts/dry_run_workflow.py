@@ -2181,6 +2181,16 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         "runtime_refresh": {
             "check_ok": runtime_refresh_check.get("ok") is True,
             "applied": runtime_refresh.get("ok") is True,
+            "check_version_transition": (
+                dict(runtime_refresh_check["version_transition"])
+                if isinstance(runtime_refresh_check.get("version_transition"), dict)
+                else {}
+            ),
+            "version_transition": (
+                dict(runtime_refresh["version_transition"])
+                if isinstance(runtime_refresh.get("version_transition"), dict)
+                else {}
+            ),
             "runtime_refreshed_at": isinstance(runtime_refresh.get("state"), dict)
             and isinstance(runtime_refresh["state"].get("runtime_refreshed_at"), str),
             "workflow_plan_complete_after_refresh": make_workflow_plan_after_runtime_refresh.get("blocked") is False,
@@ -4564,7 +4574,7 @@ def _runtime_refresh_check_is_ready(payload: dict[str, object]) -> bool:
         return False
     if payload.get("removed") not in (None, []):
         return False
-    return True
+    return _runtime_refresh_same_version_transition_is_ready(payload.get("version_transition"))
 
 
 def _runtime_refresh_completed(payload: dict[str, object]) -> bool:
@@ -4587,11 +4597,32 @@ def _runtime_refresh_completed(payload: dict[str, object]) -> bool:
     local_commands = payload.get("local_commands")
     if not isinstance(local_commands, list):
         return False
+    if not _runtime_refresh_same_version_transition_is_ready(payload.get("version_transition")):
+        return False
     return any(
         isinstance(command, dict)
         and command.get("make_target") == "workflow-plan"
         and command.get("argv") == ["make", "workflow-plan"]
         for command in local_commands
+    )
+
+
+def _runtime_refresh_same_version_transition_is_ready(value: object) -> bool:
+    if not isinstance(value, dict):
+        return False
+    from_version = value.get("from_version")
+    return (
+        isinstance(from_version, str)
+        and bool(from_version)
+        and value.get("to_version") == from_version
+        and value.get("classification") == "same"
+        and value.get("evidence_status") == "consistent"
+        and value.get("candidate_versions") == [from_version]
+        and value.get("approval_required") is False
+        and value.get("approval_flag") == ""
+        and value.get("approval_granted") is False
+        and value.get("can_apply") is True
+        and value.get("decision") == "apply"
     )
 
 

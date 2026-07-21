@@ -85,7 +85,7 @@ Optional reviewed Git initialization is composed into that source-only entry wit
 
 Omit `--git-origin` when no remote is approved. Git options without `--initialize-git`, incomplete metadata, and missing review are blockers. Check mode leaves `.git` absent and reports `repository_git_check_ok`; apply uses the generated target-local runtime and reports `repository_git_initialized`. Neither path commits, authenticates, or pushes.
 
-Use `runtime refresh --check --json` before repair when an agent needs a no-write preflight. It reports `would_refresh` and `would_remove` paths while leaving target files and `.governance/state.json` unchanged.
+Use `runtime refresh --check --json` before repair when an agent needs a no-write preflight. It reports `would_refresh`, `would_remove`, and `version_transition` while leaving target files and `.governance/state.json` unchanged. Inspect the transition classification and version evidence; breaking upgrades, rollbacks, version replacements, and conflicting or invalid evidence require a reviewed `--approve-version-transition` write command. Unapproved high-risk transitions perform no writes.
 
 After successful write-mode `runtime refresh --json`, JSON includes `local_commands` and `next_actions` when the refreshed target state is readable. Agents should run each returned `argv` from its `cwd` instead of reconstructing commands or rerunning `status`.
 

@@ -11,11 +11,23 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
 try:
-    from .pack_version import PackVersionError, read_pack_version
+    from .pack_version import (
+        PackVersionError,
+        classify_pack_version_transition,
+        compare_pack_versions,
+        parse_pack_version,
+        read_pack_version,
+    )
     from .state import STATE_REL, StateFileError, load_state, merge_state, utc_now
     from .workflow_actions import next_actions_payload
 except ImportError:  # pragma: no cover - direct script execution
-    from pack_version import PackVersionError, read_pack_version
+    from pack_version import (
+        PackVersionError,
+        classify_pack_version_transition,
+        compare_pack_versions,
+        parse_pack_version,
+        read_pack_version,
+    )
     from state import STATE_REL, StateFileError, load_state, merge_state, utc_now
     from workflow_actions import next_actions_payload
 
@@ -527,6 +539,92 @@ class InitPreflightError(RuntimeError):
         self.result = result
 
 
+VERSION_TRANSITION_CLASSIFICATIONS = {
+    "legacy_install",
+    "same",
+    "compatible_upgrade",
+    "breaking_upgrade",
+    "rollback",
+    "version_replacement",
+}
+VERSION_TRANSITION_EVIDENCE_STATUSES = {
+    "missing",
+    "consistent",
+    "snapshot_only",
+    "state_only",
+    "partially_invalid",
+    "conflicting",
+    "invalid",
+}
+
+
+def _validate_runtime_version_transition(value: object) -> None:
+    if not isinstance(value, dict):
+        raise ValueError("runtime refresh result version_transition must be an object")
+    required = {
+        "from_version",
+        "to_version",
+        "classification",
+        "evidence_status",
+        "candidate_versions",
+        "approval_required",
+        "approval_flag",
+        "approval_granted",
+        "can_apply",
+        "decision",
+    }
+    missing = sorted(required - set(value))
+    if missing:
+        raise ValueError(
+            "runtime refresh result version_transition is missing: " + ", ".join(missing)
+        )
+    from_version = value["from_version"]
+    if from_version is not None:
+        try:
+            parse_pack_version(from_version)
+        except PackVersionError as error:
+            raise ValueError(f"invalid runtime refresh version_transition from_version: {error.message}") from error
+    try:
+        parse_pack_version(value["to_version"])
+    except PackVersionError as error:
+        raise ValueError(f"invalid runtime refresh version_transition to_version: {error.message}") from error
+    if value["classification"] not in VERSION_TRANSITION_CLASSIFICATIONS:
+        raise ValueError("runtime refresh result version_transition classification is invalid")
+    if value["evidence_status"] not in VERSION_TRANSITION_EVIDENCE_STATUSES:
+        raise ValueError("runtime refresh result version_transition evidence_status is invalid")
+    candidates = value["candidate_versions"]
+    if not isinstance(candidates, list) or not all(isinstance(candidate, str) for candidate in candidates):
+        raise ValueError("runtime refresh result version_transition candidate_versions must be strings")
+    if len(candidates) != len(set(candidates)):
+        raise ValueError("runtime refresh result version_transition candidate_versions must be unique")
+    for candidate in candidates:
+        try:
+            parse_pack_version(candidate)
+        except PackVersionError as error:
+            raise ValueError(
+                f"invalid runtime refresh version_transition candidate version: {error.message}"
+            ) from error
+    if from_version is not None and from_version not in candidates:
+        raise ValueError("runtime refresh result version_transition from_version must be a candidate version")
+    if not isinstance(value["approval_required"], bool):
+        raise ValueError("runtime refresh result version_transition approval_required must be a boolean")
+    if not isinstance(value["approval_flag"], str):
+        raise ValueError("runtime refresh result version_transition approval_flag must be a string")
+    expected_flag = "--approve-version-transition" if value["approval_required"] else ""
+    if value["approval_flag"] != expected_flag:
+        raise ValueError("runtime refresh result version_transition approval_flag is inconsistent")
+    if not isinstance(value["approval_granted"], bool):
+        raise ValueError("runtime refresh result version_transition approval_granted must be a boolean")
+    if not isinstance(value["can_apply"], bool):
+        raise ValueError("runtime refresh result version_transition can_apply must be a boolean")
+    if value["can_apply"] != (not value["approval_required"] or value["approval_granted"]):
+        raise ValueError("runtime refresh result version_transition can_apply is inconsistent")
+    if value["decision"] not in {"apply", "request_approval"}:
+        raise ValueError("runtime refresh result version_transition decision is invalid")
+    if value["decision"] != ("apply" if value["can_apply"] else "request_approval"):
+        raise ValueError("runtime refresh result version_transition decision is inconsistent")
+
+
 @dataclass(frozen=True)
 class _ProductDocumentSelection:
     path: Path | None
@@ -546,6 +644,7 @@ class RuntimeRefreshResult:
     would_remove: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     state: dict[str, object] = field(default_factory=dict)
+    version_transition: dict[str, object] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not isinstance(self.target, str) or not self.target:
@@ -560,6 +659,8 @@ class RuntimeRefreshResult:
             raise ValueError("runtime refresh result errors must be strings")
         if not isinstance(self.state, dict):
             raise ValueError("runtime refresh result state must be an object")
+        if not isinstance(self.version_transition, dict):
+            raise ValueError("runtime refresh result version_transition must be an object")
         if self.check and (self.refreshed or self.removed):
             raise ValueError("runtime refresh result check mode cannot contain write outputs")
         if not self.check and (self.would_refresh or self.would_remove):
@@ -568,12 +669,17 @@ class RuntimeRefreshResult:
             raise ValueError("runtime refresh result ok cannot include errors")
         if not self.ok and not self.errors:
             raise ValueError("runtime refresh result failure requires errors")
+        if self.ok and not self.version_transition:
+            raise ValueError("runtime refresh result successful result requires version transition")
+        if self.version_transition:
+            _validate_runtime_version_transition(self.version_transition)
         self.refreshed = list(self.refreshed)
         self.removed = list(self.removed)
         self.would_refresh = list(self.would_refresh)
         self.would_remove = list(self.would_remove)
         self.errors = list(self.errors)
         self.state = copy.deepcopy(self.state)
+        self.version_transition = copy.deepcopy(self.version_transition)
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -586,6 +692,7 @@ class RuntimeRefreshResult:
             "would_remove": list(self.would_remove),
             "errors": list(self.errors),
             "state": copy.deepcopy(self.state),
+            "version_transition": copy.deepcopy(self.version_transition),
         }
 
 
@@ -879,6 +986,79 @@ def _source_preflight_conflicts(pack_root: Path, workflow_pack_files: list[Path]
     return conflicts
 
 
+def _build_runtime_version_transition(
+    root: Path,
+    state: dict[str, object],
+    source_version: str,
+    approval_granted: bool,
+) -> dict[str, object]:
+    snapshot_path = root / WORKFLOW_PACK_SNAPSHOT_ROOT / "VERSION"
+    snapshot_version: str | None = None
+    snapshot_invalid = False
+    if snapshot_path.exists():
+        try:
+            snapshot_version = read_pack_version(root / WORKFLOW_PACK_SNAPSHOT_ROOT)
+        except PackVersionError:
+            snapshot_invalid = True
+
+    state_version: str | None = None
+    state_invalid = False
+    if "workflow_pack_version" in state:
+        try:
+            state_version = parse_pack_version(state.get("workflow_pack_version"))
+        except PackVersionError:
+            state_invalid = True
+
+    candidates: list[str] = []
+    for version in (snapshot_version, state_version):
+        if version is not None and version not in candidates:
+            candidates.append(version)
+
+    if snapshot_version is not None and state_version is not None:
+        evidence_status = "consistent" if snapshot_version == state_version else "conflicting"
+    elif candidates:
+        if snapshot_invalid or state_invalid:
+            evidence_status = "partially_invalid"
+        elif snapshot_version is not None:
+            evidence_status = "snapshot_only"
+        else:
+            evidence_status = "state_only"
+    elif snapshot_invalid or state_invalid:
+        evidence_status = "invalid"
+    else:
+        evidence_status = "missing"
+
+    current_version: str | None = None
+    for candidate in candidates:
+        if current_version is None:
+            current_version = candidate
+            continue
+        precedence = compare_pack_versions(current_version, candidate)
+        if precedence < 0 or (precedence == 0 and candidate > current_version):
+            current_version = candidate
+
+    classification = classify_pack_version_transition(current_version, source_version)
+    approval_required = classification in {
+        "breaking_upgrade",
+        "rollback",
+        "version_replacement",
+    } or evidence_status in {"partially_invalid", "conflicting", "invalid"}
+    approved = bool(approval_granted and approval_required)
+    can_apply = not approval_required or approved
+    return {
+        "from_version": current_version,
+        "to_version": source_version,
+        "classification": classification,
+        "evidence_status": evidence_status,
+        "candidate_versions": candidates,
+        "approval_required": approval_required,
+        "approval_flag": "--approve-version-transition" if approval_required else "",
+        "approval_granted": approved,
+        "can_apply": can_apply,
+        "decision": "apply" if can_apply else "request_approval",
+    }
+
+
 def _select_product_document(root: Path, product_doc: Path | None) -> _ProductDocumentSelection:
     if product_doc is not None:
         return _ProductDocumentSelection(
@@ -1092,7 +1272,8 @@ def _product_archive_preflight_conflicts(product_doc: Path | None) -> list[InitC
 def _runtime_refresh_preflight(
     root: Path,
     check: bool = False,
-) -> tuple[RuntimeRefreshResult | None, list[Path], dict[str, object]]:
+    approve_version_transition: bool = False,
+) -> tuple[RuntimeRefreshResult | None, list[Path], dict[str, object], dict[str, object]]:
     if not (root / STATE_REL).exists():
         return (
             RuntimeRefreshResult(
@@ -1102,6 +1283,7 @@ def _runtime_refresh_preflight(
                 errors=[f"target is not an initialized governance repository: {STATE_REL.as_posix()} is missing"],
             ),
             [],
+            {},
             {},
         )
     pack_root = Path(__file__).resolve().parents[1].resolve()
@@ -1118,6 +1300,7 @@ def _runtime_refresh_preflight(
             ),
             [],
             {},
+            {},
         )
     try:
         state = load_state(root)
@@ -1130,6 +1313,7 @@ def _runtime_refresh_preflight(
                 errors=[f"target governance state is invalid: {error}"],
             ),
             [],
+            {},
             {},
         )
 
@@ -1148,14 +1332,46 @@ def _runtime_refresh_preflight(
             ),
             [],
             {},
+            {},
         )
 
-    return None, workflow_pack_files, state
+    source_version = read_pack_version(pack_root)
+    version_transition = _build_runtime_version_transition(
+        root,
+        state,
+        source_version,
+        approve_version_transition,
+    )
+    if not check and not version_transition["can_apply"]:
+        classification = version_transition["classification"]
+        from_version = version_transition["from_version"] or "unknown"
+        return (
+            RuntimeRefreshResult(
+                target=str(root),
+                ok=False,
+                errors=[
+                    "runtime refresh requires explicit version-transition approval: "
+                    f"{classification} from {from_version} to {source_version}; "
+                    "rerun with --approve-version-transition after reviewing --check output"
+                ],
+                state=state,
+                version_transition=version_transition,
+            ),
+            [],
+            state,
+            version_transition,
+        )
+
+    return None, workflow_pack_files, state, version_transition
 
 
-def check_runtime_refresh(root: Path) -> RuntimeRefreshResult:
+def check_runtime_refresh(root: Path, approve_version_transition: bool = False) -> RuntimeRefreshResult:
     root = root.resolve()
-    error_result, workflow_pack_files, state = _runtime_refresh_preflight(root, check=True)
+    error_result, workflow_pack_files, state, version_transition = _runtime_refresh_preflight(
+        root,
+        check=True,
+        approve_version_transition=approve_version_transition,
+    )
     if error_result is not None:
         return error_result
 
@@ -1166,12 +1382,16 @@ def check_runtime_refresh(root: Path) -> RuntimeRefreshResult:
         would_refresh=[path.as_posix() for path in _runtime_refresh_output_paths(workflow_pack_files)],
         would_remove=[path.as_posix() for path in _stale_workflow_pack_snapshot_files(root, workflow_pack_files)],
         state=state,
+        version_transition=version_transition,
     )
 
 
-def refresh_runtime(root: Path) -> RuntimeRefreshResult:
+def refresh_runtime(root: Path, approve_version_transition: bool = False) -> RuntimeRefreshResult:
     root = root.resolve()
-    error_result, workflow_pack_files, _state = _runtime_refresh_preflight(root)
+    error_result, workflow_pack_files, state, version_transition = _runtime_refresh_preflight(
+        root,
+        approve_version_transition=approve_version_transition,
+    )
     if error_result is not None:
         return error_result
 
@@ -1206,6 +1426,7 @@ def refresh_runtime(root: Path) -> RuntimeRefreshResult:
             target=str(root),
             ok=False,
             errors=errors,
+            version_transition=version_transition,
         )
     return RuntimeRefreshResult(
         target=str(root),
@@ -1213,6 +1434,7 @@ def refresh_runtime(root: Path) -> RuntimeRefreshResult:
         refreshed=refreshed,
         removed=removed,
         state=state,
+        version_transition=version_transition,
     )
 
 

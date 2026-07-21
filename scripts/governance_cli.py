@@ -709,7 +709,11 @@ def _cmd_project_environment_repair(args: argparse.Namespace) -> int:
 
 def _cmd_runtime_refresh(args: argparse.Namespace) -> int:
     target = Path(args.target)
-    result = check_runtime_refresh(target) if args.check else refresh_runtime(target)
+    result = (
+        check_runtime_refresh(target, approve_version_transition=args.approve_version_transition)
+        if args.check
+        else refresh_runtime(target, approve_version_transition=args.approve_version_transition)
+    )
     payload = result.to_dict()
     if result.ok and not args.check and result.state:
         payload["local_commands"] = target_local_commands_payload(cwd=result.target)
@@ -1891,6 +1895,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     runtime_refresh.add_argument("target", nargs="?", default=".")
     runtime_refresh.add_argument("--check", action="store_true", help="Run refresh preflight without writing files.")
+    runtime_refresh.add_argument(
+        "--approve-version-transition",
+        action="store_true",
+        help="Approve a breaking upgrade, rollback, replacement, or conflicting version evidence after review.",
+    )
     runtime_refresh.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     runtime_refresh.set_defaults(func=_cmd_runtime_refresh)
 
