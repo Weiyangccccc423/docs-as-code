@@ -476,6 +476,7 @@ class PackStructureTest(unittest.TestCase):
         cases = (
             ("DESIGN_TRACKS", "DESIGN_ROUTE_TABLE"),
             ("BASE_SPECIALIST_SKILLS", "BASE_ROUTE_SKILLS"),
+            ("TASK_SOURCE_SPECIALIST_ROUTES", "TASK_RISK_ROUTES"),
             ("--strict", "--enforce"),
             ("--skill-root", "--skills-dir"),
             ("required_by", "required_sources"),

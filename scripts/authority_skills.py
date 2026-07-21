@@ -17,7 +17,7 @@ try:
         AUTHORITY_ROUTING_SPECIALIST_SKILLS,
         DESIGN_TRACKS,
     )
-    from .implementation_plan import BASE_SPECIALIST_SKILLS
+    from .implementation_plan import BASE_SPECIALIST_SKILLS, TASK_SOURCE_SPECIALIST_ROUTES
     from .project_environment import PROJECT_ENVIRONMENT_SPECIALIST_SKILLS
 except ImportError:  # pragma: no cover - direct script execution
     from bounded_process import run_bounded_command
@@ -26,7 +26,7 @@ except ImportError:  # pragma: no cover - direct script execution
         AUTHORITY_ROUTING_SPECIALIST_SKILLS,
         DESIGN_TRACKS,
     )
-    from implementation_plan import BASE_SPECIALIST_SKILLS
+    from implementation_plan import BASE_SPECIALIST_SKILLS, TASK_SOURCE_SPECIALIST_ROUTES
     from project_environment import PROJECT_ENVIRONMENT_SPECIALIST_SKILLS
 
 
@@ -36,11 +36,6 @@ AUTHORITY_SKILL_LOCK_SCHEMA_VERSION = 1
 AUTHORITY_SKILL_LOCK_REL = Path("references/authority-skills.lock.json")
 TARGET_AUTHORITY_SKILL_LOCK_REL = Path("docs/agent-workflow/workflow-pack") / AUTHORITY_SKILL_LOCK_REL
 EXPECTED_AUTHORITY_ROUTING_SKILL_MISSING_POLICY = "load_from_agent_environment_or_stop_before_guessing"
-IMPLEMENTATION_CONDITIONAL_SPECIALIST_SKILLS = (
-    ("senior-backend", "docs/api/ or docs/backend/ references"),
-    ("senior-frontend", "docs/frontend/ or docs/ui/ references"),
-    ("api-design-reviewer", "docs/api/ references"),
-)
 LOCK_POLICY = {
     "install_execution": "explicit-approval-required",
     "integrity": "skill-tree-sha256-v1",
@@ -902,17 +897,18 @@ def _authority_skill_requirements() -> dict[str, list[dict[str, str]]]:
                 "source": "PROJECT_ENVIRONMENT_SPECIALIST_SKILLS",
             },
         )
-    for skill, trigger in IMPLEMENTATION_CONDITIONAL_SPECIALIST_SKILLS:
-        _append_requirement(
-            required_by,
-            skill,
-            {
-                "phase": "implementation",
-                "track": "conditional",
-                "title": trigger,
-                "source": "_task_specialist_skills",
-            },
-        )
+    for route in TASK_SOURCE_SPECIALIST_ROUTES:
+        for skill in route.skills:
+            _append_requirement(
+                required_by,
+                skill,
+                {
+                    "phase": "implementation",
+                    "track": "conditional",
+                    "title": route.title,
+                    "source": "_task_specialist_skills",
+                },
+            )
     return {skill: entries for skill, entries in sorted(required_by.items()) if entries}
 
 

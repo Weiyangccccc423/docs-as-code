@@ -215,6 +215,7 @@ class AuthoritySkillsTest(unittest.TestCase):
             for entry in skills["senior-architect"]["required_by"]
         }
         self.assertIn(("design-derivation", "architecture", "DESIGN_TRACKS"), architect_sources)
+        self.assertIn(("implementation", "conditional", "_task_specialist_skills"), architect_sources)
 
         fullstack_sources = {
             (entry["phase"], entry.get("track"), entry["source"])
@@ -236,6 +237,7 @@ class AuthoritySkillsTest(unittest.TestCase):
             ("design-derivation", "project-runtime", "PROJECT_ENVIRONMENT_SPECIALIST_SKILLS"),
             devops_sources,
         )
+        self.assertIn(("implementation", "conditional", "_task_specialist_skills"), devops_sources)
 
         backend_sources = {
             (entry["phase"], entry.get("track"), entry["source"])

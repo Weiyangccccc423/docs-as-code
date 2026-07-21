@@ -15,6 +15,7 @@ Calibrate execution against DORA small-batch integration and test automation, Go
 - Does the Verification cell bind every required check as `command:<registered-name>` before the task becomes Ready or In Progress?
 - Is the matching `A-NNN` acceptance criterion defined in a product acceptance chapter and mapped in `docs/tests/02-acceptance-matrix.md`?
 - Has the agent read the target-local `docs/agent-workflow/task-handoff.md` when present?
+- Were all source-derived `specialist_skills` loaded through `skill_loading_plan` in local-then-authority order, including architecture, DevOps, database/migration, reliability, accessibility, performance, E2E, or security authority only when the linked design paths require them?
 
 Reference: `https://google.github.io/eng-practices/review/developer/`
 

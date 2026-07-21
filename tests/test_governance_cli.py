@@ -5933,10 +5933,12 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertIn("executing-implementation-task", payload["skills"])
             self.assertIn("verifying-governance-docs", payload["skills"])
             self.assertIn("senior-fullstack", payload["specialist_skills"])
+            self.assertIn("senior-architect", payload["specialist_skills"])
             self.assertIn("senior-backend", payload["specialist_skills"])
             self.assertIn("api-design-reviewer", payload["specialist_skills"])
             requirements = _requirements_by_name(payload["skill_requirements"])
             self.assertEqual("local-workflow", requirements["executing-implementation-task"]["type"])
+            self.assertEqual("authority-routing", requirements["senior-architect"]["type"])
             self.assertEqual("authority-routing", requirements["senior-backend"]["type"])
             self.assertEqual(
                 "load_from_agent_environment_or_stop_before_guessing",

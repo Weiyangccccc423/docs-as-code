@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -95,6 +96,78 @@ BASE_SPECIALIST_SKILLS = (
     "senior-fullstack",
     "senior-qa",
     "senior-security",
+)
+
+
+@dataclass(frozen=True)
+class TaskSourceSpecialistRoute:
+    title: str
+    skills: tuple[str, ...]
+    prefixes: tuple[str, ...] = ()
+    exact_paths: tuple[str, ...] = ()
+
+
+TASK_SOURCE_SPECIALIST_ROUTES = (
+    TaskSourceSpecialistRoute(
+        title="Architecture implementation sources",
+        prefixes=("docs/architecture/",),
+        skills=("senior-architect",),
+    ),
+    TaskSourceSpecialistRoute(
+        title="Container and deployment architecture sources",
+        exact_paths=("docs/architecture/02-containers.md",),
+        skills=("senior-devops",),
+    ),
+    TaskSourceSpecialistRoute(
+        title="Quality attribute implementation sources",
+        exact_paths=("docs/architecture/03-quality-attributes.md",),
+        skills=("observability-designer", "slo-architect", "performance-profiler"),
+    ),
+    TaskSourceSpecialistRoute(
+        title="API implementation sources",
+        prefixes=("docs/api/",),
+        skills=("senior-backend", "api-design-reviewer"),
+    ),
+    TaskSourceSpecialistRoute(
+        title="Backend implementation sources",
+        prefixes=("docs/backend/",),
+        skills=("senior-backend",),
+    ),
+    TaskSourceSpecialistRoute(
+        title="Data model and migration implementation sources",
+        prefixes=("docs/backend/migrations/",),
+        exact_paths=("docs/backend/02-data-model.md",),
+        skills=("database-designer", "database-schema-designer", "migration-architect"),
+    ),
+    TaskSourceSpecialistRoute(
+        title="Backend reliability implementation sources",
+        prefixes=("docs/backend/reliability/",),
+        exact_paths=(
+            "docs/backend/03-external-services.md",
+            "docs/backend/04-error-budget-policy.md",
+        ),
+        skills=("observability-designer", "slo-architect"),
+    ),
+    TaskSourceSpecialistRoute(
+        title="UI interaction implementation sources",
+        prefixes=("docs/ui/",),
+        skills=("senior-frontend", "a11y-audit"),
+    ),
+    TaskSourceSpecialistRoute(
+        title="Frontend implementation sources",
+        prefixes=("docs/frontend/",),
+        skills=("senior-frontend", "performance-profiler"),
+    ),
+    TaskSourceSpecialistRoute(
+        title="Test strategy implementation sources",
+        prefixes=("docs/tests/",),
+        skills=("playwright-pro", "a11y-audit", "security-pen-testing"),
+    ),
+    TaskSourceSpecialistRoute(
+        title="Architecture decision implementation sources",
+        prefixes=("docs/decisions/",),
+        skills=("senior-architect", "migration-architect", "tech-stack-evaluator"),
+    ),
 )
 BASE_SOURCE_DOCUMENTS = (
     TASK_BOARD_REL.as_posix(),
@@ -1885,12 +1958,15 @@ def _implementation_specialist_skills(tasks: list[dict[str, object]]) -> list[st
 def _task_specialist_skills(source_references: dict[str, object]) -> list[str]:
     paths = _referenced_paths(source_references)
     skills = list(BASE_SPECIALIST_SKILLS)
-    if any(path.startswith("docs/api/") or path.startswith("docs/backend/") for path in paths):
-        _append_unique(skills, "senior-backend")
-    if any(path.startswith("docs/frontend/") or path.startswith("docs/ui/") for path in paths):
-        _append_unique(skills, "senior-frontend")
-    if any(path.startswith("docs/api/") for path in paths):
-        _append_unique(skills, "api-design-reviewer")
+    for route in TASK_SOURCE_SPECIALIST_ROUTES:
+        if not any(
+            path in route.exact_paths
+            or any(path.startswith(prefix) for prefix in route.prefixes)
+            for path in paths
+        ):
+            continue
+        for skill in route.skills:
+            _append_unique(skills, skill)
     return skills
 
 

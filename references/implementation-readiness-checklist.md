@@ -9,6 +9,7 @@ Calibrate implementation readiness against the Scrum Guide's transparency and De
 - Does each `Ready` task have a stable `TASK-NNN` ID, concise goal, owner or agent role, and expected code/documentation surface?
 - Do Product, Design, API, Acceptance, and Verification cells link existing local Markdown sources?
 - Are dependencies, sequencing, blocked questions, and out-of-scope work explicit enough that an agent can start without inventing requirements?
+- Do the linked design paths provide enough machine-readable scope for `implementation plan` to route the required architecture, backend, data, reliability, frontend, test, and delivery authority skills without task-title guessing?
 
 Reference: `https://scrumguides.org/scrum-guide.html`
 

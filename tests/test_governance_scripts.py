@@ -591,6 +591,66 @@ def _endpoint_contract_doc(
 
 
 class GovernanceScriptsTest(unittest.TestCase):
+    def test_implementation_specialists_follow_referenced_risk_domains(self) -> None:
+        cases = (
+            (
+                "docs/architecture/01-system-context.md",
+                {"senior-architect"},
+            ),
+            (
+                "docs/architecture/02-containers.md",
+                {"senior-architect", "senior-devops"},
+            ),
+            (
+                "docs/architecture/03-quality-attributes.md",
+                {
+                    "senior-architect",
+                    "observability-designer",
+                    "slo-architect",
+                    "performance-profiler",
+                },
+            ),
+            (
+                "docs/backend/02-data-model.md",
+                {
+                    "senior-backend",
+                    "database-designer",
+                    "database-schema-designer",
+                    "migration-architect",
+                },
+            ),
+            (
+                "docs/backend/reliability/slo-scope.json",
+                {"senior-backend", "observability-designer", "slo-architect"},
+            ),
+            (
+                "docs/ui/01-interaction-model.md",
+                {"senior-frontend", "a11y-audit"},
+            ),
+            (
+                "docs/frontend/01-modules.md",
+                {"senior-frontend", "performance-profiler"},
+            ),
+            (
+                "docs/tests/01-strategy.md",
+                {"playwright-pro", "a11y-audit", "security-pen-testing"},
+            ),
+        )
+        base = set(implementation_plan_module.BASE_SPECIALIST_SKILLS)
+        for path, expected in cases:
+            with self.subTest(path=path):
+                skills = implementation_plan_module._task_specialist_skills(
+                    {
+                        "design": {
+                            "references": [
+                                {"path": path, "exists": True},
+                            ]
+                        }
+                    }
+                )
+                self.assertTrue(base.issubset(skills))
+                self.assertTrue(expected.issubset(skills))
+
     def test_in_progress_task_can_repair_only_project_runtime_gate_drift(self) -> None:
         task = {
             "actionable": True,
