@@ -8552,8 +8552,8 @@ class PackStructureTest(unittest.TestCase):
                 else:
                     changelog.write_text(
                         changelog.read_text(encoding="utf-8").replace(
-                            "## [0.3.0]",
-                            "## [0.1.1]",
+                            f"## [{(target / 'VERSION').read_text(encoding='utf-8').strip()}]",
+                            "## [999999.0.0]",
                             1,
                         ),
                         encoding="utf-8",

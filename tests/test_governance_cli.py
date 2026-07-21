@@ -3358,8 +3358,17 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual("review_required", migration_plan["status"])
             self.assertTrue(migration_plan["required"])
             self.assertEqual("breaking_upgrade", migration_plan["reason_code"])
+            self.assertRegex(migration_plan["plan_id"], r"^[0-9a-f]{64}$")
+            self.assertEqual("runtime-refresh-plan-sha256-v1", migration_plan["plan_id_algorithm"])
+            self.assertEqual(BREAKING_PACK_VERSION, migration_plan["source_identity"]["pack_version"])
+            self.assertRegex(migration_plan["source_identity"]["sha256"], r"^[0-9a-f]{64}$")
+            self.assertRegex(migration_plan["target_identity"]["sha256"], r"^[0-9a-f]{64}$")
             self.assertFalse(migration_plan["steps"][1]["enabled"])
             self.assertEqual("version-transition-approval", migration_plan["steps"][1]["blocked_by"])
+            apply_argv = migration_plan["steps"][1]["argv"]
+            self.assertIn("--approve-version-transition", apply_argv)
+            self.assertIn("--expect-migration-plan", apply_argv)
+            self.assertIn(migration_plan["plan_id"], apply_argv)
             self.assertTrue(migration_plan["rollback"]["required"])
             self.assertTrue(migration_plan["rollback"]["requires_trusted_artifact"])
             self.assertEqual(original_snapshot_version, (target / "docs/agent-workflow/workflow-pack/VERSION").read_text(encoding="utf-8"))
@@ -3394,12 +3403,59 @@ class GovernanceCliTest(unittest.TestCase):
                 check=False,
             )
 
+            self.assertEqual(1, approved_result.returncode)
+            missing_plan_payload = json.loads(approved_result.stdout)
+            self.assertFalse(missing_plan_payload["ok"])
+            self.assertIn("--expect-migration-plan", missing_plan_payload["errors"][0])
+            self.assertEqual(original_state, (target / ".governance/state.json").read_text(encoding="utf-8"))
+
+            wrong_plan_result = subprocess.run(
+                [
+                    sys.executable,
+                    str(upgraded_cli),
+                    "runtime",
+                    "refresh",
+                    str(target),
+                    "--approve-version-transition",
+                    "--expect-migration-plan",
+                    "0" * 64,
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(1, wrong_plan_result.returncode)
+            wrong_plan_payload = json.loads(wrong_plan_result.stdout)
+            self.assertFalse(wrong_plan_payload["ok"])
+            self.assertIn("migration plan", wrong_plan_payload["errors"][0])
+            self.assertEqual(original_state, (target / ".governance/state.json").read_text(encoding="utf-8"))
+
+            approved_result = subprocess.run(
+                [
+                    sys.executable,
+                    str(upgraded_cli),
+                    "runtime",
+                    "refresh",
+                    str(target),
+                    "--approve-version-transition",
+                    "--expect-migration-plan",
+                    migration_plan["plan_id"],
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
             self.assertEqual(0, approved_result.returncode, approved_result.stderr)
             approved_payload = json.loads(approved_result.stdout)
             self.assertTrue(approved_payload["ok"])
             self.assertTrue(approved_payload["version_transition"]["approval_granted"])
             self.assertTrue(approved_payload["version_transition"]["can_apply"])
             approved_plan = approved_payload["migration_plan"]
+            self.assertEqual(migration_plan["plan_id"], approved_plan["plan_id"])
             self.assertEqual("approved", approved_plan["status"])
             self.assertTrue(approved_plan["steps"][1]["enabled"])
             self.assertIn("--approve-version-transition", approved_plan["steps"][1]["argv"])
@@ -3409,6 +3465,118 @@ class GovernanceCliTest(unittest.TestCase):
                 f"{BREAKING_PACK_VERSION}\n",
                 (target / "docs/agent-workflow/workflow-pack/VERSION").read_text(encoding="utf-8"),
             )
+
+    def test_runtime_refresh_rejects_plan_drift_without_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            target = base / "target"
+            product = base / "product.md"
+            product.write_text("# Product\n", encoding="utf-8")
+            init_result = subprocess.run(
+                [sys.executable, str(CLI), "init", "--target", str(target), "--product", str(product)],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, init_result.returncode, init_result.stderr)
+            original_state = (target / ".governance/state.json").read_text(encoding="utf-8")
+            original_snapshot = (target / "docs/agent-workflow/workflow-pack/VERSION").read_text(encoding="utf-8")
+
+            upgraded_source = base / "upgraded-source-pack"
+            shutil.copytree(
+                ROOT,
+                upgraded_source,
+                ignore=shutil.ignore_patterns(".git", "dist", "__pycache__", "*.pyc"),
+            )
+            (upgraded_source / "VERSION").write_text(f"{BREAKING_PACK_VERSION}\n", encoding="utf-8")
+            upgraded_cli = upgraded_source / "scripts/governance_cli.py"
+
+            check_result = subprocess.run(
+                [
+                    sys.executable,
+                    str(upgraded_cli),
+                    "runtime",
+                    "refresh",
+                    str(target),
+                    "--check",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, check_result.returncode, check_result.stderr)
+            plan_id = json.loads(check_result.stdout)["migration_plan"]["plan_id"]
+
+            (upgraded_source / "README.md").write_text(
+                (upgraded_source / "README.md").read_text(encoding="utf-8") + "\nDrifted.\n",
+                encoding="utf-8",
+            )
+            source_drift_result = subprocess.run(
+                [
+                    sys.executable,
+                    str(upgraded_cli),
+                    "runtime",
+                    "refresh",
+                    str(target),
+                    "--approve-version-transition",
+                    "--expect-migration-plan",
+                    plan_id,
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(1, source_drift_result.returncode)
+            self.assertIn("migration plan", json.loads(source_drift_result.stdout)["errors"][0])
+            self.assertEqual(original_state, (target / ".governance/state.json").read_text(encoding="utf-8"))
+            self.assertEqual(original_snapshot, (target / "docs/agent-workflow/workflow-pack/VERSION").read_text(encoding="utf-8"))
+
+            refreshed_check = subprocess.run(
+                [
+                    sys.executable,
+                    str(upgraded_cli),
+                    "runtime",
+                    "refresh",
+                    str(target),
+                    "--check",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, refreshed_check.returncode, refreshed_check.stderr)
+            refreshed_plan_id = json.loads(refreshed_check.stdout)["migration_plan"]["plan_id"]
+            state_path = target / ".governance/state.json"
+            state_payload = json.loads(state_path.read_text(encoding="utf-8"))
+            state_payload["project_name"] = "Changed after review"
+            state_path.write_text(json.dumps(state_payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+            target_drift_result = subprocess.run(
+                [
+                    sys.executable,
+                    str(upgraded_cli),
+                    "runtime",
+                    "refresh",
+                    str(target),
+                    "--approve-version-transition",
+                    "--expect-migration-plan",
+                    refreshed_plan_id,
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(1, target_drift_result.returncode)
+            self.assertIn("migration plan", json.loads(target_drift_result.stdout)["errors"][0])
+            self.assertEqual(
+                "Changed after review",
+                json.loads(state_path.read_text(encoding="utf-8"))["project_name"],
+            )
+            self.assertEqual(original_snapshot, (target / "docs/agent-workflow/workflow-pack/VERSION").read_text(encoding="utf-8"))
 
     def test_runtime_refresh_blocks_unapproved_rollback_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-07-21
+
+### Added
+
+- Added deterministic runtime migration plan IDs bound to source content, target governance evidence, transition identity, target path, and managed scope.
+- Added `--expect-migration-plan` so reviewed high-risk migration approvals cannot be reused after source or target drift.
+
+### Changed
+
+- High-risk runtime refresh now requires both `--approve-version-transition` and the exact reviewed migration `plan_id` before any target write.
+
 ## [0.3.0] - 2026-07-21
 
 ### Added
@@ -37,7 +48,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Added target-local governance commands, environment inventory and reviewed repair, authority-skill provenance locks, structured design and implementation review evidence, and snapshot-guarded resume behavior.
 - Added deterministic source-pack export, integrity manifests, artifact smoke tests, real-stack acceptance fixtures, and a local-first release gate.
 
-[Unreleased]: https://github.com/Weiyangccccc423/docs-as-code/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/Weiyangccccc423/docs-as-code/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/Weiyangccccc423/docs-as-code/compare/v0.3.0...v1.0.0
 [0.3.0]: https://github.com/Weiyangccccc423/docs-as-code/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Weiyangccccc423/docs-as-code/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Weiyangccccc423/docs-as-code/releases/tag/v0.1.0

@@ -4648,6 +4648,24 @@ def _runtime_refresh_migration_plan_is_ready(value: object) -> bool:
         value.get("schema_version") != 1
         or value.get("status") != "not_required"
         or value.get("required") is not False
+        or value.get("plan_id_algorithm") != "runtime-refresh-plan-sha256-v1"
+    ):
+        return False
+    plan_id = value.get("plan_id")
+    if (
+        not isinstance(plan_id, str)
+        or len(plan_id) != 64
+        or any(character not in "0123456789abcdef" for character in plan_id)
+    ):
+        return False
+    source_identity = value.get("source_identity")
+    target_identity = value.get("target_identity")
+    if (
+        not isinstance(source_identity, dict)
+        or source_identity.get("algorithm") != "runtime-refresh-source-sha256-v1"
+        or not isinstance(source_identity.get("file_count"), int)
+        or not isinstance(target_identity, dict)
+        or target_identity.get("algorithm") != "runtime-refresh-target-sha256-v1"
     ):
         return False
     scope = value.get("scope")

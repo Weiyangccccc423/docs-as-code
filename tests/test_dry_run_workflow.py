@@ -540,6 +540,7 @@ class DryRunWorkflowTest(unittest.TestCase):
                 [step["id"] for step in migration_plan["steps"]],
             )
             self.assertEqual(migration_plan, payload["runtime_refresh"]["check_migration_plan"])
+            self.assertRegex(migration_plan["plan_id"], r"^[0-9a-f]{64}$")
             self.assertFalse(migration_plan["rollback"]["required"])
             self.assertTrue(payload["api_review"]["preflight_ok"])
             self.assertTrue(payload["api_review"]["applied"])

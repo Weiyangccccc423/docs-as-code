@@ -540,6 +540,10 @@ class InitPreflightError(RuntimeError):
         self.result = result
 
 
+class RuntimeRefreshPlanDriftError(RuntimeError):
+    pass
+
+
 VERSION_TRANSITION_CLASSIFICATIONS = {
     "legacy_install",
     "same",
@@ -563,6 +567,128 @@ MIGRATION_REQUIRED_EVIDENCE_STATUSES = {"partially_invalid", "conflicting", "inv
 MIGRATION_PRESERVED_PROJECT_DOCUMENT_ROOTS = tuple(
     f"docs/{name}/" for name in DOC_DIRS if name != "agent-workflow"
 )
+RUNTIME_REFRESH_SOURCE_IDENTITY_ALGORITHM = "runtime-refresh-source-sha256-v1"
+RUNTIME_REFRESH_TARGET_IDENTITY_ALGORITHM = "runtime-refresh-target-sha256-v1"
+RUNTIME_MIGRATION_PLAN_ID_ALGORITHM = "runtime-refresh-plan-sha256-v1"
+RUNTIME_MIGRATION_TRANSITION_FIELDS = (
+    "from_version",
+    "to_version",
+    "classification",
+    "evidence_status",
+    "candidate_versions",
+)
+
+
+def _is_sha256_digest(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and value == value.lower()
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
+def _canonical_sha256(value: object) -> str:
+    encoded = json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _runtime_migration_transition_identity(version_transition: dict[str, object]) -> dict[str, object]:
+    return {
+        field_name: copy.deepcopy(version_transition[field_name])
+        for field_name in RUNTIME_MIGRATION_TRANSITION_FIELDS
+    }
+
+
+def _runtime_migration_plan_id(
+    *,
+    target: str,
+    transition: dict[str, object],
+    source_identity: dict[str, object],
+    target_identity: dict[str, object],
+    scope: dict[str, object],
+) -> str:
+    return _canonical_sha256(
+        {
+            "algorithm": RUNTIME_MIGRATION_PLAN_ID_ALGORITHM,
+            "target": target,
+            "transition": transition,
+            "source_identity": source_identity,
+            "target_identity": target_identity,
+            "scope": scope,
+        }
+    )
+
+
+def _validate_runtime_source_identity(value: object) -> None:
+    if not isinstance(value, dict):
+        raise ValueError("runtime refresh result migration_plan source_identity must be an object")
+    if value.get("algorithm") != RUNTIME_REFRESH_SOURCE_IDENTITY_ALGORITHM:
+        raise ValueError("runtime refresh result migration_plan source_identity algorithm is invalid")
+    try:
+        parse_pack_version(value.get("pack_version"))
+    except PackVersionError as error:
+        raise ValueError(
+            f"runtime refresh result migration_plan source_identity pack_version is invalid: {error.message}"
+        ) from error
+    file_count = value.get("file_count")
+    if isinstance(file_count, bool) or not isinstance(file_count, int) or file_count <= 0:
+        raise ValueError("runtime refresh result migration_plan source_identity file_count must be positive")
+    if not _is_sha256_digest(value.get("sha256")):
+        raise ValueError("runtime refresh result migration_plan source_identity sha256 is invalid")
+
+
+def _validate_runtime_target_identity(value: object) -> None:
+    if not isinstance(value, dict):
+        raise ValueError("runtime refresh result migration_plan target_identity must be an object")
+    if value.get("algorithm") != RUNTIME_REFRESH_TARGET_IDENTITY_ALGORITHM:
+        raise ValueError("runtime refresh result migration_plan target_identity algorithm is invalid")
+    if not _is_sha256_digest(value.get("state_sha256")):
+        raise ValueError("runtime refresh result migration_plan target_identity state_sha256 is invalid")
+    for field_name in ("runtime_manifest_sha256", "workflow_pack_manifest_sha256"):
+        digest = value.get(field_name)
+        if digest is not None and not _is_sha256_digest(digest):
+            raise ValueError(
+                f"runtime refresh result migration_plan target_identity {field_name} is invalid"
+            )
+    if not _is_sha256_digest(value.get("sha256")):
+        raise ValueError("runtime refresh result migration_plan target_identity sha256 is invalid")
+    identity_material = {
+        "algorithm": value["algorithm"],
+        "state_sha256": value["state_sha256"],
+        "runtime_manifest_sha256": value.get("runtime_manifest_sha256"),
+        "workflow_pack_manifest_sha256": value.get("workflow_pack_manifest_sha256"),
+    }
+    if value["sha256"] != _canonical_sha256(identity_material):
+        raise ValueError(
+            "runtime refresh result migration_plan target_identity sha256 does not match its evidence"
+        )
+
+
+def _validate_runtime_migration_transition(value: object) -> None:
+    if not isinstance(value, dict):
+        raise ValueError("runtime refresh result migration_plan transition must be an object")
+    missing = sorted(set(RUNTIME_MIGRATION_TRANSITION_FIELDS) - set(value))
+    if missing:
+        raise ValueError(
+            "runtime refresh result migration_plan transition is missing: " + ", ".join(missing)
+        )
+    if set(value) != set(RUNTIME_MIGRATION_TRANSITION_FIELDS):
+        raise ValueError("runtime refresh result migration_plan transition has unsupported fields")
+    synthetic = {
+        **value,
+        "approval_required": False,
+        "approval_flag": "",
+        "approval_granted": False,
+        "can_apply": True,
+        "decision": "apply",
+    }
+    _validate_runtime_version_transition(synthetic)
 
 
 def _validate_runtime_version_transition(value: object) -> None:
@@ -637,6 +763,12 @@ def _validate_runtime_migration_plan(value: object) -> None:
         raise ValueError("runtime refresh result migration_plan must be an object")
     required = {
         "schema_version",
+        "plan_id",
+        "plan_id_algorithm",
+        "target",
+        "transition",
+        "source_identity",
+        "target_identity",
         "status",
         "required",
         "reason_code",
@@ -650,6 +782,19 @@ def _validate_runtime_migration_plan(value: object) -> None:
         raise ValueError("runtime refresh result migration_plan is missing: " + ", ".join(missing))
     if value["schema_version"] != 1:
         raise ValueError("runtime refresh result migration_plan schema_version must be 1")
+    if value["plan_id_algorithm"] != RUNTIME_MIGRATION_PLAN_ID_ALGORITHM:
+        raise ValueError("runtime refresh result migration_plan plan_id_algorithm is invalid")
+    if not _is_sha256_digest(value["plan_id"]):
+        raise ValueError("runtime refresh result migration_plan plan_id is invalid")
+    if not isinstance(value["target"], str) or not value["target"]:
+        raise ValueError("runtime refresh result migration_plan target must be a non-empty string")
+    _validate_runtime_migration_transition(value["transition"])
+    _validate_runtime_source_identity(value["source_identity"])
+    _validate_runtime_target_identity(value["target_identity"])
+    if value["source_identity"]["pack_version"] != value["transition"]["to_version"]:
+        raise ValueError(
+            "runtime refresh result migration_plan source_identity pack_version does not match transition"
+        )
     if value["status"] not in MIGRATION_PLAN_STATUSES:
         raise ValueError("runtime refresh result migration_plan status is invalid")
     if not isinstance(value["required"], bool):
@@ -727,6 +872,15 @@ def _validate_runtime_migration_plan(value: object) -> None:
     verification = rollback.get("verification")
     if not isinstance(verification, dict) or not isinstance(verification.get("argv"), list):
         raise ValueError("runtime refresh result migration_plan rollback verification must contain argv")
+    expected_plan_id = _runtime_migration_plan_id(
+        target=value["target"],
+        transition=value["transition"],
+        source_identity=value["source_identity"],
+        target_identity=value["target_identity"],
+        scope=value["scope"],
+    )
+    if value["plan_id"] != expected_plan_id:
+        raise ValueError("runtime refresh result migration_plan plan_id does not match its evidence")
 
 
 @dataclass(frozen=True)
@@ -782,6 +936,23 @@ class RuntimeRefreshResult:
             _validate_runtime_version_transition(self.version_transition)
         if self.migration_plan:
             _validate_runtime_migration_plan(self.migration_plan)
+        if self.version_transition and self.migration_plan:
+            if self.migration_plan["target"] != self.target:
+                raise ValueError("runtime refresh result migration_plan target does not match result target")
+            expected_transition = _runtime_migration_transition_identity(self.version_transition)
+            if self.migration_plan["transition"] != expected_transition:
+                raise ValueError(
+                    "runtime refresh result migration_plan transition does not match version_transition"
+                )
+            expected_status = "not_required"
+            if self.migration_plan["required"]:
+                expected_status = (
+                    "approved" if self.version_transition["approval_granted"] else "review_required"
+                )
+            if self.migration_plan["status"] != expected_status:
+                raise ValueError(
+                    "runtime refresh result migration_plan status does not match version_transition"
+                )
         self.refreshed = list(self.refreshed)
         self.removed = list(self.removed)
         self.would_refresh = list(self.would_refresh)
@@ -1195,13 +1366,72 @@ def _build_runtime_version_transition(
     }
 
 
+def _build_runtime_refresh_source_identity(
+    pack_root: Path,
+    workflow_pack_files: list[Path],
+    source_version: str,
+) -> dict[str, object]:
+    entries: list[dict[str, object]] = []
+    for rel in _runtime_file_paths():
+        source = pack_root / rel
+        entries.append(
+            {
+                "path": rel.as_posix(),
+                "size_bytes": source.stat().st_size,
+                "sha256": _sha256(source),
+                "executable": bool(source.stat().st_mode & 0o111),
+            }
+        )
+    workflow_source_root = _source_workflow_pack_root()
+    for rel in workflow_pack_files:
+        source = workflow_source_root / rel
+        entries.append(
+            {
+                "path": f"{WORKFLOW_PACK_SNAPSHOT_ROOT}/{rel.as_posix()}",
+                "size_bytes": source.stat().st_size,
+                "sha256": _sha256(source),
+                "executable": bool(source.stat().st_mode & 0o111),
+            }
+        )
+    entries.sort(key=lambda item: str(item["path"]))
+    material = {
+        "algorithm": RUNTIME_REFRESH_SOURCE_IDENTITY_ALGORITHM,
+        "pack_version": source_version,
+        "files": entries,
+    }
+    return {
+        "algorithm": RUNTIME_REFRESH_SOURCE_IDENTITY_ALGORITHM,
+        "pack_version": source_version,
+        "file_count": len(entries),
+        "sha256": _canonical_sha256(material),
+    }
+
+
+def _optional_file_sha256(path: Path) -> str | None:
+    return _sha256(path) if path.exists() and path.is_file() else None
+
+
+def _build_runtime_refresh_target_identity(root: Path) -> dict[str, object]:
+    identity: dict[str, object] = {
+        "algorithm": RUNTIME_REFRESH_TARGET_IDENTITY_ALGORITHM,
+        "state_sha256": _optional_file_sha256(root / STATE_REL),
+        "runtime_manifest_sha256": _optional_file_sha256(root / RUNTIME_MANIFEST_REL),
+        "workflow_pack_manifest_sha256": _optional_file_sha256(
+            root / WORKFLOW_PACK_SNAPSHOT_ROOT / "manifest.json"
+        ),
+    }
+    identity["sha256"] = _canonical_sha256(identity)
+    return identity
+
+
 def _build_runtime_migration_plan(
     root: Path,
     source_pack_root: Path,
     version_transition: dict[str, object],
     managed_runtime_paths: list[str],
     stale_snapshot_paths: list[str],
-    approval_granted: bool,
+    source_identity: dict[str, object],
+    target_identity: dict[str, object],
 ) -> dict[str, object]:
     classification = str(version_transition["classification"])
     evidence_status = str(version_transition["evidence_status"])
@@ -1209,7 +1439,7 @@ def _build_runtime_migration_plan(
     migration_required = classification in MIGRATION_REQUIRED_CLASSIFICATIONS or evidence_status in MIGRATION_REQUIRED_EVIDENCE_STATUSES
     status = "not_required"
     if migration_required:
-        status = "approved" if approval_granted and approval_required else "review_required"
+        status = "approved" if version_transition["approval_granted"] and approval_required else "review_required"
     reason_code = classification if classification in MIGRATION_REQUIRED_CLASSIFICATIONS else evidence_status
     reason = {
         "breaking_upgrade": "A major workflow-pack transition may require consumer migration review.",
@@ -1221,10 +1451,24 @@ def _build_runtime_migration_plan(
     }.get(reason_code, "The runtime refresh does not require a separate project-document migration.")
 
     target = str(root)
+    transition_identity = _runtime_migration_transition_identity(version_transition)
+    scope = {
+        "managed_runtime_paths": list(managed_runtime_paths),
+        "stale_snapshot_paths": list(stale_snapshot_paths),
+        "preserved_project_document_roots": list(MIGRATION_PRESERVED_PROJECT_DOCUMENT_ROOTS),
+    }
+    plan_id = _runtime_migration_plan_id(
+        target=target,
+        transition=transition_identity,
+        source_identity=source_identity,
+        target_identity=target_identity,
+        scope=scope,
+    )
     check_argv = ["bin/governance", "runtime", "refresh", target, "--check", "--json"]
     apply_argv = ["bin/governance", "runtime", "refresh", target, "--json"]
     if approval_required:
         apply_argv.insert(-1, "--approve-version-transition")
+        apply_argv[-1:-1] = ["--expect-migration-plan", plan_id]
     verify_argv = ["bin/governance", "verify", target, "--check", "--json"]
     resume_argv = ["bin/governance", "workflow", "resume", target, "--json"]
 
@@ -1280,15 +1524,17 @@ def _build_runtime_migration_plan(
 
     return {
         "schema_version": 1,
+        "plan_id": plan_id,
+        "plan_id_algorithm": RUNTIME_MIGRATION_PLAN_ID_ALGORITHM,
+        "target": target,
+        "transition": transition_identity,
+        "source_identity": copy.deepcopy(source_identity),
+        "target_identity": copy.deepcopy(target_identity),
         "status": status,
         "required": migration_required,
         "reason_code": reason_code,
         "reason": reason,
-        "scope": {
-            "managed_runtime_paths": list(managed_runtime_paths),
-            "stale_snapshot_paths": list(stale_snapshot_paths),
-            "preserved_project_document_roots": list(MIGRATION_PRESERVED_PROJECT_DOCUMENT_ROOTS),
-        },
+        "scope": scope,
         "steps": steps,
         "rollback": {
             "required": migration_required,
@@ -1522,6 +1768,7 @@ def _runtime_refresh_preflight(
     root: Path,
     check: bool = False,
     approve_version_transition: bool = False,
+    expected_migration_plan: str | None = None,
 ) -> tuple[
     RuntimeRefreshResult | None,
     list[Path],
@@ -1599,18 +1846,101 @@ def _runtime_refresh_preflight(
         root,
         state,
         source_version,
-        approve_version_transition,
+        False,
     )
     output_paths = _runtime_refresh_output_paths(workflow_pack_files)
     stale_paths = _stale_workflow_pack_snapshot_files(root, workflow_pack_files)
+    source_identity = _build_runtime_refresh_source_identity(
+        pack_root,
+        workflow_pack_files,
+        source_version,
+    )
+    target_identity = _build_runtime_refresh_target_identity(root)
     migration_plan = _build_runtime_migration_plan(
         root,
         pack_root,
         version_transition,
         [path.as_posix() for path in output_paths],
         [path.as_posix() for path in stale_paths],
-        approve_version_transition,
+        source_identity,
+        target_identity,
     )
+    approval_required = bool(version_transition["approval_required"])
+    if approve_version_transition and approval_required:
+        if expected_migration_plan is None:
+            return (
+                RuntimeRefreshResult(
+                    target=str(root),
+                    ok=False,
+                    check=check,
+                    errors=[
+                        "runtime refresh version-transition approval requires "
+                        "--expect-migration-plan <plan_id> from the reviewed --check result"
+                    ],
+                    state=state,
+                    version_transition=version_transition,
+                    migration_plan=migration_plan,
+                ),
+                [],
+                state,
+                version_transition,
+                migration_plan,
+            )
+        if expected_migration_plan != migration_plan["plan_id"]:
+            return (
+                RuntimeRefreshResult(
+                    target=str(root),
+                    ok=False,
+                    check=check,
+                    errors=[
+                        "runtime refresh migration plan changed after review: "
+                        f"expected {expected_migration_plan}, current {migration_plan['plan_id']}; "
+                        "rerun --check and review the new plan"
+                    ],
+                    state=state,
+                    version_transition=version_transition,
+                    migration_plan=migration_plan,
+                ),
+                [],
+                state,
+                version_transition,
+                migration_plan,
+            )
+        version_transition = _build_runtime_version_transition(
+            root,
+            state,
+            source_version,
+            True,
+        )
+        migration_plan = _build_runtime_migration_plan(
+            root,
+            pack_root,
+            version_transition,
+            [path.as_posix() for path in output_paths],
+            [path.as_posix() for path in stale_paths],
+            source_identity,
+            target_identity,
+        )
+    elif expected_migration_plan is not None and expected_migration_plan != migration_plan["plan_id"]:
+        return (
+            RuntimeRefreshResult(
+                target=str(root),
+                ok=False,
+                check=check,
+                errors=[
+                    "runtime refresh migration plan changed after review: "
+                    f"expected {expected_migration_plan}, current {migration_plan['plan_id']}; "
+                    "rerun --check and review the new plan"
+                ],
+                state=state,
+                version_transition=version_transition,
+                migration_plan=migration_plan,
+            ),
+            [],
+            state,
+            version_transition,
+            migration_plan,
+        )
     if not check and not version_transition["can_apply"]:
         classification = version_transition["classification"]
         from_version = version_transition["from_version"] or "unknown"
@@ -1621,7 +1951,8 @@ def _runtime_refresh_preflight(
                 errors=[
                     "runtime refresh requires explicit version-transition approval: "
                     f"{classification} from {from_version} to {source_version}; "
-                    "rerun with --approve-version-transition after reviewing --check output"
+                    "rerun with --approve-version-transition and --expect-migration-plan <plan_id> "
+                    "after reviewing --check output"
                 ],
                 state=state,
                 version_transition=version_transition,
@@ -1636,12 +1967,17 @@ def _runtime_refresh_preflight(
     return None, workflow_pack_files, state, version_transition, migration_plan
 
 
-def check_runtime_refresh(root: Path, approve_version_transition: bool = False) -> RuntimeRefreshResult:
+def check_runtime_refresh(
+    root: Path,
+    approve_version_transition: bool = False,
+    expected_migration_plan: str | None = None,
+) -> RuntimeRefreshResult:
     root = root.resolve()
     error_result, workflow_pack_files, state, version_transition, migration_plan = _runtime_refresh_preflight(
         root,
         check=True,
         approve_version_transition=approve_version_transition,
+        expected_migration_plan=expected_migration_plan,
     )
     if error_result is not None:
         return error_result
@@ -1658,16 +1994,43 @@ def check_runtime_refresh(root: Path, approve_version_transition: bool = False) 
     )
 
 
-def refresh_runtime(root: Path, approve_version_transition: bool = False) -> RuntimeRefreshResult:
+def refresh_runtime(
+    root: Path,
+    approve_version_transition: bool = False,
+    expected_migration_plan: str | None = None,
+) -> RuntimeRefreshResult:
     root = root.resolve()
     error_result, workflow_pack_files, state, version_transition, migration_plan = _runtime_refresh_preflight(
         root,
         approve_version_transition=approve_version_transition,
+        expected_migration_plan=expected_migration_plan,
     )
     if error_result is not None:
         return error_result
 
     output_paths = _runtime_refresh_output_paths(workflow_pack_files)
+    source_version = str(migration_plan["source_identity"]["pack_version"])
+    current_source_identity = _build_runtime_refresh_source_identity(
+        Path(__file__).resolve().parents[1].resolve(),
+        workflow_pack_files,
+        source_version,
+    )
+    current_target_identity = _build_runtime_refresh_target_identity(root)
+    if (
+        current_source_identity != migration_plan["source_identity"]
+        or current_target_identity != migration_plan["target_identity"]
+    ):
+        return RuntimeRefreshResult(
+            target=str(root),
+            ok=False,
+            errors=[
+                "runtime refresh migration plan changed immediately before apply; "
+                "rerun --check and review the new plan"
+            ],
+            state=state,
+            version_transition=version_transition,
+            migration_plan=migration_plan,
+        )
     snapshots: dict[str, _FileSnapshot] = {}
     try:
         snapshots = _snapshot_files(root, _runtime_refresh_snapshot_paths(root, workflow_pack_files))
@@ -1683,6 +2046,18 @@ def refresh_runtime(root: Path, approve_version_transition: bool = False) -> Run
         refreshed.append(workflow_pack_manifest)
         refreshed = sorted(dict.fromkeys(refreshed))
 
+        if (
+            _build_runtime_refresh_source_identity(
+                Path(__file__).resolve().parents[1].resolve(),
+                workflow_pack_files,
+                source_version,
+            )
+            != migration_plan["source_identity"]
+        ):
+            raise RuntimeRefreshPlanDriftError(
+                "source workflow pack changed while runtime refresh was applying"
+            )
+
         state = merge_state(
             root,
             runtime_manifest=runtime_manifest,
@@ -1690,7 +2065,7 @@ def refresh_runtime(root: Path, approve_version_transition: bool = False) -> Run
             workflow_pack_version=read_pack_version(root / WORKFLOW_PACK_SNAPSHOT_ROOT),
             runtime_refreshed_at=utc_now(),
         )
-    except (OSError, PackVersionError, StateFileError) as error:
+    except (OSError, PackVersionError, RuntimeRefreshPlanDriftError, StateFileError) as error:
         rollback_errors = _rollback_runtime_refresh(root, snapshots, output_paths)
         errors = [f"runtime refresh failed: {error}"]
         errors.extend(rollback_errors)

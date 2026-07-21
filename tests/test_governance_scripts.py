@@ -4526,6 +4526,15 @@ class GovernanceScriptsTest(unittest.TestCase):
                 },
                 "runtime refresh result version_transition can_apply is inconsistent",
             ),
+            (
+                {
+                    "target": "/tmp/project",
+                    "ok": True,
+                    "version_transition": source_transition,
+                    "migration_plan": {"schema_version": 1},
+                },
+                "runtime refresh result migration_plan is missing",
+            ),
         ]
         for values, message in cases:
             with self.subTest(message=message, values=values):
@@ -4569,18 +4578,35 @@ class GovernanceScriptsTest(unittest.TestCase):
             "decision": "request_approval",
         }
 
+        target_identity = {
+            "algorithm": "runtime-refresh-target-sha256-v1",
+            "state_sha256": "b" * 64,
+            "runtime_manifest_sha256": None,
+            "workflow_pack_manifest_sha256": "c" * 64,
+        }
+        target_identity["sha256"] = bootstrap_module._canonical_sha256(target_identity)
         plan = bootstrap_module._build_runtime_migration_plan(
             Path("/tmp/project"),
             Path("/tmp/workflow-pack"),
             transition,
             ["CHANGELOG.md", "bin/governance"],
             ["docs/agent-workflow/workflow-pack/old.md"],
-            False,
+            {
+                "algorithm": "runtime-refresh-source-sha256-v1",
+                "pack_version": "1.0.0",
+                "file_count": 2,
+                "sha256": "a" * 64,
+            },
+            target_identity,
         )
 
         self.assertEqual("review_required", plan["status"])
         self.assertTrue(plan["required"])
         self.assertEqual("breaking_upgrade", plan["reason_code"])
+        self.assertRegex(plan["plan_id"], r"^[0-9a-f]{64}$")
+        self.assertEqual("runtime-refresh-plan-sha256-v1", plan["plan_id_algorithm"])
+        self.assertEqual("1.0.0", plan["source_identity"]["pack_version"])
+        self.assertEqual("b" * 64, plan["target_identity"]["state_sha256"])
         self.assertEqual(
             ["CHANGELOG.md", "bin/governance"],
             plan["scope"]["managed_runtime_paths"],

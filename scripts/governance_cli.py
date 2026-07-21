@@ -710,9 +710,17 @@ def _cmd_project_environment_repair(args: argparse.Namespace) -> int:
 def _cmd_runtime_refresh(args: argparse.Namespace) -> int:
     target = Path(args.target)
     result = (
-        check_runtime_refresh(target, approve_version_transition=args.approve_version_transition)
+        check_runtime_refresh(
+            target,
+            approve_version_transition=args.approve_version_transition,
+            expected_migration_plan=args.expect_migration_plan,
+        )
         if args.check
-        else refresh_runtime(target, approve_version_transition=args.approve_version_transition)
+        else refresh_runtime(
+            target,
+            approve_version_transition=args.approve_version_transition,
+            expected_migration_plan=args.expect_migration_plan,
+        )
     )
     payload = result.to_dict()
     if result.ok and not args.check and result.state:
@@ -1899,6 +1907,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--approve-version-transition",
         action="store_true",
         help="Approve a breaking upgrade, rollback, replacement, or conflicting version evidence after review.",
+    )
+    runtime_refresh.add_argument(
+        "--expect-migration-plan",
+        metavar="PLAN_ID",
+        help="Bind refresh to the plan_id returned by the reviewed runtime refresh check.",
     )
     runtime_refresh.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     runtime_refresh.set_defaults(func=_cmd_runtime_refresh)
