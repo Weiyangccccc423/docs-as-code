@@ -6,7 +6,7 @@ The workflow pack separates mandatory governance runtime from optional project t
 
 Core governance commands must remain runnable with:
 
-- POSIX shell for `bin/` wrappers
+- POSIX `/bin/sh` for `bin/` wrappers; Bash is not required
 - Python 3.10 or newer, using only the standard library for `scripts/`
 - no package installation for normal checks and initialization
 - no network access during normal checks or initialization; approved `env --repair` and authority-skill apply are separate explicit repair boundaries

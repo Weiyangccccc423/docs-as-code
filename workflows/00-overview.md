@@ -17,7 +17,7 @@ Use `references/community-practices.md` to calibrate this workflow against recog
 
 ## Runtime Model
 
-Core governance commands are implemented as POSIX shell wrappers plus Python 3.10+ standard-library scripts. Normal operation must run without package installation or network access; `env --repair` may install supported system packages only under the repair policy in `references/runtime-strategy.md`.
+Core governance commands are implemented as POSIX `/bin/sh` wrappers plus Python 3.10+ standard-library scripts. Bash is not required. Normal operation must run without package installation or network access; `env --repair` may install supported system packages only under the repair policy in `references/runtime-strategy.md`.
 
 Project implementation runtimes use a separate reviewed contract. During design derivation, `workflow plan` appends the `project-runtime` queue after design authoring and authority reviews. `workflow work-package` returns `project-runtime-configuration` until `project-env plan` reports `configuration_complete: true`; implementation gate requirement `project_runtime_ready` enforces the same result even when the gate is called directly. No `project-runtime` command means `coverage_status: not_required`; otherwise every external executable must be registered and version-ready or every explicitly allowed repository executable must pass path and executable checks.
 

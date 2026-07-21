@@ -31,6 +31,21 @@ class PackStructureTest(unittest.TestCase):
     def test_one_command_consumer_bootstrap_wrapper_is_required(self) -> None:
         self.assertIn("bin/governance-bootstrap", SOURCE_PACK_REQUIRED_PATHS)
 
+    def test_runtime_wrappers_use_posix_sh_contract(self) -> None:
+        for rel in (
+            "bin/governance",
+            "bin/governance-init",
+            "bin/governance-verify",
+            "bin/governance-bootstrap",
+        ):
+            with self.subTest(wrapper=rel):
+                text = (ROOT / rel).read_text(encoding="utf-8")
+                self.assertTrue(text.startswith("#!/bin/sh\nset -eu\n"))
+                self.assertIn('ROOT_DIR="$(CDPATH= cd "$(dirname "$0")/.." && pwd)"', text)
+                self.assertNotIn("BASH_SOURCE", text)
+                self.assertNotIn("[[", text)
+                self.assertNotIn("pipefail", text)
+
     def test_verify_pack_requires_consumer_bootstrap_python_preflight(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
@@ -60,32 +75,36 @@ class PackStructureTest(unittest.TestCase):
             )
 
     def test_verify_pack_requires_consumer_bootstrap_runtime_repair_docs(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            target = Path(tmp) / "pack"
-            shutil.copytree(
-                ROOT,
-                target,
-                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
-            )
-            readme = target / "README.md"
-            text = readme.read_text(encoding="utf-8")
-            self.assertIn("DOCS_AS_CODE_PYTHON", text)
-            readme.write_text(
-                text.replace("DOCS_AS_CODE_PYTHON", "GOVERNANCE_PYTHON"),
-                encoding="utf-8",
-            )
-
-            report = verify_pack(target)
-
-            self.assertFalse(report.ok)
-            self.assertTrue(
-                any(
-                    finding.code == "pack_consumer_bootstrap_doc_missing"
-                    and finding.path == "README.md"
-                    and "DOCS_AS_CODE_PYTHON" in finding.message
-                    for finding in report.findings
+        for required_phrase, replacement in (
+            ("DOCS_AS_CODE_PYTHON", "GOVERNANCE_PYTHON"),
+            ("Bash is not required", "Bash is required"),
+        ):
+            with self.subTest(required_phrase=required_phrase), tempfile.TemporaryDirectory() as tmp:
+                target = Path(tmp) / "pack"
+                shutil.copytree(
+                    ROOT,
+                    target,
+                    ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
                 )
-            )
+                readme = target / "README.md"
+                text = readme.read_text(encoding="utf-8")
+                self.assertIn(required_phrase, text)
+                readme.write_text(
+                    text.replace(required_phrase, replacement),
+                    encoding="utf-8",
+                )
+
+                report = verify_pack(target)
+
+                self.assertFalse(report.ok)
+                self.assertTrue(
+                    any(
+                        finding.code == "pack_consumer_bootstrap_doc_missing"
+                        and finding.path == "README.md"
+                        and required_phrase in finding.message
+                        for finding in report.findings
+                    )
+                )
 
     def test_authority_skill_source_review_is_required_in_generated_targets(self) -> None:
         self.assertIn("references/authority-skills-source-review.md", WORKFLOW_PACK_REQUIRED_PATHS)
@@ -6179,7 +6198,7 @@ class PackStructureTest(unittest.TestCase):
             )
             wrapper = target / "bin/governance"
             wrapper.write_text(
-                wrapper.read_text(encoding="utf-8").replace("set -euo pipefail\n", "", 1),
+                wrapper.read_text(encoding="utf-8").replace("set -eu\n", "", 1),
                 encoding="utf-8",
             )
 
@@ -6190,7 +6209,7 @@ class PackStructureTest(unittest.TestCase):
                 any(
                     finding.code == "pack_runtime_wrapper_guard_missing"
                     and finding.path == "bin/governance"
-                    and "set -euo pipefail" in finding.message
+                    and "set -eu" in finding.message
                     for finding in report.findings
                 )
             )
@@ -6206,7 +6225,7 @@ class PackStructureTest(unittest.TestCase):
             wrapper = target / "bin/governance"
             wrapper.write_text(
                 wrapper.read_text(encoding="utf-8").replace(
-                    'ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"\n',
+                    'ROOT_DIR="$(CDPATH= cd "$(dirname "$0")/.." && pwd)"\n',
                     "",
                     1,
                 ),
@@ -6221,6 +6240,32 @@ class PackStructureTest(unittest.TestCase):
                     finding.code == "pack_runtime_wrapper_root_missing"
                     and finding.path == "bin/governance"
                     and "ROOT_DIR" in finding.message
+                    for finding in report.findings
+                )
+            )
+
+    def test_verify_pack_reports_bash_specific_runtime_wrapper_syntax(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            wrapper = target / "bin/governance"
+            wrapper.write_text(
+                wrapper.read_text(encoding="utf-8").replace("set -eu\n", "set -euo pipefail\n", 1),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_runtime_wrapper_non_posix"
+                    and finding.path == "bin/governance"
+                    and "pipefail" in finding.message
                     for finding in report.findings
                 )
             )

@@ -100,7 +100,7 @@ class ConsumerBootstrapTest(unittest.TestCase):
                     env = os.environ.copy()
                     env["DOCS_AS_CODE_PYTHON"] = str(interpreter)
                     result = subprocess.run(
-                        [str(pack / "bin/governance-bootstrap"), "--check", "--json"],
+                        ["/bin/sh", str(pack / "bin/governance-bootstrap"), "--check", "--json"],
                         cwd=target,
                         env=env,
                         text=True,
@@ -142,7 +142,7 @@ class ConsumerBootstrapTest(unittest.TestCase):
             env["DOCS_AS_CODE_PYTHON_TEST_REAL"] = sys.executable
 
             result = subprocess.run(
-                [str(pack / "bin/governance-bootstrap"), "--check", "--json"],
+                ["/bin/sh", str(pack / "bin/governance-bootstrap"), "--check", "--json"],
                 cwd=target,
                 env=env,
                 text=True,

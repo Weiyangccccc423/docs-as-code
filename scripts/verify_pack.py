@@ -1453,6 +1453,7 @@ CONSUMER_BOOTSTRAP_RUNTIME_DOC_REQUIRED_PHRASES = (
     "DOCS_AS_CODE_PYTHON",
     "bootstrap_python_unavailable",
     "bootstrap_python_incompatible",
+    "Bash is not required",
 )
 CONSUMER_BOOTSTRAP_DOC_REQUIREMENTS = {
     "README.md": (
@@ -5359,12 +5360,12 @@ MAKEFILE_REQUIRED_TARGET_RECIPES = {
     ),
 }
 RUNTIME_WRAPPER_REQUIRED_COMMANDS = {
-    "bin/governance": 'python3 "$ROOT_DIR/scripts/governance_cli.py" "$@"',
+    "bin/governance": 'exec python3 "$ROOT_DIR/scripts/governance_cli.py" "$@"',
     CONSUMER_BOOTSTRAP_WRAPPER_PATH: (
         'exec "$PYTHON_BIN" "$ROOT_DIR/scripts/bootstrap_consumer_project.py" --auto-repair-env "$@"'
     ),
-    "bin/governance-init": 'python3 "$ROOT_DIR/scripts/governance_cli.py" init "$@"',
-    "bin/governance-verify": 'python3 "$ROOT_DIR/scripts/governance_cli.py" verify "$@"',
+    "bin/governance-init": 'exec python3 "$ROOT_DIR/scripts/governance_cli.py" init "$@"',
+    "bin/governance-verify": 'exec python3 "$ROOT_DIR/scripts/governance_cli.py" verify "$@"',
 }
 BOOTSTRAP_TREE_PATH = Path("scripts/bootstrap_tree.py")
 GENERATED_ROOT_AGENTS_REQUIRED_PHRASES = (
@@ -5474,10 +5475,17 @@ GOVERNANCE_CLI_PARSER_VARIABLES = {
     "implementation": "implementation_sub",
 }
 RUNTIME_WRAPPER_REQUIRED_GUARDS = (
-    "#!/usr/bin/env bash",
-    "set -euo pipefail",
+    "#!/bin/sh",
+    "set -eu",
 )
-RUNTIME_WRAPPER_ROOT_DIR_LINE = 'ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"'
+RUNTIME_WRAPPER_FORBIDDEN_PHRASES = (
+    "BASH_SOURCE",
+    "[[",
+    "]]",
+    "pipefail",
+    "local ",
+)
+RUNTIME_WRAPPER_ROOT_DIR_LINE = 'ROOT_DIR="$(CDPATH= cd "$(dirname "$0")/.." && pwd)"'
 CONSUMER_BOOTSTRAP_WRAPPER_RUNTIME_GUARDS = (
     "DOCS_AS_CODE_PYTHON",
     "bootstrap_python_unavailable",
@@ -7589,6 +7597,16 @@ def _check_runtime_wrapper_commands(root: Path, findings: list[PackFinding]) -> 
                 PackFinding(
                     "pack_runtime_wrapper_guard_missing",
                     f"runtime wrapper must include shell guard: {guard}",
+                    rel,
+                )
+            )
+        for phrase in RUNTIME_WRAPPER_FORBIDDEN_PHRASES:
+            if phrase not in text:
+                continue
+            findings.append(
+                PackFinding(
+                    "pack_runtime_wrapper_non_posix",
+                    f"runtime wrapper must not include Bash-specific phrase: {phrase}",
                     rel,
                 )
             )
