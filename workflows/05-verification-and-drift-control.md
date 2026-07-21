@@ -68,14 +68,14 @@ make project-env-plan
 
    For resumed work, run `workflow-resume`, assert `snapshot.id` through `assert_snapshot_command.argv`, execute exactly one `selected_action`, and then run `refresh_command.argv`. Discard any action that returns `status: stale`; stop on `blocked`, `approval_required`, or `failed` instead of reconstructing a command from memory.
 
-5. If verification reports target-local runtime or workflow-pack snapshot drift, inspect the refresh plan from a trusted source workflow-pack checkout before writing repairs:
+5. If verification reports target-local runtime or workflow-pack snapshot drift, including invalid or mismatched `VERSION`, manifest `pack_version`, or state `workflow_pack_version`, inspect the refresh plan from a trusted source workflow-pack checkout before writing repairs:
 
    ```bash
    bin/governance runtime refresh <target> --check --json
    bin/governance runtime refresh <target> --json
    ```
 
-   Treat the `--check` form as the no-write repair plan. After the write-mode refresh succeeds, use returned `local_commands[].argv` for target-local checks and `next_actions[].argv` for the next workflow transition.
+   Treat the `--check` form as the no-write repair plan. Apply only a reviewed source version under `references/versioning-policy.md`; write mode records that version in the snapshot, both manifests, and state. After the write-mode refresh succeeds, use returned `local_commands[].argv` for target-local checks and `next_actions[].argv` for the next workflow transition.
 
 6. Before implementation starts, run the implementation gate:
 

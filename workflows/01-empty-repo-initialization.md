@@ -135,7 +135,7 @@ Load:
 
 A repository skeleton with governance entry points, product core files, unresolved item registry, glossary, and domain-level docs entrances.
 
-The target receives a local governance runtime under `bin/` and `scripts/`, a runtime hash manifest at `docs/agent-workflow/runtime-manifest.json`, a structured runtime/version/repair contract at `docs/agent-workflow/project-environment.json`, plus a workflow-pack snapshot under `docs/agent-workflow/workflow-pack/`. `core-governance` is ready immediately; keep `project-runtime` empty until stack selection supplies reviewed tools and sources. After initialization, use target-local commands when working inside the generated repository:
+The target receives a local governance runtime under `bin/` and `scripts/`, a runtime hash manifest at `docs/agent-workflow/runtime-manifest.json`, a structured runtime/version/repair contract at `docs/agent-workflow/project-environment.json`, plus a workflow-pack snapshot under `docs/agent-workflow/workflow-pack/`. Snapshot `VERSION`, runtime/snapshot `pack_version`, and state `workflow_pack_version` are copied from the source pack and must match. `core-governance` is ready immediately; keep `project-runtime` empty until stack selection supplies reviewed tools and sources. After initialization, use target-local commands when working inside the generated repository:
 
 ```bash
 bin/governance verify .
@@ -161,7 +161,7 @@ bin/governance runtime refresh <target> --check --json
 bin/governance runtime refresh <target> --json
 ```
 
-The target also receives `.governance/state.json`, which records phase, profile, product source, archive path, and last verification status.
+The target also receives `.governance/state.json`, which records workflow-pack version, phase, profile, product source, archive path, and last verification status.
 
 ## Verification
 

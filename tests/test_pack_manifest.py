@@ -7,11 +7,13 @@ import unittest
 from pathlib import Path
 
 from scripts.export_workflow_pack import run_export
+from scripts.pack_version import read_pack_version
 from scripts.verify_pack_manifest import MANIFEST_NAME, sha256_file, verify_pack_manifest
 
 
 ROOT = Path(__file__).resolve().parents[1]
 VERIFY_MANIFEST = ROOT / "scripts" / "verify_pack_manifest.py"
+PACK_VERSION = read_pack_version(ROOT)
 
 
 class PackManifestTest(unittest.TestCase):
@@ -26,6 +28,7 @@ class PackManifestTest(unittest.TestCase):
 
             self.assertTrue(report.ok, report.to_dict())
             self.assertEqual([], report.errors)
+            self.assertEqual(PACK_VERSION, report.pack_version)
             self.assertGreater(report.file_count, 20)
             self.assertEqual(str((output / MANIFEST_NAME).resolve()), report.manifest)
 
@@ -45,8 +48,41 @@ class PackManifestTest(unittest.TestCase):
             self.assertEqual("", result.stderr)
             payload = json.loads(result.stdout)
             self.assertTrue(payload["ok"])
-            self.assertEqual(1, payload["file_count"])
+            self.assertEqual("0.1.0", payload["pack_version"])
+            self.assertEqual(2, payload["file_count"])
             self.assertEqual([], payload["findings"])
+
+    def test_manifest_requires_matching_semver_pack_version(self) -> None:
+        cases = (
+            (None, "pack_manifest_version_invalid"),
+            ("v0.1.0", "pack_manifest_version_invalid"),
+            ("0.2.0", "pack_manifest_version_mismatch"),
+        )
+        for value, code in cases:
+            with self.subTest(value=value), tempfile.TemporaryDirectory() as tmp:
+                target = _write_minimal_pack(Path(tmp))
+                manifest = _read_manifest(target)
+                if value is None:
+                    del manifest["pack_version"]
+                else:
+                    manifest["pack_version"] = value
+                _write_manifest(target, manifest)
+
+                report = verify_pack_manifest(target)
+
+                self.assertFalse(report.ok)
+                self.assertTrue(_has_code(report, code), report.to_dict())
+
+    def test_invalid_version_file_fails_with_structured_finding(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _write_minimal_pack(Path(tmp))
+            (target / "VERSION").write_text("v0.1.0\n", encoding="utf-8")
+
+            report = verify_pack_manifest(target)
+
+            self.assertFalse(report.ok)
+            self.assertIsNone(report.pack_version)
+            self.assertTrue(_has_code(report, "pack_version_invalid"), report.to_dict())
 
     def test_hash_mismatch_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -155,6 +191,8 @@ def _write_minimal_pack(
 ) -> Path:
     target = base / "pack"
     target.mkdir()
+    version_path = target / "VERSION"
+    version_path.write_text("0.1.0\n", encoding="utf-8")
     path = target / rel
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
@@ -164,6 +202,7 @@ def _write_minimal_pack(
         "schema_version": 1,
         "created_at": "2026-07-07T00:00:00Z",
         "source": "docs-as-code source workflow pack",
+        "pack_version": "0.1.0",
         "source_root": str(ROOT),
         "files": [
             {
@@ -171,7 +210,13 @@ def _write_minimal_pack(
                 "size_bytes": path.stat().st_size,
                 "sha256": sha256_file(path),
                 "executable": bool(path.stat().st_mode & 0o111),
-            }
+            },
+            {
+                "path": "VERSION",
+                "size_bytes": version_path.stat().st_size,
+                "sha256": sha256_file(version_path),
+                "executable": False,
+            },
         ],
     }
     _write_manifest(target, manifest)

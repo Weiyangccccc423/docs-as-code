@@ -32,8 +32,23 @@ except Exception:  # pragma: no cover - direct execution or damaged source pack
 else:
     AUTHORITY_SKILL_LOCK_VALIDATOR_IMPORT_ERROR = ""
 
+try:
+    from .pack_version import PackVersionError, read_pack_version
+except Exception:  # pragma: no cover - direct execution or damaged source pack
+    try:
+        from pack_version import PackVersionError, read_pack_version
+    except Exception as error:  # pragma: no cover - verifier must report a damaged version reader
+        PackVersionError = ValueError  # type: ignore[misc,assignment]
+        read_pack_version = None  # type: ignore[assignment]
+        PACK_VERSION_READER_IMPORT_ERROR = str(error)
+    else:
+        PACK_VERSION_READER_IMPORT_ERROR = ""
+else:
+    PACK_VERSION_READER_IMPORT_ERROR = ""
+
 
 WORKFLOW_PACK_RESOURCE_PATHS = (
+    "VERSION",
     "README.md",
     "workflows",
     "skills",
@@ -1067,6 +1082,9 @@ SOURCE_PACK_EXPORT_PATH = "scripts/export_workflow_pack.py"
 SOURCE_PACK_EXPORT_REQUIRED_PHRASES = (
     "run_export",
     "EXPORT_RESOURCE_PATHS",
+    "read_pack_version",
+    '"pack_version"',
+    '"VERSION"',
     ".github",
     "pack-manifest.json",
     "verify_pack_manifest",
@@ -1105,15 +1123,48 @@ SOURCE_PACK_EXPORT_DOC_REQUIREMENTS = {
 PACK_MANIFEST_VERIFY_PATH = "scripts/verify_pack_manifest.py"
 PACK_MANIFEST_VERIFY_REQUIRED_PHRASES = (
     "verify_pack_manifest",
+    "read_pack_version",
+    "parse_pack_version",
     "pack-manifest.json",
     "sha256_file",
     "size_bytes",
     "sha256",
     "executable",
     "pack_manifest_file_unmanifested",
+    "pack_manifest_version_invalid",
+    "pack_manifest_version_mismatch",
     "duplicate",
     "PurePosixPath",
     "PureWindowsPath",
+)
+PACK_VERSION_PROPAGATION_REQUIRED_PHRASES = {
+    "scripts/bootstrap_tree.py": (
+        "read_pack_version",
+        '"pack_version"',
+        "workflow_pack_version",
+        '"VERSION"',
+    ),
+    "scripts/verify_governance.py": (
+        "parse_pack_version",
+        "workflow_pack_version_invalid",
+        '"workflow_pack_manifest"',
+        '"runtime_manifest"',
+        'f"{code_prefix}_version_mismatch"',
+        "state_workflow_pack_version_mismatch",
+    ),
+}
+VERSIONING_POLICY_PATH = "references/versioning-policy.md"
+VERSIONING_POLICY_REQUIRED_PHRASES = (
+    "Semantic Versioning 2.0.0",
+    "`VERSION` is the sole version source",
+    "Major",
+    "Minor",
+    "Patch",
+    "evidence copies, not independent version sources",
+    "must be reviewed before export or tagging",
+    "does not tag or publish automatically",
+    "runtime refresh",
+    "previously verified artifact",
 )
 PACK_MANIFEST_VERIFY_DOC_REQUIREMENTS = {
     "README.md": (
@@ -1849,6 +1900,8 @@ CONSUMER_BOOTSTRAP_DOC_REQUIREMENTS = {
 ARTIFACT_SMOKE_PATH = "scripts/smoke_workflow_pack_artifact.py"
 ARTIFACT_SMOKE_REQUIRED_PHRASES = (
     "run_artifact_smoke",
+    "pack_version",
+    "workflow_pack_version",
     "ARTIFACT_SMOKE_STEP_TIMEOUT_SECONDS",
     "JSON_STEP_STDOUT_INLINE_BYTES",
     "stdout_compacted",
@@ -2132,6 +2185,7 @@ ARTIFACT_SMOKE_DOC_REQUIREMENTS = {
 RELEASE_READINESS_PATH = "scripts/release_readiness.py"
 RELEASE_READINESS_REQUIRED_PHRASES = (
     "run_release_readiness",
+    "pack_version",
     "RELEASE_STEP_TIMEOUT_SECONDS",
     "run_source_command",
     "release_ready",
@@ -5721,10 +5775,12 @@ SOURCE_PACK_REQUIRED_PATHS = tuple(
     dict.fromkeys(
         (
             ".github/workflows/ci.yml",
+            "VERSION",
             "README.md",
             "AGENTS.md",
             "Makefile",
             "scripts/run_tests.py",
+            "scripts/pack_version.py",
             SOURCE_PROCESS_PATH,
             "scripts/authority_skills.py",
             "references/authority-skills.lock.json",
@@ -5989,6 +6045,7 @@ def verify_pack(root: Path) -> PackReport:
         return PackReport(str(root), findings)
 
     _check_required_files(root, findings)
+    _check_pack_version(root, findings)
     _check_makefile_targets(root, findings)
     _check_verification_command_docs(root, findings)
     _check_agents_guardrails(root, findings)
@@ -6004,6 +6061,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_stack_acceptance_workflow(root, findings)
     _check_source_pack_export_workflow(root, findings)
     _check_pack_manifest_verify_workflow(root, findings)
+    _check_pack_version_propagation(root, findings)
     _check_consumer_bootstrap_workflow(root, findings)
     _check_artifact_smoke_workflow(root, findings)
     _check_release_readiness_workflow(root, findings)
@@ -6024,6 +6082,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_stack_acceptance_docs(root, findings)
     _check_source_pack_export_docs(root, findings)
     _check_pack_manifest_verify_docs(root, findings)
+    _check_versioning_policy(root, findings)
     _check_consumer_bootstrap_docs(root, findings)
     _check_artifact_smoke_docs(root, findings)
     _check_release_readiness_docs(root, findings)
@@ -6118,6 +6177,62 @@ def _check_required_files(root: Path, findings: list[PackFinding]) -> None:
                     rel,
                 )
             )
+
+
+def _check_pack_version(root: Path, findings: list[PackFinding]) -> None:
+    if read_pack_version is None:
+        findings.append(
+            PackFinding(
+                "pack_version_reader_unavailable",
+                f"workflow-pack version reader could not be imported: {PACK_VERSION_READER_IMPORT_ERROR}",
+                "scripts/pack_version.py",
+            )
+        )
+        return
+    try:
+        read_pack_version(root)
+    except PackVersionError as error:
+        findings.append(
+            PackFinding(
+                "pack_version_invalid",
+                f"invalid source workflow-pack VERSION: {error}",
+                "VERSION",
+            )
+        )
+
+
+def _check_pack_version_propagation(root: Path, findings: list[PackFinding]) -> None:
+    for rel, required_phrases in PACK_VERSION_PROPAGATION_REQUIRED_PHRASES.items():
+        text = _read_utf8_text_or_none(root / rel)
+        if text is None:
+            continue
+        missing = [phrase for phrase in required_phrases if phrase not in text]
+        if not missing:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_version_propagation_incomplete",
+                f"{rel} must propagate and verify workflow-pack version identity; missing phrase(s): {', '.join(missing)}",
+                rel,
+            )
+        )
+
+
+def _check_versioning_policy(root: Path, findings: list[PackFinding]) -> None:
+    text = _read_utf8_text_or_none(root / VERSIONING_POLICY_PATH)
+    if text is None:
+        return
+    missing = [phrase for phrase in VERSIONING_POLICY_REQUIRED_PHRASES if phrase not in text]
+    if not missing:
+        return
+    findings.append(
+        PackFinding(
+            "pack_versioning_policy_incomplete",
+            f"{VERSIONING_POLICY_PATH} must define source, bump, release, refresh, and rollback rules; "
+            f"missing phrase(s): {', '.join(missing)}",
+            VERSIONING_POLICY_PATH,
+        )
+    )
 
 
 def _check_fresh_target_workflow_smoke_test(root: Path, findings: list[PackFinding]) -> None:

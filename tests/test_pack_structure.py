@@ -8513,8 +8513,30 @@ class PackStructureTest(unittest.TestCase):
         text = (ROOT / "Makefile").read_text(encoding="utf-8")
         self.assertRegex(text, r"(?m)^\tpython3 scripts/verify_pack\.py$")
 
+    def test_verify_pack_rejects_invalid_source_pack_version(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            (target / "VERSION").write_text("v0.1.0\n", encoding="utf-8")
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_version_invalid" and finding.path == "VERSION"
+                    for finding in report.findings
+                ),
+                report.to_dict(),
+            )
+
     def test_required_workflow_pack_files_exist(self) -> None:
         required = [
+            "VERSION",
             "README.md",
             "AGENTS.md",
             "Makefile",
@@ -8528,6 +8550,7 @@ class PackStructureTest(unittest.TestCase):
             "references/architecture-methods.md",
             "references/backend-design-checklist.md",
             "references/runtime-strategy.md",
+            "references/versioning-policy.md",
             "skills/executing-implementation-task/SKILL.md",
             "templates/root/README.md",
             "templates/docs/product/core/PRD.md",

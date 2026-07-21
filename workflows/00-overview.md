@@ -53,8 +53,8 @@ python3 scripts/export_workflow_pack.py --output dist/docs-as-code-workflow-pack
 python3 scripts/verify_pack_manifest.py dist/docs-as-code-workflow-pack --json
 ```
 
-The export writes `pack-manifest.json` with SHA-256 evidence for the included source-pack files, runs `verify_pack` on the exported directory, and can create a tar.gz artifact for transfer.
-The manifest verifier validates `pack-manifest.json` by recomputing file hashes, sizes, executable flags, path safety, duplicate entries, missing files, and unmanifested files.
+The export reads the sole version source `VERSION`, copies it into the artifact, records the exact SemVer value as `pack_version` in `pack-manifest.json`, writes SHA-256 evidence for the included source-pack files, runs `verify_pack` on the exported directory, and can create a tar.gz artifact for transfer.
+The manifest verifier validates `pack-manifest.json` by comparing `pack_version` to `VERSION` and recomputing file hashes, sizes, executable flags, path safety, duplicate entries, missing files, and unmanifested files. Follow `references/versioning-policy.md` before changing the version, exporting a release candidate, or refreshing generated targets.
 Use the source-pack authority-skill inventory before high-risk design or implementation routing when you need to audit which agent-environment specialist skills are required:
 
 ```bash
@@ -206,7 +206,7 @@ bin/governance runtime refresh <target> --check --json
 bin/governance runtime refresh <target> --json
 ```
 
-Use `runtime refresh --check --json` as a no-write plan. After successful write-mode `runtime refresh --json`, follow returned `local_commands[].argv` and `next_actions[].argv` from their reported `cwd`.
+Use `runtime refresh --check --json` as a no-write plan. Write mode copies the trusted source `VERSION` into the snapshot and records matching `pack_version` and `workflow_pack_version` evidence without rewriting product or design documents. After successful write-mode `runtime refresh --json`, follow returned `local_commands[].argv` and `next_actions[].argv` from their reported `cwd`.
 
 Generated targets also receive `docs/agent-workflow/workflow-pack/`, a hash-manifested snapshot of this pack's workflows, skills, references, and templates. Use it as the target-local operating manual when the source pack repository is not open.
 

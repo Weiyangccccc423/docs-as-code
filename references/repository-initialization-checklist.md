@@ -78,6 +78,7 @@ Reference: `https://docs.github.com/en/repositories/managing-your-repositorys-se
 - Is it explicit that repository initialization does not create a commit, authenticate, or push, and that hosting-account identity must be checked separately before a push?
 - Are generated runtime, workflow-pack snapshot, templates, and governance docs intended to be versioned?
 - Is the unpacked source workflow pack excluded while its generated manifest-bound snapshot remains versioned?
+- Do generated snapshot `VERSION`, runtime/snapshot `pack_version`, and state `workflow_pack_version` match the reviewed source pack?
 - Are local caches, secrets, credentials, environment files, and build outputs excluded before the first commit?
 - Is the default branch, remote, and author identity a user decision rather than a workflow-pack assumption?
 

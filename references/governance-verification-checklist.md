@@ -28,6 +28,7 @@ Reference: `https://dora.dev/capabilities/test-automation/`
 ## Drift and Refresh
 
 - Are `runtime_manifest_*`, `runtime_file_*`, `workflow_pack_manifest_*`, and `workflow_pack_file_*` findings treated as runtime or workflow-pack integrity blockers?
+- Do snapshot `VERSION`, both manifests' `pack_version`, and state `workflow_pack_version` contain strict SemVer values and match exactly?
 - Is `bin/governance runtime refresh <target> --check --json` used as a no-write plan from a trusted source workflow-pack checkout?
 - Does write-mode runtime refresh avoid rewriting product, design, planning, or implementation documents?
 - Are target-local checks rerun from returned `local_commands[].argv` after refresh succeeds?

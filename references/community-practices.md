@@ -4,6 +4,7 @@ Use these as calibration sources, not rigid templates.
 
 | Practice | Use in this workflow |
 | --- | --- |
+| Semantic Versioning 2.0.0 | workflow-pack compatibility identity and reviewed release increments; see `references/versioning-policy.md` |
 | GitHub community health files | root collaboration and safety files |
 | Diataxis | reader-oriented navigation and doc purpose separation |
 | Backstage TechDocs | docs-as-code operating model |

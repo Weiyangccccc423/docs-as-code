@@ -11,9 +11,11 @@ from pathlib import Path
 from typing import Any
 
 try:
+    from .pack_version import PackVersionError, read_pack_version
     from .verify_pack import verify_pack
     from .verify_pack_manifest import verify_pack_manifest
 except ImportError:  # pragma: no cover - direct script execution
+    from pack_version import PackVersionError, read_pack_version
     from verify_pack import verify_pack
     from verify_pack_manifest import verify_pack_manifest
 
@@ -30,6 +32,7 @@ EXPORT_RESOURCE_PATHS = (
     "AGENTS.md",
     "Makefile",
     "README.md",
+    "VERSION",
     "bin",
     "references",
     "scripts",
@@ -52,10 +55,11 @@ IGNORED_NAMES = {
 
 
 class ExportError(Exception):
-    def __init__(self, message: str, *, path: Path | None = None) -> None:
+    def __init__(self, message: str, *, path: Path | None = None, code: str = "export_error") -> None:
         super().__init__(message)
         self.message = message
         self.path = path
+        self.code = code
 
 
 def sha256_file(path: Path) -> str:
@@ -99,10 +103,19 @@ def run_export(
         _reject_unsafe_destination(root, output)
         if archive is not None:
             _reject_unsafe_archive(root, output, archive)
+        try:
+            pack_version = read_pack_version(root)
+        except PackVersionError as error:
+            raise ExportError(
+                error.message,
+                path=error.path or root / "VERSION",
+                code="pack_version_invalid",
+            ) from error
         files = export_files(root)
         payload: dict[str, object] = {
             "ok": True,
             "check": check,
+            "pack_version": pack_version,
             "source": str(root),
             "output": str(output),
             "archive": str(archive) if archive is not None else None,
@@ -121,7 +134,7 @@ def run_export(
                 raise ExportError(f"output exists and is not a directory: {output}", path=output)
             shutil.rmtree(output)
         _copy_files(root, output, files)
-        manifest = _write_manifest(root, output, files)
+        manifest = _write_manifest(root, output, files, pack_version)
         manifest_verification = verify_pack_manifest(output)
         payload["manifest_verification"] = manifest_verification.to_dict()
         if not manifest_verification.ok:
@@ -154,6 +167,7 @@ def run_export(
             "source": str(root),
             "output": str(output),
             "archive": str(archive) if archive is not None else None,
+            "code": error.code,
             "error": error.message,
             "path": str(error.path) if error.path is not None else "",
             "errors": [error.message],
@@ -180,7 +194,7 @@ def _copy_files(root: Path, output: Path, files: list[Path]) -> None:
         shutil.copy2(source, target)
 
 
-def _write_manifest(root: Path, output: Path, files: list[Path]) -> dict[str, object]:
+def _write_manifest(root: Path, output: Path, files: list[Path], pack_version: str) -> dict[str, object]:
     entries = []
     for rel in files:
         path = output / rel
@@ -196,6 +210,7 @@ def _write_manifest(root: Path, output: Path, files: list[Path]) -> dict[str, ob
         "schema_version": 1,
         "created_at": REPRODUCIBLE_CREATED_AT,
         "source": "docs-as-code source workflow pack",
+        "pack_version": pack_version,
         "source_root": ".",
         "files": entries,
     }

@@ -7,8 +7,14 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
+try:
+    from .pack_version import PackVersionError, parse_pack_version, read_pack_version
+except ImportError:  # pragma: no cover - direct script execution
+    from pack_version import PackVersionError, parse_pack_version, read_pack_version
+
 
 MANIFEST_NAME = "pack-manifest.json"
+VERSION_PATH = "VERSION"
 MANIFEST_SCHEMA_VERSION = 1
 MANIFEST_SOURCE = "docs-as-code source workflow pack"
 IGNORED_FILE_NAMES = {
@@ -40,6 +46,7 @@ class ManifestFinding:
 class ManifestReport:
     target: str
     manifest: str
+    pack_version: str | None
     file_count: int
     findings: list[ManifestFinding]
 
@@ -56,6 +63,7 @@ class ManifestReport:
             "ok": self.ok,
             "target": self.target,
             "manifest": self.manifest,
+            "pack_version": self.pack_version,
             "file_count": self.file_count,
             "errors": list(self.errors),
             "findings": [finding.to_dict() for finding in self.findings],
@@ -75,31 +83,43 @@ def verify_pack_manifest(target: Path) -> ManifestReport:
     manifest_path = root / MANIFEST_NAME
     findings: list[ManifestFinding] = []
     listed_paths: set[str] = set()
+    pack_version: str | None = None
 
     if not root.exists():
         findings.append(ManifestFinding("pack_manifest_target_missing", f"pack target does not exist: {root}", "."))
-        return _report(root, manifest_path, listed_paths, findings)
+        return _report(root, manifest_path, pack_version, listed_paths, findings)
     if not root.is_dir():
         findings.append(
             ManifestFinding("pack_manifest_target_not_directory", f"pack target is not a directory: {root}", ".")
         )
-        return _report(root, manifest_path, listed_paths, findings)
+        return _report(root, manifest_path, pack_version, listed_paths, findings)
     if not manifest_path.exists():
         findings.append(
             ManifestFinding("pack_manifest_missing", f"missing pack manifest: {MANIFEST_NAME}", MANIFEST_NAME)
         )
-        return _report(root, manifest_path, listed_paths, findings)
+        return _report(root, manifest_path, pack_version, listed_paths, findings)
     if not manifest_path.is_file():
         findings.append(
             ManifestFinding("pack_manifest_not_file", f"pack manifest is not a file: {MANIFEST_NAME}", MANIFEST_NAME)
         )
-        return _report(root, manifest_path, listed_paths, findings)
+        return _report(root, manifest_path, pack_version, listed_paths, findings)
+
+    try:
+        pack_version = read_pack_version(root)
+    except PackVersionError as error:
+        findings.append(
+            ManifestFinding(
+                "pack_version_invalid",
+                f"invalid workflow-pack VERSION: {error.message}",
+                VERSION_PATH,
+            )
+        )
 
     manifest = _load_manifest(manifest_path, findings)
     if manifest is None:
-        return _report(root, manifest_path, listed_paths, findings)
+        return _report(root, manifest_path, pack_version, listed_paths, findings)
 
-    _check_manifest_identity(manifest, findings)
+    _check_manifest_identity(manifest, pack_version, findings)
     files = manifest.get("files")
     if not isinstance(files, list):
         findings.append(
@@ -109,22 +129,23 @@ def verify_pack_manifest(target: Path) -> ManifestReport:
                 MANIFEST_NAME,
             )
         )
-        return _report(root, manifest_path, listed_paths, findings)
+        return _report(root, manifest_path, pack_version, listed_paths, findings)
 
     for item in files:
         _check_manifest_entry(root, item, listed_paths, findings)
 
     _check_unmanifested_files(root, listed_paths, findings)
-    return _report(root, manifest_path, listed_paths, findings)
+    return _report(root, manifest_path, pack_version, listed_paths, findings)
 
 
 def _report(
     root: Path,
     manifest_path: Path,
+    pack_version: str | None,
     listed_paths: set[str],
     findings: list[ManifestFinding],
 ) -> ManifestReport:
-    return ManifestReport(str(root), str(manifest_path), len(listed_paths), list(findings))
+    return ManifestReport(str(root), str(manifest_path), pack_version, len(listed_paths), list(findings))
 
 
 def _load_manifest(manifest_path: Path, findings: list[ManifestFinding]) -> dict[str, Any] | None:
@@ -156,7 +177,11 @@ def _load_manifest(manifest_path: Path, findings: list[ManifestFinding]) -> dict
     return manifest
 
 
-def _check_manifest_identity(manifest: dict[str, Any], findings: list[ManifestFinding]) -> None:
+def _check_manifest_identity(
+    manifest: dict[str, Any],
+    pack_version: str | None,
+    findings: list[ManifestFinding],
+) -> None:
     if manifest.get("schema_version") != MANIFEST_SCHEMA_VERSION:
         findings.append(
             ManifestFinding(
@@ -173,6 +198,26 @@ def _check_manifest_identity(manifest: dict[str, Any], findings: list[ManifestFi
                 MANIFEST_NAME,
             )
         )
+    manifest_version = manifest.get("pack_version")
+    try:
+        parsed_manifest_version = parse_pack_version(manifest_version)
+    except PackVersionError:
+        findings.append(
+            ManifestFinding(
+                "pack_manifest_version_invalid",
+                "pack manifest pack_version must be a strict SemVer 2.0 value",
+                MANIFEST_NAME,
+            )
+        )
+    else:
+        if pack_version is not None and parsed_manifest_version != pack_version:
+            findings.append(
+                ManifestFinding(
+                    "pack_manifest_version_mismatch",
+                    f"pack manifest pack_version {parsed_manifest_version} does not match VERSION {pack_version}",
+                    MANIFEST_NAME,
+                )
+            )
 
 
 def _check_manifest_entry(

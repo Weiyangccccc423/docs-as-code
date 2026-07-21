@@ -8,10 +8,12 @@ from pathlib import Path
 from unittest import mock
 
 from scripts import smoke_workflow_pack_artifact
+from scripts.pack_version import read_pack_version
 
 
 ROOT = Path(__file__).resolve().parents[1]
 SMOKE = ROOT / "scripts" / "smoke_workflow_pack_artifact.py"
+PACK_VERSION = read_pack_version(ROOT)
 
 
 def _source_result(argv: list[str], **overrides: object) -> dict[str, object]:
@@ -163,6 +165,7 @@ class ArtifactSmokeTest(unittest.TestCase):
         self.assertEqual("", result.stderr)
         payload = json.loads(result.stdout)
         self.assertTrue(payload["ok"])
+        self.assertEqual(PACK_VERSION, payload["pack_version"])
         self.assertEqual("temporary-export", payload["archive_source"])
         self.assertFalse(payload["target_retained"])
         self.assertGreater(payload["archive_member_count"], 20)
@@ -234,6 +237,7 @@ class ArtifactSmokeTest(unittest.TestCase):
         self.assertEqual(1, payload["threat_review"]["element_count"])
         self.assertEqual(1, payload["threat_review"]["high_dread_threat_count"])
         self.assertTrue(payload["fresh_target_init"]["ok"])
+        self.assertEqual(PACK_VERSION, payload["fresh_target_init"]["workflow_pack_version"])
         self.assertEqual("initialized", payload["fresh_target_init"]["phase"])
         self.assertTrue(payload["fresh_target_init"]["target_local_verify_ok"])
         self.assertTrue(payload["fresh_target_init"]["target_local_status_ok"])

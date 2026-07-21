@@ -1143,18 +1143,22 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
             parse_json=True,
         )
         export_check_would_write = export_check_payload.get("would_write", []) if export_check_payload else []
+        export_check_pack_version = export_check_payload.get("pack_version") if export_check_payload else None
         _criterion(
             criteria,
             "source-pack-export-check",
             bool(steps[-1]["ok"])
             and bool(export_check_payload and export_check_payload.get("ok") is True)
             and export_check_payload.get("check") is True
+            and isinstance(export_check_pack_version, str)
+            and bool(export_check_pack_version)
             and isinstance(export_check_would_write, list)
             and "pack-manifest.json" in export_check_would_write
             and bool(export_check_payload.get("would_archive")),
             evidence="python3 scripts/export_workflow_pack.py --check --output <tmp>/docs-as-code-workflow-pack --archive <tmp>/docs-as-code-workflow-pack.tar.gz --json",
             details={
                 "file_count": export_check_payload.get("file_count") if export_check_payload else 0,
+                "pack_version": export_check_pack_version or "",
                 "would_write_count": len(export_check_would_write) if isinstance(export_check_would_write, list) else 0,
                 "would_archive": export_check_payload.get("would_archive") if export_check_payload else "",
             },
@@ -1206,16 +1210,24 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
         )
         artifact_smoke_step_ok = bool(steps[-1]["ok"])
     verification = export_payload.get("verification", {}) if export_payload else {}
+    manifest_verification = export_payload.get("manifest_verification", {}) if export_payload else {}
+    release_pack_version = export_payload.get("pack_version") if export_payload else None
     _criterion(
         criteria,
         "source-pack-export",
         export_step_ok
         and bool(export_payload and export_payload.get("ok") is True)
         and isinstance(verification, dict)
-        and verification.get("ok") is True,
+        and verification.get("ok") is True
+        and isinstance(manifest_verification, dict)
+        and manifest_verification.get("ok") is True
+        and isinstance(release_pack_version, str)
+        and bool(release_pack_version)
+        and manifest_verification.get("pack_version") == release_pack_version,
         evidence="python3 scripts/export_workflow_pack.py --output <tmp>/docs-as-code-workflow-pack --archive <tmp>/docs-as-code-workflow-pack.tar.gz --force --json",
         details={
             "file_count": export_payload.get("file_count") if export_payload else 0,
+            "pack_version": release_pack_version or "",
             "manifest_sha256": export_payload.get("manifest_sha256") if export_payload else "",
             "archive_sha256": export_payload.get("archive_sha256") if export_payload else "",
         },
@@ -1226,12 +1238,14 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
         repeat_export_step_ok
         and bool(export_payload and export_payload.get("ok") is True)
         and bool(repeat_export_payload and repeat_export_payload.get("ok") is True)
+        and repeat_export_payload.get("pack_version") == release_pack_version
         and export_payload.get("manifest_sha256") == repeat_export_payload.get("manifest_sha256")
         and export_payload.get("archive_sha256") == repeat_export_payload.get("archive_sha256")
         and export_payload.get("archive_size_bytes") == repeat_export_payload.get("archive_size_bytes"),
         evidence="python3 scripts/export_workflow_pack.py --output <tmp>/... --archive <tmp>/... --force --json twice",
         details={
             "first_manifest_sha256": export_payload.get("manifest_sha256") if export_payload else "",
+            "pack_version": release_pack_version or "",
             "second_manifest_sha256": repeat_export_payload.get("manifest_sha256") if repeat_export_payload else "",
             "first_archive_sha256": export_payload.get("archive_sha256") if export_payload else "",
             "second_archive_sha256": repeat_export_payload.get("archive_sha256") if repeat_export_payload else "",
@@ -1245,6 +1259,7 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
         "release-artifact-smoke",
         artifact_smoke_step_ok
         and bool(artifact_smoke_payload and artifact_smoke_payload.get("ok") is True)
+        and artifact_smoke_payload.get("pack_version") == release_pack_version
         and artifact_smoke_payload.get("archive_source") == "provided-archive"
         and artifact_smoke_payload.get("archive_sha256") == export_payload.get("archive_sha256")
         and artifact_smoke_payload.get("manifest_sha256") == export_payload.get("manifest_sha256")
@@ -1266,6 +1281,7 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
         evidence="python3 scripts/smoke_workflow_pack_artifact.py --archive <tmp>/docs-as-code-workflow-pack.tar.gz --json",
         details={
             "archive_source": artifact_smoke_payload.get("archive_source") if artifact_smoke_payload else "",
+            "pack_version": artifact_smoke_payload.get("pack_version") if artifact_smoke_payload else "",
             "archive_member_count": artifact_smoke_payload.get("archive_member_count") if artifact_smoke_payload else 0,
             "archive_sha256": artifact_smoke_payload.get("archive_sha256") if artifact_smoke_payload else "",
             "export_archive_sha256": export_payload.get("archive_sha256") if export_payload else "",
@@ -1348,6 +1364,7 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
     return {
         "ok": ok,
         "release_ready": release_ready,
+        "pack_version": release_pack_version or "",
         "tests_skipped": skip_tests,
         "criteria": criteria,
         "steps": steps,

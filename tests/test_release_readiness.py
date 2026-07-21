@@ -13,10 +13,12 @@ from scripts.release_readiness import (
     _dry_run_implementation_runner_ok,
     _run_local_unit_test_gate,
 )
+from scripts.pack_version import read_pack_version
 
 
 ROOT = Path(__file__).resolve().parents[1]
 RELEASE = ROOT / "scripts" / "release_readiness.py"
+PACK_VERSION = read_pack_version(ROOT)
 
 
 def _source_result(argv: list[str], **overrides: object) -> dict[str, object]:
@@ -364,6 +366,8 @@ class ReleaseReadinessTest(unittest.TestCase):
         self.assertFalse(criteria["authority-skill-inventory"]["details"]["repair_plan"]["writes_state"])
         self.assertGreater(criteria["source-pack-export-check"]["details"]["would_write_count"], 0)
         self.assertTrue(criteria["source-pack-export-check"]["details"]["would_archive"])
+        self.assertEqual(PACK_VERSION, criteria["source-pack-export-check"]["details"]["pack_version"])
+        self.assertEqual(PACK_VERSION, criteria["source-pack-export"]["details"]["pack_version"])
         self.assertEqual(
             [],
             criteria["fresh-target-dry-run"]["details"]["target_local_make_coverage"]["missing_step_ids"],
@@ -749,6 +753,11 @@ class ReleaseReadinessTest(unittest.TestCase):
         self.assertEqual({}, implementation_routing["run_next_action"])
         self.assertTrue(implementation_routing["blocked_by_placeholders"])
         self.assertEqual("provided-archive", criteria["release-artifact-smoke"]["details"]["archive_source"])
+        self.assertEqual(PACK_VERSION, criteria["release-artifact-smoke"]["details"]["pack_version"])
+        self.assertEqual(
+            criteria["source-pack-export"]["details"]["pack_version"],
+            criteria["release-artifact-smoke"]["details"]["pack_version"],
+        )
         self.assertEqual(
             criteria["source-pack-export"]["details"]["archive_sha256"],
             criteria["release-artifact-smoke"]["details"]["archive_sha256"],

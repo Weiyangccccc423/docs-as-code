@@ -11,9 +11,11 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
 try:
+    from .pack_version import PackVersionError, read_pack_version
     from .state import STATE_REL, StateFileError, load_state, merge_state, utc_now
     from .workflow_actions import next_actions_payload
 except ImportError:  # pragma: no cover - direct script execution
+    from pack_version import PackVersionError, read_pack_version
     from state import STATE_REL, StateFileError, load_state, merge_state, utc_now
     from workflow_actions import next_actions_payload
 
@@ -44,6 +46,7 @@ RUNTIME_SCRIPT_FILES = [
     "threat_review_evidence.py",
     "reliability_review_evidence.py",
     "migration_review_evidence.py",
+    "pack_version.py",
     "bounded_process.py",
     "bootstrap_tree.py",
     "check_env.py",
@@ -96,6 +99,7 @@ PRODUCT_DISCOVERY_EXCLUDED_STEMS = {Path(name).stem.lower() for name in ROOT_GEN
 
 WORKFLOW_PACK_SNAPSHOT_ROOT = "docs/agent-workflow/workflow-pack"
 WORKFLOW_PACK_RESOURCE_PATHS = [
+    "VERSION",
     "README.md",
     "workflows",
     "skills",
@@ -303,6 +307,7 @@ def _runtime_file_paths() -> list[Path]:
 
 
 def _write_runtime_manifest(root: Path, force: bool = False) -> str:
+    pack_version = read_pack_version(_source_workflow_pack_root())
     entries = []
     for rel in _runtime_file_paths():
         path = root / rel
@@ -319,6 +324,7 @@ def _write_runtime_manifest(root: Path, force: bool = False) -> str:
         "schema_version": 1,
         "created_at": utc_now(),
         "source": "target-local governance runtime",
+        "pack_version": pack_version,
         "files": entries,
     }
     path = root / RUNTIME_MANIFEST_REL
@@ -408,6 +414,7 @@ def _stale_workflow_pack_snapshot_files(root: Path, keep: list[Path]) -> list[Pa
 
 
 def _workflow_pack_manifest(snapshot_root: Path, files: list[Path]) -> dict[str, object]:
+    pack_version = read_pack_version(snapshot_root)
     entries = []
     for rel in files:
         path = snapshot_root / rel
@@ -424,6 +431,7 @@ def _workflow_pack_manifest(snapshot_root: Path, files: list[Path]) -> dict[str,
         "schema_version": 1,
         "created_at": utc_now(),
         "source": "docs-as-code workflow pack",
+        "pack_version": pack_version,
         "files": entries,
     }
 
@@ -864,6 +872,10 @@ def _source_preflight_conflicts(pack_root: Path, workflow_pack_files: list[Path]
             append(Path(rel), "workflow-pack source path is neither a file nor a directory")
     for rel in workflow_pack_files:
         _check_runtime_refresh_source_file(source_root / rel, rel, append)
+    try:
+        read_pack_version(source_root)
+    except PackVersionError as error:
+        append(Path("VERSION"), error.message)
     return conflicts
 
 
@@ -1183,9 +1195,10 @@ def refresh_runtime(root: Path) -> RuntimeRefreshResult:
             root,
             runtime_manifest=runtime_manifest,
             workflow_pack_manifest=workflow_pack_manifest,
+            workflow_pack_version=read_pack_version(root / WORKFLOW_PACK_SNAPSHOT_ROOT),
             runtime_refreshed_at=utc_now(),
         )
-    except (OSError, StateFileError) as error:
+    except (OSError, PackVersionError, StateFileError) as error:
         rollback_errors = _rollback_runtime_refresh(root, snapshots, output_paths)
         errors = [f"runtime refresh failed: {error}"]
         errors.extend(rollback_errors)
@@ -1344,7 +1357,7 @@ def bootstrap(
     root_existed_before = root.exists()
     try:
         _write_bootstrap_outputs(root, selected_product_doc, force, profile, project_name)
-    except (OSError, StateFileError):
+    except (OSError, PackVersionError, StateFileError):
         _rollback_bootstrap_outputs(root, snapshots, output_paths, root_existed_before)
         raise
 
@@ -1492,6 +1505,7 @@ def _write_bootstrap_outputs(
         product_can_derive_design=manifest["import"]["can_derive_design"],
         runtime_manifest=runtime_manifest,
         workflow_pack_manifest=workflow_pack_manifest,
+        workflow_pack_version=read_pack_version(root / WORKFLOW_PACK_SNAPSHOT_ROOT),
         generated_by="docs-as-code workflow pack",
     )
 

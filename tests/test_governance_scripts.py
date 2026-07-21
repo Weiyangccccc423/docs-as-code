@@ -37,8 +37,14 @@ from scripts.bootstrap_tree import InitPreflightError
 from scripts.bootstrap_tree import bootstrap
 from scripts.bootstrap_tree import preflight_init
 from scripts.gates import evaluate_gate
+from scripts.pack_version import read_pack_version
 from scripts.state import StateFileError, load_state, merge_state, save_state
 from scripts.verify_governance import task_board_ready_tasks, verify
+
+
+ROOT = Path(__file__).resolve().parents[1]
+PACK_VERSION = read_pack_version(ROOT)
+DRIFT_PACK_VERSION = "999.999.999" if PACK_VERSION != "999.999.999" else "999.999.998"
 
 
 def _append_index(readme: Path, filename: str) -> None:
@@ -2356,12 +2362,19 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertTrue((root / "docs/agent-workflow/workflow-pack/workflows/00-overview.md").exists())
             self.assertTrue((root / "docs/agent-workflow/workflow-pack/skills/using-governance-workflow/SKILL.md").exists())
             self.assertTrue((root / "docs/agent-workflow/workflow-pack/references/architecture-methods.md").exists())
+            self.assertEqual(
+                f"{PACK_VERSION}\n",
+                (root / "docs/agent-workflow/workflow-pack/VERSION").read_text(encoding="utf-8"),
+            )
             workflow_manifest = json.loads((root / "docs/agent-workflow/workflow-pack/manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(PACK_VERSION, workflow_manifest["pack_version"])
             self.assertTrue(any(item["path"] == "workflows/00-overview.md" for item in workflow_manifest["files"]))
             runtime_manifest = json.loads((root / "docs/agent-workflow/runtime-manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(PACK_VERSION, runtime_manifest["pack_version"])
             self.assertTrue(any(item["path"] == "bin/governance" for item in runtime_manifest["files"]))
             self.assertTrue(any(item["path"] == "scripts/verify_governance.py" for item in runtime_manifest["files"]))
             self.assertTrue(any(item["path"] == "scripts/workflow_actions.py" for item in runtime_manifest["files"]))
+            self.assertEqual(PACK_VERSION, load_state(root)["workflow_pack_version"])
             self.assertIn("Demo Product", (root / "docs/product/core/PRD.md").read_text(encoding="utf-8"))
             self.assertIn("`U-NNN`", (root / "docs/unresolved.md").read_text(encoding="utf-8"))
             manifest = json.loads((root / "docs/product/core/source/source-manifest.json").read_text(encoding="utf-8"))
@@ -9960,6 +9973,32 @@ class GovernanceScriptsTest(unittest.TestCase):
                 [finding.to_dict() for finding in report.findings],
             )
 
+    def test_verify_rejects_workflow_pack_manifest_version_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            manifest_path = root / "docs/agent-workflow/workflow-pack/manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["pack_version"] = DRIFT_PACK_VERSION
+            manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+
+            report = verify(root)
+
+            self.assertIn(
+                f"workflow pack manifest pack_version {DRIFT_PACK_VERSION} does not match snapshot VERSION {PACK_VERSION}",
+                report.errors,
+            )
+            self.assertTrue(
+                any(
+                    finding.code == "workflow_pack_manifest_version_mismatch"
+                    and finding.path == "docs/agent-workflow/workflow-pack/manifest.json"
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_rejects_missing_required_workflow_pack_manifest_entry(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -10348,6 +10387,35 @@ class GovernanceScriptsTest(unittest.TestCase):
                 },
                 [finding.to_dict() for finding in report.findings],
             )
+
+    def test_verify_rejects_runtime_manifest_and_state_version_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product = root / "product.md"
+            product.write_text("# Demo\n", encoding="utf-8")
+            bootstrap(root, product)
+
+            manifest_path = root / "docs/agent-workflow/runtime-manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["pack_version"] = DRIFT_PACK_VERSION
+            manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+            state = load_state(root)
+            state["workflow_pack_version"] = DRIFT_PACK_VERSION
+            save_state(root, state)
+
+            report = verify(root)
+
+            self.assertIn(
+                f"runtime manifest pack_version {DRIFT_PACK_VERSION} does not match snapshot VERSION {PACK_VERSION}",
+                report.errors,
+            )
+            self.assertIn(
+                f"governance state workflow_pack_version {DRIFT_PACK_VERSION} does not match snapshot VERSION {PACK_VERSION}",
+                report.errors,
+            )
+            codes = {finding.code for finding in report.findings}
+            self.assertIn("runtime_manifest_version_mismatch", codes)
+            self.assertIn("state_workflow_pack_version_mismatch", codes)
 
     def test_verify_rejects_non_executable_target_runtime_wrapper(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

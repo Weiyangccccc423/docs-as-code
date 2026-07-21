@@ -43,6 +43,7 @@ try:
         build_migration_review_evidence_inventory,
         migration_review_enforcement_ready,
     )
+    from .pack_version import PackVersionError, parse_pack_version, read_pack_version
     from .state import StateFileError, load_state
     from .workflow_actions import next_actions_payload
     from .threat_review_evidence import (
@@ -82,6 +83,7 @@ except ImportError:  # pragma: no cover - direct script execution
         build_migration_review_evidence_inventory,
         migration_review_enforcement_ready,
     )
+    from pack_version import PackVersionError, parse_pack_version, read_pack_version
     from state import StateFileError, load_state
     from workflow_actions import next_actions_payload
     from threat_review_evidence import (
@@ -155,6 +157,7 @@ GOVERNANCE_STATE_REL = Path(".governance/state.json")
 WORKFLOW_PHASE_ORDER = ("initialized", "product-structuring", "design-derivation", "implementation")
 WORKFLOW_PACK_REQUIRED_PATHS = (
     "README.md",
+    "VERSION",
     "references/api-design-checklist.md",
     "references/architecture-decision-record-checklist.md",
     "references/architecture-methods.md",
@@ -178,6 +181,7 @@ WORKFLOW_PACK_REQUIRED_PATHS = (
     "references/runtime-strategy.md",
     "references/security-design-checklist.md",
     "references/test-strategy-checklist.md",
+    "references/versioning-policy.md",
     "references/workflow-routing-checklist.md",
     "skills/archiving-product-document/SKILL.md",
     "skills/capturing-architecture-decisions/SKILL.md",
@@ -255,6 +259,7 @@ RUNTIME_REQUIRED_SCRIPT_FILES = (
     "threat_review_evidence.py",
     "reliability_review_evidence.py",
     "migration_review_evidence.py",
+    "pack_version.py",
     "bounded_process.py",
     "bootstrap_tree.py",
     "check_env.py",
@@ -886,8 +891,10 @@ def verify(root: Path) -> VerificationReport:
     _check_local_markdown_links(root, report)
     _check_scaffold_placeholders(root, report)
     _check_structured_scaffold_placeholders(root, report)
-    _check_runtime_manifest(root, report)
-    _check_workflow_pack_manifest(root, report)
+    workflow_pack_version = _check_workflow_pack_version(root, report)
+    _check_runtime_manifest(root, report, workflow_pack_version)
+    _check_workflow_pack_manifest(root, report, workflow_pack_version)
+    _check_state_workflow_pack_version(root, workflow_pack_version, report)
     _check_task_board(root, report)
     _check_verification_log(root, report)
     _check_roadmap(root, report)
@@ -4735,7 +4742,27 @@ def _check_structured_scaffold_placeholders(root: Path, report: VerificationRepo
             )
 
 
-def _check_runtime_manifest(root: Path, report: VerificationReport) -> None:
+def _check_workflow_pack_version(root: Path, report: VerificationReport) -> str | None:
+    snapshot_root = root / WORKFLOW_PACK_SNAPSHOT_ROOT
+    if not snapshot_root.exists():
+        return None
+    version_rel = f"{WORKFLOW_PACK_SNAPSHOT_ROOT}/VERSION"
+    try:
+        return read_pack_version(snapshot_root)
+    except PackVersionError as error:
+        report.add_error(
+            "workflow_pack_version_invalid",
+            f"invalid workflow pack snapshot VERSION: {error.message}",
+            version_rel,
+        )
+        return None
+
+
+def _check_runtime_manifest(
+    root: Path,
+    report: VerificationReport,
+    workflow_pack_version: str | None,
+) -> None:
     manifest_path = root / RUNTIME_MANIFEST_REL
     manifest_rel = RUNTIME_MANIFEST_REL.as_posix()
     if not manifest_path.exists():
@@ -4761,6 +4788,7 @@ def _check_runtime_manifest(root: Path, report: VerificationReport) -> None:
         "runtime_manifest",
         "runtime manifest",
         RUNTIME_MANIFEST_SOURCE,
+        workflow_pack_version,
         report,
     )
     files = manifest.get("files")
@@ -4813,7 +4841,11 @@ def _check_runtime_manifest(root: Path, report: VerificationReport) -> None:
             report.add_error("runtime_file_not_executable", f"runtime file is not executable: {rel}", rel)
 
 
-def _check_workflow_pack_manifest(root: Path, report: VerificationReport) -> None:
+def _check_workflow_pack_manifest(
+    root: Path,
+    report: VerificationReport,
+    workflow_pack_version: str | None,
+) -> None:
     manifest_path = root / WORKFLOW_PACK_SNAPSHOT_ROOT / "manifest.json"
     manifest_rel = f"{WORKFLOW_PACK_SNAPSHOT_ROOT}/manifest.json"
     if not manifest_path.exists():
@@ -4847,6 +4879,7 @@ def _check_workflow_pack_manifest(root: Path, report: VerificationReport) -> Non
         "workflow_pack_manifest",
         "workflow pack manifest",
         WORKFLOW_PACK_MANIFEST_SOURCE,
+        workflow_pack_version,
         report,
     )
     files = manifest.get("files")
@@ -4915,6 +4948,7 @@ def _check_manifest_identity(
     code_prefix: str,
     label: str,
     expected_source: str,
+    expected_pack_version: str | None,
     report: VerificationReport,
 ) -> None:
     if manifest.get("schema_version") != MANIFEST_SCHEMA_VERSION:
@@ -4928,6 +4962,57 @@ def _check_manifest_identity(
             f"{code_prefix}_source_invalid",
             f"{label} source must be {expected_source}",
             manifest_rel,
+        )
+    manifest_version = manifest.get("pack_version")
+    try:
+        parsed_manifest_version = parse_pack_version(manifest_version)
+    except PackVersionError:
+        report.add_error(
+            f"{code_prefix}_version_invalid",
+            f"{label} pack_version must be a strict SemVer 2.0 value",
+            manifest_rel,
+        )
+    else:
+        if expected_pack_version is not None and parsed_manifest_version != expected_pack_version:
+            report.add_error(
+                f"{code_prefix}_version_mismatch",
+                (
+                    f"{label} pack_version {parsed_manifest_version} does not match "
+                    f"snapshot VERSION {expected_pack_version}"
+                ),
+                manifest_rel,
+            )
+
+
+def _check_state_workflow_pack_version(
+    root: Path,
+    expected_pack_version: str | None,
+    report: VerificationReport,
+) -> None:
+    if expected_pack_version is None:
+        return
+    try:
+        state = load_state(root)
+    except StateFileError:
+        return
+    state_version = state.get("workflow_pack_version")
+    try:
+        parsed_state_version = parse_pack_version(state_version)
+    except PackVersionError:
+        report.add_error(
+            "state_workflow_pack_version_invalid",
+            "governance state workflow_pack_version must be a strict SemVer 2.0 value",
+            GOVERNANCE_STATE_REL.as_posix(),
+        )
+        return
+    if parsed_state_version != expected_pack_version:
+        report.add_error(
+            "state_workflow_pack_version_mismatch",
+            (
+                f"governance state workflow_pack_version {parsed_state_version} does not match "
+                f"snapshot VERSION {expected_pack_version}"
+            ),
+            GOVERNANCE_STATE_REL.as_posix(),
         )
 
 

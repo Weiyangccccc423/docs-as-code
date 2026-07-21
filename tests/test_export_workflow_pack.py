@@ -7,10 +7,12 @@ import unittest
 from pathlib import Path
 
 from scripts.export_workflow_pack import run_export
+from scripts.pack_version import read_pack_version
 
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPORT = ROOT / "scripts" / "export_workflow_pack.py"
+PACK_VERSION = read_pack_version(ROOT)
 
 
 class ExportWorkflowPackTest(unittest.TestCase):
@@ -41,6 +43,7 @@ class ExportWorkflowPackTest(unittest.TestCase):
             payload = json.loads(result.stdout)
             self.assertTrue(payload["ok"])
             self.assertFalse(payload["check"])
+            self.assertEqual(PACK_VERSION, payload["pack_version"])
             self.assertEqual(str(output.resolve()), payload["output"])
             self.assertEqual(str(archive.resolve()), payload["archive"])
             self.assertTrue(output.is_dir())
@@ -51,6 +54,7 @@ class ExportWorkflowPackTest(unittest.TestCase):
             self.assertEqual([], payload["manifest_verification"]["findings"])
             self.assertEqual([], payload["verification"]["findings"])
             self.assertTrue((output / "pack-manifest.json").is_file())
+            self.assertEqual(f"{PACK_VERSION}\n", (output / "VERSION").read_text(encoding="utf-8"))
             self.assertTrue((output / "scripts/authority_skills.py").is_file())
             self.assertTrue((output / "bin/governance-bootstrap").is_file())
             self.assertTrue((output / "bin/governance-bootstrap").stat().st_mode & 0o111)
@@ -69,7 +73,9 @@ class ExportWorkflowPackTest(unittest.TestCase):
             manifest = json.loads((output / "pack-manifest.json").read_text(encoding="utf-8"))
             self.assertEqual(1, manifest["schema_version"])
             self.assertEqual("docs-as-code source workflow pack", manifest["source"])
+            self.assertEqual(PACK_VERSION, manifest["pack_version"])
             manifest_paths = {entry["path"] for entry in manifest["files"]}
+            self.assertIn("VERSION", manifest_paths)
             self.assertIn("README.md", manifest_paths)
             self.assertIn(".github/workflows/ci.yml", manifest_paths)
             self.assertIn("scripts/authority_skills.py", manifest_paths)
@@ -88,6 +94,7 @@ class ExportWorkflowPackTest(unittest.TestCase):
             with tarfile.open(archive, "r:gz") as tar:
                 names = set(tar.getnames())
             self.assertIn("docs-as-code-workflow-pack/README.md", names)
+            self.assertIn("docs-as-code-workflow-pack/VERSION", names)
             self.assertIn("docs-as-code-workflow-pack/pack-manifest.json", names)
 
     def test_export_is_reproducible_for_same_source(self) -> None:
@@ -135,6 +142,7 @@ class ExportWorkflowPackTest(unittest.TestCase):
             payload = json.loads(result.stdout)
             self.assertTrue(payload["ok"])
             self.assertTrue(payload["check"])
+            self.assertEqual(PACK_VERSION, payload["pack_version"])
             self.assertFalse(output.exists())
             self.assertIn("README.md", payload["files"])
             self.assertIn("pack-manifest.json", payload["would_write"])

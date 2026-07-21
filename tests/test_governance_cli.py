@@ -14,10 +14,12 @@ from types import SimpleNamespace
 from unittest import mock
 
 from scripts.design_reviews import DESIGN_REVIEW_TRACK_SPECS
+from scripts.pack_version import read_pack_version
 
 
 ROOT = Path(__file__).resolve().parents[1]
 CLI = ROOT / "scripts" / "governance_cli.py"
+PACK_VERSION = read_pack_version(ROOT)
 
 
 def _agent_env() -> dict[str, str]:
@@ -3112,6 +3114,7 @@ class GovernanceCliTest(unittest.TestCase):
                 "docs/agent-workflow/workflow-pack/manifest.json",
                 payload["state"]["workflow_pack_manifest"],
             )
+            self.assertEqual(PACK_VERSION, payload["state"]["workflow_pack_version"])
             self.assertIn("runtime_refreshed_at", payload["state"])
             self.assertIn(
                 {

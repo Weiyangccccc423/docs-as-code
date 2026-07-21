@@ -209,6 +209,18 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
             "unpacked artifact verify_pack_manifest returned findings",
             payload=manifest_payload,
         )
+        pack_version = manifest_payload.get("pack_version")
+        _require(
+            isinstance(pack_version, str) and bool(pack_version),
+            "unpacked artifact manifest verification did not report pack_version",
+            payload=manifest_payload,
+        )
+        if export_payload:
+            _require(
+                export_payload.get("pack_version") == pack_version,
+                "export pack_version does not match unpacked artifact",
+                payload=export_payload,
+            )
 
         verify_payload = _run_json(
             steps,
@@ -367,6 +379,7 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
             workflow_plan_payload=target_local_workflow_plan_payload,
             work_package_payload=target_local_work_package_payload,
             workflow_resume_payload=target_local_workflow_resume_payload,
+            expected_pack_version=pack_version,
         )
         _require(
             fresh_target_init.get("ok") is True,
@@ -660,6 +673,7 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
             "workspace": str(workspace),
             "archive": str(archive_path),
             "archive_source": archive_source,
+            "pack_version": pack_version,
             "unpacked_root": str(unpacked_root),
             "archive_member_count": len(archive_members),
             "archive_sha256": archive_sha256,
@@ -1076,6 +1090,7 @@ def _fresh_target_init_details(
     workflow_plan_payload: dict[str, object],
     work_package_payload: dict[str, object],
     workflow_resume_payload: dict[str, object],
+    expected_pack_version: str,
 ) -> dict[str, object]:
     init_state = init_payload.get("state")
     status_state = status_payload.get("state")
@@ -1083,6 +1098,7 @@ def _fresh_target_init_details(
     phase = init_state.get("phase") if isinstance(init_state, dict) else ""
     profile = init_state.get("profile") if isinstance(init_state, dict) else ""
     project_name = init_state.get("project_name") if isinstance(init_state, dict) else ""
+    workflow_pack_version = init_state.get("workflow_pack_version") if isinstance(init_state, dict) else ""
     workflow_resume = _workflow_resume_payload_details(
         workflow_resume_payload,
         expected_phase="initialized",
@@ -1090,11 +1106,13 @@ def _fresh_target_init_details(
     return {
         "ok": (
             phase == "initialized"
+            and workflow_pack_version == expected_pack_version
             and verify_payload.get("ok") is True
             and verify_payload.get("findings") == []
             and status_payload.get("ok") is True
             and isinstance(status_state, dict)
             and status_state.get("phase") == "initialized"
+            and status_state.get("workflow_pack_version") == expected_pack_version
             and workflow_plan_payload.get("ok") is True
             and workflow_plan_payload.get("phase") == "initialized"
             and work_package_payload.get("ok") is True
@@ -1113,6 +1131,7 @@ def _fresh_target_init_details(
         "phase": phase,
         "profile": profile,
         "project_name": project_name,
+        "workflow_pack_version": workflow_pack_version,
         "product_selection": init_product.get("selection") if isinstance(init_product, dict) else "",
         "target_local_verify_ok": verify_payload.get("ok") is True and verify_payload.get("findings") == [],
         "target_local_status_ok": status_payload.get("ok") is True,
