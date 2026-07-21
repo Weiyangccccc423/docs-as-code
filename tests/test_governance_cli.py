@@ -3267,6 +3267,25 @@ class GovernanceCliTest(unittest.TestCase):
                 "docs/agent-workflow/workflow-pack/workflows/99-stale.md",
                 payload["would_remove"],
             )
+            migration_plan = payload["migration_plan"]
+            self.assertEqual("not_required", migration_plan["status"])
+            self.assertFalse(migration_plan["required"])
+            self.assertIn(
+                "docs/agent-workflow/workflow-pack/CHANGELOG.md",
+                migration_plan["scope"]["managed_runtime_paths"],
+            )
+            self.assertIn("docs/product/", migration_plan["scope"]["preserved_project_document_roots"])
+            self.assertEqual(
+                [
+                    "inspect-transition",
+                    "apply-runtime-refresh",
+                    "verify-target",
+                    "resume-workflow",
+                ],
+                [step["id"] for step in migration_plan["steps"]],
+            )
+            self.assertTrue(migration_plan["steps"][1]["enabled"])
+            self.assertFalse(migration_plan["rollback"]["required"])
             self.assertNotIn("local_commands", payload)
             self.assertNotIn("next_actions", payload)
             self.assertEqual(state_before, state_path.read_text(encoding="utf-8"))
@@ -3335,6 +3354,14 @@ class GovernanceCliTest(unittest.TestCase):
                 },
                 check_payload["version_transition"],
             )
+            migration_plan = check_payload["migration_plan"]
+            self.assertEqual("review_required", migration_plan["status"])
+            self.assertTrue(migration_plan["required"])
+            self.assertEqual("breaking_upgrade", migration_plan["reason_code"])
+            self.assertFalse(migration_plan["steps"][1]["enabled"])
+            self.assertEqual("version-transition-approval", migration_plan["steps"][1]["blocked_by"])
+            self.assertTrue(migration_plan["rollback"]["required"])
+            self.assertTrue(migration_plan["rollback"]["requires_trusted_artifact"])
             self.assertEqual(original_snapshot_version, (target / "docs/agent-workflow/workflow-pack/VERSION").read_text(encoding="utf-8"))
             self.assertEqual(original_state, (target / ".governance/state.json").read_text(encoding="utf-8"))
 
@@ -3372,6 +3399,11 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertTrue(approved_payload["ok"])
             self.assertTrue(approved_payload["version_transition"]["approval_granted"])
             self.assertTrue(approved_payload["version_transition"]["can_apply"])
+            approved_plan = approved_payload["migration_plan"]
+            self.assertEqual("approved", approved_plan["status"])
+            self.assertTrue(approved_plan["steps"][1]["enabled"])
+            self.assertIn("--approve-version-transition", approved_plan["steps"][1]["argv"])
+            self.assertEqual("apply-runtime-refresh", approved_plan["steps"][2]["depends_on"])
             self.assertEqual(BREAKING_PACK_VERSION, approved_payload["state"]["workflow_pack_version"])
             self.assertEqual(
                 f"{BREAKING_PACK_VERSION}\n",
@@ -3414,6 +3446,13 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual("rollback", payload["version_transition"]["classification"])
             self.assertTrue(payload["version_transition"]["approval_required"])
             self.assertFalse(payload["version_transition"]["can_apply"])
+            migration_plan = payload["migration_plan"]
+            self.assertEqual("review_required", migration_plan["status"])
+            self.assertEqual("rollback", migration_plan["reason_code"])
+            self.assertFalse(migration_plan["steps"][1]["enabled"])
+            self.assertEqual("version-transition-approval", migration_plan["steps"][1]["blocked_by"])
+            self.assertTrue(migration_plan["rollback"]["required"])
+            self.assertTrue(migration_plan["rollback"]["requires_trusted_artifact"])
             self.assertEqual(original_state, (target / ".governance/state.json").read_text(encoding="utf-8"))
             self.assertEqual(
                 f"{PACK_VERSION}\n",

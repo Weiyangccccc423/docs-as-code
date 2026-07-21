@@ -2191,6 +2191,16 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
                 if isinstance(runtime_refresh.get("version_transition"), dict)
                 else {}
             ),
+            "check_migration_plan": (
+                dict(runtime_refresh_check["migration_plan"])
+                if isinstance(runtime_refresh_check.get("migration_plan"), dict)
+                else {}
+            ),
+            "migration_plan": (
+                dict(runtime_refresh["migration_plan"])
+                if isinstance(runtime_refresh.get("migration_plan"), dict)
+                else {}
+            ),
             "runtime_refreshed_at": isinstance(runtime_refresh.get("state"), dict)
             and isinstance(runtime_refresh["state"].get("runtime_refreshed_at"), str),
             "workflow_plan_complete_after_refresh": make_workflow_plan_after_runtime_refresh.get("blocked") is False,
@@ -4574,7 +4584,10 @@ def _runtime_refresh_check_is_ready(payload: dict[str, object]) -> bool:
         return False
     if payload.get("removed") not in (None, []):
         return False
-    return _runtime_refresh_same_version_transition_is_ready(payload.get("version_transition"))
+    return (
+        _runtime_refresh_same_version_transition_is_ready(payload.get("version_transition"))
+        and _runtime_refresh_migration_plan_is_ready(payload.get("migration_plan"))
+    )
 
 
 def _runtime_refresh_completed(payload: dict[str, object]) -> bool:
@@ -4598,6 +4611,8 @@ def _runtime_refresh_completed(payload: dict[str, object]) -> bool:
     if not isinstance(local_commands, list):
         return False
     if not _runtime_refresh_same_version_transition_is_ready(payload.get("version_transition")):
+        return False
+    if not _runtime_refresh_migration_plan_is_ready(payload.get("migration_plan")):
         return False
     return any(
         isinstance(command, dict)
@@ -4623,6 +4638,46 @@ def _runtime_refresh_same_version_transition_is_ready(value: object) -> bool:
         and value.get("approval_granted") is False
         and value.get("can_apply") is True
         and value.get("decision") == "apply"
+    )
+
+
+def _runtime_refresh_migration_plan_is_ready(value: object) -> bool:
+    if not isinstance(value, dict):
+        return False
+    if (
+        value.get("schema_version") != 1
+        or value.get("status") != "not_required"
+        or value.get("required") is not False
+    ):
+        return False
+    scope = value.get("scope")
+    if not isinstance(scope, dict):
+        return False
+    preserved_roots = scope.get("preserved_project_document_roots")
+    if not isinstance(preserved_roots, list) or "docs/product/" not in preserved_roots:
+        return False
+    steps = value.get("steps")
+    if not isinstance(steps, list):
+        return False
+    expected_step_ids = [
+        "inspect-transition",
+        "apply-runtime-refresh",
+        "verify-target",
+        "resume-workflow",
+    ]
+    if [step.get("id") for step in steps if isinstance(step, dict)] != expected_step_ids:
+        return False
+    if not all(
+        isinstance(step, dict)
+        and step.get("enabled") is True
+        for step in steps
+    ):
+        return False
+    rollback = value.get("rollback")
+    return (
+        isinstance(rollback, dict)
+        and rollback.get("required") is False
+        and rollback.get("requires_trusted_artifact") is False
     )
 
 

@@ -8552,7 +8552,7 @@ class PackStructureTest(unittest.TestCase):
                 else:
                     changelog.write_text(
                         changelog.read_text(encoding="utf-8").replace(
-                            "## [0.2.0]",
+                            "## [0.3.0]",
                             "## [0.1.1]",
                             1,
                         ),

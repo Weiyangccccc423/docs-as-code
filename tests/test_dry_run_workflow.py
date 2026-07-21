@@ -526,6 +526,21 @@ class DryRunWorkflowTest(unittest.TestCase):
                 payload["runtime_refresh"]["version_transition"],
                 payload["runtime_refresh"]["check_version_transition"],
             )
+            migration_plan = payload["runtime_refresh"]["migration_plan"]
+            self.assertEqual("not_required", migration_plan["status"])
+            self.assertFalse(migration_plan["required"])
+            self.assertIn("docs/product/", migration_plan["scope"]["preserved_project_document_roots"])
+            self.assertEqual(
+                [
+                    "inspect-transition",
+                    "apply-runtime-refresh",
+                    "verify-target",
+                    "resume-workflow",
+                ],
+                [step["id"] for step in migration_plan["steps"]],
+            )
+            self.assertEqual(migration_plan, payload["runtime_refresh"]["check_migration_plan"])
+            self.assertFalse(migration_plan["rollback"]["required"])
             self.assertTrue(payload["api_review"]["preflight_ok"])
             self.assertTrue(payload["api_review"]["applied"])
             self.assertTrue(payload["api_review"]["current_after_runtime_refresh"])

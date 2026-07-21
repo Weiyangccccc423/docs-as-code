@@ -4328,6 +4328,7 @@ class GovernanceScriptsTest(unittest.TestCase):
         self.assertIsInstance(payload_errors, list)
         self.assertIsInstance(payload_state, dict)
         self.assertIsInstance(valid.to_dict()["version_transition"], dict)
+        self.assertNotIn("migration_plan", valid.to_dict())
         payload_refreshed.clear()
         payload_removed.clear()
         payload_errors.append("mutated error")
@@ -4553,6 +4554,46 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertTrue(transition["approval_required"])
             self.assertFalse(transition["can_apply"])
             self.assertEqual("request_approval", transition["decision"])
+
+    def test_runtime_migration_plan_is_structured_and_approval_guarded(self) -> None:
+        transition = {
+            "from_version": "0.1.0",
+            "to_version": "1.0.0",
+            "classification": "breaking_upgrade",
+            "evidence_status": "consistent",
+            "candidate_versions": ["0.1.0"],
+            "approval_required": True,
+            "approval_flag": "--approve-version-transition",
+            "approval_granted": False,
+            "can_apply": False,
+            "decision": "request_approval",
+        }
+
+        plan = bootstrap_module._build_runtime_migration_plan(
+            Path("/tmp/project"),
+            Path("/tmp/workflow-pack"),
+            transition,
+            ["CHANGELOG.md", "bin/governance"],
+            ["docs/agent-workflow/workflow-pack/old.md"],
+            False,
+        )
+
+        self.assertEqual("review_required", plan["status"])
+        self.assertTrue(plan["required"])
+        self.assertEqual("breaking_upgrade", plan["reason_code"])
+        self.assertEqual(
+            ["CHANGELOG.md", "bin/governance"],
+            plan["scope"]["managed_runtime_paths"],
+        )
+        self.assertEqual(
+            ["docs/agent-workflow/workflow-pack/old.md"],
+            plan["scope"]["stale_snapshot_paths"],
+        )
+        self.assertFalse(plan["steps"][1]["enabled"])
+        self.assertEqual("version-transition-approval", plan["steps"][1]["blocked_by"])
+        self.assertEqual("/tmp/workflow-pack", plan["steps"][0]["cwd"])
+        self.assertTrue(plan["rollback"]["required"])
+        self.assertTrue(plan["rollback"]["requires_trusted_artifact"])
 
     def test_check_env_tool_specs_reject_unstable_inventory_shape(self) -> None:
         required = check_env_module.ToolSpec(

@@ -95,7 +95,7 @@ Create the minimum structure needed for reliable docs-as-code work.
    bin/governance runtime refresh <target> --json
    ```
 
-   Inspect check-result `version_transition` before write mode. Stop for explicit `--approve-version-transition` review on a breaking upgrade, rollback, version replacement, or conflicting/invalid installed-version evidence.
+   Inspect check-result `version_transition` and `migration_plan` before write mode. Follow only enabled plan steps, preserve the declared project-document roots, and stop for explicit `--approve-version-transition` review on a breaking upgrade, rollback, version replacement, or conflicting/invalid installed-version evidence.
 
 ## Required Output
 

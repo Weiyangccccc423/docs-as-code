@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-21
+
+### Added
+
+- Added structured runtime migration plans with exact preflight, apply, verification, and workflow-resume argv for every refresh.
+- Added explicit preserved project-document roots and trusted-artifact rollback requirements to runtime refresh evidence.
+
+### Changed
+
+- High-risk workflow-pack transitions now expose ordered, approval-guarded migration steps and keep target files unchanged until approval.
+
 ## [0.2.0] - 2026-07-21
 
 ### Added
@@ -26,6 +37,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Added target-local governance commands, environment inventory and reviewed repair, authority-skill provenance locks, structured design and implementation review evidence, and snapshot-guarded resume behavior.
 - Added deterministic source-pack export, integrity manifests, artifact smoke tests, real-stack acceptance fixtures, and a local-first release gate.
 
-[Unreleased]: https://github.com/Weiyangccccc423/docs-as-code/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Weiyangccccc423/docs-as-code/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/Weiyangccccc423/docs-as-code/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Weiyangccccc423/docs-as-code/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Weiyangccccc423/docs-as-code/releases/tag/v0.1.0

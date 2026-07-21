@@ -161,7 +161,7 @@ bin/governance runtime refresh <target> --check --json
 bin/governance runtime refresh <target> --json
 ```
 
-Inspect `version_transition` in the check result. A breaking upgrade, rollback, version replacement, or conflicting/invalid installed-version evidence requires explicit reviewed `--approve-version-transition`; normal initialization and compatible refresh paths do not.
+Inspect `version_transition` and `migration_plan` in the check result. A breaking upgrade, rollback, version replacement, or conflicting/invalid installed-version evidence requires explicit reviewed `--approve-version-transition`; normal initialization and compatible refresh paths do not. Follow the plan's exact argv and preserve its declared project-document roots.
 
 The target also receives `.governance/state.json`, which records workflow-pack version, phase, profile, product source, archive path, and last verification status.
 
