@@ -4,6 +4,7 @@
 
 - Generated governance repository whose implementation gate has passed
 - One `Ready` `TASK-NNN` row whose Verification cell binds every required check as `command:<registered-name>`
+- Optional task-board `Risk` cell using only `risk:dependencies`, `risk:secrets`, and `risk:containers`
 - Local product, design, API, acceptance, and verification sources linked from the task
 - Target-local command contract at `docs/agent-workflow/command-contract.md`
 - Initialized Git work tree for immutable task-start change baselines
@@ -15,7 +16,7 @@ Load:
 
 - `executing-implementation-task`
 - `verifying-governance-docs`
-- every authority-routing specialist returned by the selected task's `skill_loading_plan`, derived from its linked architecture, API, backend, data-model, reliability, UI, frontend, test, and ADR sources
+- every authority-routing specialist returned by the selected task's `skill_loading_plan`, derived from its linked architecture, API, backend, data-model, reliability, UI, frontend, test, and ADR sources plus explicit dependency, secret, and container risk labels
 - authority-routing `code-reviewer` before closeout
 
 ## Procedure
@@ -48,7 +49,7 @@ Load:
 
    A fresh-folder consumer bootstrap `--workflow-preset implementation-routing` normally stops at design authoring blockers; it must not imply that Agent-authored design or authority reviews happened inside initialization. After every design queue and review passes, run `python3 scripts/bootstrap_consumer_project.py --target <target> --resume --workflow-preset implementation-routing --json` from the unpacked workflow pack. Resume preserves authored files, records the adjacent implementation phase only when its preflight passes, then calls `implementation run --check --json` and returns `implementation_run_preview`; if the phase is already implementation, it refreshes runner state without replaying the write. Require `ok`, `implementation_routing_ok`, and `runner_contract_valid` before trusting runner fields; `ok` alone does not mean an action is ready. Continue only when `implementation_route_ready` is true: a Ready task requires `implementation_handoff_ready` and `status: ready_to_start`; an In Progress task may instead require `implementation_continuation_ready` with `status: verification_ready` or `closeout_ready`; treat `implementation_terminal: true` as complete. Execute only the structured `next_action.argv`; apply-start, execute, and closeout actions must carry the matching runner snapshot through `--expect-snapshot`. If an error reports `state_write_observed: true`, rerun resume to recover the already-recorded phase before any other write. If the preview is skipped, repair the upstream `blocked_by` stage and rerun resume; do not fall back to legacy bootstrap start/closeout apply flags.
 
-3. Use `implementation plan --json` before editing code. Its `decision_policy` is `execute_exactly_one_ready_task`; inspect `implementation_summary`, `gate_ok`, `active_work`, `tasks[]`, `source_references`, `read_order`, `verification_command_names`, `verification_commands`, `verification_command_summary`, `specialist_skills`, `skill_requirements`, `authority_skill_requirements`, `skill_loading_plan`, and embedded `gate_command`, `start_command`, `verify_command`, `closeout_command`, and `refresh_command`. Specialist routing follows the task's actual source paths: architecture loads architecture authority, container/deployment and quality sources add DevOps/operability/performance authority, data-model and migration sources add database/migration authority, reliability sources add observability/SLO authority, and UI/frontend/test sources add their matching accessibility, performance, E2E, and security authority. Load only the returned requirements in order; do not infer a skill from task-title keywords. Stop successfully when `active_work.status` is `complete`. Stop for repair when `active_work.status` is not `ready`, `in_progress`, or `complete`, when any required verification command is missing, invalid, or approval-required, when `active_work.next_repair_action` is non-empty, or when a required authority-routing skill cannot be loaded from the agent environment.
+3. Use `implementation plan --json` before editing code. Its `decision_policy` is `execute_exactly_one_ready_task`; inspect `implementation_summary`, `gate_ok`, `active_work`, `tasks[]`, `source_references`, `risk_tags`, `read_order`, `verification_command_names`, `verification_commands`, `verification_command_summary`, `specialist_skills`, `skill_requirements`, `authority_skill_requirements`, `skill_loading_plan`, and embedded `gate_command`, `start_command`, `verify_command`, `closeout_command`, and `refresh_command`. Specialist routing follows the task's actual source paths: architecture loads architecture authority, container/deployment and quality sources add DevOps/operability/performance authority, data-model and migration sources add database/migration authority, reliability sources add observability/SLO authority, and UI/frontend/test sources add their matching accessibility, performance, E2E, and security authority. Explicit `risk:dependencies`, `risk:secrets`, and `risk:containers` labels additionally load `dependency-auditor`, `env-secrets-manager`, and the `docker-development` plus `senior-devops` pair. Load only the returned requirements in order; do not infer a skill or risk from task-title keywords. Stop successfully when `active_work.status` is `complete`. Stop for repair when `active_work.status` is not `ready`, `in_progress`, or `complete`, when any required verification command is missing, invalid, or approval-required, when `active_work.next_repair_action` is non-empty, or when a required authority-routing skill cannot be loaded from the agent environment.
 
 4. Select exactly one `Ready` or `In Progress` `TASK-NNN` from `active_work.task_id` or the first actionable `tasks[]` item. Do not start multiple task rows in one implementation pass unless the task board explicitly groups them and their verification evidence is shared.
 
@@ -74,6 +75,7 @@ Load:
    - update tests next to the changed surface
    - update generated clients, schemas, migrations, fixtures, snapshots, or lockfiles only when task scope and repository tooling require them
    - register missing or conflicting requirements in `docs/unresolved.md` instead of guessing
+   - for dependency, secret/environment, or container changes, require the matching task Risk label and returned authority specialist before changing manifests, lockfiles, environment contracts, secret handling, Dockerfiles, or container runtime configuration
 
 9. After code edits, confirm each `command:<registered-name>` binding resolves in `docs/agent-workflow/command-contract.md`, then preflight every bound command before any task command executes:
 
@@ -166,6 +168,7 @@ Implementation execution is complete when:
 - No single `Ready` or `In Progress` `TASK-NNN` is selected.
 - The implementation gate or governance verification fails.
 - Required product, design, API, acceptance, or verification links are missing.
+- A task Risk label is unknown, or the expected dependency, secret/environment, or container change surface lacks its matching supported label.
 - The task requires behavior that is not present in local Markdown sources.
 - A required `command:<registered-name>` binding is missing, unknown, malformed, approval-required, or not documented in `docs/agent-workflow/command-contract.md`.
 - The command `Environment` ID, required tool, safe version probe, version constraint, or reviewed repair source is absent from `docs/agent-workflow/project-environment.json`.

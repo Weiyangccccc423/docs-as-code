@@ -135,6 +135,69 @@
       }
     },
     {
+      "name": "dependency-auditor",
+      "source": {
+        "kind": "github",
+        "repo": "alirezarezvani/claude-skills",
+        "path": "engineering/skills/dependency-auditor",
+        "ref": "b2aa395350c5a96d094c0fea116636bfa25ad1d0"
+      },
+      "integrity": {
+        "algorithm": "sha256",
+        "scope": "skill-tree",
+        "digest": "333058b61aea413ffe83944a4f435729a8f56283340393005ac08609de4aed5c"
+      },
+      "trust": {
+        "status": "approved",
+        "approved_by": "workflow-pack-maintainers",
+        "approved_at": "2026-07-21",
+        "license": "MIT",
+        "review_evidence": "references/authority-skills-source-review.md"
+      }
+    },
+    {
+      "name": "docker-development",
+      "source": {
+        "kind": "github",
+        "repo": "alirezarezvani/claude-skills",
+        "path": "engineering/docker-development/skills/docker-development",
+        "ref": "b2aa395350c5a96d094c0fea116636bfa25ad1d0"
+      },
+      "integrity": {
+        "algorithm": "sha256",
+        "scope": "skill-tree",
+        "digest": "bcb227bdaee8972d64eebe422eedeb58679494cb4347d09c97c66d9d595522eb"
+      },
+      "trust": {
+        "status": "approved",
+        "approved_by": "workflow-pack-maintainers",
+        "approved_at": "2026-07-21",
+        "license": "MIT",
+        "review_evidence": "references/authority-skills-source-review.md"
+      }
+    },
+    {
+      "name": "env-secrets-manager",
+      "source": {
+        "kind": "github",
+        "repo": "alirezarezvani/claude-skills",
+        "path": "engineering/skills/env-secrets-manager",
+        "ref": "b2aa395350c5a96d094c0fea116636bfa25ad1d0"
+      },
+      "integrity": {
+        "algorithm": "sha256",
+        "scope": "skill-tree",
+        "digest": "45c8dc3352d8dddf12103e287623ed6c2e7417006fdb7cb0db6d67e37cbdd11b"
+      },
+      "trust": {
+        "status": "approved",
+        "approved_by": "workflow-pack-maintainers",
+        "approved_at": "2026-07-21",
+        "license": "MIT",
+        "review_evidence": "references/authority-skills-source-review.md"
+      }
+    },
+    {
       "name": "migration-architect",
       "source": {
         "kind": "github",

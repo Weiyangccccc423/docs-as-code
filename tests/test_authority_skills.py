@@ -200,6 +200,9 @@ class AuthoritySkillsTest(unittest.TestCase):
             "senior-security",
             "senior-devops",
             "ci-cd-pipeline-builder",
+            "dependency-auditor",
+            "env-secrets-manager",
+            "docker-development",
         ):
             self.assertIn(name, skills)
             self.assertEqual("authority-routing", skills[name]["type"])
@@ -244,6 +247,14 @@ class AuthoritySkillsTest(unittest.TestCase):
             for entry in skills["senior-backend"]["required_by"]
         }
         self.assertIn(("implementation", "conditional", "_task_specialist_skills"), backend_sources)
+
+        for name in ("dependency-auditor", "env-secrets-manager", "docker-development"):
+            with self.subTest(name=name):
+                sources = {
+                    (entry["phase"], entry.get("track"), entry["source"])
+                    for entry in skills[name]["required_by"]
+                }
+                self.assertIn(("implementation", "conditional", "_task_specialist_skills"), sources)
 
     def test_registered_skill_tree_is_current_then_drifted_when_bundled_content_changes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

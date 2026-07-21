@@ -591,6 +591,130 @@ def _endpoint_contract_doc(
 
 
 class GovernanceScriptsTest(unittest.TestCase):
+    def test_task_board_optional_risk_column_is_preserved_without_breaking_legacy_rows(self) -> None:
+        legacy = (
+            "| ID | Status | Task | Product | Design | API | Acceptance | Verification |\n"
+            "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+            "| TASK-001 | Ready | Legacy task | product | design | api | acceptance | verification |\n"
+        )
+        with_risk = (
+            "| ID | Status | Task | Product | Design | API | Acceptance | Verification | Risk |\n"
+            "| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n"
+            "| TASK-002 | Ready | Risk task | product | design | api | acceptance | verification | "
+            "risk:dependencies, risk:secrets |\n"
+        )
+
+        legacy_rows, legacy_missing = verify_governance_module._task_board_rows(legacy)
+        risk_rows, risk_missing = verify_governance_module._task_board_rows(with_risk)
+
+        self.assertEqual([], legacy_missing)
+        self.assertEqual("TASK-001", legacy_rows[0]["id"])
+        self.assertNotIn("risk", legacy_rows[0])
+        self.assertEqual([], risk_missing)
+        self.assertEqual("risk:dependencies, risk:secrets", risk_rows[0]["risk"])
+
+    def test_implementation_risk_tags_route_authority_specialists(self) -> None:
+        cases = (
+            ("risk:dependencies", {"dependency-auditor"}),
+            ("risk:secrets", {"env-secrets-manager"}),
+            ("risk:containers", {"docker-development", "senior-devops"}),
+        )
+        for risk_tag, expected in cases:
+            with self.subTest(risk_tag=risk_tag):
+                skills = implementation_plan_module._task_specialist_skills({}, [risk_tag])
+                self.assertTrue(expected.issubset(skills))
+
+    def test_implementation_task_exposes_risk_tags_and_blocks_unknown_tags(self) -> None:
+        row = {
+            "id": "TASK-001",
+            "status": "Ready",
+            "task": "Update project dependencies",
+            "product": "[PRD](docs/product/core/PRD.md)",
+            "design": "[Architecture](docs/architecture/01-system-context.md)",
+            "api": "[API](docs/api/00-conventions.md)",
+            "acceptance": "[A-001](docs/product/08-acceptance-criteria.md#a-001)",
+            "verification": "command:test [evidence](docs/development/03-verification-log.md)",
+            "risk": "risk:dependencies, risk:unreviewed-domain",
+        }
+
+        task = implementation_plan_module._implementation_task(
+            Path("/tmp/target"),
+            row,
+            1,
+            {"A-001"},
+            set(),
+            set(),
+            set(),
+            set(),
+        )
+
+        self.assertEqual(["risk:dependencies", "risk:unreviewed-domain"], task["risk_tags"])
+        self.assertIn("dependency-auditor", task["specialist_skills"])
+        self.assertTrue(
+            any(blocker["code"] == "task_board_unknown_risk_tag" for blocker in task["blockers"])
+        )
+
+    def test_implementation_task_blocks_malformed_risk_cell(self) -> None:
+        row = {
+            "id": "TASK-001",
+            "status": "Ready",
+            "task": "Update project dependencies",
+            "product": "product",
+            "design": "design",
+            "api": "api",
+            "acceptance": "acceptance",
+            "verification": "verification",
+            "risk": "none, risk:dependencies",
+        }
+
+        blockers = implementation_plan_module._task_blockers(
+            Path("/tmp/target"),
+            row,
+            "TASK-001",
+            "ready",
+            "A-001",
+            {"A-001"},
+            set(),
+            [],
+        )
+
+        self.assertTrue(any(blocker["code"] == "task_board_invalid_risk_cell" for blocker in blockers))
+
+    def test_implementation_work_package_preserves_task_risk_tags(self) -> None:
+        plan = {
+            "ok": True,
+            "decision_policy": "execute_exactly_one_ready_task",
+            "implementation_summary": {"execution_complete": False},
+            "active_work": {"task_id": "TASK-001", "status": "ready"},
+            "tasks": [
+                {
+                    "task_id": "TASK-001",
+                    "normalized_status": "ready",
+                    "title": "Update dependencies",
+                    "acceptance_id": "A-001",
+                    "risk_tags": ["risk:dependencies"],
+                    "read_order": [],
+                    "source_references": {},
+                    "verification_command_names": [],
+                    "verification_commands": [],
+                    "verification_command_summary": {},
+                    "open_decisions": [],
+                    "blockers": [],
+                    "skill_requirements": [],
+                    "authority_skill_requirements": [],
+                    "skill_loading_plan": {},
+                    "execution": {},
+                    "steps": [],
+                }
+            ],
+        }
+        with mock.patch.object(workflow_plan_module, "build_implementation_plan", return_value=plan):
+            package, errors, status = workflow_plan_module._implementation_work_package(Path("/tmp/target"))
+
+        self.assertEqual([], errors)
+        self.assertEqual("", status)
+        self.assertEqual(["risk:dependencies"], package["risk_tags"])
+
     def test_implementation_specialists_follow_referenced_risk_domains(self) -> None:
         cases = (
             (

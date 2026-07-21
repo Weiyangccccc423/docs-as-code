@@ -21,6 +21,7 @@ try:
         COMMAND_CONTRACT_REL,
         ROADMAP_MILESTONE_REQUIRED_COLUMNS,
         SCAFFOLD_PLACEHOLDER,
+        TASK_BOARD_ALLOWED_RISK_TAGS,
         TASK_BOARD_ALLOWED_STATUSES,
         TASK_BOARD_EXECUTABLE_STATUSES,
         TASK_BOARD_REQUIRED_COLUMNS,
@@ -38,6 +39,8 @@ try:
         _task_board_local_references,
         _task_board_row_trace_complete,
         _task_board_row_trace_reference_errors,
+        _task_board_risk_cell_error,
+        _task_board_risk_tags,
         _task_board_rows,
         _verification_log_rows,
         _verification_log_task_ids,
@@ -60,6 +63,7 @@ except ImportError:  # pragma: no cover - direct script execution
         COMMAND_CONTRACT_REL,
         ROADMAP_MILESTONE_REQUIRED_COLUMNS,
         SCAFFOLD_PLACEHOLDER,
+        TASK_BOARD_ALLOWED_RISK_TAGS,
         TASK_BOARD_ALLOWED_STATUSES,
         TASK_BOARD_EXECUTABLE_STATUSES,
         TASK_BOARD_REQUIRED_COLUMNS,
@@ -77,6 +81,8 @@ except ImportError:  # pragma: no cover - direct script execution
         _task_board_local_references,
         _task_board_row_trace_complete,
         _task_board_row_trace_reference_errors,
+        _task_board_risk_cell_error,
+        _task_board_risk_tags,
         _task_board_rows,
         _verification_log_rows,
         _verification_log_task_ids,
@@ -105,6 +111,7 @@ class TaskSourceSpecialistRoute:
     skills: tuple[str, ...]
     prefixes: tuple[str, ...] = ()
     exact_paths: tuple[str, ...] = ()
+    risk_tags: tuple[str, ...] = ()
 
 
 TASK_SOURCE_SPECIALIST_ROUTES = (
@@ -167,6 +174,21 @@ TASK_SOURCE_SPECIALIST_ROUTES = (
         title="Architecture decision implementation sources",
         prefixes=("docs/decisions/",),
         skills=("senior-architect", "migration-architect", "tech-stack-evaluator"),
+    ),
+    TaskSourceSpecialistRoute(
+        title="Dependency change implementation risk",
+        risk_tags=("risk:dependencies",),
+        skills=("dependency-auditor",),
+    ),
+    TaskSourceSpecialistRoute(
+        title="Secret and environment configuration implementation risk",
+        risk_tags=("risk:secrets",),
+        skills=("env-secrets-manager",),
+    ),
+    TaskSourceSpecialistRoute(
+        title="Container implementation risk",
+        risk_tags=("risk:containers",),
+        skills=("docker-development", "senior-devops"),
     ),
 )
 BASE_SOURCE_DOCUMENTS = (
@@ -1093,6 +1115,8 @@ def _closeout_task_payload(root: Path, row: dict[str, str]) -> dict[str, object]
         "status": row.get("status", "").strip(),
         "title": _plain_task_title(row.get("task", "")),
         "acceptance_id": acceptance_id or "",
+        "risk": row.get("risk", "").strip(),
+        "risk_tags": _task_board_risk_tags(row.get("risk", "")),
         "source_references": _source_references(root, row),
         "verification": row.get("verification", "").strip(),
     }
@@ -1326,6 +1350,7 @@ def _implementation_task(
 ) -> dict[str, object]:
     task_id = row.get("id", "").strip()
     normalized_status = _normalize_cell(row.get("status", ""))
+    risk_tags = _task_board_risk_tags(row.get("risk", ""))
     acceptance_id = _task_board_acceptance_id(row.get("acceptance", ""))
     verification_commands = _task_verification_commands(root, task_id, row.get("verification", ""))
     verification_command_summary = _verification_command_summary(verification_commands)
@@ -1340,7 +1365,7 @@ def _implementation_task(
         verification_commands,
     )
     source_references = _source_references(root, row)
-    specialist_skills = _task_specialist_skills(source_references)
+    specialist_skills = _task_specialist_skills(source_references, risk_tags)
     actionable = normalized_status in TASK_BOARD_EXECUTABLE_STATUSES and not blockers
     execution = {
         "stage": "implementation-execution",
@@ -1358,6 +1383,8 @@ def _implementation_task(
         "actionable": actionable,
         "title": _plain_task_title(row.get("task", "")),
         "acceptance_id": acceptance_id or "",
+        "risk": row.get("risk", "").strip(),
+        "risk_tags": risk_tags,
         "source_references": source_references,
         "verification": row.get("verification", "").strip(),
         "verification_command_names": [str(item.get("name", "")) for item in verification_commands],
@@ -1404,6 +1431,30 @@ def _task_blockers(
         blockers.append(_blocker(root, "task_board_duplicate_id", TASK_BOARD_REL.as_posix(), task_id))
     if normalized_status and normalized_status not in TASK_BOARD_ALLOWED_STATUSES:
         blockers.append(_blocker(root, "task_board_invalid_status", TASK_BOARD_REL.as_posix(), row.get("status", "").strip()))
+    risk_cell_error = _task_board_risk_cell_error(row.get("risk", ""))
+    unknown_risk_tags = [
+        tag
+        for tag in _task_board_risk_tags(row.get("risk", ""))
+        if tag not in TASK_BOARD_ALLOWED_RISK_TAGS
+    ]
+    if risk_cell_error:
+        blockers.append(
+            _blocker(
+                root,
+                "task_board_invalid_risk_cell",
+                TASK_BOARD_REL.as_posix(),
+                risk_cell_error,
+            )
+        )
+    elif unknown_risk_tags:
+        blockers.append(
+            _blocker(
+                root,
+                "task_board_unknown_risk_tag",
+                TASK_BOARD_REL.as_posix(),
+                ", ".join(unknown_risk_tags),
+            )
+        )
     if normalized_status not in TASK_BOARD_EXECUTABLE_STATUSES and normalized_status != "done":
         blockers.append(_blocker(root, "task_board_task_not_ready", TASK_BOARD_REL.as_posix(), row.get("status", "").strip()))
     if not _task_board_row_trace_complete(row):
@@ -1586,6 +1637,10 @@ def _blocker(root: Path, code: str, path: str, detail: str) -> dict[str, object]
 def _repair_strategy(code: str) -> str:
     if code == "task_board_task_not_ready":
         return "select_or_promote_one_source_backed_ready_task_before_editing_code"
+    if code == "task_board_unknown_risk_tag":
+        return "replace_unknown_risk_tags_with_supported_task_board_risk_labels"
+    if code == "task_board_invalid_risk_cell":
+        return "replace_invalid_risk_cell_with_none_or_supported_risk_labels"
     if code in {"task_board_trace_reference_missing", "task_board_trace_reference_mismatch"}:
         return "repair_task_board_local_markdown_traceability_before_editing_code"
     if code == "task_board_acceptance_matrix_missing":
@@ -1955,15 +2010,21 @@ def _implementation_specialist_skills(tasks: list[dict[str, object]]) -> list[st
     return skills
 
 
-def _task_specialist_skills(source_references: dict[str, object]) -> list[str]:
+def _task_specialist_skills(
+    source_references: dict[str, object],
+    risk_tags: list[str] | tuple[str, ...] = (),
+) -> list[str]:
     paths = _referenced_paths(source_references)
+    normalized_risk_tags = {tag.lower() for tag in risk_tags}
     skills = list(BASE_SPECIALIST_SKILLS)
     for route in TASK_SOURCE_SPECIALIST_ROUTES:
-        if not any(
+        path_matches = any(
             path in route.exact_paths
             or any(path.startswith(prefix) for prefix in route.prefixes)
             for path in paths
-        ):
+        )
+        risk_matches = any(tag in normalized_risk_tags for tag in route.risk_tags)
+        if not path_matches and not risk_matches:
             continue
         for skill in route.skills:
             _append_unique(skills, skill)

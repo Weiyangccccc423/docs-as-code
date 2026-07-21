@@ -10,6 +10,8 @@ Calibrate implementation readiness against the Scrum Guide's transparency and De
 - Do Product, Design, API, Acceptance, and Verification cells link existing local Markdown sources?
 - Are dependencies, sequencing, blocked questions, and out-of-scope work explicit enough that an agent can start without inventing requirements?
 - Do the linked design paths provide enough machine-readable scope for `implementation plan` to route the required architecture, backend, data, reliability, frontend, test, and delivery authority skills without task-title guessing?
+- Does the optional Risk cell use only `risk:dependencies`, `risk:secrets`, and `risk:containers`, include every label implied by the expected change surface, and use `none` when none apply?
+- Do dependency, environment/secret, and container tasks route `dependency-auditor`, `env-secrets-manager`, and `docker-development` plus `senior-devops` respectively before implementation?
 
 Reference: `https://scrumguides.org/scrum-guide.html`
 

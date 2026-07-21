@@ -454,6 +454,20 @@ TASK_BOARD_REQUIRED_COLUMNS = {
     "acceptance": "Acceptance",
     "verification": "Verification",
 }
+TASK_BOARD_OPTIONAL_COLUMNS = {
+    "risk": "Risk",
+}
+TASK_BOARD_ALLOWED_RISK_TAGS = frozenset(
+    {
+        "risk:containers",
+        "risk:dependencies",
+        "risk:secrets",
+    }
+)
+TASK_BOARD_RISK_TAG_RE = re.compile(
+    r"(?<![A-Za-z0-9-])risk:[A-Za-z][A-Za-z0-9-]*(?![A-Za-z0-9-])",
+    re.IGNORECASE,
+)
 TASK_BOARD_TRACE_COLUMNS = ("product", "design", "api", "acceptance", "verification")
 TASK_BOARD_REFERENCE_COLUMNS = ("product", "design", "api", "acceptance")
 TASK_BOARD_ALLOWED_STATUSES = {
@@ -5031,6 +5045,26 @@ def _check_task_board(root: Path, report: VerificationReport) -> None:
                 rel,
             )
             continue
+        risk_cell_error = _task_board_risk_cell_error(row.get("risk", ""))
+        unknown_risk_tags = [
+            tag
+            for tag in _task_board_risk_tags(row.get("risk", ""))
+            if tag not in TASK_BOARD_ALLOWED_RISK_TAGS
+        ]
+        if risk_cell_error:
+            report.add_error(
+                "task_board_invalid_risk_cell",
+                f"task board row {task_id} has invalid Risk: {risk_cell_error}",
+                rel,
+            )
+            continue
+        if unknown_risk_tags:
+            report.add_error(
+                "task_board_unknown_risk_tag",
+                f"task board row {task_id} has unknown Risk tags: {', '.join(unknown_risk_tags)}",
+                rel,
+            )
+            continue
         task_key = _normalize_cell(task_id)
         if task_key in seen_ids:
             report.add_error(
@@ -5509,6 +5543,10 @@ def _task_board_rows(text: str) -> tuple[list[dict[str, str]], list[str]]:
         missing = [column for column in TASK_BOARD_REQUIRED_COLUMNS if column not in header]
         if missing:
             return [], missing
+        columns = [
+            *TASK_BOARD_REQUIRED_COLUMNS,
+            *(column for column in TASK_BOARD_OPTIONAL_COLUMNS if column in header),
+        ]
         rows: list[dict[str, str]] = []
         for data in table[index + 1 :]:
             if _is_separator_row(data):
@@ -5518,11 +5556,34 @@ def _task_board_rows(text: str) -> tuple[list[dict[str, str]], list[str]]:
             rows.append(
                 {
                     column: data[header.index(column)].strip() if len(data) > header.index(column) else ""
-                    for column in TASK_BOARD_REQUIRED_COLUMNS
+                    for column in columns
                 }
             )
         return rows, []
     return [], list(TASK_BOARD_REQUIRED_COLUMNS)
+
+
+def _task_board_risk_tags(value: str) -> list[str]:
+    tags: list[str] = []
+    for match in TASK_BOARD_RISK_TAG_RE.finditer(value):
+        tag = match.group(0).lower()
+        if tag not in tags:
+            tags.append(tag)
+    return tags
+
+
+def _task_board_risk_cell_error(value: str) -> str:
+    if _normalize_cell(value) in TASK_BOARD_EMPTY_VALUES:
+        return ""
+    if not _task_board_risk_tags(value):
+        return "use none or a comma-separated list of risk:* labels"
+    residual = TASK_BOARD_RISK_TAG_RE.sub("", value)
+    residual = re.sub(r"<br\s*/?>", "", residual, flags=re.IGNORECASE)
+    residual = residual.replace("`", "")
+    residual = re.sub(r"[\s,;/]+", "", residual)
+    if residual:
+        return "use only risk:* labels separated by commas, semicolons, slashes, spaces, or HTML line breaks"
+    return ""
 
 
 def _rows_with_columns(text: str, columns: tuple[str, ...]) -> list[dict[str, str]]:

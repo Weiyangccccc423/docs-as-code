@@ -786,6 +786,7 @@ def _implementation_work_package(root: Path) -> tuple[dict[str, object], list[st
         "objective": "Implement exactly one selected task and preserve passing local verification evidence.",
         "decision_policy": str(payload.get("decision_policy", "execute_exactly_one_ready_task")),
         "acceptance_id": str(task.get("acceptance_id", "")),
+        "risk_tags": _string_list(task.get("risk_tags")),
         "source_documents": source_documents,
         "references": references,
         "read_order": read_order,
