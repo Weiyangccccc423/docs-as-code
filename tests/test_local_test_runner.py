@@ -6,13 +6,54 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from scripts.run_tests import discover_test_modules, run_test_modules
+from scripts.run_tests import (
+    _parse_mem_available_bytes,
+    default_worker_count,
+    discover_test_modules,
+    run_test_modules,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 class LocalTestRunnerTest(unittest.TestCase):
+    def test_parses_linux_available_memory(self) -> None:
+        self.assertEqual(
+            2 * 1024**3,
+            _parse_mem_available_bytes(
+                "MemTotal:       8192000 kB\nMemAvailable:   2097152 kB\n"
+            ),
+        )
+        self.assertIsNone(_parse_mem_available_bytes("MemTotal: 8192000 kB\n"))
+        self.assertIsNone(_parse_mem_available_bytes("MemAvailable: many kB\n"))
+
+    def test_auto_worker_count_is_bounded_by_cpu_and_available_memory(self) -> None:
+        gibibyte = 1024**3
+        cases = (
+            (16, 10 * gibibyte, 8),
+            (16, 2 * gibibyte, 2),
+            (2, 10 * gibibyte, 2),
+            (None, 10 * gibibyte, 1),
+        )
+        for cpu_count, available_memory, expected in cases:
+            with self.subTest(cpu_count=cpu_count, available_memory=available_memory):
+                with (
+                    mock.patch("scripts.run_tests.os.cpu_count", return_value=cpu_count),
+                    mock.patch(
+                        "scripts.run_tests._available_memory_bytes",
+                        return_value=available_memory,
+                    ),
+                ):
+                    self.assertEqual(expected, default_worker_count())
+
+    def test_auto_worker_count_uses_conservative_fallback_without_memory_signal(self) -> None:
+        with (
+            mock.patch("scripts.run_tests.os.cpu_count", return_value=16),
+            mock.patch("scripts.run_tests._available_memory_bytes", return_value=None),
+        ):
+            self.assertEqual(4, default_worker_count())
+
     def test_discovers_sorted_test_modules_and_ignores_non_tests(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

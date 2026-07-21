@@ -43,7 +43,7 @@ python3 scripts/authority_skills.py --strict-provenance --json
 ./docs-as-code-workflow-pack/bin/governance-bootstrap --json
 ```
 
-Treat local `make test` as the unit-test gate. It uses bounded module-level subprocess parallelism; route failures to `make test-serial` only for deterministic diagnosis. The GitHub workflow is manual-only and must not be triggered unless a reviewed remote-environment run is explicitly required.
+Treat local `make test` as the unit-test gate. It uses isolated module subprocesses and automatically bounds concurrency by CPU count, Linux available memory at 768 MiB per worker, and an eight-worker ceiling; missing memory signals retain a conservative four-worker ceiling. Use `python3 scripts/run_tests.py --workers <count>` only as a reviewed local override, and route failures to `make test-serial` only for deterministic diagnosis. The GitHub workflow is manual-only and must not be triggered unless a reviewed remote-environment run is explicitly required.
 Require `make release-check` to reuse `python3 scripts/run_tests.py`; a separate serial unit-test path is source-pack verification drift.
 Require release, dry-run, and artifact-smoke steps to use `scripts/source_process.py`, with 60-minute release limits, 15-minute nested limits, 16 MiB per-stream output bounds, sensitive-output redaction, and full POSIX process-group termination on timeout. Treat `started: false`, `timed_out: true`, `output_safe: false`, or return-code mismatch as a hard source-pack blocker; inspect structured command, duration, stdout/stderr, truncation, and redaction evidence, and never retry through an unbounded substitute.
 

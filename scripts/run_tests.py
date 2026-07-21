@@ -14,9 +14,13 @@ from typing import Sequence, TextIO
 
 
 MAX_WORKERS = 64
+MAX_AUTO_WORKERS = 8
+FALLBACK_AUTO_WORKERS = 4
+MEMORY_BYTES_PER_WORKER = 768 * 1024**2
 DEFAULT_MODULE_TIMEOUT_SECONDS = 900.0
 MAX_MODULE_TIMEOUT_SECONDS = 86400.0
 TIMEOUT_RETURN_CODE = 124
+LINUX_MEMINFO_PATH = Path("/proc/meminfo")
 TEST_FILE_PATTERN = re.compile(r"^test_[A-Za-z0-9][A-Za-z0-9_]*\.py$")
 TEST_MODULE_PATTERN = re.compile(r"^tests\.test_[A-Za-z0-9][A-Za-z0-9_]*$")
 TEST_COUNT_PATTERN = re.compile(r"^Ran (?P<count>\d+) tests? in ", re.MULTILINE)
@@ -44,8 +48,34 @@ class TestModuleResult:
         }
 
 
+def _parse_mem_available_bytes(content: str) -> int | None:
+    for line in content.splitlines():
+        key, separator, value = line.partition(":")
+        if separator != ":" or key != "MemAvailable":
+            continue
+        fields = value.split()
+        if len(fields) != 2 or not fields[0].isdigit() or fields[1] != "kB":
+            return None
+        available_kibibytes = int(fields[0])
+        return available_kibibytes * 1024 if available_kibibytes > 0 else None
+    return None
+
+
+def _available_memory_bytes() -> int | None:
+    try:
+        content = LINUX_MEMINFO_PATH.read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        return None
+    return _parse_mem_available_bytes(content)
+
+
 def default_worker_count() -> int:
-    return max(1, min(4, os.cpu_count() or 1))
+    cpu_workers = max(1, os.cpu_count() or 1)
+    available_memory = _available_memory_bytes()
+    if available_memory is None:
+        return min(FALLBACK_AUTO_WORKERS, cpu_workers)
+    memory_workers = max(1, available_memory // MEMORY_BYTES_PER_WORKER)
+    return min(MAX_AUTO_WORKERS, cpu_workers, memory_workers)
 
 
 def discover_test_modules(root: Path) -> tuple[str, ...]:
@@ -195,7 +225,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--workers",
         type=int,
         default=default_worker_count(),
-        help="Maximum parallel test modules (default: min(4, CPU count)).",
+        help=(
+            "Maximum parallel test modules (default: auto-bounded by CPU and "
+            "available memory; conservative cap 4 when memory is unavailable)."
+        ),
     )
     parser.add_argument(
         "--module",
