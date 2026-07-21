@@ -152,8 +152,83 @@ class ConsumerBootstrapTest(unittest.TestCase):
 
             self.assertEqual(0, result.returncode, result.stdout + result.stderr)
             self.assertTrue(json.loads(result.stdout)["ok"])
-            self.assertEqual(["invoked", "invoked"], marker.read_text(encoding="utf-8").splitlines())
+            self.assertEqual(["invoked"] * 4, marker.read_text(encoding="utf-8").splitlines())
             self.assertFalse((target / "README.md").exists())
+
+    def test_wrapper_propagates_explicit_python_to_target_runtime(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            target = base / "fresh-target"
+            pack = target / "workflow-pack"
+            fake_bin = base / "fake-bin"
+            target.mkdir()
+            fake_bin.mkdir()
+            (target / "product.md").write_text(
+                "# Product\n\n## Goals and Requirements\n\n- Initialize a governed workspace.\n",
+                encoding="utf-8",
+            )
+            _export_pack(pack)
+            broken_python = fake_bin / "python3"
+            broken_python.write_text("#!/bin/sh\nexit 99\n", encoding="utf-8")
+            broken_python.chmod(0o755)
+            marker = base / "python-invocations.txt"
+            interpreter = base / "compatible-python"
+            interpreter.write_text(
+                "#!/bin/sh\n"
+                "printf 'invoked\\n' >> \"$DOCS_AS_CODE_PYTHON_TEST_MARKER\"\n"
+                "exec \"$DOCS_AS_CODE_PYTHON_TEST_REAL\" \"$@\"\n",
+                encoding="utf-8",
+            )
+            interpreter.chmod(0o755)
+            env = os.environ.copy()
+            env["PATH"] = os.pathsep.join([str(fake_bin), env.get("PATH", "")])
+            env["DOCS_AS_CODE_PYTHON"] = str(interpreter)
+            env["DOCS_AS_CODE_PYTHON_TEST_MARKER"] = str(marker)
+            env["DOCS_AS_CODE_PYTHON_TEST_REAL"] = sys.executable
+
+            result = subprocess.run(
+                ["/bin/sh", str(pack / "bin/governance-bootstrap"), "--json"],
+                cwd=target,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertTrue(payload["initialized"])
+            self.assertTrue(payload["target_local"]["ok"])
+            self.assertGreaterEqual(len(marker.read_text(encoding="utf-8").splitlines()), 4)
+            self.assertTrue((target / "bin/governance").is_file())
+
+    def test_target_wrapper_rejects_incompatible_explicit_python_without_writes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            target.mkdir()
+            incompatible = Path(tmp) / "incompatible-python"
+            incompatible.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+            incompatible.chmod(0o755)
+            env = os.environ.copy()
+            env["DOCS_AS_CODE_PYTHON"] = str(incompatible)
+
+            result = subprocess.run(
+                ["/bin/sh", str(ROOT / "bin/governance"), "status", ".", "--json"],
+                cwd=target,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertEqual("governance_python_incompatible", payload["error_code"])
+            self.assertFalse(payload["writes_state"])
+            self.assertEqual("DOCS_AS_CODE_PYTHON", payload["repair"]["environment_override"])
+            self.assertFalse((target / ".governance").exists())
 
     def test_consumer_bootstrap_refuses_workflow_pack_as_target_before_commands(self) -> None:
         for target in (ROOT, ROOT / "nested-consumer-target"):

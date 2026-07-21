@@ -114,6 +114,7 @@ TEMPLATE_REQUIRED_GUARDRAILS = {
         '"id": "core-governance"',
         '"id": "project-runtime"',
         '"executable": "python3"',
+        '"environment_override": "DOCS_AS_CODE_PYTHON"',
         '"minimum": "3.10.0"',
         '"maximum_exclusive": "4.0.0"',
         '"strategy": "governance-env"',
@@ -1453,6 +1454,8 @@ CONSUMER_BOOTSTRAP_RUNTIME_DOC_REQUIRED_PHRASES = (
     "DOCS_AS_CODE_PYTHON",
     "bootstrap_python_unavailable",
     "bootstrap_python_incompatible",
+    "governance_python_unavailable",
+    "governance_python_incompatible",
     "Bash is not required",
 )
 CONSUMER_BOOTSTRAP_DOC_REQUIREMENTS = {
@@ -3160,6 +3163,7 @@ PROJECT_ENVIRONMENT_SOURCE_REQUIRED_PHRASES = (
     "reviewed-command",
     "--approved",
     "PROJECT_ENVIRONMENT_REPAIR_EVIDENCE_REL",
+    "PYTHON_RUNTIME_OVERRIDE_ENV",
     "load_project_environment_repair_evidence",
     "validate_project_environment_repair_evidence",
     "pending",
@@ -3447,6 +3451,7 @@ IMPLEMENTATION_VERIFY_DOC_REQUIREMENTS = {
     ),
     "references/project-environment-contract.md": (
         "Version probes are executable metadata checks",
+        "environment_override: DOCS_AS_CODE_PYTHON",
         "governance-env",
         "manual",
         "review_evidence",
@@ -5360,12 +5365,12 @@ MAKEFILE_REQUIRED_TARGET_RECIPES = {
     ),
 }
 RUNTIME_WRAPPER_REQUIRED_COMMANDS = {
-    "bin/governance": 'exec python3 "$ROOT_DIR/scripts/governance_cli.py" "$@"',
+    "bin/governance": 'exec "$PYTHON_BIN" "$ROOT_DIR/scripts/governance_cli.py" "$@"',
     CONSUMER_BOOTSTRAP_WRAPPER_PATH: (
         'exec "$PYTHON_BIN" "$ROOT_DIR/scripts/bootstrap_consumer_project.py" --auto-repair-env "$@"'
     ),
-    "bin/governance-init": 'exec python3 "$ROOT_DIR/scripts/governance_cli.py" init "$@"',
-    "bin/governance-verify": 'exec python3 "$ROOT_DIR/scripts/governance_cli.py" verify "$@"',
+    "bin/governance-init": 'exec "$ROOT_DIR/bin/governance" init "$@"',
+    "bin/governance-verify": 'exec "$ROOT_DIR/bin/governance" verify "$@"',
 }
 BOOTSTRAP_TREE_PATH = Path("scripts/bootstrap_tree.py")
 GENERATED_ROOT_AGENTS_REQUIRED_PHRASES = (
@@ -5490,6 +5495,14 @@ CONSUMER_BOOTSTRAP_WRAPPER_RUNTIME_GUARDS = (
     "DOCS_AS_CODE_PYTHON",
     "bootstrap_python_unavailable",
     "bootstrap_python_incompatible",
+    "sys.version_info[:2] >= (3, 10)",
+    '"writes_state":false',
+)
+TARGET_RUNTIME_WRAPPER_PATH = "bin/governance"
+TARGET_RUNTIME_WRAPPER_RUNTIME_GUARDS = (
+    "DOCS_AS_CODE_PYTHON",
+    "governance_python_unavailable",
+    "governance_python_incompatible",
     "sys.version_info[:2] >= (3, 10)",
     '"writes_state":false',
 )
@@ -7626,6 +7639,17 @@ def _check_runtime_wrapper_commands(root: Path, findings: list[PackFinding]) -> 
                     PackFinding(
                         "pack_consumer_bootstrap_runtime_guard_missing",
                         f"consumer bootstrap wrapper must preserve runtime guard: {phrase}",
+                        rel,
+                    )
+                )
+        if rel == TARGET_RUNTIME_WRAPPER_PATH:
+            for phrase in TARGET_RUNTIME_WRAPPER_RUNTIME_GUARDS:
+                if phrase in text:
+                    continue
+                findings.append(
+                    PackFinding(
+                        "pack_target_runtime_guard_missing",
+                        f"target runtime wrapper must preserve runtime guard: {phrase}",
                         rel,
                     )
                 )

@@ -10,7 +10,7 @@ Use `docs/agent-workflow/project-environment.json` in generated targets to bind 
 - `tools` lists every external executable required by the environment.
 - Each tool has a unique ID, bare executable name, `version_probe`, `version_requirement`, and `repair` object.
 
-The generated `core-governance` environment requires Python `>=3.10.0` and `<4.0.0`. `project-runtime` starts empty because the workflow must not guess the product project's stack.
+The generated `core-governance` environment requires Python `>=3.10.0` and `<4.0.0`. Its `python-runtime` tool declares `environment_override: DOCS_AS_CODE_PYTHON`, matching the POSIX wrapper and environment inventory contract. When that variable is set, the probe resolves the exact selected executable without a shell; the declared logical executable and repair tool remain `python3`. This override is reserved for the generated core Python tool and cannot be registered for arbitrary project tools. `project-runtime` starts empty because the workflow must not guess the product project's stack.
 
 ## Command Coverage
 

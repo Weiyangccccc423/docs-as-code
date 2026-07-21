@@ -74,6 +74,34 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_requires_target_runtime_python_preflight(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            wrapper = target / "bin/governance"
+            text = wrapper.read_text(encoding="utf-8")
+            self.assertIn("governance_python_incompatible", text)
+            wrapper.write_text(
+                text.replace("governance_python_incompatible", "python_incompatible"),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_target_runtime_guard_missing"
+                    and finding.path == "bin/governance"
+                    and "governance_python_incompatible" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_requires_consumer_bootstrap_runtime_repair_docs(self) -> None:
         for required_phrase, replacement in (
             ("DOCS_AS_CODE_PYTHON", "GOVERNANCE_PYTHON"),
@@ -6169,8 +6197,8 @@ class PackStructureTest(unittest.TestCase):
             wrapper = target / "bin/governance-verify"
             wrapper.write_text(
                 wrapper.read_text(encoding="utf-8").replace(
-                    'python3 "$ROOT_DIR/scripts/governance_cli.py" verify "$@"',
-                    'python3 "$ROOT_DIR/scripts/governance_cli.py" status "$@"',
+                    '"$ROOT_DIR/bin/governance" verify "$@"',
+                    '"$ROOT_DIR/bin/governance" status "$@"',
                     1,
                 ),
                 encoding="utf-8",
@@ -6183,7 +6211,7 @@ class PackStructureTest(unittest.TestCase):
                 any(
                     finding.code == "pack_runtime_wrapper_command_mismatch"
                     and finding.path == "bin/governance-verify"
-                    and "governance_cli.py\" verify" in finding.message
+                    and "bin/governance\" verify" in finding.message
                     for finding in report.findings
                 )
             )

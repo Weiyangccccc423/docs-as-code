@@ -56,6 +56,7 @@ MAX_DESCRIPTION_LENGTH = 1000
 MAX_SOURCE_LOCATION_LENGTH = 2048
 MAX_REVIEW_EVIDENCE_LENGTH = 512
 MAX_REPAIR_INSTRUCTIONS_LENGTH = 4000
+CORE_GOVERNANCE_ID = "core-governance"
 PROJECT_RUNTIME_ID = "project-runtime"
 PROJECT_ENVIRONMENT_WORKFLOW = "workflows/04-design-derivation.md"
 PROJECT_ENVIRONMENT_DECISION_POLICY = "register_only_reviewed_project_runtime_tools"
@@ -74,6 +75,7 @@ PROJECT_ENVIRONMENT_TEMP_REL = PROJECT_ENVIRONMENT_REL.with_name(f".{PROJECT_ENV
 PROJECT_ENVIRONMENT_LOCK_REL = Path(".governance/project-environment.lock")
 PROJECT_ENVIRONMENT_LOCK_WAIT_SECONDS = 0.5
 PROJECT_ENVIRONMENT_REPAIR_EVIDENCE_REL = Path(".governance/project-environment-repairs.json")
+PYTHON_RUNTIME_OVERRIDE_ENV = "DOCS_AS_CODE_PYTHON"
 PROJECT_ENVIRONMENT_REPAIR_EVIDENCE_TEMP_REL = PROJECT_ENVIRONMENT_REPAIR_EVIDENCE_REL.with_name(
     f".{PROJECT_ENVIRONMENT_REPAIR_EVIDENCE_REL.name}.tmp"
 )
@@ -1499,8 +1501,11 @@ def inspect_project_environment_tool(
     if resolved_override is not None:
         found = str(resolved_override)
     else:
+        effective_executable = executable
+        if tool.get("environment_override") == PYTHON_RUNTIME_OVERRIDE_ENV:
+            effective_executable = os.environ.get(PYTHON_RUNTIME_OVERRIDE_ENV) or executable
         try:
-            found = shutil.which(executable, path=_project_environment_command_search_path(command_cwd))
+            found = shutil.which(effective_executable, path=_project_environment_command_search_path(command_cwd))
         except (OSError, RuntimeError, ValueError):
             found = None
     if not found:
@@ -2084,6 +2089,7 @@ def _validate_environment(
             seen_tool_ids,
             seen_executables,
             errors,
+            allow_python_runtime_override=environment_id == CORE_GOVERNANCE_ID,
         )
 
 
@@ -2093,16 +2099,17 @@ def _validate_tool(
     seen_tool_ids: set[str],
     seen_executables: set[str],
     errors: list[str],
+    *,
+    allow_python_runtime_override: bool,
 ) -> None:
     if not isinstance(tool, dict):
         errors.append(f"{label} must be an object")
         return
-    _check_keys(
-        tool,
-        {"id", "executable", "version_probe", "version_requirement", "repair"},
-        label,
-        errors,
-    )
+    required_keys = {"id", "executable", "version_probe", "version_requirement", "repair"}
+    _check_unknown_keys(tool, required_keys | {"environment_override"}, label, errors)
+    missing_keys = sorted(required_keys - set(tool))
+    if missing_keys:
+        errors.append(f"{label} is missing field(s): {', '.join(missing_keys)}")
     tool_id = tool.get("id")
     if (
         not isinstance(tool_id, str)
@@ -2126,6 +2133,20 @@ def _validate_tool(
         errors.append(f"project environment executable must be unique within its environment: {executable}")
     else:
         seen_executables.add(executable)
+    environment_override = tool.get("environment_override")
+    if environment_override is not None:
+        if not allow_python_runtime_override:
+            errors.append(
+                f"{label}.environment_override is reserved for the core-governance python-runtime python3 tool"
+            )
+        elif (
+            environment_override != PYTHON_RUNTIME_OVERRIDE_ENV
+            or tool_id != "python-runtime"
+            or executable != "python3"
+        ):
+            errors.append(
+                f"{label}.environment_override is reserved for the python-runtime python3 tool"
+            )
     _validate_version_probe(tool.get("version_probe"), f"{label}.version_probe", errors)
     _validate_version_requirement(tool.get("version_requirement"), f"{label}.version_requirement", errors)
     _validate_repair(tool.get("repair"), executable, f"{label}.repair", errors)

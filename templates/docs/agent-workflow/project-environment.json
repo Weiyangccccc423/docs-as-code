@@ -6,6 +6,7 @@
       "id": "core-governance",
       "tools": [
         {
+          "environment_override": "DOCS_AS_CODE_PYTHON",
           "executable": "python3",
           "id": "python-runtime",
           "repair": {

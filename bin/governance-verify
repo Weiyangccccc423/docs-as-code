@@ -2,4 +2,4 @@
 set -eu
 
 ROOT_DIR="$(CDPATH= cd "$(dirname "$0")/.." && pwd)"
-exec python3 "$ROOT_DIR/scripts/governance_cli.py" verify "$@"
+exec "$ROOT_DIR/bin/governance" verify "$@"

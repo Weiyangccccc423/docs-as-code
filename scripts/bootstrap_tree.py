@@ -1763,6 +1763,7 @@ def _project_environment_contract() -> str:
                         {
                             "id": "python-runtime",
                             "executable": "python3",
+                            "environment_override": "DOCS_AS_CODE_PYTHON",
                             "version_probe": {
                                 "args": ["--version"],
                                 "output": "stdout",

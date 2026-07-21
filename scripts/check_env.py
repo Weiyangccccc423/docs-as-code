@@ -238,10 +238,38 @@ _validate_tool_specs(TOOLS)
 def collect_status() -> list[ToolStatus]:
     statuses: list[ToolStatus] = []
     for spec in TOOLS:
-        path = shutil.which(spec.name)
-        version = _version(spec.name) if path else ""
-        statuses.append(ToolStatus(spec.name, bool(path), version, spec.note, spec.level, spec.apt_package))
+        executable = _inventory_executable(spec)
+        path = shutil.which(executable)
+        present = bool(path)
+        if present and spec.name == "python3":
+            present = _python_runtime_compatible(executable)
+        version = _version(executable) if present else ""
+        statuses.append(ToolStatus(spec.name, present, version, spec.note, spec.level, spec.apt_package))
     return statuses
+
+
+def _inventory_executable(spec: ToolSpec) -> str:
+    if spec.name == "python3":
+        return os.environ.get("DOCS_AS_CODE_PYTHON") or spec.name
+    return spec.name
+
+
+def _python_runtime_compatible(executable: str) -> bool:
+    try:
+        result = subprocess.run(
+            [
+                executable,
+                "-c",
+                "import sys; raise SystemExit(0 if sys.version_info[:2] >= (3, 10) else 1)",
+            ],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return result.returncode == 0
 
 
 def collect_system_status() -> SystemStatus:

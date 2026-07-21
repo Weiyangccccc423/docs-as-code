@@ -2,4 +2,41 @@
 set -eu
 
 ROOT_DIR="$(CDPATH= cd "$(dirname "$0")/.." && pwd)"
-exec python3 "$ROOT_DIR/scripts/governance_cli.py" "$@"
+PYTHON_BIN="${DOCS_AS_CODE_PYTHON:-python3}"
+JSON_REQUESTED=false
+
+for arg in "$@"; do
+    if [ "$arg" = "--json" ]; then
+        JSON_REQUESTED=true
+        break
+    fi
+done
+
+governance_runtime_failure() {
+    GOVERNANCE_ERROR_CODE="$1"
+    GOVERNANCE_ERROR_MESSAGE="$2"
+    GOVERNANCE_EXIT_STATUS="$3"
+    if [ "$JSON_REQUESTED" = true ]; then
+        printf '{"ok":false,"error_code":"%s","error":"%s","can_continue":false,"writes_state":false,"repair":{"kind":"manual-runtime-repair","tool":"python","minimum_version":"3.10","environment_override":"DOCS_AS_CODE_PYTHON"}}\n' "$GOVERNANCE_ERROR_CODE" "$GOVERNANCE_ERROR_MESSAGE"
+    else
+        printf 'governance: %s\n' "$GOVERNANCE_ERROR_MESSAGE" >&2
+        printf 'Install Python 3.10 or newer, or set DOCS_AS_CODE_PYTHON to a compatible interpreter.\n' >&2
+    fi
+    exit "$GOVERNANCE_EXIT_STATUS"
+}
+
+if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
+    governance_runtime_failure \
+        "governance_python_unavailable" \
+        "Python 3.10 or newer is required before governance commands can run." \
+        127
+fi
+
+if ! "$PYTHON_BIN" -c 'import sys; raise SystemExit(0 if sys.version_info[:2] >= (3, 10) else 1)' >/dev/null 2>&1; then
+    governance_runtime_failure \
+        "governance_python_incompatible" \
+        "The selected Python interpreter is unavailable, broken, or older than 3.10." \
+        2
+fi
+
+exec "$PYTHON_BIN" "$ROOT_DIR/scripts/governance_cli.py" "$@"

@@ -682,6 +682,35 @@ class GovernanceScriptsTest(unittest.TestCase):
             )
         )
 
+    def test_project_environment_rejects_unapproved_executable_overrides(self) -> None:
+        payload = json.loads(bootstrap_module._project_environment_contract())
+        core_tool = payload["environments"][0]["tools"][0]
+        core_tool["environment_override"] = "PYTHONPATH"
+
+        errors = project_environment_module.validate_project_environment_contract(payload)
+
+        project_payload = json.loads(bootstrap_module._project_environment_contract())
+        project_runtime = next(
+            item for item in project_payload["environments"] if item["id"] == "project-runtime"
+        )
+        project_runtime["tools"] = [
+            json.loads(json.dumps(project_payload["environments"][0]["tools"][0]))
+        ]
+        project_errors = project_environment_module.validate_project_environment_contract(project_payload)
+
+        self.assertTrue(
+            any(
+                "environment_override is reserved for the python-runtime python3 tool" in error
+                for error in errors
+            )
+        )
+        self.assertTrue(
+            any(
+                "environment_override is reserved for the core-governance python-runtime python3 tool" in error
+                for error in project_errors
+            )
+        )
+
     def test_project_environment_rejects_unbounded_tools_and_invalid_official_source(self) -> None:
         payload = json.loads(bootstrap_module._project_environment_contract())
         project_runtime = next(item for item in payload["environments"] if item["id"] == "project-runtime")
@@ -975,6 +1004,32 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertTrue(plan["configuration_complete"])
             self.assertEqual(str(executable), plan["command_coverage"][0]["tool_readiness"]["resolved_path"])
             self.assertEqual(str(executable), plan["tool_readiness"][0]["resolved_path"])
+
+    def test_core_governance_probe_uses_explicit_python_runtime(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            interpreter = root / "compatible-python"
+            interpreter.write_text(
+                "#!/bin/sh\n"
+                "printf 'Python 3.12.7\\n'\n",
+                encoding="utf-8",
+            )
+            interpreter.chmod(0o755)
+            tool = {
+                "id": "python-runtime",
+                "executable": "python3",
+                "environment_override": "DOCS_AS_CODE_PYTHON",
+                "version_probe": {"args": ["--version"], "output": "stdout", "prefix": "Python "},
+                "version_requirement": {"minimum": "3.10.0", "maximum_exclusive": "4.0.0"},
+                "repair": {"strategy": "governance-env", "tool": "python3"},
+            }
+
+            with mock.patch.dict(os.environ, {"DOCS_AS_CODE_PYTHON": str(interpreter)}):
+                readiness = project_environment_module.inspect_project_environment_tool(root, tool)
+
+            self.assertTrue(readiness["ready"], readiness)
+            self.assertEqual(str(interpreter), readiness["resolved_path"])
+            self.assertEqual("3.12.7", readiness["observed_version"])
 
     def test_project_environment_registration_requires_replace_for_conflicts_and_local_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1780,6 +1835,10 @@ class GovernanceScriptsTest(unittest.TestCase):
             self.assertEqual({"core-governance", "project-runtime"}, set(environments))
             self.assertTrue(environments["core-governance"]["allow_repository_executables"])
             self.assertEqual("python3", environments["core-governance"]["tools"][0]["executable"])
+            self.assertEqual(
+                "DOCS_AS_CODE_PYTHON",
+                environments["core-governance"]["tools"][0]["environment_override"],
+            )
             self.assertEqual(
                 "docs/agent-workflow/workflow-pack/references/project-environment-contract.md",
                 environments["core-governance"]["tools"][0]["repair"]["source"]["review_evidence"],
@@ -4405,6 +4464,34 @@ class GovernanceScriptsTest(unittest.TestCase):
             with self.subTest(message=message):
                 with self.assertRaisesRegex(ValueError, message):
                     factory()
+
+    def test_check_env_inventory_uses_explicit_python_runtime(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            interpreter = Path(tmp) / "compatible-python"
+            interpreter.write_text(
+                "#!/bin/sh\n"
+                "printf 'Python 3.12.7\\n'\n",
+                encoding="utf-8",
+            )
+            interpreter.chmod(0o755)
+
+            with mock.patch.dict(os.environ, {"DOCS_AS_CODE_PYTHON": str(interpreter)}):
+                statuses = check_env_module.collect_status()
+
+            python_status = next(status for status in statuses if status.name == "python3")
+            self.assertTrue(python_status.present)
+            self.assertEqual("Python 3.12.7", python_status.version)
+
+            incompatible = Path(tmp) / "incompatible-python"
+            incompatible.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+            incompatible.chmod(0o755)
+            with mock.patch.dict(os.environ, {"DOCS_AS_CODE_PYTHON": str(incompatible)}):
+                incompatible_statuses = check_env_module.collect_status()
+
+            incompatible_python = next(
+                status for status in incompatible_statuses if status.name == "python3"
+            )
+            self.assertFalse(incompatible_python.present)
 
     def test_check_env_manual_repairs_cover_unautomated_repair_scope(self) -> None:
         statuses = [
