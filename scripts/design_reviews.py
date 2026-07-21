@@ -3,7 +3,9 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import os
 import re
+import stat
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path, PurePosixPath
@@ -49,6 +51,10 @@ except ImportError:  # pragma: no cover - direct script execution
 
 DESIGN_REVIEWS_REL = Path("docs/decisions/design-reviews.json")
 DESIGN_REVIEW_SCHEMA_VERSION = 1
+DESIGN_REVIEW_REPORT_SCHEMA_VERSION = 1
+DESIGN_REVIEW_REPORT_ROOT = Path(".governance/design-review-reports")
+MAX_DESIGN_REVIEW_REPORT_BYTES = 262_144
+MAX_DESIGN_REVIEW_FINDINGS = 200
 DESIGN_REVIEW_PHASE = "design-derivation"
 DESIGN_REVIEW_ALLOWED_PHASES = frozenset({DESIGN_REVIEW_PHASE, "implementation"})
 DESIGN_REVIEW_WORKFLOW = "workflows/04-design-derivation.md"
@@ -59,15 +65,24 @@ DESIGN_REVIEW_SCOPE = (
     "source-traceability",
     "required-links",
     "authority-skill",
+    "authority-report",
 )
 SCAFFOLD_PLACEHOLDER = "governance:scaffold-placeholder"
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+DESIGN_REVIEW_FINDING_ID_RE = re.compile(r"^DRF-[0-9]{3}$")
 PLACEHOLDER_REASON_RE = re.compile(r"\b(?:todo|tbd|unknown|placeholder)\b", re.IGNORECASE)
 ACCEPTANCE_HEADING_RE = re.compile(
     r"^##[ \t]+(?P<id>A-[0-9]{3})[ \t]+(?P<title>.+?)[ \t]*$",
     re.MULTILINE,
 )
 ADR_PATH_RE = re.compile(r"^docs/decisions/[0-9]{3}-[a-z0-9][a-z0-9-]*\.md$")
+DESIGN_REVIEWER_KINDS = frozenset({"agent", "human", "pair"})
+DESIGN_REVIEW_REPORT_VERDICTS = frozenset({"approved", "approved-with-suggestions"})
+DESIGN_REVIEW_DECISION_STATUSES = frozenset(DESIGN_REVIEW_RESULTS)
+DESIGN_REVIEW_FINDING_SEVERITIES = frozenset({"critical", "high", "medium", "low"})
+DESIGN_REVIEW_FINDING_STATUSES = frozenset(
+    {"resolved", "false-positive", "accepted-risk", "open"}
+)
 
 
 DESIGN_REVIEW_TRACK_SPECS: dict[str, dict[str, object]] = {
@@ -320,6 +335,7 @@ class DesignReviewResult:
         self.state = copy.deepcopy(self.state)
 
     def to_dict(self) -> dict[str, object]:
+        acceptance_id = str(self.review.get("acceptance_id", ""))
         return {
             "target": self.target,
             "ok": self.ok,
@@ -340,6 +356,13 @@ class DesignReviewResult:
             "updated": list(self.updated),
             "would_update": list(self.would_update),
             "review": copy.deepcopy(self.review),
+            "report_contract": build_design_review_report_contract(
+                Path(self.target),
+                track=self.track,
+                work_id=self.work_id,
+                acceptance_id=acceptance_id,
+                result=self.result,
+            ),
             "document": copy.deepcopy(self.document),
             "state": copy.deepcopy(self.state),
         }
@@ -373,6 +396,7 @@ def check_design_review(
     task: dict[str, object],
     evidence_paths: list[str] | None = None,
     skill_roots: list[Path] | None = None,
+    report_path: Path | None = None,
 ) -> DesignReviewResult:
     plan = _build_design_review_plan(
         root,
@@ -384,6 +408,7 @@ def check_design_review(
         task=task,
         evidence_paths=evidence_paths or [],
         skill_roots=skill_roots or [],
+        report_path=report_path,
     )
     return DesignReviewResult(
         target=plan.target,
@@ -414,6 +439,7 @@ def record_design_review(
     task: dict[str, object],
     evidence_paths: list[str] | None = None,
     skill_roots: list[Path] | None = None,
+    report_path: Path | None = None,
 ) -> DesignReviewResult:
     root = root.resolve()
     plan = _build_design_review_plan(
@@ -426,6 +452,7 @@ def record_design_review(
         task=task,
         evidence_paths=evidence_paths or [],
         skill_roots=skill_roots or [],
+        report_path=report_path,
     )
     if plan.errors:
         return DesignReviewResult(
@@ -509,6 +536,12 @@ def apply_design_reviews(
         active = active_by_key.get(key, {})
         stale = stale_by_key.get(key, {})
         task["required_decisions"] = list(expected_decisions)
+        task["design_review_report_contract"] = build_design_review_report_contract(
+            root,
+            track=track,
+            work_id=str(task.get("task_id", "")),
+            acceptance_id=acceptance_id,
+        )
         if active:
             task["open_decisions"] = []
             task["review_status"] = "satisfied"
@@ -657,7 +690,421 @@ def load_design_review_document(root: Path) -> tuple[dict[str, Any], list[str]]:
         return _empty_document(), [f"design review document is unreadable: {_os_error_reason(error)}"]
     if not isinstance(loaded, dict):
         return _empty_document(), ["design review document root must be an object"]
-    return copy.deepcopy(loaded), _validate_document(loaded)
+    return copy.deepcopy(loaded), _validate_document(root, loaded)
+
+
+def build_design_review_report_contract(
+    root: Path,
+    *,
+    track: str,
+    work_id: str,
+    acceptance_id: str,
+    result: str = "",
+) -> dict[str, object]:
+    spec = DESIGN_REVIEW_TRACK_SPECS.get(track, {})
+    decisions = list(_string_tuple(spec.get("decisions")))
+    decision_status = "not-applicable" if result == "not-applicable" else "approved"
+    example_path = (
+        DESIGN_REVIEW_REPORT_ROOT / f"{track or 'track'}-{work_id or 'WORK-NNN'}.json"
+    ).as_posix()
+    return {
+        "schema_version": DESIGN_REVIEW_REPORT_SCHEMA_VERSION,
+        "path_policy": f"{DESIGN_REVIEW_REPORT_ROOT.as_posix()}/*.json",
+        "max_bytes": MAX_DESIGN_REVIEW_REPORT_BYTES,
+        "example_path": example_path,
+        "required_fields": [
+            "schema_version",
+            "track",
+            "work_id",
+            "acceptance_id",
+            "reviewer",
+            "verdict",
+            "summary",
+            "decisions",
+            "findings",
+        ],
+        "reviewer_fields": ["kind", "id"],
+        "allowed_reviewer_kinds": sorted(DESIGN_REVIEWER_KINDS),
+        "allowed_verdicts": sorted(DESIGN_REVIEW_REPORT_VERDICTS),
+        "decision_fields": ["id", "status", "rationale", "evidence"],
+        "allowed_decision_statuses": sorted(DESIGN_REVIEW_DECISION_STATUSES),
+        "required_decision_ids": decisions,
+        "decision_templates": [
+            {
+                "id": decision,
+                "status": decision_status,
+                "rationale": "",
+                "evidence": [],
+            }
+            for decision in decisions
+        ],
+        "finding_fields": ["id", "severity", "status", "evidence", "message", "resolution"],
+        "allowed_finding_severities": sorted(DESIGN_REVIEW_FINDING_SEVERITIES),
+        "allowed_finding_statuses": sorted(DESIGN_REVIEW_FINDING_STATUSES),
+        "identity": {
+            "track": track,
+            "work_id": work_id,
+            "acceptance_id": acceptance_id,
+        },
+        "result_options": list(_string_tuple(spec.get("results"))),
+        "check_argv": [
+            "bin/governance",
+            "design",
+            "review",
+            ".",
+            "--track",
+            track,
+            "--work",
+            work_id,
+            "--result",
+            result or "<result>",
+            "--reason",
+            "<authority-review-reason>",
+            "--report",
+            example_path,
+            "--reviewed",
+            "--check",
+            "--json",
+        ],
+        "cwd": str(root.resolve()),
+    }
+
+
+def _load_design_review_report(
+    root: Path,
+    report_path: Path,
+    *,
+    track: str,
+    work_id: str,
+    acceptance_id: str,
+    result: str,
+) -> tuple[dict[str, object], dict[str, str], list[str]]:
+    candidate = report_path if report_path.is_absolute() else root / report_path
+    try:
+        resolved = candidate.resolve(strict=True)
+    except (FileNotFoundError, OSError):
+        return {}, {}, ["design review report must be an existing repository-local file"]
+    try:
+        rel = resolved.relative_to(root)
+    except ValueError:
+        return {}, {}, [
+            f"design review report must be under {DESIGN_REVIEW_REPORT_ROOT.as_posix()}/"
+        ]
+    if rel.parent != DESIGN_REVIEW_REPORT_ROOT or rel.suffix.lower() != ".json":
+        return {}, {}, [
+            f"design review report must be under {DESIGN_REVIEW_REPORT_ROOT.as_posix()}/"
+        ]
+    try:
+        lexical_rel = candidate.relative_to(root)
+    except ValueError:
+        lexical_rel = rel
+    normalized_lexical, lexical_error = _safe_relative_path(lexical_rel.as_posix())
+    if lexical_error:
+        return {}, {}, ["design review report path is invalid"]
+    cursor = root
+    for part in PurePosixPath(normalized_lexical).parts[:-1]:
+        cursor = cursor / part
+        if cursor.is_symlink():
+            return {}, {}, ["design review report must be a regular non-symlink file"]
+    if candidate.is_symlink():
+        return {}, {}, ["design review report must be a regular non-symlink file"]
+
+    descriptor = -1
+    try:
+        before = resolved.lstat()
+        descriptor = os.open(resolved, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+        with os.fdopen(descriptor, "rb") as handle:
+            descriptor = -1
+            opened = os.fstat(handle.fileno())
+            if not stat.S_ISREG(opened.st_mode) or (before.st_ino, before.st_mode) != (
+                opened.st_ino,
+                opened.st_mode,
+            ):
+                return {}, {}, ["design review report must be a regular non-symlink file"]
+            if opened.st_size > MAX_DESIGN_REVIEW_REPORT_BYTES:
+                return {}, {}, [
+                    f"design review report exceeds {MAX_DESIGN_REVIEW_REPORT_BYTES} bytes"
+                ]
+            content = handle.read(MAX_DESIGN_REVIEW_REPORT_BYTES + 1)
+            after = os.fstat(handle.fileno())
+        final = resolved.lstat()
+    except OSError as error:
+        return {}, {}, [f"design review report is unreadable: {_os_error_reason(error)}"]
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+    if len(content) > MAX_DESIGN_REVIEW_REPORT_BYTES:
+        return {}, {}, [f"design review report exceeds {MAX_DESIGN_REVIEW_REPORT_BYTES} bytes"]
+    if (opened.st_size, opened.st_mtime_ns, opened.st_ino, opened.st_mode) != (
+        after.st_size,
+        after.st_mtime_ns,
+        after.st_ino,
+        after.st_mode,
+    ) or (after.st_size, after.st_mtime_ns, after.st_ino, after.st_mode) != (
+        final.st_size,
+        final.st_mtime_ns,
+        final.st_ino,
+        final.st_mode,
+    ):
+        return {}, {}, ["design review report changed while being read"]
+    try:
+        decoded = content.decode("utf-8")
+    except UnicodeDecodeError:
+        return {}, {}, ["design review report must be UTF-8 JSON"]
+    try:
+        loaded = json.loads(decoded)
+    except json.JSONDecodeError as error:
+        return {}, {}, [f"design review report is invalid JSON: {error.msg}"]
+    if not isinstance(loaded, dict):
+        return {}, {}, ["design review report root must be an object"]
+    report = copy.deepcopy(loaded)
+    errors = _validate_design_review_report_value(
+        root,
+        report,
+        track=track,
+        work_id=work_id,
+        acceptance_id=acceptance_id,
+        result=result,
+        check_evidence_files=True,
+    )
+    return report, {
+        "path": rel.as_posix(),
+        "sha256": hashlib.sha256(content).hexdigest(),
+    }, errors
+
+
+def _validate_design_review_report_value(
+    root: Path,
+    report: dict[str, object],
+    *,
+    track: str,
+    work_id: str,
+    acceptance_id: str,
+    result: str,
+    check_evidence_files: bool,
+) -> list[str]:
+    errors: list[str] = []
+    expected_keys = {
+        "schema_version",
+        "track",
+        "work_id",
+        "acceptance_id",
+        "reviewer",
+        "verdict",
+        "summary",
+        "decisions",
+        "findings",
+    }
+    if set(report) != expected_keys:
+        errors.append("design review report must contain exactly the documented top-level fields")
+    if report.get("schema_version") != DESIGN_REVIEW_REPORT_SCHEMA_VERSION:
+        errors.append(
+            f"design review report schema_version must be {DESIGN_REVIEW_REPORT_SCHEMA_VERSION}"
+        )
+    for field_name, expected in (
+        ("track", track),
+        ("work_id", work_id),
+        ("acceptance_id", acceptance_id),
+    ):
+        if report.get(field_name) != expected:
+            errors.append(f"design review report {field_name} must be {expected or '<missing>'}")
+    reviewer = report.get("reviewer")
+    if not isinstance(reviewer, dict) or set(reviewer) != {"kind", "id"}:
+        errors.append("design review report reviewer must contain exactly kind and id")
+    else:
+        if reviewer.get("kind") not in DESIGN_REVIEWER_KINDS:
+            errors.append("design review report reviewer.kind is invalid")
+        reviewer_id = reviewer.get("id")
+        if not isinstance(reviewer_id, str) or not reviewer_id.strip() or len(reviewer_id) > 128:
+            errors.append("design review report reviewer.id must be 1-128 characters")
+    verdict = report.get("verdict")
+    if verdict not in DESIGN_REVIEW_REPORT_VERDICTS:
+        errors.append(
+            "design review report verdict must be approved or approved-with-suggestions"
+        )
+    summary = report.get("summary")
+    if not isinstance(summary, str) or not summary.strip() or len(summary) > 4000:
+        errors.append("design review report summary must be 1-4000 characters")
+
+    expected_decisions = list(
+        _string_tuple(DESIGN_REVIEW_TRACK_SPECS.get(track, {}).get("decisions"))
+    )
+    decisions = report.get("decisions")
+    if not isinstance(decisions, list):
+        errors.append("design review report decisions must be a list")
+    else:
+        errors.extend(
+            _validate_design_review_decisions(
+                root,
+                decisions,
+                expected_decisions=expected_decisions,
+                result=result,
+                check_evidence_files=check_evidence_files,
+            )
+        )
+
+    findings = report.get("findings")
+    if not isinstance(findings, list):
+        errors.append("design review report findings must be a list")
+    elif len(findings) > MAX_DESIGN_REVIEW_FINDINGS:
+        errors.append(f"design review report findings exceed {MAX_DESIGN_REVIEW_FINDINGS}")
+    else:
+        errors.extend(
+            _validate_design_review_findings(
+                root,
+                findings,
+                check_evidence_files=check_evidence_files,
+            )
+        )
+        if verdict == "approved" and any(
+            isinstance(item, dict) and item.get("status") == "accepted-risk"
+            for item in findings
+        ):
+            errors.append(
+                "approved design review verdict cannot retain accepted-risk findings; "
+                "use approved-with-suggestions"
+            )
+    return _dedupe_strings(errors)
+
+
+def _validate_design_review_decisions(
+    root: Path,
+    decisions: list[object],
+    *,
+    expected_decisions: list[str],
+    result: str,
+    check_evidence_files: bool,
+) -> list[str]:
+    errors: list[str] = []
+    seen: set[str] = set()
+    expected_fields = {"id", "status", "rationale", "evidence"}
+    for item in decisions:
+        if not isinstance(item, dict) or set(item) != expected_fields:
+            errors.append(
+                "each design review decision must contain exactly id, status, rationale, evidence"
+            )
+            continue
+        decision_id = item.get("id")
+        if not isinstance(decision_id, str) or decision_id not in expected_decisions:
+            errors.append(f"design review report contains unknown decision: {decision_id}")
+        elif decision_id in seen:
+            errors.append(f"design review report contains duplicate design decision: {decision_id}")
+        else:
+            seen.add(decision_id)
+        status_value = item.get("status")
+        if status_value not in DESIGN_REVIEW_DECISION_STATUSES:
+            errors.append(f"design review decision status is invalid: {decision_id}")
+        if result == "not-applicable" and status_value != "not-applicable":
+            errors.append(
+                f"not-applicable design review requires not-applicable decision status: {decision_id}"
+            )
+        rationale = item.get("rationale")
+        if not isinstance(rationale, str) or not rationale.strip() or len(rationale) > 2000:
+            errors.append(f"design review decision rationale must be 1-2000 characters: {decision_id}")
+        errors.extend(
+            _validate_design_review_report_evidence(
+                root,
+                item.get("evidence"),
+                label=f"design review decision {decision_id} evidence",
+                check_files=check_evidence_files,
+            )
+        )
+    for decision_id in expected_decisions:
+        if decision_id not in seen:
+            errors.append(f"design review report is missing decision: {decision_id}")
+    return errors
+
+
+def _validate_design_review_findings(
+    root: Path,
+    findings: list[object],
+    *,
+    check_evidence_files: bool,
+) -> list[str]:
+    errors: list[str] = []
+    seen: set[str] = set()
+    expected_fields = {"id", "severity", "status", "evidence", "message", "resolution"}
+    for item in findings:
+        if not isinstance(item, dict) or set(item) != expected_fields:
+            errors.append(
+                "each design review finding must contain exactly id, severity, status, evidence, message, resolution"
+            )
+            continue
+        finding_id = item.get("id")
+        if not isinstance(finding_id, str) or DESIGN_REVIEW_FINDING_ID_RE.fullmatch(finding_id) is None:
+            errors.append("design review finding id must match DRF-NNN")
+        elif finding_id in seen:
+            errors.append(f"duplicate design review finding id: {finding_id}")
+        else:
+            seen.add(finding_id)
+        severity = item.get("severity")
+        status_value = item.get("status")
+        if severity not in DESIGN_REVIEW_FINDING_SEVERITIES:
+            errors.append(f"design review finding severity is invalid: {finding_id}")
+        if status_value not in DESIGN_REVIEW_FINDING_STATUSES:
+            errors.append(f"design review finding status is invalid: {finding_id}")
+        if status_value == "open":
+            errors.append(f"design review finding remains open: {finding_id}")
+        if status_value == "accepted-risk" and severity in {"critical", "high"}:
+            errors.append(
+                "critical or high design review finding cannot be accepted as residual risk: "
+                f"{finding_id}"
+            )
+        for field_name in ("message", "resolution"):
+            value = item.get(field_name)
+            if not isinstance(value, str) or not value.strip() or len(value) > 2000:
+                errors.append(
+                    f"design review finding {field_name} must be 1-2000 characters: {finding_id}"
+                )
+        errors.extend(
+            _validate_design_review_report_evidence(
+                root,
+                item.get("evidence"),
+                label=f"design review finding {finding_id} evidence",
+                check_files=check_evidence_files,
+            )
+        )
+    return errors
+
+
+def _validate_design_review_report_evidence(
+    root: Path,
+    value: object,
+    *,
+    label: str,
+    check_files: bool,
+) -> list[str]:
+    if not isinstance(value, list) or not value:
+        return [f"{label} must be a non-empty list"]
+    errors: list[str] = []
+    seen: set[str] = set()
+    for item in value:
+        normalized, path_error = _safe_relative_path(item if isinstance(item, str) else "")
+        if path_error:
+            errors.append(f"{label} path is invalid: {item or '<missing>'}")
+            continue
+        if normalized in seen:
+            errors.append(f"{label} contains duplicate path: {normalized}")
+            continue
+        seen.add(normalized)
+        if not check_files:
+            continue
+        path = root / normalized
+        try:
+            path.resolve().relative_to(root)
+        except (OSError, ValueError):
+            errors.append(f"{label} path resolves outside target: {normalized}")
+            continue
+        if path.is_symlink() or not path.is_file():
+            errors.append(f"{label} path is not a file: {normalized}")
+    return errors
+
+
+def _design_review_report_evidence_paths(report: dict[str, object]) -> list[str]:
+    paths: list[str] = []
+    for item in [*_dict_items(report.get("decisions")), *_dict_items(report.get("findings"))]:
+        paths.extend(_string_items(item.get("evidence")))
+    return _dedupe_strings(paths)
 
 
 def _build_design_review_plan(
@@ -671,6 +1118,7 @@ def _build_design_review_plan(
     task: dict[str, object],
     evidence_paths: list[str],
     skill_roots: list[Path],
+    report_path: Path | None,
 ) -> _DesignReviewPlan:
     root = root.resolve()
     normalized_track = track.strip() if isinstance(track, str) else ""
@@ -712,6 +1160,28 @@ def _build_design_review_plan(
         errors.append("--reviewed is required")
     if not _concrete_reason(normalized_reason):
         errors.append("reason must be a concrete authority-review explanation")
+
+    authority_report: dict[str, object] = {}
+    report_evidence_paths: list[str] = []
+    if report_path is None:
+        errors.append("--report is required")
+    else:
+        report, report_snapshot, report_errors = _load_design_review_report(
+            root,
+            report_path,
+            track=normalized_track,
+            work_id=normalized_work_id,
+            acceptance_id=acceptance_id,
+            result=normalized_result,
+        )
+        errors.extend(report_errors)
+        if report_snapshot:
+            authority_report = {
+                **report_snapshot,
+                "content": report,
+            }
+        if report and not report_errors:
+            report_evidence_paths = _design_review_report_evidence_paths(report)
 
     document_errors = _task_document_errors(task)
     errors.extend(document_errors)
@@ -822,7 +1292,9 @@ def _build_design_review_plan(
     ]
     evidence_candidates = [
         path
-        for path in _dedupe_strings([*task_documents, *link_paths, *explicit_evidence])
+        for path in _dedupe_strings(
+            [*task_documents, *link_paths, *explicit_evidence, *report_evidence_paths]
+        )
         if path not in source_paths
     ]
     evidence_snapshots, evidence_errors = _snapshot_paths(
@@ -863,6 +1335,7 @@ def _build_design_review_plan(
         "source_snapshots": source_snapshots,
         "evidence_snapshots": evidence_snapshots,
         "authority_skill": authority_skill,
+        "authority_report": authority_report,
     }
     if (
         all(existing.get(key) == value for key, value in candidate_without_time.items())
@@ -1037,6 +1510,14 @@ def _review_stale_reasons(
     authority_skill = review.get("authority_skill") if isinstance(review.get("authority_skill"), dict) else {}
     if authority_skill.get("name") != expected.get("primary_authority_skill"):
         reasons.append("primary authority skill requirement changed")
+    authority_report = (
+        review.get("authority_report")
+        if isinstance(review.get("authority_report"), dict)
+        else {}
+    )
+    reasons.extend(
+        _authority_report_stale_reasons(root, authority_report, review, expected)
+    )
     source_paths = {
         str(item.get("path", ""))
         for item in _dict_items(review.get("source_snapshots"))
@@ -1055,6 +1536,34 @@ def _review_stale_reasons(
             if reason:
                 reasons.append(reason)
     return _dedupe_strings(reasons)
+
+
+def _authority_report_stale_reasons(
+    root: Path,
+    authority_report: dict[str, object],
+    review: dict[str, object],
+    expected: dict[str, object],
+) -> list[str]:
+    report_path = authority_report.get("path")
+    if not isinstance(report_path, str) or not report_path:
+        return ["authority review report binding is missing"]
+    report, snapshot, errors = _load_design_review_report(
+        root,
+        Path(report_path),
+        track=str(review.get("track", "")),
+        work_id=str(expected.get("work_id", "")),
+        acceptance_id=str(review.get("acceptance_id", "")),
+        result=str(review.get("result", "")),
+    )
+    if errors:
+        return ["authority review report is missing, unsafe, or invalid after design review"]
+    if (
+        snapshot.get("path") != report_path
+        or snapshot.get("sha256") != authority_report.get("sha256")
+        or report != authority_report.get("content")
+    ):
+        return ["authority review report changed after design review"]
+    return []
 
 
 def _snapshot_paths(
@@ -1193,7 +1702,7 @@ def _markdown_table_cells(line: str) -> list[str] | None:
     return stripped[1:-1].split("|")
 
 
-def _validate_document(document: dict[str, object]) -> list[str]:
+def _validate_document(root: Path, document: dict[str, object]) -> list[str]:
     errors: list[str] = []
     schema_version = document.get("schema_version")
     if (
@@ -1254,6 +1763,48 @@ def _validate_document(document: dict[str, object]) -> list[str]:
                 errors.append(f"{prefix} authority_skill sha256 must be a lowercase SHA-256 digest")
             if authority.get("availability_scope") != "agent-environment":
                 errors.append(f"{prefix} authority_skill availability_scope must be agent-environment")
+        authority_report = review.get("authority_report")
+        if not isinstance(authority_report, dict) or set(authority_report) != {
+            "path",
+            "sha256",
+            "content",
+        }:
+            errors.append(
+                f"{prefix} authority_report must contain exactly path, sha256, content"
+            )
+        else:
+            report_path = authority_report.get("path")
+            normalized_report_path, report_path_error = _safe_relative_path(
+                report_path if isinstance(report_path, str) else ""
+            )
+            if (
+                report_path_error
+                or PurePosixPath(normalized_report_path).parent
+                != PurePosixPath(DESIGN_REVIEW_REPORT_ROOT.as_posix())
+                or PurePosixPath(normalized_report_path).suffix.lower() != ".json"
+            ):
+                errors.append(f"{prefix} authority_report path violates the report path policy")
+            report_digest = authority_report.get("sha256")
+            if not isinstance(report_digest, str) or SHA256_RE.fullmatch(report_digest) is None:
+                errors.append(
+                    f"{prefix} authority_report sha256 must be a lowercase SHA-256 digest"
+                )
+            report_content = authority_report.get("content")
+            if not isinstance(report_content, dict):
+                errors.append(f"{prefix} authority_report content must be an object")
+            else:
+                errors.extend(
+                    f"{prefix} {error}"
+                    for error in _validate_design_review_report_value(
+                        root,
+                        report_content,
+                        track=str(track),
+                        work_id=str(work_id),
+                        acceptance_id=str(acceptance_id),
+                        result=str(result),
+                        check_evidence_files=False,
+                    )
+                )
         recorded_at = review.get("recorded_at")
         if not isinstance(recorded_at, str) or not _valid_timestamp(recorded_at):
             errors.append(f"{prefix} recorded_at must be an ISO-8601 timestamp")

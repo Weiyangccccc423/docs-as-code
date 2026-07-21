@@ -39,6 +39,7 @@ Read `references/frontend-interaction-checklist.md` before writing UI interactio
 10. Document accessibility expectations for keyboard flow, focus order, labels, contrast, status messages, and screen reader state against `references/frontend-interaction-checklist.md`.
 11. Document component behavior, route/state assumptions, performance-sensitive interactions, and handoff evidence when relevant.
 12. Link every flow, screen, state, and error claim to product scope or acceptance sources.
+13. Read `references/design-review-checklist.md` and `design_review_report_contract`. With `senior-frontend`, write `.governance/design-review-reports/ui-interaction-<WORK-ID>.json` with every required decision exactly once, current evidence, and no blocking finding; pass it through `design review --track ui-interaction ... --report <path> --reviewed --check --json` before apply.
 
 ## Stop Conditions
 

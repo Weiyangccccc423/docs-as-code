@@ -13,6 +13,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
+from scripts.design_reviews import DESIGN_REVIEW_TRACK_SPECS
+
 
 ROOT = Path(__file__).resolve().parents[1]
 CLI = ROOT / "scripts" / "governance_cli.py"
@@ -1378,6 +1380,12 @@ def _record_all_test_design_reviews(case: unittest.TestCase, target: Path) -> No
         ["design", "migration-review", str(target), "--reviewed"],
     )
     for track, work_id, result, authority_skill in reviews:
+        report = _write_design_review_report(
+            target,
+            track=track,
+            work_id=work_id,
+            result=result,
+        )
         _run_governance_json(
             case,
             [
@@ -1392,9 +1400,58 @@ def _record_all_test_design_reviews(case: unittest.TestCase, target: Path) -> No
                 result,
                 "--reason",
                 f"Test fixture review with {authority_skill} confirms all declared decisions are addressed.",
+                "--report",
+                str(report),
                 "--reviewed",
             ],
         )
+
+
+def _write_design_review_report(
+    target: Path,
+    *,
+    track: str,
+    work_id: str,
+    acceptance_id: str = "A-001",
+    result: str = "approved",
+    verdict: str = "approved",
+    findings: list[dict[str, object]] | None = None,
+) -> Path:
+    path = target / ".governance/design-review-reports" / f"{track}-{work_id}.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    decision_status = "not-applicable" if result == "not-applicable" else "approved"
+    evidence = ["docs/product/core/PRD.md"]
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "track": track,
+                "work_id": work_id,
+                "acceptance_id": acceptance_id,
+                "reviewer": {
+                    "kind": "agent",
+                    "id": "deterministic-authority-review-fixture",
+                },
+                "verdict": verdict,
+                "summary": "Reviewed every registered design decision against current repository evidence.",
+                "decisions": [
+                    {
+                        "id": decision,
+                        "status": decision_status,
+                        "rationale": f"Authority review resolved {decision} against the cited product evidence.",
+                        "evidence": evidence,
+                    }
+                    for decision in DESIGN_REVIEW_TRACK_SPECS[track]["decisions"]
+                ],
+                "findings": findings or [],
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return path
 
 
 class GovernanceCliTest(unittest.TestCase):
@@ -4783,6 +4840,11 @@ class GovernanceCliTest(unittest.TestCase):
                 [item["name"] for item in report["elements"][0]["threats"]],
             )
 
+            authority_report = _write_design_review_report(
+                target,
+                track="architecture",
+                work_id="ARCHITECTURE-AUTHOR-001",
+            )
             approved_review = _run_governance_json(
                 self,
                 [
@@ -4797,6 +4859,8 @@ class GovernanceCliTest(unittest.TestCase):
                     "approved",
                     "--reason",
                     "Architecture boundaries and threat mitigations are complete.",
+                    "--report",
+                    str(authority_report),
                     "--reviewed",
                 ],
             )
@@ -4955,6 +5019,11 @@ class GovernanceCliTest(unittest.TestCase):
                 {item["name"] for item in evidence["authority_tools"]},
             )
 
+            authority_report = _write_design_review_report(
+                target,
+                track="backend-modules",
+                work_id="BACKEND-AUTHOR-001",
+            )
             approved = _run_governance_json(
                 self,
                 [
@@ -4969,6 +5038,8 @@ class GovernanceCliTest(unittest.TestCase):
                     "approved",
                     "--reason",
                     "Backend boundaries and reliability evidence are implementation-ready.",
+                    "--report",
+                    str(authority_report),
                     "--reviewed",
                 ],
             )
@@ -5144,6 +5215,11 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertTrue(rollback["validation_checklist"])
             self.assertTrue(rollback["post_rollback_procedures"])
 
+            authority_report = _write_design_review_report(
+                target,
+                track="data-model",
+                work_id="DATA-MODEL-AUTHOR-001",
+            )
             approved = _run_governance_json(
                 self,
                 [
@@ -5158,6 +5234,8 @@ class GovernanceCliTest(unittest.TestCase):
                     "approved",
                     "--reason",
                     "Data schema, compatibility, migration, and rollback evidence are implementation-ready.",
+                    "--report",
+                    str(authority_report),
                     "--reviewed",
                 ],
             )
@@ -5374,6 +5452,11 @@ class GovernanceCliTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             target = _implementation_ready_target(self, tmp, advance_implementation=False)
             _install_test_authority_skills(target, ("api-design-reviewer",))
+            authority_report = _write_design_review_report(
+                target,
+                track="api-contracts",
+                work_id="API-AUTHOR-001",
+            )
             review_args = [
                 "design",
                 "review",
@@ -5386,6 +5469,8 @@ class GovernanceCliTest(unittest.TestCase):
                 "approved",
                 "--reason",
                 "API authority review confirms the OpenAPI contract and machine reports satisfy the declared decisions.",
+                "--report",
+                str(authority_report),
                 "--reviewed",
             ]
             missing = _run_governance_json(self, review_args, expected_returncode=1)
@@ -5630,8 +5715,21 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual("review_required", review_package["status"])
             self.assertEqual("record-design-review", review_package["next_action"]["kind"])
             self.assertEqual("senior-architect", review_package["next_action"]["authority_skill"])
+            self.assertIn(
+                "--report",
+                review_package["next_action"]["command_contract"]["required_arguments"],
+            )
+            self.assertEqual(
+                "architecture",
+                review_package["next_action"]["report_contract"]["identity"]["track"],
+            )
 
             reason = "Senior architecture review confirms every listed boundary decision is addressed in linked evidence."
+            report = _write_design_review_report(
+                target,
+                track="architecture",
+                work_id="ARCHITECTURE-AUTHOR-001",
+            )
             review_args = [
                 "design",
                 "review",
@@ -5644,6 +5742,8 @@ class GovernanceCliTest(unittest.TestCase):
                 "approved",
                 "--reason",
                 reason,
+                "--report",
+                str(report),
                 "--reviewed",
             ]
             review_rel = "docs/decisions/design-reviews.json"
@@ -5660,6 +5760,7 @@ class GovernanceCliTest(unittest.TestCase):
             self.assertEqual("A-001", review["acceptance_id"])
             self.assertEqual("senior-architect", review["authority_skill"]["name"])
             self.assertRegex(review["authority_skill"]["sha256"], r"^[0-9a-f]{64}$")
+            self.assertEqual(report.relative_to(target).as_posix(), review["authority_report"]["path"])
             self.assertGreater(len(review["reviewed_decisions"]), 5)
             self.assertTrue(review["source_snapshots"])
             self.assertTrue(review["evidence_snapshots"])
@@ -5881,6 +5982,11 @@ class GovernanceCliTest(unittest.TestCase):
                 ["design", "threat-review", str(target), "--reviewed"],
             )
 
+            authority_report = _write_design_review_report(
+                target,
+                track="architecture",
+                work_id="ARCHITECTURE-AUTHOR-001",
+            )
             review_args = [
                 "design",
                 "review",
@@ -5893,6 +5999,8 @@ class GovernanceCliTest(unittest.TestCase):
                 "approved",
                 "--reason",
                 "Senior architecture re-review confirms the implementation-discovered constraint preserves the approved boundary.",
+                "--report",
+                str(authority_report),
                 "--reviewed",
             ]
             preview = _run_governance_json(self, [*review_args, "--check"])
@@ -5944,6 +6052,9 @@ class GovernanceCliTest(unittest.TestCase):
             orphan = dict(review_document["reviews"][0])
             orphan["acceptance_id"] = "A-999"
             orphan["work_id"] = "ARCHITECTURE-AUTHOR-999"
+            orphan["authority_report"] = json.loads(json.dumps(orphan["authority_report"]))
+            orphan["authority_report"]["content"]["acceptance_id"] = "A-999"
+            orphan["authority_report"]["content"]["work_id"] = "ARCHITECTURE-AUTHOR-999"
             review_document["reviews"].append(orphan)
             review_path.write_text(
                 json.dumps(review_document, indent=2, sort_keys=True) + "\n",
@@ -5977,6 +6088,14 @@ class GovernanceCliTest(unittest.TestCase):
                     "approved",
                     "--reason",
                     "Senior architecture review reconfirms current evidence while removing orphaned review state.",
+                    "--report",
+                    str(
+                        _write_design_review_report(
+                            target,
+                            track="architecture",
+                            work_id="ARCHITECTURE-AUTHOR-001",
+                        )
+                    ),
                     "--reviewed",
                 ],
             )

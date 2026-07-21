@@ -52,7 +52,7 @@ Reference: `https://www.omg.org/spec/BPMN/2.0.2/`
 - When `next_action.kind` is `run-migration-review`, are all five migration inputs authored from repository sources and is `design migration-review --reviewed --check` run before write mode and before data-model `record-design-review`?
 - Does migration routing require explicit owner, reason, mitigation, and repository evidence for every breaking or potentially breaking issue while rejecting orphaned acceptances?
 - Does migration routing preserve a source-backed `not-applicable` outcome only when the project has no persistent datastore or schema lifecycle?
-- When `next_action.kind` is `record-design-review`, is the primary authority skill loaded and `design review --check` run before writing source/evidence/skill hashes?
+- When `next_action.kind` is `record-design-review`, is the primary authority skill loaded, is current `report_contract` used to write `.governance/design-review-reports/*.json` with exact decision coverage and no blocking findings, and is `design review --report <path> --check` run before writing report/source/evidence/skill hashes?
 - Are missing, malformed, orphaned, or stale `docs/decisions/design-reviews.json` records treated as implementation blockers?
 - If only an orphan review remains, does the work package route `record-design-review` for a current work item so apply can remove orphaned state atomically?
 - Are `package_available`, `can_start`, `stop_before_work`, `skill_readiness`, `work_package.read_order`, `work_package.write_scope`, `next_action`, and `refresh_command` checked before edits?

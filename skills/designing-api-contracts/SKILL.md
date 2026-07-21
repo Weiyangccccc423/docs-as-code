@@ -106,7 +106,7 @@ Link `Frontend Consumers` to existing local UI or frontend API-consumption Markd
    ```
 
    The linter must report zero errors and zero warnings, the breaking-change detector must report no breaking or potentially breaking changes, and the scorecard must meet grade B or better. The command writes the initial baseline and hash-bound reports under `docs/api/baselines/` and `docs/api/reviews/`; `--check` runs only in a temporary directory.
-15. Only after `docs/api/reviews/review-evidence.json` is current, run `design review --track api-contracts ... --reviewed --check --json`, then apply the authority signoff. OpenAPI, baseline, report, authority skill, or authority tool changes require machine review again before signoff.
+15. Only after `docs/api/reviews/review-evidence.json` is current, read `references/design-review-checklist.md` and `design_review_report_contract`. With `api-design-reviewer`, write `.governance/design-review-reports/api-contracts-<WORK-ID>.json` with every required decision exactly once, current evidence, and no blocking finding. Run `design review --track api-contracts ... --report .governance/design-review-reports/api-contracts-<WORK-ID>.json --reviewed --check --json`, then apply. OpenAPI, baseline, machine report, authority report, skill, or tool changes require review again before signoff.
 
 ## Stop Conditions
 

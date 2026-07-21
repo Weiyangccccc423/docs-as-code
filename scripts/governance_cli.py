@@ -1107,6 +1107,7 @@ def _cmd_design_review(args: argparse.Namespace) -> int:
         "task": task,
         "evidence_paths": list(args.evidence),
         "skill_roots": list(args.skill_root),
+        "report_path": args.report,
     }
     result = check_design_review(target, **kwargs) if args.check else record_design_review(target, **kwargs)
     payload = result.to_dict()
@@ -2031,6 +2032,11 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=[],
         help="Additional authority skill root to scan for the required SKILL.md.",
+    )
+    design_review.add_argument(
+        "--report",
+        type=Path,
+        help="Repository-local structured authority report under .governance/design-review-reports/.",
     )
     design_review.add_argument("--check", action="store_true", help="Preview without writing files.")
     design_review.add_argument("--json", action="store_true", help="Print machine-readable JSON.")

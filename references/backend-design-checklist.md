@@ -45,5 +45,6 @@ Use this checklist before creating implementation tasks.
 ## Authority Review Evidence
 
 - Was `senior-backend` loaded before approving module boundaries, API/data ownership, retries/timeouts, observability, and security boundaries?
+- Does the `.governance/design-review-reports/*.json` report cover each backend decision exactly once with rationale, evidence, and no blocking finding?
 - Does `docs/decisions/design-reviews.json` bind the backend review to current product, architecture, API, data, test, and authority skill evidence?
 - Does `design review --check` pass before the backend decision set is considered resolved?

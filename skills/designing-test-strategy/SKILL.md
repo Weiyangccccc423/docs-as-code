@@ -44,6 +44,7 @@ Read `references/security-design-checklist.md` before assigning security, abuse-
 12. Use only product-defined `A-NNN` IDs; do not invent acceptance criteria in the matrix.
 13. Link every row to existing local Markdown sources.
 14. Register blocking verification gaps in `docs/unresolved.md` before implementation handoff.
+15. Read `references/design-review-checklist.md` and `design_review_report_contract`. With `senior-qa`, write `.governance/design-review-reports/test-strategy-<WORK-ID>.json` with every required decision exactly once, current evidence, and no blocking finding; pass it through `design review --track test-strategy ... --report <path> --reviewed --check --json` before apply.
 
 ## Stop Conditions
 

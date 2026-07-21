@@ -42,6 +42,7 @@ Read `references/frontend-interaction-checklist.md` before writing frontend modu
 11. Document route access, deep links, redirects, cache invalidation, performance-sensitive screens, and accessibility handoff expectations when relevant.
 12. Link frontend modules to UI, API, product, and acceptance sources.
 13. Register unresolved route, state, endpoint, accessibility, performance, or copy decisions in `docs/unresolved.md`.
+14. Read `references/design-review-checklist.md` and `design_review_report_contract`. With `senior-frontend`, write `.governance/design-review-reports/frontend-modules-<WORK-ID>.json` with every required decision exactly once, current evidence, and no blocking finding; pass it through `design review --track frontend-modules ... --report <path> --reviewed --check --json` before apply.
 
 ## Stop Conditions
 

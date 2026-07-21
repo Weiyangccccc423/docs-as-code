@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -20,6 +21,7 @@ except ImportError:  # pragma: no cover - direct script execution
 
 ROOT = Path(__file__).resolve().parents[1]
 DRY_RUN_STEP_TIMEOUT_SECONDS = 900.0
+JSON_STEP_STDOUT_INLINE_BYTES = 64 * 1024
 CLI = ROOT / "scripts" / "governance_cli.py"
 CONSUMER_BOOTSTRAP = ROOT / "scripts" / "bootstrap_consumer_project.py"
 
@@ -146,6 +148,16 @@ def _make_clock_skew_warnings(command: list[str], stderr: str) -> list[str]:
     return []
 
 
+def _compact_successful_json_stdout(step: dict[str, object], stdout_text: str) -> None:
+    stdout_bytes = stdout_text.encode("utf-8")
+    if len(stdout_bytes) <= JSON_STEP_STDOUT_INLINE_BYTES:
+        return
+    step["stdout"] = ""
+    step["stdout_compacted"] = True
+    step["stdout_size_bytes"] = len(stdout_bytes)
+    step["stdout_sha256"] = hashlib.sha256(stdout_bytes).hexdigest()
+
+
 def _run_json(
     steps: list[dict[str, object]],
     step_id: str,
@@ -191,6 +203,7 @@ def _run_json(
     if not isinstance(payload, dict):
         raise DryRunFailure(f"step returned non-object JSON: {step_id}", step=step)
     step["payload_ok"] = payload.get("ok")
+    _compact_successful_json_stdout(step, stdout_text)
     return payload
 
 
@@ -1234,6 +1247,37 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         target,
     )
     expected_design_review_count = len(DESIGN_REVIEW_TRACK_ORDER) * len(acceptance_ids)
+    authority_report_count = 0
+    decision_report_count = 0
+    for applied_review in design_review_applies:
+        review = applied_review.get("review")
+        review_value = review if isinstance(review, dict) else {}
+        authority_report = review_value.get("authority_report")
+        authority_report_value = authority_report if isinstance(authority_report, dict) else {}
+        report_content = authority_report_value.get("content")
+        report_content_value = report_content if isinstance(report_content, dict) else {}
+        if (
+            str(authority_report_value.get("path", "")).startswith(
+                ".governance/design-review-reports/"
+            )
+            and re.fullmatch(r"[0-9a-f]{64}", str(authority_report_value.get("sha256", "")))
+            is not None
+            and report_content_value
+        ):
+            authority_report_count += 1
+        report_decisions = report_content_value.get("decisions")
+        decision_ids = (
+            [
+                str(item.get("id", ""))
+                for item in report_decisions
+                if isinstance(item, dict)
+            ]
+            if isinstance(report_decisions, list)
+            else []
+        )
+        reviewed_decisions = review_value.get("reviewed_decisions")
+        if isinstance(reviewed_decisions, list) and decision_ids == reviewed_decisions:
+            decision_report_count += 1
     design_review_summary = reviewed_design_plan.get("design_review_summary")
     _require(
         reviewed_design_plan.get("ok") is True
@@ -1241,7 +1285,9 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
         and design_review_summary.get("expected_count") == expected_design_review_count
         and design_review_summary.get("active_count") == expected_design_review_count
         and design_review_summary.get("missing_count") == 0
-        and design_review_summary.get("stale_count") == 0,
+        and design_review_summary.get("stale_count") == 0
+        and authority_report_count == expected_design_review_count
+        and decision_report_count == expected_design_review_count,
         "design authority reviews did not cover every acceptance and track",
         payload=reviewed_design_plan,
     )
@@ -1993,6 +2039,8 @@ def _execute_workflow(target: Path, product: Path, steps: list[dict[str, object]
             "recorded_count": len(design_review_applies),
             "expected_count": expected_design_review_count,
             "active_count": design_review_summary.get("active_count", 0),
+            "authority_report_count": authority_report_count,
+            "decision_report_count": decision_report_count,
             "missing_count": design_review_summary.get("missing_count", 0),
             "stale_count": design_review_summary.get("stale_count", 0),
             "work_package_complete": (
@@ -3462,6 +3510,51 @@ def _record_design_reviews(
         result_value = "not-applicable" if track == "architecture-decisions" else "approved"
         for index, acceptance_id in enumerate(acceptance_ids, start=1):
             work_id = f"{work_prefix}-{index:03d}"
+            report_path = (
+                target
+                / ".governance/design-review-reports"
+                / f"{track}-{work_id}.json"
+            )
+            report_path.parent.mkdir(parents=True, exist_ok=True)
+            decision_status = (
+                "not-applicable" if result_value == "not-applicable" else "approved"
+            )
+            report_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "track": track,
+                        "work_id": work_id,
+                        "acceptance_id": acceptance_id,
+                        "reviewer": {
+                            "kind": "agent",
+                            "id": "golden-dry-run-authority-review",
+                        },
+                        "verdict": "approved",
+                        "summary": (
+                            f"Reviewed every {track} decision for {acceptance_id} against "
+                            "current source-backed repository evidence."
+                        ),
+                        "decisions": [
+                            {
+                                "id": decision,
+                                "status": decision_status,
+                                "rationale": (
+                                    f"The {authority_skill} review resolved {decision} "
+                                    f"for {acceptance_id}."
+                                ),
+                                "evidence": ["docs/product/core/PRD.md"],
+                            }
+                            for decision in spec["decisions"]
+                        ],
+                        "findings": [],
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
             reason = (
                 f"Golden dry-run {authority_skill} review confirms {track} decisions for "
                 f"{acceptance_id} are addressed in current repository evidence."
@@ -3479,6 +3572,8 @@ def _record_design_reviews(
                 result_value,
                 "--reason",
                 reason,
+                "--report",
+                report_path.relative_to(target).as_posix(),
                 "--reviewed",
             ]
             step_slug = f"{track.replace('-', '_')}_{acceptance_id.lower().replace('-', '_')}"

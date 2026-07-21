@@ -40,6 +40,7 @@ Read `references/implementation-readiness-checklist.md` before marking tasks `Re
 11. Initialize `docs/development/03-verification-log.md` as the current summary keyed by `(Task, Command)`. Reserve `docs/development/04-implementation-evidence.md` for the append-only ledger created by `implementation verify`.
 12. Accept `Done` only when every current verification command passes, local evidence is linked, documentation is synchronized, and the task satisfies the Definition of Done in `references/implementation-readiness-checklist.md` plus the execution rubric in `references/implementation-execution-checklist.md`.
 13. Register blockers in `docs/unresolved.md` instead of marking speculative tasks Ready.
+14. Read `references/design-review-checklist.md` and `design_review_report_contract`. With `senior-fullstack`, write `.governance/design-review-reports/implementation-planning-<WORK-ID>.json` with every required decision exactly once, current evidence, and no blocking finding; pass it through `design review --track implementation-planning ... --report <path> --reviewed --check --json` before apply.
 
 ## Stop Conditions
 

@@ -30,6 +30,16 @@ Calibrate architecture review against ISO/IEC/IEEE 42010 and ISO/IEC 25010, API 
 - Is `not-applicable` used only for ADR-trigger review with a concrete no-ADR reason?
 - If an ADR is approved, is a numbered `docs/decisions/NNN-<slug>.md` supplied as additional evidence?
 
+## Structured Authority Report
+
+- Was `report_contract` read from the current authoring task, work package, or failed/preflight `design review` payload instead of reconstructing the schema from memory?
+- Is the report a regular JSON file directly under `.governance/design-review-reports/` and below the returned size limit?
+- Do `track`, `work_id`, and `acceptance_id` match the selected work package?
+- Does every `required_decision_ids` value appear exactly once with an `approved` or source-backed `not-applicable` status, concrete rationale, and existing repository-relative evidence?
+- Are unknown, duplicate, or missing decisions absent?
+- Are all findings resolved or false-positive, except explicitly retained medium/low accepted risks under `approved-with-suggestions`? Open findings and accepted critical/high risks block signoff.
+- Does the preflight include `--report <path>` and show the report content plus SHA-256 under `review.authority_report` before apply?
+
 ## API Machine Review
 
 - Before API authority review, is `work_stage: machine-review` complete and `docs/api/reviews/review-evidence.json` current?
@@ -65,6 +75,7 @@ Calibrate architecture review against ISO/IEC/IEEE 42010 and ISO/IEC 25010, API 
 
 - Does `--check` succeed before writing the review record?
 - Do source and evidence snapshots match current repository file hashes?
+- Does the authority report file still match the embedded content and SHA-256?
 - After PRD, acceptance, or design evidence changes, is the stale review repeated before implementation?
 - During implementation, are only roadmap/task-board `Status`, task-board `Verification`, and verification-log evidence changes exempted from full-file freshness?
 - Does `semantic_sha256` still detect task scope, milestone, product/design/API/acceptance traceability, and other reviewed planning changes?

@@ -1,3 +1,4 @@
+import hashlib
 import json
 import subprocess
 import sys
@@ -40,6 +41,70 @@ def _source_result(argv: list[str], **overrides: object) -> dict[str, object]:
 
 
 class ArtifactSmokeTest(unittest.TestCase):
+    def test_run_json_compacts_large_successful_stdout_with_integrity_metadata(self) -> None:
+        large_stdout = json.dumps(
+            {
+                "ok": True,
+                "content": "x"
+                * (smoke_workflow_pack_artifact.JSON_STEP_STDOUT_INLINE_BYTES + 1),
+            },
+            separators=(",", ":"),
+        )
+        steps: list[dict[str, object]] = []
+
+        with mock.patch.object(
+            smoke_workflow_pack_artifact,
+            "run_source_command",
+            return_value=_source_result(["large-command"], stdout=large_stdout),
+        ):
+            payload = smoke_workflow_pack_artifact._run_json(
+                steps,
+                "large_step",
+                ["large-command"],
+                Path("."),
+            )
+
+        self.assertTrue(payload["ok"])
+        self.assertEqual("", steps[0]["stdout"])
+        self.assertTrue(steps[0]["stdout_compacted"])
+        self.assertEqual(len(large_stdout.encode("utf-8")), steps[0]["stdout_size_bytes"])
+        self.assertEqual(
+            hashlib.sha256(large_stdout.encode("utf-8")).hexdigest(),
+            steps[0]["stdout_sha256"],
+        )
+
+    def test_run_json_preserves_large_stdout_when_command_fails(self) -> None:
+        large_stdout = json.dumps(
+            {
+                "ok": False,
+                "content": "x"
+                * (smoke_workflow_pack_artifact.JSON_STEP_STDOUT_INLINE_BYTES + 1),
+            },
+            separators=(",", ":"),
+        )
+        steps: list[dict[str, object]] = []
+
+        with mock.patch.object(
+            smoke_workflow_pack_artifact,
+            "run_source_command",
+            return_value=_source_result(
+                ["failed-command"],
+                stdout=large_stdout,
+                returncode=1,
+                result="fail",
+            ),
+        ):
+            with self.assertRaises(smoke_workflow_pack_artifact.ArtifactSmokeError):
+                smoke_workflow_pack_artifact._run_json(
+                    steps,
+                    "failed_step",
+                    ["failed-command"],
+                    Path("."),
+                )
+
+        self.assertEqual(large_stdout, steps[0]["stdout"])
+        self.assertNotIn("stdout_compacted", steps[0])
+
     def test_run_json_reports_timeout_as_a_structured_failure(self) -> None:
         steps: list[dict[str, object]] = []
         execution = _source_result(

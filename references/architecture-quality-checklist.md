@@ -51,6 +51,7 @@ Reference: `https://resources.sei.cmu.edu/asset_files/TechnicalReport/2000_005_0
 ## Authority Review Evidence
 
 - Was `senior-architect` loaded before approving system boundaries, container responsibilities, quality scenarios, deployment assumptions, and ADR candidates?
+- Does the `.governance/design-review-reports/*.json` report cover each architecture decision exactly once with rationale, evidence, and no blocking finding?
 - Does `docs/decisions/design-reviews.json` bind the architecture review to current PRD, acceptance, architecture files, and authority skill SHA-256?
 - Does `design review --check` report no missing, unsafe, or stale evidence before apply?
 

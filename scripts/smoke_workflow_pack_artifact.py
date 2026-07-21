@@ -19,6 +19,7 @@ except ImportError:  # pragma: no cover - direct script execution
 
 ROOT = Path(__file__).resolve().parents[1]
 ARTIFACT_SMOKE_STEP_TIMEOUT_SECONDS = 900.0
+JSON_STEP_STDOUT_INLINE_BYTES = 64 * 1024
 PACK_DIR_NAME = "docs-as-code-workflow-pack"
 TARGET_LOCAL_MAKE_STEP_IDS = [
     "make_verify_governance",
@@ -92,6 +93,16 @@ def _agent_env() -> dict[str, str]:
     return env
 
 
+def _compact_successful_json_stdout(step: dict[str, object], stdout_text: str) -> None:
+    stdout_bytes = stdout_text.encode("utf-8")
+    if len(stdout_bytes) <= JSON_STEP_STDOUT_INLINE_BYTES:
+        return
+    step["stdout"] = ""
+    step["stdout_compacted"] = True
+    step["stdout_size_bytes"] = len(stdout_bytes)
+    step["stdout_sha256"] = hashlib.sha256(stdout_bytes).hexdigest()
+
+
 def _run_json(
     steps: list[dict[str, object]],
     step_id: str,
@@ -131,6 +142,7 @@ def _run_json(
     if not isinstance(payload, dict):
         raise ArtifactSmokeError(f"step returned non-object JSON: {step_id}", step=step)
     step["payload_ok"] = payload.get("ok")
+    _compact_successful_json_stdout(step, stdout_text)
     return payload
 
 
@@ -862,6 +874,8 @@ def _dry_run_design_review_details(payload: dict[str, object]) -> dict[str, obje
     expected_count = review_map.get("expected_count")
     recorded_count = review_map.get("recorded_count")
     active_count = review_map.get("active_count")
+    authority_report_count = review_map.get("authority_report_count")
+    decision_report_count = review_map.get("decision_report_count")
     missing_count = review_map.get("missing_count")
     stale_count = review_map.get("stale_count")
     work_package_complete = review_map.get("work_package_complete") is True
@@ -871,6 +885,8 @@ def _dry_run_design_review_details(payload: dict[str, object]) -> dict[str, obje
         and expected_count > 0
         and recorded_count == expected_count
         and active_count == expected_count
+        and authority_report_count == expected_count
+        and decision_report_count == expected_count
         and missing_count == 0
         and stale_count == 0
         and work_package_complete
@@ -880,6 +896,12 @@ def _dry_run_design_review_details(payload: dict[str, object]) -> dict[str, obje
         "expected_count": expected_count if isinstance(expected_count, int) else 0,
         "recorded_count": recorded_count if isinstance(recorded_count, int) else 0,
         "active_count": active_count if isinstance(active_count, int) else 0,
+        "authority_report_count": (
+            authority_report_count if isinstance(authority_report_count, int) else 0
+        ),
+        "decision_report_count": (
+            decision_report_count if isinstance(decision_report_count, int) else 0
+        ),
         "missing_count": missing_count if isinstance(missing_count, int) else 0,
         "stale_count": stale_count if isinstance(stale_count, int) else 0,
         "work_package_complete": work_package_complete,

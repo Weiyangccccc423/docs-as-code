@@ -150,6 +150,32 @@ class ReleaseReadinessTest(unittest.TestCase):
         payload["implementation_run"]["snapshot_guarded_closeout"] = False
         self.assertFalse(_dry_run_implementation_runner_ok(payload))
 
+    def test_design_review_checks_require_exact_authority_and_decision_report_counts(self) -> None:
+        reviews = {
+            "ok": True,
+            "expected_count": 9,
+            "recorded_count": 9,
+            "active_count": 9,
+            "authority_report_count": 9,
+            "decision_report_count": 9,
+            "missing_count": 0,
+            "stale_count": 0,
+            "work_package_complete": True,
+        }
+
+        self.assertTrue(release_readiness._dry_run_design_reviews_ok({"design_reviews": reviews}))
+        self.assertTrue(
+            release_readiness._artifact_smoke_design_reviews_ok({"design_reviews": reviews})
+        )
+
+        for field in ("authority_report_count", "decision_report_count"):
+            with self.subTest(field=field):
+                incomplete_reviews = dict(reviews)
+                incomplete_reviews[field] = 8
+                payload = {"design_reviews": incomplete_reviews}
+                self.assertFalse(release_readiness._dry_run_design_reviews_ok(payload))
+                self.assertFalse(release_readiness._artifact_smoke_design_reviews_ok(payload))
+
     def test_dry_run_implementation_task_package_check_requires_bound_commands(self) -> None:
         command_names = ["task-tests", "node-tests"]
         payload = {

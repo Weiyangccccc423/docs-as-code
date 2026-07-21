@@ -10,7 +10,10 @@ try:
     )
     from .authority_skills import build_authority_skill_inventory
     from .bootstrap_tree import WORKFLOW_PACK_SNAPSHOT_ROOT, target_local_commands_payload
-    from .design_reviews import DESIGN_REVIEW_TRACK_SPECS
+    from .design_reviews import (
+        DESIGN_REVIEW_TRACK_SPECS,
+        build_design_review_report_contract,
+    )
     from .design_plan import (
         build_api_authoring,
         build_api_candidates,
@@ -48,7 +51,10 @@ except ImportError:  # pragma: no cover - direct script execution
     )
     from authority_skills import build_authority_skill_inventory
     from bootstrap_tree import WORKFLOW_PACK_SNAPSHOT_ROOT, target_local_commands_payload
-    from design_reviews import DESIGN_REVIEW_TRACK_SPECS
+    from design_reviews import (
+        DESIGN_REVIEW_TRACK_SPECS,
+        build_design_review_report_contract,
+    )
     from design_plan import (
         build_api_authoring,
         build_api_candidates,
@@ -495,6 +501,7 @@ def _design_work_package(root: Path) -> tuple[dict[str, object], list[str], str]
                 [
                     "docs/unresolved.md",
                     "docs/decisions/design-reviews.json",
+                    ".governance/design-review-reports",
                     *(threat_review_required_evidence_paths() if track_id == "architecture" else []),
                     *(api_review_required_evidence_paths() if track_id == "api-contracts" else []),
                     *(
@@ -530,6 +537,12 @@ def _design_work_package(root: Path) -> tuple[dict[str, object], list[str], str]
         ),
         "review_result_options": _string_list(
             DESIGN_REVIEW_TRACK_SPECS.get(track_id, {}).get("results")
+        ),
+        "design_review_report_contract": build_design_review_report_contract(
+            root,
+            track=track_id,
+            work_id=work_id,
+            acceptance_id=str(task.get("acceptance_id", "")),
         ),
         "skill_requirements": _dict_items(track.get("skill_requirements")),
         "authority_skill_requirements": _dict_items(track.get("authority_skill_requirements")),
@@ -1223,6 +1236,7 @@ def _work_package_next_action(
             "authority_skill": str(package.get("required_authority_skill", "")),
             "reviewed_decisions": _string_list(package.get("required_decisions")),
             "result_options": _string_list(package.get("review_result_options")),
+            "report_contract": _dict_value(package.get("design_review_report_contract")),
             "decision_policy": str(package.get("decision_policy", "")),
             "command_contract": {
                 "cwd": str(root),
@@ -1236,7 +1250,7 @@ def _work_package_next_action(
                     "--work",
                     work_id,
                 ],
-                "required_arguments": ["--result", "--reason", "--reviewed"],
+                "required_arguments": ["--result", "--reason", "--report", "--reviewed"],
                 "optional_arguments": ["--evidence", "--skill-root"],
                 "preflight_argument": "--check",
                 "writes_state": True,

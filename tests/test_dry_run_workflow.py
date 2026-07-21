@@ -1,3 +1,4 @@
+import hashlib
 import json
 import subprocess
 import sys
@@ -40,6 +41,57 @@ def _source_result(argv: list[str], **overrides: object) -> dict[str, object]:
 
 
 class DryRunWorkflowTest(unittest.TestCase):
+    def test_run_json_compacts_large_successful_stdout_with_integrity_metadata(self) -> None:
+        large_stdout = json.dumps(
+            {
+                "ok": True,
+                "content": "x" * (dry_run_workflow.JSON_STEP_STDOUT_INLINE_BYTES + 1),
+            },
+            separators=(",", ":"),
+        )
+        steps: list[dict[str, object]] = []
+
+        with mock.patch.object(
+            dry_run_workflow,
+            "run_source_command",
+            return_value=_source_result(["large-command"], stdout=large_stdout),
+        ):
+            payload = dry_run_workflow._run_json(
+                steps,
+                "large_step",
+                ["large-command"],
+                Path("."),
+            )
+
+        self.assertTrue(payload["ok"])
+        self.assertEqual("", steps[0]["stdout"])
+        self.assertTrue(steps[0]["stdout_compacted"])
+        self.assertEqual(len(large_stdout.encode("utf-8")), steps[0]["stdout_size_bytes"])
+        self.assertEqual(
+            hashlib.sha256(large_stdout.encode("utf-8")).hexdigest(),
+            steps[0]["stdout_sha256"],
+        )
+
+    def test_run_json_preserves_large_stdout_when_json_parsing_fails(self) -> None:
+        large_stdout = "x" * (dry_run_workflow.JSON_STEP_STDOUT_INLINE_BYTES + 1)
+        steps: list[dict[str, object]] = []
+
+        with mock.patch.object(
+            dry_run_workflow,
+            "run_source_command",
+            return_value=_source_result(["invalid-command"], stdout=large_stdout),
+        ):
+            with self.assertRaises(dry_run_workflow.DryRunFailure):
+                dry_run_workflow._run_json(
+                    steps,
+                    "invalid_step",
+                    ["invalid-command"],
+                    Path("."),
+                )
+
+        self.assertEqual(large_stdout, steps[0]["stdout"])
+        self.assertNotIn("stdout_compacted", steps[0])
+
     def test_run_json_reports_timeout_as_a_structured_failure(self) -> None:
         steps: list[dict[str, object]] = []
         execution = _source_result(
@@ -523,6 +575,8 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertEqual(9, payload["design_reviews"]["recorded_count"])
             self.assertEqual(9, payload["design_reviews"]["expected_count"])
             self.assertEqual(9, payload["design_reviews"]["active_count"])
+            self.assertEqual(9, payload["design_reviews"]["authority_report_count"])
+            self.assertEqual(9, payload["design_reviews"]["decision_report_count"])
             self.assertEqual(0, payload["design_reviews"]["missing_count"])
             self.assertEqual(0, payload["design_reviews"]["stale_count"])
             self.assertTrue(payload["design_reviews"]["work_package_complete"])
@@ -692,6 +746,8 @@ class DryRunWorkflowTest(unittest.TestCase):
             self.assertEqual(36, payload["design_reviews"]["recorded_count"])
             self.assertEqual(36, payload["design_reviews"]["expected_count"])
             self.assertEqual(36, payload["design_reviews"]["active_count"])
+            self.assertEqual(36, payload["design_reviews"]["authority_report_count"])
+            self.assertEqual(36, payload["design_reviews"]["decision_report_count"])
             self.assertEqual(0, payload["design_reviews"]["missing_count"])
             self.assertEqual(0, payload["design_reviews"]["stale_count"])
             self.assertTrue(payload["design_reviews"]["work_package_complete"])

@@ -706,6 +706,8 @@ class PackStructureTest(unittest.TestCase):
     def test_verify_pack_reports_incomplete_dry_run_workflow_script(self) -> None:
         cases = (
             ("DRY_RUN_STEP_TIMEOUT_SECONDS", "DRY_RUN_WAIT_FOREVER"),
+            ("JSON_STEP_STDOUT_INLINE_BYTES", "JSON_STEP_STDOUT_UNBOUNDED"),
+            ("stdout_compacted", "stdout_omitted"),
             ("run_source_command", "run_unbounded_command"),
             ("implementation_advance_check", "implementation_gate_preview"),
             ("make_verify_check", "local_verify_check"),
@@ -1961,6 +1963,8 @@ class PackStructureTest(unittest.TestCase):
     def test_verify_pack_reports_incomplete_artifact_smoke_script(self) -> None:
         cases = (
             ("ARTIFACT_SMOKE_STEP_TIMEOUT_SECONDS", "ARTIFACT_SMOKE_WAIT_FOREVER"),
+            ("JSON_STEP_STDOUT_INLINE_BYTES", "JSON_STEP_STDOUT_UNBOUNDED"),
+            ("stdout_compacted", "stdout_omitted"),
             ("run_source_command", "run_unbounded_command"),
             ("unpacked_dry_run", "unpacked_preview"),
             ("_dry_run_target_local_make_details", "_dry_run_local_command_details"),
@@ -2167,6 +2171,8 @@ class PackStructureTest(unittest.TestCase):
             ("python3 scripts/run_tests.py", "python3 -m unittest discover -s tests"),
             ("_dry_run_design_reviews_ok", "_dry_run_design_approvals_ok"),
             ("_artifact_smoke_design_reviews_ok", "_artifact_smoke_design_approvals_ok"),
+            ("authority_report_count", "authority_review_total"),
+            ("decision_report_count", "decision_review_total"),
             ("_dry_run_reliability_review_ok", "_dry_run_service_level_ok"),
             ("_artifact_smoke_reliability_review_ok", "_artifact_smoke_service_level_ok"),
             ("_dry_run_migration_review_ok", "_dry_run_schema_migration_ok"),

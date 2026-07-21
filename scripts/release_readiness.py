@@ -278,6 +278,8 @@ def _dry_run_design_reviews_ok(payload: dict[str, object] | None) -> bool:
         and expected_count > 0
         and reviews.get("recorded_count") == expected_count
         and reviews.get("active_count") == expected_count
+        and reviews.get("authority_report_count") == expected_count
+        and reviews.get("decision_report_count") == expected_count
         and reviews.get("missing_count") == 0
         and reviews.get("stale_count") == 0
         and reviews.get("work_package_complete") is True
@@ -445,6 +447,8 @@ def _artifact_smoke_design_reviews_ok(payload: dict[str, object] | None) -> bool
         and reviews.get("expected_count", 0) > 0
         and reviews.get("recorded_count") == reviews.get("expected_count")
         and reviews.get("active_count") == reviews.get("expected_count")
+        and reviews.get("authority_report_count") == reviews.get("expected_count")
+        and reviews.get("decision_report_count") == reviews.get("expected_count")
         and reviews.get("missing_count") == 0
         and reviews.get("stale_count") == 0
         and reviews.get("work_package_complete") is True
