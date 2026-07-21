@@ -2,6 +2,8 @@
 
 This repository contains a reusable workflow pack for turning an empty folder plus one product document into a governed, docs-as-code project workspace.
 
+Current release identity comes from `VERSION`; reviewed consumer-facing changes and upgrade impact are recorded in `CHANGELOG.md`.
+
 ## Goal
 
 Create reliable project governance before and during implementation:
@@ -19,6 +21,7 @@ Create reliable project governance before and during implementation:
 
 ```text
 .
+├── CHANGELOG.md # reviewed release changes and upgrade impact
 ├── bin/          # command wrappers
 ├── scripts/      # deterministic checks and bootstrap utilities
 ├── skills/       # agent skills used by the workflow

@@ -10,8 +10,10 @@ from typing import Any
 
 try:
     from .source_process import run_source_command
+    from .pack_version import PackChangelogError, PackVersionError, read_pack_changelog
 except ImportError:  # pragma: no cover - direct script execution
     from source_process import run_source_command
+    from pack_version import PackChangelogError, PackVersionError, read_pack_changelog
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -930,6 +932,30 @@ def _run_local_unit_test_gate(
 def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
     steps: list[dict[str, object]] = []
     criteria: list[dict[str, object]] = []
+
+    try:
+        changelog = read_pack_changelog(ROOT)
+    except (PackChangelogError, PackVersionError) as error:
+        _criterion(
+            criteria,
+            "release-changelog",
+            False,
+            evidence="VERSION and CHANGELOG.md",
+            details={"error": str(error)},
+        )
+    else:
+        _criterion(
+            criteria,
+            "release-changelog",
+            True,
+            evidence="VERSION and CHANGELOG.md",
+            details={
+                "current_version": changelog.current_version,
+                "current_release_date": changelog.current_release_date,
+                "current_sections": list(changelog.current_sections),
+                "release_versions": list(changelog.release_versions),
+            },
+        )
 
     _run_step(steps, "diff_check", ["git", "diff", "--check"])
     _criterion(

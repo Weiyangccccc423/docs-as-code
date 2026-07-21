@@ -156,6 +156,7 @@ WORKFLOW_PACK_MANIFEST_SOURCE = "docs-as-code workflow pack"
 GOVERNANCE_STATE_REL = Path(".governance/state.json")
 WORKFLOW_PHASE_ORDER = ("initialized", "product-structuring", "design-derivation", "implementation")
 WORKFLOW_PACK_REQUIRED_PATHS = (
+    "CHANGELOG.md",
     "README.md",
     "VERSION",
     "references/api-design-checklist.md",

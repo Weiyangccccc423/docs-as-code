@@ -30,6 +30,7 @@ EXPORT_RESOURCE_PATHS = (
     ".github",
     ".gitignore",
     "AGENTS.md",
+    "CHANGELOG.md",
     "Makefile",
     "README.md",
     "VERSION",

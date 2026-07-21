@@ -2,6 +2,8 @@
 
 This workflow pack follows Semantic Versioning 2.0.0. The top-level `VERSION` is the sole version source; manifests and target state contain evidence copies, not independent version sources.
 
+`CHANGELOG.md` is the reviewed consumer-facing release history. It is not a version source: its newest release heading must match `VERSION`, use an ISO date, contain at least one Keep a Changelog category with a concrete entry, and preserve strict newest-first SemVer order.
+
 ## Version Changes
 
 - **Major:** increment for an incompatible workflow, command, generated-document, manifest, or state contract change that requires consumer migration.
@@ -9,11 +11,11 @@ This workflow pack follows Semantic Versioning 2.0.0. The top-level `VERSION` is
 - **Patch:** increment for a backward-compatible correction that does not add a governed capability or require consumer migration.
 - Pre-release and build identifiers may be used only when their lifecycle and distribution purpose are documented in the release evidence.
 
-The proposed version and its Major, Minor, or Patch classification must be reviewed before export or tagging. A release change updates `VERSION`; exporters, runtime bootstrap, and verifiers copy or compare that value. Do not edit `pack-manifest.json`, runtime manifests, workflow-pack snapshot manifests, or `.governance/state.json` as version sources.
+The proposed version and its Major, Minor, or Patch classification must be reviewed before export or tagging. A release change updates `VERSION` and adds the matching reviewed `CHANGELOG.md` entry in one coherent change; exporters, runtime bootstrap, and verifiers copy or compare that value. Do not edit `pack-manifest.json`, runtime manifests, workflow-pack snapshot manifests, or `.governance/state.json` as version sources.
 
 ## Release Boundary
 
-Run local source-pack tests, source verification, deterministic export, manifest verification, and artifact smoke validation before a release is accepted. The workflow does not tag or publish automatically. Tagging, distribution, and remote publication remain separately reviewed operations.
+Run local source-pack tests, source verification, changelog validation, deterministic export, manifest verification, and artifact smoke validation before a release is accepted. The workflow does not tag or publish automatically. Tagging, distribution, and remote publication remain separately reviewed operations.
 
 The exported `pack-manifest.json` and every generated target's runtime manifest, workflow-pack snapshot manifest, and governance state must match the packaged `VERSION`. A missing, invalid, or mismatched value blocks verification.
 

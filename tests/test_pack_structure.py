@@ -137,6 +137,9 @@ class PackStructureTest(unittest.TestCase):
     def test_authority_skill_source_review_is_required_in_generated_targets(self) -> None:
         self.assertIn("references/authority-skills-source-review.md", WORKFLOW_PACK_REQUIRED_PATHS)
 
+    def test_changelog_is_required_in_generated_targets(self) -> None:
+        self.assertIn("CHANGELOG.md", WORKFLOW_PACK_REQUIRED_PATHS)
+
     def test_makefile_avoids_duplicate_tests_while_preserving_combined_ci_gate(self) -> None:
         text = (ROOT / "Makefile").read_text(encoding="utf-8")
         self.assertIn("\nverify-pack:\n", text)
@@ -8534,9 +8537,43 @@ class PackStructureTest(unittest.TestCase):
                 report.to_dict(),
             )
 
+    def test_verify_pack_rejects_missing_or_stale_changelog(self) -> None:
+        for mode in ("missing", "stale"):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as tmp:
+                target = Path(tmp) / "pack"
+                shutil.copytree(
+                    ROOT,
+                    target,
+                    ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+                )
+                changelog = target / "CHANGELOG.md"
+                if mode == "missing":
+                    changelog.unlink()
+                else:
+                    changelog.write_text(
+                        changelog.read_text(encoding="utf-8").replace(
+                            "## [0.2.0]",
+                            "## [0.1.1]",
+                            1,
+                        ),
+                        encoding="utf-8",
+                    )
+
+                report = verify_pack(target)
+
+                self.assertFalse(report.ok)
+                self.assertTrue(
+                    any(
+                        finding.code == "pack_changelog_invalid" and finding.path == "CHANGELOG.md"
+                        for finding in report.findings
+                    ),
+                    report.to_dict(),
+                )
+
     def test_required_workflow_pack_files_exist(self) -> None:
         required = [
             "VERSION",
+            "CHANGELOG.md",
             "README.md",
             "AGENTS.md",
             "Makefile",

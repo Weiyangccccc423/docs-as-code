@@ -335,6 +335,7 @@ class ReleaseReadinessTest(unittest.TestCase):
         for criterion_id in (
             "diff-whitespace",
             "cached-diff-whitespace",
+            "release-changelog",
             "pack-verification",
             "environment-inventory",
             "authority-skill-inventory",

@@ -33,12 +33,14 @@ else:
     AUTHORITY_SKILL_LOCK_VALIDATOR_IMPORT_ERROR = ""
 
 try:
-    from .pack_version import PackVersionError, read_pack_version
+    from .pack_version import PackChangelogError, PackVersionError, read_pack_changelog, read_pack_version
 except Exception:  # pragma: no cover - direct execution or damaged source pack
     try:
-        from pack_version import PackVersionError, read_pack_version
+        from pack_version import PackChangelogError, PackVersionError, read_pack_changelog, read_pack_version
     except Exception as error:  # pragma: no cover - verifier must report a damaged version reader
+        PackChangelogError = ValueError  # type: ignore[misc,assignment]
         PackVersionError = ValueError  # type: ignore[misc,assignment]
+        read_pack_changelog = None  # type: ignore[assignment]
         read_pack_version = None  # type: ignore[assignment]
         PACK_VERSION_READER_IMPORT_ERROR = str(error)
     else:
@@ -49,6 +51,7 @@ else:
 
 WORKFLOW_PACK_RESOURCE_PATHS = (
     "VERSION",
+    "CHANGELOG.md",
     "README.md",
     "workflows",
     "skills",
@@ -56,6 +59,7 @@ WORKFLOW_PACK_RESOURCE_PATHS = (
     "templates",
 )
 PACK_LINK_CHECK_RESOURCE_PATHS = (
+    "CHANGELOG.md",
     "README.md",
     "AGENTS.md",
     "workflows",
@@ -1141,6 +1145,8 @@ PACK_MANIFEST_VERIFY_REQUIRED_PHRASES = (
 )
 PACK_VERSION_PROPAGATION_REQUIRED_PHRASES = {
     "scripts/pack_version.py": (
+        "read_pack_changelog",
+        "CHANGELOG_RELEASE_RE",
         "compare_pack_versions",
         "classify_pack_version_transition",
         '"breaking_upgrade"',
@@ -1174,6 +1180,7 @@ VERSIONING_POLICY_PATH = "references/versioning-policy.md"
 VERSIONING_POLICY_REQUIRED_PHRASES = (
     "Semantic Versioning 2.0.0",
     "`VERSION` is the sole version source",
+    "`CHANGELOG.md`",
     "Major",
     "Minor",
     "Patch",
@@ -2206,6 +2213,8 @@ ARTIFACT_SMOKE_DOC_REQUIREMENTS = {
 RELEASE_READINESS_PATH = "scripts/release_readiness.py"
 RELEASE_READINESS_REQUIRED_PHRASES = (
     "run_release_readiness",
+    "read_pack_changelog",
+    '"release-changelog"',
     "pack_version",
     "RELEASE_STEP_TIMEOUT_SECONDS",
     "run_source_command",
@@ -5814,6 +5823,7 @@ SOURCE_PACK_REQUIRED_PATHS = tuple(
     dict.fromkeys(
         (
             ".github/workflows/ci.yml",
+            "CHANGELOG.md",
             "VERSION",
             "README.md",
             "AGENTS.md",
@@ -6085,6 +6095,7 @@ def verify_pack(root: Path) -> PackReport:
 
     _check_required_files(root, findings)
     _check_pack_version(root, findings)
+    _check_pack_changelog(root, findings)
     _check_makefile_targets(root, findings)
     _check_verification_command_docs(root, findings)
     _check_agents_guardrails(root, findings)
@@ -6236,6 +6247,28 @@ def _check_pack_version(root: Path, findings: list[PackFinding]) -> None:
                 "pack_version_invalid",
                 f"invalid source workflow-pack VERSION: {error}",
                 "VERSION",
+            )
+        )
+
+
+def _check_pack_changelog(root: Path, findings: list[PackFinding]) -> None:
+    if read_pack_changelog is None:
+        findings.append(
+            PackFinding(
+                "pack_changelog_invalid",
+                f"workflow-pack changelog reader could not be imported: {PACK_VERSION_READER_IMPORT_ERROR}",
+                "CHANGELOG.md",
+            )
+        )
+        return
+    try:
+        read_pack_changelog(root)
+    except (PackChangelogError, PackVersionError) as error:
+        findings.append(
+            PackFinding(
+                "pack_changelog_invalid",
+                f"invalid source workflow-pack CHANGELOG.md: {error}",
+                "CHANGELOG.md",
             )
         )
 

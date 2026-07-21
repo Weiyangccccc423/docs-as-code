@@ -112,6 +112,7 @@ PRODUCT_DISCOVERY_EXCLUDED_STEMS = {Path(name).stem.lower() for name in ROOT_GEN
 WORKFLOW_PACK_SNAPSHOT_ROOT = "docs/agent-workflow/workflow-pack"
 WORKFLOW_PACK_RESOURCE_PATHS = [
     "VERSION",
+    "CHANGELOG.md",
     "README.md",
     "workflows",
     "skills",
