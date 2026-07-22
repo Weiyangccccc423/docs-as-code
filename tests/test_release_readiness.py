@@ -162,10 +162,14 @@ class ReleaseReadinessTest(unittest.TestCase):
             "init_check_read_only": True,
             "init": True,
             "status": True,
+            "status_from_nested": True,
+            "directory_after_command": True,
             "next": True,
             "verify": True,
             "target_help": True,
+            "target_help_status": True,
             "target_status": True,
+            "target_status_from_nested": True,
         }
         payload = {
             "ok": True,
@@ -175,8 +179,13 @@ class ReleaseReadinessTest(unittest.TestCase):
         }
 
         self.assertTrue(_installable_cli_smoke_ok(payload))
-        payload["evidence"] = {**evidence, "target_status": False}
-        self.assertFalse(_installable_cli_smoke_ok(payload))
+        for field in evidence:
+            with self.subTest(field=field):
+                payload["evidence"] = {
+                    **evidence,
+                    field: "" if field == "version" else False,
+                }
+                self.assertFalse(_installable_cli_smoke_ok(payload))
 
     def test_design_review_checks_require_exact_authority_and_decision_report_counts(self) -> None:
         reviews = {
@@ -380,6 +389,13 @@ class ReleaseReadinessTest(unittest.TestCase):
         )
         self.assertEqual(PACK_VERSION, criteria["installable-cli-smoke"]["details"]["version"])
         self.assertTrue(criteria["installable-cli-smoke"]["details"]["init_check_read_only"])
+        for field in (
+            "status_from_nested",
+            "directory_after_command",
+            "target_help_status",
+            "target_status_from_nested",
+        ):
+            self.assertTrue(criteria["installable-cli-smoke"]["details"][field])
         self.assertFalse(
             criteria["environment-inventory"]["details"]["repair_decision"]["stop_before_workflow"],
         )

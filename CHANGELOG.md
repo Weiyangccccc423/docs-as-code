@@ -30,6 +30,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Kept generated-target `init`, `upgrade`, and `next --apply` behind the trusted source-pack or installed CLI boundary instead of presenting unavailable target-only execution paths.
 - `dac init` now requires exactly one selected product document, pins that preflight path into apply, and stops before target writes when discovery returns zero or multiple candidates.
 - Made isolated `uv tool install` the recommended installation path while retaining Python 3.10+ pip and exported-pack fallbacks.
+- Existing-project `dac` commands now discover the nearest governed parent, accept `-C` before or after the command, reject unstable long-option abbreviations, and print command-specific help recovery on parse errors.
+- Generated target `bin/dac` commands now stay bound to their project root from nested working directories and expose examples for every command.
 
 ## [2.0.0] - 2026-07-21
 

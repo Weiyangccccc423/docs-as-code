@@ -84,6 +84,8 @@ dac --help
 
 `dac --help` 等同于 `dac help`，每个命令也支持 `dac COMMAND --help`。
 
+在已初始化项目的任意子目录中运行 `dac status`、`dac next`、`dac verify`、`dac doctor` 或 `dac upgrade` 时，CLI 会自动向上定位最近的治理仓库根目录。显式指定其他目录时，`-C` 可以写在命令前后：`dac -C /path/to/project status` 与 `dac status -C /path/to/project` 等价。命令或参数错误会直接提示应运行的帮助命令；长选项不接受容易产生歧义的缩写。
+
 初始化后的目标仓库也会生成短入口 `bin/dac`，无需再次安装 Python 包即可运行 `bin/dac status`、`bin/dac next`、`bin/dac verify --check`、`bin/dac doctor` 和 `bin/dac --help`。初始化和运行时升级仍需要可信的源工作流包或已安装的 `dac`，因此目标内的 `bin/dac init`、`bin/dac upgrade` 和 `bin/dac next --apply` 会明确停止并给出来源要求。
 
 默认输出简短的人类可读摘要；Agent 和脚本使用 `--json` 获取完整证据与后续动作契约。
@@ -100,7 +102,7 @@ dac verify --check --json
 
 `dac next` 始终是只读的。人类可读输出会把路由标记为 `executable`、`manual input required`、`approval required`、`blocked` 或 `complete`；只有动作提供完整可执行 `argv` 契约时才会显示 `Run: dac next --apply`。人工动作会直接显示工作项、目标和主要文件，阻塞动作会显示有界原因与恢复路径。`dac next --apply` 才是显式写入路径；遇到快照过期、审批、命令结构异常、步骤失败或刷新失败时会停止。
 
-初始化后，项目会包含自己的短入口 `bin/dac`、完整的 `bin/governance` 运行时、`docs/` 治理文档、`AGENTS.md` 和工作流包快照。阶段规则见 [`workflows/00-overview.md`](workflows/00-overview.md)。
+初始化后，项目会包含自己的短入口 `bin/dac`、完整的 `bin/governance` 运行时、`docs/` 治理文档、`AGENTS.md` 和工作流包快照；即使从项目子目录调用，`bin/dac` 也始终绑定该项目根目录。阶段规则见 [`workflows/00-overview.md`](workflows/00-overview.md)。
 
 ## 目录结构
 

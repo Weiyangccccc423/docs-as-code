@@ -132,11 +132,15 @@ class InstallableCliSmokeTest(unittest.TestCase):
             "init_check_read_only": True,
             "init": True,
             "status": True,
+            "status_from_nested": True,
+            "directory_after_command": True,
             "next": True,
             "verify": True,
             "target_help": True,
             "target_help_command": True,
+            "target_help_status": True,
             "target_status": True,
+            "target_status_from_nested": True,
         }
 
         self.assertTrue(smoke_installable_cli._evidence_ok(evidence))

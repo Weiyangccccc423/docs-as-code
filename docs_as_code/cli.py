@@ -24,6 +24,40 @@ PACK_MARKERS = (
     "scripts/governance_cli.py",
     "workflows/00-overview.md",
 )
+OPERATIONAL_COMMANDS = ("init", "doctor", "status", "next", "verify", "upgrade")
+
+
+class DacArgumentParser(argparse.ArgumentParser):
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        kwargs.setdefault("allow_abbrev", False)
+        super().__init__(*args, **kwargs)
+        self._dac_argument_tokens: tuple[str, ...] = ()
+
+    def parse_args(
+        self,
+        args: Sequence[str] | None = None,
+        namespace: argparse.Namespace | None = None,
+    ) -> argparse.Namespace:
+        self._dac_argument_tokens = tuple(sys.argv[1:] if args is None else args)
+        return super().parse_args(args, namespace)
+
+    def _help_command(self) -> str:
+        if self.prog == "dac":
+            for token in self._dac_argument_tokens:
+                if token in OPERATIONAL_COMMANDS:
+                    return f"dac {token} --help"
+            return "dac help"
+        if self.prog == "dac help":
+            return "dac help"
+        return f"{self.prog} --help"
+
+    def error(self, message: str) -> None:
+        self.print_usage(sys.stderr)
+        self.exit(
+            2,
+            f"{self.prog}: error: {message}\n"
+            f"Try '{self._help_command()}' for more information.\n",
+        )
 
 
 @dataclass(frozen=True)
@@ -45,8 +79,23 @@ def _version() -> str:
             return "unknown"
 
 
+def _add_directory_argument(
+    parser: argparse.ArgumentParser,
+    *,
+    default: Path | str,
+) -> None:
+    parser.add_argument(
+        "-C",
+        "--directory",
+        type=Path,
+        default=default,
+        metavar="DIR",
+        help="Operate on DIR instead of the current project directory.",
+    )
+
+
 def build_parser() -> tuple[argparse.ArgumentParser, dict[str, argparse.ArgumentParser]]:
-    parser = argparse.ArgumentParser(
+    parser = DacArgumentParser(
         prog="dac",
         description="Initialize and operate a governed docs-as-code project from one product document.",
         epilog=(
@@ -58,6 +107,9 @@ def build_parser() -> tuple[argparse.ArgumentParser, dict[str, argparse.Argument
             "safe operation:\n"
             "  Commands using --check are read-only previews.\n"
             "  Commands using --json return the complete agent contract.\n\n"
+            "project selection:\n"
+            "  -C DIR may appear before or after COMMAND.\n"
+            "  Existing-project commands search DIR and its parents for the project root.\n\n"
             "examples:\n"
             "  dac init\n"
             "  dac init /path/to/product.pdf\n"
@@ -73,14 +125,7 @@ def build_parser() -> tuple[argparse.ArgumentParser, dict[str, argparse.Argument
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument(
-        "-C",
-        "--directory",
-        type=Path,
-        default=Path.cwd(),
-        metavar="DIR",
-        help="Operate on DIR instead of the current project directory.",
-    )
+    _add_directory_argument(parser, default=Path.cwd())
     parser.add_argument("--version", action="version", version=f"%(prog)s {_version()}")
     subparsers = parser.add_subparsers(dest="command", metavar="COMMAND")
     commands: dict[str, argparse.ArgumentParser] = {}
@@ -112,6 +157,7 @@ def build_parser() -> tuple[argparse.ArgumentParser, dict[str, argparse.Argument
     init.add_argument("--force", action="store_true", help="Replace existing generated governance files.")
     init.add_argument("--check", action="store_true", help="Preview initialization without writing files.")
     init.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    _add_directory_argument(init, default=argparse.SUPPRESS)
     commands["init"] = init
 
     doctor = subparsers.add_parser(
@@ -134,6 +180,7 @@ def build_parser() -> tuple[argparse.ArgumentParser, dict[str, argparse.Argument
     )
     doctor.add_argument("--strict", action="store_true", help="Also require recommended tools.")
     doctor.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    _add_directory_argument(doctor, default=argparse.SUPPRESS)
     commands["doctor"] = doctor
 
     status = subparsers.add_parser(
@@ -144,6 +191,7 @@ def build_parser() -> tuple[argparse.ArgumentParser, dict[str, argparse.Argument
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     status.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    _add_directory_argument(status, default=argparse.SUPPRESS)
     commands["status"] = status
 
     next_command = subparsers.add_parser(
@@ -163,6 +211,7 @@ def build_parser() -> tuple[argparse.ArgumentParser, dict[str, argparse.Argument
         help="Execute one validated snapshot-bound action, then refresh workflow evidence.",
     )
     next_command.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    _add_directory_argument(next_command, default=argparse.SUPPRESS)
     commands["next"] = next_command
 
     verify = subparsers.add_parser(
@@ -179,6 +228,7 @@ def build_parser() -> tuple[argparse.ArgumentParser, dict[str, argparse.Argument
     )
     verify.add_argument("--check", action="store_true", help="Verify without updating state.")
     verify.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    _add_directory_argument(verify, default=argparse.SUPPRESS)
     commands["verify"] = verify
 
     upgrade = subparsers.add_parser(
@@ -195,6 +245,7 @@ def build_parser() -> tuple[argparse.ArgumentParser, dict[str, argparse.Argument
     )
     upgrade.add_argument("--check", action="store_true", help="Preview the refresh without writing files.")
     upgrade.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    _add_directory_argument(upgrade, default=argparse.SUPPRESS)
     commands["upgrade"] = upgrade
 
     help_command = subparsers.add_parser("help", help="Show help for dac or one command.")
@@ -328,6 +379,17 @@ def _target_runtime(target: Path) -> Path | None:
         "Place one product document in the project root and run 'dac init'.",
         file=sys.stderr,
     )
+    return None
+
+
+def _nearest_initialized_target(start: Path) -> Path | None:
+    if not start.is_dir():
+        return None
+    for candidate in (start, *start.parents):
+        if (candidate / "scripts/governance_cli.py").is_file() and (
+            candidate / "docs/agent-workflow/runtime-manifest.json"
+        ).is_file():
+            return candidate
     return None
 
 
@@ -877,7 +939,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             parser.print_help()
         return 0
 
-    target = args.directory.expanduser().resolve()
+    selected_target = args.directory.expanduser().resolve()
+    target = selected_target
+    if args.command in {"doctor", "status", "next", "verify", "upgrade"}:
+        target = _nearest_initialized_target(selected_target) or selected_target
     if args.command == "init":
         return _run_init(args, target)
     if args.command == "doctor":

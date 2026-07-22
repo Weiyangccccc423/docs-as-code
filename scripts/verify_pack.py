@@ -2316,7 +2316,11 @@ INSTALLABLE_CLI_SMOKE_REQUIRED_PHRASES = (
     "install_smoke_uv_unavailable",
     "uv tool install",
     "init_check_read_only",
+    "status_from_nested",
+    "directory_after_command",
+    "target_help_status",
     "target_status",
+    "target_status_from_nested",
 )
 INSTALLABLE_CLI_SMOKE_TEST_REQUIRED_PHRASES = (
     "run_installable_cli_smoke",
@@ -2371,6 +2375,10 @@ RELEASE_READINESS_REQUIRED_PHRASES = (
     '"installable-cli-smoke"',
     "_installable_cli_smoke_ok",
     "scripts/smoke_installable_cli.py",
+    "status_from_nested",
+    "directory_after_command",
+    "target_help_status",
+    "target_status_from_nested",
     "environment_inventory",
     "authority_skill_inventory",
     "_authority_skill_inventory_ok",

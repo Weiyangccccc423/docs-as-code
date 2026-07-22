@@ -39,11 +39,15 @@ REQUIRED_EVIDENCE = (
     "init_check_read_only",
     "init",
     "status",
+    "status_from_nested",
+    "directory_after_command",
     "next",
     "verify",
     "target_help",
     "target_help_command",
+    "target_help_status",
     "target_status",
+    "target_status_from_nested",
 )
 
 
@@ -459,6 +463,20 @@ def _verify_fresh_project(
         [dac, "status", "--json"],
         cwd=project,
     )
+    nested = project / "src/install-smoke"
+    nested.mkdir(parents=True)
+    _nested_status_step, nested_status = _json_command(
+        context,
+        "installed-dac-status-from-nested",
+        [dac, "status", "--json"],
+        cwd=nested,
+    )
+    _directory_after_command_step, directory_after_command = _json_command(
+        context,
+        "installed-dac-directory-after-command",
+        [dac, "status", "--json", "-C", project],
+        cwd=project.parent,
+    )
     _next_step, next_payload = _json_command(
         context,
         "installed-dac-next",
@@ -481,11 +499,23 @@ def _verify_fresh_project(
         [target_dac, "help"],
         cwd=project,
     )
+    target_help_status = _context_step(
+        context,
+        "target-dac-help-status",
+        [target_dac, "help", "status"],
+        cwd=project,
+    )
     _target_status_step, target_status = _json_command(
         context,
         "target-dac-status",
         [target_dac, "status", "--json"],
         cwd=project,
+    )
+    _target_nested_status_step, target_nested_status = _json_command(
+        context,
+        "target-dac-status-from-nested",
+        [target_dac, "status", "--json"],
+        cwd=nested,
     )
     evidence = {
         "init_check": init_check.get("ok") is True,
@@ -496,6 +526,8 @@ def _verify_fresh_project(
         ),
         "init": init.get("ok") is True,
         "status": status.get("ok") is True,
+        "status_from_nested": nested_status.get("ok") is True,
+        "directory_after_command": directory_after_command.get("ok") is True,
         "next": next_payload.get("ok") is True,
         "verify": verify.get("ok") is True,
         "target_help": "usage: dac" in _stdout(target_help),
@@ -503,7 +535,12 @@ def _verify_fresh_project(
             "usage: dac" in _stdout(target_help_command)
             and "dac help <command>" in _stdout(target_help_command)
         ),
+        "target_help_status": (
+            "usage: dac status" in _stdout(target_help_status)
+            and "examples:" in _stdout(target_help_status)
+        ),
         "target_status": target_status.get("ok") is True,
+        "target_status_from_nested": target_nested_status.get("ok") is True,
     }
     return evidence, before_check, after_check
 

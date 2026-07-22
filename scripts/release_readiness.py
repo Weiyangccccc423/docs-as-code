@@ -61,10 +61,14 @@ INSTALLABLE_CLI_EVIDENCE_FIELDS = (
     "init_check_read_only",
     "init",
     "status",
+    "status_from_nested",
+    "directory_after_command",
     "next",
     "verify",
     "target_help",
+    "target_help_status",
     "target_status",
+    "target_status_from_nested",
 )
 
 
@@ -1043,6 +1047,18 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
             "builder": installable_cli_payload.get("builder", {}) if installable_cli_payload else {},
             "wheel": installable_cli_payload.get("wheel", {}) if installable_cli_payload else {},
             "init_check_read_only": installable_cli_evidence.get("init_check_read_only") is True
+            if isinstance(installable_cli_evidence, dict)
+            else False,
+            "status_from_nested": installable_cli_evidence.get("status_from_nested") is True
+            if isinstance(installable_cli_evidence, dict)
+            else False,
+            "directory_after_command": installable_cli_evidence.get("directory_after_command") is True
+            if isinstance(installable_cli_evidence, dict)
+            else False,
+            "target_help_status": installable_cli_evidence.get("target_help_status") is True
+            if isinstance(installable_cli_evidence, dict)
+            else False,
+            "target_status_from_nested": installable_cli_evidence.get("target_status_from_nested") is True
             if isinstance(installable_cli_evidence, dict)
             else False,
             "generated_markers_after_check": installable_cli_payload.get(

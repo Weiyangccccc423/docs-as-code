@@ -11,6 +11,40 @@ from typing import Sequence
 ROOT = Path(__file__).resolve().parents[1]
 GOVERNANCE = ROOT / "bin/governance"
 VERSION = ROOT / "docs/agent-workflow/workflow-pack/VERSION"
+OPERATIONAL_COMMANDS = ("status", "next", "verify", "doctor", "init", "upgrade")
+
+
+class DacArgumentParser(argparse.ArgumentParser):
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        kwargs.setdefault("allow_abbrev", False)
+        super().__init__(*args, **kwargs)
+        self._dac_argument_tokens: tuple[str, ...] = ()
+
+    def parse_args(
+        self,
+        args: Sequence[str] | None = None,
+        namespace: argparse.Namespace | None = None,
+    ) -> argparse.Namespace:
+        self._dac_argument_tokens = tuple(sys.argv[1:] if args is None else args)
+        return super().parse_args(args, namespace)
+
+    def _help_command(self) -> str:
+        if self.prog == "dac":
+            for token in self._dac_argument_tokens:
+                if token in OPERATIONAL_COMMANDS:
+                    return f"dac {token} --help"
+            return "dac help"
+        if self.prog == "dac help":
+            return "dac help"
+        return f"{self.prog} --help"
+
+    def error(self, message: str) -> None:
+        self.print_usage(sys.stderr)
+        self.exit(
+            2,
+            f"{self.prog}: error: {message}\n"
+            f"Try '{self._help_command()}' for more information.\n",
+        )
 
 
 def _version() -> str:
@@ -22,7 +56,7 @@ def _version() -> str:
 
 
 def build_parser() -> tuple[argparse.ArgumentParser, dict[str, argparse.ArgumentParser]]:
-    parser = argparse.ArgumentParser(
+    parser = DacArgumentParser(
         prog="dac",
         description="Operate an initialized governed project with its generated runtime.",
         epilog=(
@@ -34,6 +68,9 @@ def build_parser() -> tuple[argparse.ArgumentParser, dict[str, argparse.Argument
             "  dac help status\n"
             "  dac help <command>\n"
             "  dac COMMAND --help\n\n"
+            "project binding:\n"
+            "  This command always operates on the generated project that contains bin/dac,\n"
+            "  including when invoked from one of that project's subdirectories.\n\n"
             "source-pack boundary:\n"
             "  dac init, dac upgrade, and dac next --apply require the source workflow pack\n"
             "  or an installed dac command. Use --json for machine-readable output."
@@ -48,6 +85,8 @@ def build_parser() -> tuple[argparse.ArgumentParser, dict[str, argparse.Argument
         "status",
         help="Show the current workflow phase and verification state.",
         description="Show the current project, workflow phase, product, and verification state.",
+        epilog="examples:\n  dac status\n  dac status --json",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     status.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     commands["status"] = status
@@ -56,6 +95,8 @@ def build_parser() -> tuple[argparse.ArgumentParser, dict[str, argparse.Argument
         "next",
         help="Show the next evidence-backed workflow action.",
         description="Show one snapshot-bound next action without executing it.",
+        epilog="examples:\n  dac next\n  dac next --json",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     next_command.add_argument(
         "--apply",
@@ -69,6 +110,8 @@ def build_parser() -> tuple[argparse.ArgumentParser, dict[str, argparse.Argument
         "verify",
         help="Verify governance documents and runtime integrity.",
         description="Verify governance documents and runtime integrity.",
+        epilog="examples:\n  dac verify --check\n  dac verify --check --json",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     verify.add_argument("--check", action="store_true", help="Verify without updating state.")
     verify.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
@@ -78,6 +121,8 @@ def build_parser() -> tuple[argparse.ArgumentParser, dict[str, argparse.Argument
         "doctor",
         help="Inspect the project environment and repair route.",
         description="Inspect required tools and the project environment repair route.",
+        epilog="examples:\n  dac doctor\n  dac doctor --repair\n  dac doctor --json",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     doctor.add_argument("--repair", action="store_true", help="Apply supported environment repairs.")
     doctor.add_argument("--strict", action="store_true", help="Also require recommended tools.")
@@ -91,6 +136,8 @@ def build_parser() -> tuple[argparse.ArgumentParser, dict[str, argparse.Argument
             "Initialization requires the source workflow pack or an installed dac command. "
             "Generated projects do not carry the initializer."
         ),
+        epilog="examples:\n  dac init --help\n  dac init product.md --json",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     init.add_argument("product", nargs="?", metavar="PRODUCT")
     init.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
@@ -103,6 +150,8 @@ def build_parser() -> tuple[argparse.ArgumentParser, dict[str, argparse.Argument
             "Runtime refresh requires the source workflow pack or an installed dac command so "
             "source artifact integrity can be verified."
         ),
+        epilog="examples:\n  dac upgrade --help\n  dac upgrade --check --json",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     upgrade.add_argument("--check", action="store_true", help="Request a read-only source-pack preview.")
     upgrade.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
@@ -186,12 +235,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             json_requested=json_requested,
         )
 
+    target = str(ROOT)
     if args.command == "status":
-        command = ["status", "."]
+        command = ["status", target]
     elif args.command == "next":
-        command = ["workflow", "resume", "."]
+        command = ["workflow", "resume", target]
     elif args.command == "verify":
-        command = ["verify", "."]
+        command = ["verify", target]
         if args.check:
             command.append("--check")
     else:
@@ -200,7 +250,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             command.append("--check")
         if args.strict:
             command.append("--strict")
-        command.extend(("--target", "."))
+        command.extend(("--target", target))
     if json_requested:
         command.append("--json")
     return _exec_governance(command, json_requested=json_requested)

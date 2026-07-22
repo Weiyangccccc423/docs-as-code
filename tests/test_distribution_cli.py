@@ -10,6 +10,7 @@ from unittest import mock
 
 from docs_as_code import cli
 from docs_as_code.packaging import build_embedded_pack
+from scripts import dac_target_cli
 from scripts.verify_pack import verify_pack
 from scripts.verify_pack_manifest import verify_pack_manifest
 
@@ -122,6 +123,107 @@ class DistributionCliTest(unittest.TestCase):
         self.assertEqual(0, returncode)
         self.assertIn("--apply", stdout.getvalue())
         self.assertIn("without executing", stdout.getvalue())
+
+    def test_invalid_command_and_option_show_help_recovery(self) -> None:
+        for argv, expected_hint in (
+            (["unknown"], "Try 'dac help' for more information."),
+            (["init", "--unknown"], "Try 'dac init --help' for more information."),
+            (["help", "unknown"], "Try 'dac help' for more information."),
+        ):
+            with self.subTest(argv=argv):
+                stderr = io.StringIO()
+                with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit) as raised:
+                    main(argv)
+                self.assertEqual(2, raised.exception.code)
+                self.assertIn(expected_hint, stderr.getvalue())
+
+    def test_long_options_do_not_accept_unstable_abbreviations(self) -> None:
+        parser, _commands = cli.build_parser()
+        stderr = io.StringIO()
+
+        with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit) as raised:
+            parser.parse_args(["init", "--che"])
+
+        self.assertEqual(2, raised.exception.code)
+        self.assertIn("unrecognized arguments: --che", stderr.getvalue())
+        self.assertIn("dac init --help", stderr.getvalue())
+
+    def test_directory_option_is_accepted_after_subcommand(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp)
+            runtime = target / "scripts/governance_cli.py"
+            runtime.parent.mkdir()
+            runtime.write_text("", encoding="utf-8")
+            status_payload = {
+                "ok": True,
+                "state": {"project_name": "Example", "phase": "initialized"},
+            }
+            stdout = io.StringIO()
+            with mock.patch(
+                "docs_as_code.cli._run_python_json",
+                return_value=cli.CommandResult(0, status_payload, "", ""),
+            ) as run, contextlib.redirect_stdout(stdout):
+                returncode = main(["status", "-C", str(target)])
+
+        self.assertEqual(0, returncode)
+        self.assertEqual(runtime, run.call_args.args[0])
+        self.assertEqual(target, run.call_args.kwargs["cwd"])
+
+    def test_existing_project_commands_discover_parent_from_nested_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp)
+            runtime = target / "scripts/governance_cli.py"
+            runtime.parent.mkdir()
+            runtime.write_text("", encoding="utf-8")
+            runtime_manifest = target / "docs/agent-workflow/runtime-manifest.json"
+            runtime_manifest.parent.mkdir(parents=True)
+            runtime_manifest.write_text("{}\n", encoding="utf-8")
+            nested = target / "src/feature"
+            nested.mkdir(parents=True)
+            status_payload = {
+                "ok": True,
+                "state": {"project_name": "Example", "phase": "initialized"},
+            }
+            stdout = io.StringIO()
+            with mock.patch(
+                "docs_as_code.cli._run_python_json",
+                return_value=cli.CommandResult(0, status_payload, "", ""),
+            ) as run, contextlib.redirect_stdout(stdout):
+                returncode = main(["-C", str(nested), "status"])
+
+        self.assertEqual(0, returncode)
+        self.assertEqual(runtime, run.call_args.args[0])
+        self.assertEqual(target, run.call_args.kwargs["cwd"])
+
+    def test_target_cli_help_and_project_binding_are_actionable(self) -> None:
+        for command in ("init", "doctor", "status", "next", "verify", "upgrade"):
+            with self.subTest(command=command):
+                stdout = io.StringIO()
+                with contextlib.redirect_stdout(stdout):
+                    returncode = dac_target_cli.main(["help", command])
+                self.assertEqual(0, returncode)
+                self.assertIn("examples:", stdout.getvalue())
+                self.assertIn(f"dac {command}", stdout.getvalue())
+
+        project = Path("/tmp/example-governed-project")
+        with mock.patch.object(dac_target_cli, "ROOT", project), mock.patch.object(
+            dac_target_cli,
+            "_exec_governance",
+            return_value=0,
+        ) as run:
+            returncode = dac_target_cli.main(["status"])
+
+        self.assertEqual(0, returncode)
+        run.assert_called_once_with(["status", str(project)], json_requested=False)
+
+    def test_target_cli_invalid_command_shows_help_recovery(self) -> None:
+        stderr = io.StringIO()
+
+        with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit) as raised:
+            dac_target_cli.main(["unknown"])
+
+        self.assertEqual(2, raised.exception.code)
+        self.assertIn("Try 'dac help' for more information.", stderr.getvalue())
 
     def test_init_dispatches_to_safe_consumer_bootstrap(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

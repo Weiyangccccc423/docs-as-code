@@ -84,6 +84,8 @@ dac --help
 
 `dac --help` is equivalent to `dac help`. Commands also accept `dac COMMAND --help`.
 
+From any subdirectory of an initialized project, `dac status`, `dac next`, `dac verify`, `dac doctor`, and `dac upgrade` locate the nearest governed project root. To select another directory explicitly, `-C` may appear before or after the command: `dac -C /path/to/project status` and `dac status -C /path/to/project` are equivalent. Invalid commands and options print the exact help command to run; long options do not accept ambiguous abbreviations.
+
 Commands print concise human summaries by default. Add `--json` for the complete evidence and continuation contract used by agents and scripts.
 
 For agents and scripts, use the read-only JSON contract before writes:
@@ -98,7 +100,7 @@ dac verify --check --json
 
 `dac next` is read-only. Its human output labels the route as `executable`, `manual input required`, `approval required`, `blocked`, or `complete`, and prints `Run: dac next --apply` only for a complete executable `argv` contract. Manual routes show the work item, objective, and primary file; blocked routes show bounded reasons and recovery. `dac next --apply` is the explicit state-changing path and stops on stale snapshots, approvals, malformed commands, failed steps, or refresh failures.
 
-The generated project contains its own short `bin/dac` entry, full `bin/governance` runtime, `docs/` governance documents, `AGENTS.md`, and a local workflow-pack snapshot. Read [`workflows/00-overview.md`](workflows/00-overview.md) for phase rules.
+The generated project contains its own short `bin/dac` entry, full `bin/governance` runtime, `docs/` governance documents, `AGENTS.md`, and a local workflow-pack snapshot. Its `bin/dac` remains bound to that generated project when invoked from a project subdirectory. Read [`workflows/00-overview.md`](workflows/00-overview.md) for phase rules.
 
 ## Package Layout
 
