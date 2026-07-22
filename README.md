@@ -1,21 +1,67 @@
 # docs-as-code Workflow Pack
 
-This repository contains a reusable workflow pack for turning an empty folder plus one product document into a governed, docs-as-code project workspace.
+Reusable, local-first governance for turning one product document into a traceable docs-as-code project workspace.
 
-Current release identity comes from `VERSION`; reviewed consumer-facing changes and upgrade impact are recorded in `CHANGELOG.md`.
+Current release: **2.0.0**. The source of truth is [`VERSION`](VERSION); release impact is recorded in [`CHANGELOG.md`](CHANGELOG.md).
 
-## Goal
+## What It Provides
 
-Create reliable project governance before and during implementation:
+- Safe repository initialization from an empty folder
+- Product document preservation, conversion, and requirement structuring
+- Source-backed architecture, API, backend, data-model, UI, frontend, test, and ADR workflows
+- Authority-skill routing with provenance and integrity checks
+- Environment preflight, reviewed repair, implementation evidence, and drift control
+- Local verification, deterministic package export, and guarded runtime refresh
 
-- archive the original product document
-- record product archive manifest metadata and SHA-256 evidence
-- copy a target-local workflow, skill, reference, and template snapshot
-- derive structured product, architecture, API, UI, backend, frontend, test, and delivery documents
-- keep unresolved decisions explicit
-- verify documentation structure and drift
-- hand implementation tasks to agents with traceable specs and acceptance criteria
-- execute Ready tasks with scoped code changes and local verification evidence
+## Workflow
+
+| Phase | Procedure | Primary skill |
+| --- | --- | --- |
+| 01 | Initialize an empty repository | `initializing-governance-repo` |
+| 02 | Archive the product document | `archiving-product-document` |
+| 03 | Structure product requirements | `structuring-product-requirements` |
+| 04 | Derive and review the design | `designing-system-architecture` and specialist skills |
+| 05 | Verify structure and control drift | `verifying-governance-docs` |
+| 06 | Execute one implementation task at a time | `executing-implementation-task` |
+
+Read [`workflows/00-overview.md`](workflows/00-overview.md) before running a phase.
+
+## Quick Start
+
+Requirements: Python 3.10+, Git, and a supported POSIX shell. `pandoc` and `pdftotext` are only needed for DOCX/HTML/PDF product sources.
+
+For a new target containing one product document and an unpacked workflow pack:
+
+```bash
+./docs-as-code-workflow-pack/bin/governance-bootstrap --check --json
+./docs-as-code-workflow-pack/bin/governance-bootstrap --json
+```
+
+For manual source-pack work:
+
+```bash
+bin/governance env --repair --check --target /path/to/new-project --json
+bin/governance env --repair --target /path/to/new-project --json
+bin/governance init --check --target /path/to/new-project --profile web-app --project-name "Project Name" --json
+bin/governance init --target /path/to/new-project --profile web-app --project-name "Project Name" --json
+bin/governance verify /path/to/new-project --check --json
+bin/governance verify /path/to/new-project --json
+bin/governance gate product-structuring /path/to/new-project --json
+bin/governance status /path/to/new-project
+```
+
+`--check` commands are read-only. Agents must review returned `argv`, blockers, skills, and next actions before applying state changes. Detailed phase procedures and command contracts live in [`workflows/`](workflows/) and [`references/`](references/).
+
+## Local Verification
+
+Local verification is authoritative; the GitHub Actions workflow is manual-only.
+
+```bash
+make test
+make verify-pack
+```
+
+Use [`references/release-readiness-checklist.md`](references/release-readiness-checklist.md) for the full dry-run, export, artifact-smoke, and release gate.
 
 ## Package Layout
 
@@ -30,6 +76,9 @@ Create reliable project governance before and during implementation:
 ├── tests/        # workflow-pack tests
 └── workflows/    # phase-by-phase operating procedures
 ```
+
+<details>
+<summary><strong>Detailed package index and operational reference</strong></summary>
 
 ## Template Files
 
@@ -115,7 +164,7 @@ Create reliable project governance before and during implementation:
 - `skills/verifying-governance-docs/SKILL.md`: governance verification and repair routing.
 - `skills/executing-implementation-task/SKILL.md`: scoped implementation, verification, evidence, and task status execution.
 
-## Quick Start
+## Extended Operational Reference
 
 Before using the pack on a real project, run the disposable source-pack dry run. It creates a temporary target, imports a sample product document, executes the generated target-local Make command surface, records reviewed PRD-hash-bound dispositions for unsupported optional product chapters, proves the product work package advances to the phase action, advances through product structuring and design derivation, builds the design authoring queues, records complete source/evidence/authority-bound `design_reviews`, and executes current API, threat, reliability, and migration review gates. It then advances a minimal source-backed target into implementation and proves the guarded runner claims one task and stops for edits, preflights every bound command before execution, runs all required checks, applies snapshot-guarded closeout, and preserves completion through runtime refresh:
 
@@ -177,12 +226,7 @@ The release readiness payload includes a non-strict `authority-skill-inventory` 
 
 For a recipient environment that has unpacked the source workflow-pack artifact, compose the source-pack checks, environment preflight, target initialization, and target-local verification with the consumer bootstrap script:
 
-For the shortest safe startup, place exactly one supported product document and the unpacked `docs-as-code-workflow-pack/` directory in the new project folder, change to that folder, then run:
-
-```bash
-./docs-as-code-workflow-pack/bin/governance-bootstrap --check --json
-./docs-as-code-workflow-pack/bin/governance-bootstrap --json
-```
+For the shortest safe startup, place exactly one supported product document and the unpacked `docs-as-code-workflow-pack/` directory in the new project folder, change to that folder, then use the check/apply pair in [Quick Start](#quick-start).
 
 The wrapper preserves the project folder as the working directory and enables the existing safe `--auto-repair-env` policy; check mode remains no-write, while write mode applies only repairs that require neither approval nor manual action. With no `--target`, consumer bootstrap selects the current directory; with no `--project-name`, it records the target directory name; with no `--product`, it uses target-root auto-discovery and proceeds only when exactly one supported product document exists. It does not infer a stack profile, so the default remains `unknown` unless `--profile` is supplied. JSON `input_resolution` records every explicit or defaulted input. The workflow-pack root and its descendants are never accepted as consumer targets; placing the pack inside the target, as shown above, remains valid. Use the longer form below when paths, names, profile, authority approval, environment repair, or workflow preset must be explicit.
 
@@ -243,7 +287,6 @@ bin/governance init --check --target /path/to/new-project --json
 bin/governance init --target /path/to/new-project --profile web-app --project-name "Project Name"
 bin/governance verify /path/to/new-project
 bin/governance gate product-structuring /path/to/new-project --json
-bin/governance status /path/to/new-project
 ```
 
 If the target folder contains exactly one supported root product document (`.md`, `.markdown`, `.docx`, `.pdf`, `.html`, `.htm`, or `.txt`), `init` auto-discovers it and reports `product.selection: "auto-discovered"` in JSON. When the product document is outside the target or multiple candidates exist, pass `--product /path/to/product.md`; ambiguous discovery is a preflight conflict instead of a guess.
@@ -497,3 +540,5 @@ Generated target repositories contain:
 ```
 
 The state file records the current workflow-pack version, workflow phase, project profile, product source, generated archive path, product import readiness, and last verification result. `bin/governance status <target>` prints the same key fields for quick human review.
+
+</details>
