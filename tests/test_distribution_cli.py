@@ -72,6 +72,20 @@ class DistributionCliTest(unittest.TestCase):
         self.assertIn("upgrade", output)
         self.assertIn("dac help <command>", output)
 
+    def test_help_command_prints_guided_quick_start(self) -> None:
+        stdout = io.StringIO()
+
+        with contextlib.redirect_stdout(stdout):
+            returncode = main(["help"])
+
+        output = stdout.getvalue()
+        self.assertEqual(0, returncode)
+        self.assertIn("getting started:", output)
+        self.assertIn("Put exactly one product document in the project root", output)
+        self.assertIn("dac init --check", output)
+        self.assertIn("read-only", output)
+        self.assertIn("dac COMMAND --help", output)
+
     def test_help_init_explains_product_document_discovery(self) -> None:
         stdout = io.StringIO()
 

@@ -48,8 +48,19 @@ dac next
 dac verify
 dac doctor
 dac --help
-dac help init
 ```
+
+| 命令 | 用途 |
+| --- | --- |
+| `dac help` | 查看首次使用步骤和命令索引。 |
+| `dac help COMMAND` | 查看某个命令的参数和示例，例如 `dac help init`。 |
+| `dac status` | 查看当前项目和工作流阶段。 |
+| `dac next` | 只读查看下一个有证据支持的工作流动作。 |
+| `dac verify --check` | 验证治理状态，不更新状态。 |
+| `dac doctor` | 检查必需工具并给出安全修复建议。 |
+| `dac upgrade --check` | 预览目标项目运行时升级。 |
+
+`dac --help` 等同于 `dac help`，每个命令也支持 `dac COMMAND --help`。
 
 默认输出简短的人类可读摘要；Agent 和脚本使用 `--json` 获取完整证据与后续动作契约。
 

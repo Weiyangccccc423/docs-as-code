@@ -48,13 +48,25 @@ def build_parser() -> tuple[argparse.ArgumentParser, dict[str, argparse.Argument
         prog="dac",
         description="Initialize and operate a governed docs-as-code project from one product document.",
         epilog=(
+            "getting started:\n"
+            "  1. Create or enter a project directory.\n"
+            "  2. Put exactly one product document in the project root.\n"
+            "  3. Run dac init --check, then run dac init.\n"
+            "  4. Run dac next to inspect the next workflow action.\n\n"
+            "safe operation:\n"
+            "  Commands using --check are read-only previews.\n"
+            "  Commands using --json return the complete agent contract.\n\n"
             "examples:\n"
             "  dac init\n"
             "  dac init /path/to/product.pdf\n"
             "  dac status\n"
             "  dac next\n"
             "  dac -C /path/to/project verify --check\n\n"
-            'Run "dac help <command>" for details.'
+            "help:\n"
+            "  dac help\n"
+            "  dac help init\n"
+            "  dac help <command>\n"
+            "  dac COMMAND --help"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )

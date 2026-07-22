@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Added the short `dac` CLI with `init`, `doctor`, `status`, `next`, `verify`, `upgrade`, and command-specific help; retained `docs-as-code` as a compatibility alias.
 - Added product-document auto-discovery from the project root plus explicit `PRODUCT`, `-C`, read-only `--check`, and machine-readable `--json` interfaces.
 - Added bounded human-readable summaries for all `dac` operations and command-specific examples for every operational subcommand.
+- Added a guided `dac help` page covering product placement, first-run steps, read-only previews, and command-specific help.
 - Added manifest-checked source-checkout and editable-install execution without writing generated trust evidence into the checkout.
 
 ### Changed

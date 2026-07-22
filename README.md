@@ -48,8 +48,19 @@ dac next
 dac verify
 dac doctor
 dac --help
-dac help init
 ```
+
+| Command | Purpose |
+| --- | --- |
+| `dac help` | Show the getting-started guide and command index. |
+| `dac help COMMAND` | Show options and examples for one command, such as `dac help init`. |
+| `dac status` | Show the current project and workflow phase. |
+| `dac next` | Inspect the next evidence-backed action without executing it. |
+| `dac verify --check` | Verify governance state without updating it. |
+| `dac doctor` | Check required tools and show safe repair guidance. |
+| `dac upgrade --check` | Preview a target runtime upgrade. |
+
+`dac --help` is equivalent to `dac help`. Commands also accept `dac COMMAND --help`.
 
 Commands print concise human summaries by default. Add `--json` for the complete evidence and continuation contract used by agents and scripts.
 
