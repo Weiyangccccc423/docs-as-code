@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Added explicit `dac next --apply` execution with snapshot re-assertion, target-bound command validation, bounded step evidence, and mandatory workflow refresh.
 - Added bounded `dac next` route modes so executable actions, manual work, approvals, blockers, terminal completion, and failed-action recovery are distinguishable without parsing JSON.
 - Added a guided `dac help` page covering product placement, first-run steps, read-only previews, and command-specific help.
+- Added a manifest-checked POSIX `bin/dac` wrapper so exported workflow packs expose the same short CLI and help without package installation.
 - Added manifest-checked source-checkout and editable-install execution without writing generated trust evidence into the checkout.
 
 ### Changed

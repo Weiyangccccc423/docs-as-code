@@ -1,0 +1,44 @@
+#!/bin/sh
+set -eu
+
+ROOT_DIR="$(CDPATH= cd "$(dirname "$0")/.." && pwd)"
+PYTHON_BIN="${DOCS_AS_CODE_PYTHON:-python3}"
+JSON_REQUESTED=false
+
+for arg in "$@"; do
+    if [ "$arg" = "--json" ]; then
+        JSON_REQUESTED=true
+        break
+    fi
+done
+
+dac_runtime_failure() {
+    DAC_ERROR_CODE="$1"
+    DAC_ERROR_MESSAGE="$2"
+    DAC_EXIT_STATUS="$3"
+    if [ "$JSON_REQUESTED" = true ]; then
+        printf '{"ok":false,"error_code":"%s","error":"%s","can_continue":false,"writes_state":false,"repair":{"kind":"manual-runtime-repair","tool":"python","minimum_version":"3.10","environment_override":"DOCS_AS_CODE_PYTHON"}}\n' "$DAC_ERROR_CODE" "$DAC_ERROR_MESSAGE"
+    else
+        printf 'dac: %s\n' "$DAC_ERROR_MESSAGE" >&2
+        printf 'Install Python 3.10 or newer, or set DOCS_AS_CODE_PYTHON to a compatible interpreter.\n' >&2
+    fi
+    exit "$DAC_EXIT_STATUS"
+}
+
+if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
+    dac_runtime_failure \
+        "dac_python_unavailable" \
+        "Python 3.10 or newer is required before dac can run." \
+        127
+fi
+
+if ! "$PYTHON_BIN" -c 'import sys; raise SystemExit(0 if sys.version_info[:2] >= (3, 10) else 1)' >/dev/null 2>&1; then
+    dac_runtime_failure \
+        "dac_python_incompatible" \
+        "The selected Python interpreter is unavailable, broken, or older than 3.10." \
+        2
+fi
+
+export PYTHONPATH="$ROOT_DIR${PYTHONPATH:+:$PYTHONPATH}"
+export DOCS_AS_CODE_PACK_ROOT="${DOCS_AS_CODE_PACK_ROOT:-$ROOT_DIR}"
+exec "$PYTHON_BIN" -m docs_as_code.cli "$@"

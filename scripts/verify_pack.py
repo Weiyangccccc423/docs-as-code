@@ -2020,6 +2020,11 @@ ARTIFACT_SMOKE_REQUIRED_PHRASES = (
     "export_artifact",
     "unpacked_verify_pack_manifest",
     "unpacked_verify_pack",
+    "unpacked_dac_help",
+    "unpacked_dac_init_check",
+    "short_cli_wrapper",
+    "usage: dac",
+    "dac help <command>",
     "unpacked_init_fresh_target_check",
     "unpacked_init_fresh_target",
     "unpacked_consumer_bootstrap_one_command_check",
@@ -5732,6 +5737,7 @@ MAKEFILE_REQUIRED_TARGET_RECIPES = {
     ),
 }
 RUNTIME_WRAPPER_REQUIRED_COMMANDS = {
+    "bin/dac": 'exec "$PYTHON_BIN" -m docs_as_code.cli "$@"',
     "bin/governance": 'exec "$PYTHON_BIN" "$ROOT_DIR/scripts/governance_cli.py" "$@"',
     CONSUMER_BOOTSTRAP_WRAPPER_PATH: (
         'exec "$PYTHON_BIN" "$ROOT_DIR/scripts/bootstrap_consumer_project.py" --auto-repair-env "$@"'
@@ -5739,6 +5745,15 @@ RUNTIME_WRAPPER_REQUIRED_COMMANDS = {
     "bin/governance-init": 'exec "$ROOT_DIR/bin/governance" init "$@"',
     "bin/governance-verify": 'exec "$ROOT_DIR/bin/governance" verify "$@"',
 }
+DAC_WRAPPER_RUNTIME_GUARDS = (
+    "DOCS_AS_CODE_PYTHON",
+    "dac_python_unavailable",
+    "dac_python_incompatible",
+    "sys.version_info[:2] >= (3, 10)",
+    'export PYTHONPATH="$ROOT_DIR${PYTHONPATH:+:$PYTHONPATH}"',
+    'export DOCS_AS_CODE_PACK_ROOT="${DOCS_AS_CODE_PACK_ROOT:-$ROOT_DIR}"',
+    '"writes_state":false',
+)
 BOOTSTRAP_TREE_PATH = Path("scripts/bootstrap_tree.py")
 GENERATED_ROOT_AGENTS_REQUIRED_PHRASES = (
     "## Workflow Startup",
@@ -6005,6 +6020,7 @@ SOURCE_PACK_REQUIRED_PATHS = tuple(
             STACK_ACCEPTANCE_TEST_PATH,
             CONSUMER_BOOTSTRAP_PATH,
             CONSUMER_BOOTSTRAP_WRAPPER_PATH,
+            "bin/dac",
             *(path.as_posix() for path in RUNTIME_REQUIRED_PATHS),
             *WORKFLOW_PACK_REQUIRED_PATHS,
         )
@@ -8060,7 +8076,8 @@ def _ast_bool_literal(node: ast.AST) -> bool | None:
 
 
 def _check_runtime_executable_bits(root: Path, findings: list[PackFinding]) -> None:
-    for rel_path in (*RUNTIME_EXECUTABLE_PATHS, Path(CONSUMER_BOOTSTRAP_WRAPPER_PATH)):
+    executable_paths = (*RUNTIME_EXECUTABLE_PATHS, Path(CONSUMER_BOOTSTRAP_WRAPPER_PATH), Path("bin/dac"))
+    for rel_path in executable_paths:
         rel = rel_path.as_posix()
         path = root / rel_path
         if not path.exists() or not path.is_file():
@@ -8121,6 +8138,17 @@ def _check_runtime_wrapper_commands(root: Path, findings: list[PackFinding]) -> 
                     PackFinding(
                         "pack_consumer_bootstrap_runtime_guard_missing",
                         f"consumer bootstrap wrapper must preserve runtime guard: {phrase}",
+                        rel,
+                    )
+                )
+        if rel == "bin/dac":
+            for phrase in DAC_WRAPPER_RUNTIME_GUARDS:
+                if phrase in text:
+                    continue
+                findings.append(
+                    PackFinding(
+                        "pack_dac_runtime_guard_missing",
+                        f"dac wrapper must preserve runtime guard: {phrase}",
                         rel,
                     )
                 )

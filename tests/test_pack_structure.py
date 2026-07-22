@@ -1,4 +1,5 @@
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -31,8 +32,15 @@ class PackStructureTest(unittest.TestCase):
     def test_one_command_consumer_bootstrap_wrapper_is_required(self) -> None:
         self.assertIn("bin/governance-bootstrap", SOURCE_PACK_REQUIRED_PATHS)
 
+    def test_short_dac_wrapper_is_required(self) -> None:
+        self.assertIn("bin/dac", SOURCE_PACK_REQUIRED_PATHS)
+        wrapper = ROOT / "bin/dac"
+        self.assertTrue(wrapper.is_file())
+        self.assertTrue(wrapper.stat().st_mode & 0o111)
+
     def test_runtime_wrappers_use_posix_sh_contract(self) -> None:
         for rel in (
+            "bin/dac",
             "bin/governance",
             "bin/governance-init",
             "bin/governance-verify",
@@ -45,6 +53,41 @@ class PackStructureTest(unittest.TestCase):
                 self.assertNotIn("BASH_SOURCE", text)
                 self.assertNotIn("[[", text)
                 self.assertNotIn("pipefail", text)
+
+    def test_short_dac_wrapper_prints_installation_free_help(self) -> None:
+        result = subprocess.run(
+            [str(ROOT / "bin/dac"), "--help"],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertEqual("", result.stderr)
+        self.assertIn("usage: dac", result.stdout)
+        self.assertIn("dac help <command>", result.stdout)
+        self.assertIn("dac init --check", result.stdout)
+
+    def test_short_dac_wrapper_reports_missing_python_without_writes(self) -> None:
+        environment = os.environ.copy()
+        environment["DOCS_AS_CODE_PYTHON"] = "docs-as-code-python-does-not-exist"
+        result = subprocess.run(
+            [str(ROOT / "bin/dac"), "--json"],
+            cwd=ROOT,
+            env=environment,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        self.assertEqual(127, result.returncode)
+        self.assertEqual("", result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertFalse(payload["ok"])
+        self.assertEqual("dac_python_unavailable", payload["error_code"])
+        self.assertFalse(payload["writes_state"])
+        self.assertEqual("DOCS_AS_CODE_PYTHON", payload["repair"]["environment_override"])
 
     def test_verify_pack_requires_consumer_bootstrap_python_preflight(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

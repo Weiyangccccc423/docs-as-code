@@ -231,6 +231,72 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
         _require(verify_payload.get("ok") is True, "unpacked artifact verify_pack failed", payload=verify_payload)
         _require(verify_payload.get("findings") == [], "unpacked artifact verify_pack returned findings", payload=verify_payload)
 
+        short_cli_wrapper = unpacked_root / "bin/dac"
+        short_cli_help_execution = run_source_command(
+            [str(short_cli_wrapper), "--help"],
+            cwd=workspace,
+            env=_agent_env(),
+            timeout_seconds=ARTIFACT_SMOKE_STEP_TIMEOUT_SECONDS,
+        )
+        short_cli_help_step = {
+            "id": "unpacked_dac_help",
+            **short_cli_help_execution,
+            "expected_returncode": 0,
+        }
+        steps.append(short_cli_help_step)
+        _require(
+            short_cli_help_execution.get("started") is True,
+            "unpacked dac help did not start",
+            payload=short_cli_help_step,
+        )
+        _require(
+            short_cli_help_execution.get("timed_out") is False,
+            "unpacked dac help timed out",
+            payload=short_cli_help_step,
+        )
+        _require(
+            short_cli_help_execution.get("output_safe") is True,
+            "unpacked dac help output was incomplete or redacted",
+            payload=short_cli_help_step,
+        )
+        _require(
+            short_cli_help_execution.get("returncode") == 0,
+            "unpacked dac help failed",
+            payload=short_cli_help_step,
+        )
+        short_cli_help = short_cli_help_execution.get("stdout")
+        _require(
+            isinstance(short_cli_help, str)
+            and "usage: dac" in short_cli_help
+            and "dac help <command>" in short_cli_help,
+            "unpacked dac help did not expose the short CLI contract",
+            payload=short_cli_help_step,
+        )
+
+        short_cli_target = workspace / "artifact-dac-cli-target"
+        _write_fresh_target_product(short_cli_target)
+        short_cli_init_check_payload = _run_json(
+            steps,
+            "unpacked_dac_init_check",
+            [short_cli_wrapper, "init", "--check", "--json"],
+            short_cli_target,
+        )
+        _require(
+            short_cli_init_check_payload.get("ok") is True
+            and short_cli_init_check_payload.get("check") is True
+            and not (short_cli_target / "README.md").exists(),
+            "unpacked dac init check did not remain read-only",
+            payload=short_cli_init_check_payload,
+        )
+        short_cli = {
+            "ok": True,
+            "help_ok": True,
+            "help_includes_usage": True,
+            "help_includes_command_help": True,
+            "init_check_ok": True,
+            "init_check_left_target_uninitialized": not (short_cli_target / "README.md").exists(),
+        }
+
         one_command_target = workspace / "artifact-one-command-target"
         _write_fresh_target_product(one_command_target)
         one_command_wrapper = unpacked_root / "bin/governance-bootstrap"
@@ -678,6 +744,7 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
             "archive_member_count": len(archive_members),
             "archive_sha256": archive_sha256,
             "manifest_sha256": manifest_sha256,
+            "unpacked_dac": short_cli,
             "target_local_make_coverage": target_local_make_coverage,
             "product_dispositions": product_dispositions,
             "design_reviews": design_reviews,

@@ -247,6 +247,11 @@ class ArtifactSmokeTest(unittest.TestCase):
         self.assertTrue(payload["fresh_target_init"]["runtime_manifest"])
         self.assertTrue(payload["fresh_target_init"]["workflow_pack_snapshot"])
         self.assertTrue(payload["fresh_target_init"]["product_source_manifest"])
+        self.assertTrue(payload["unpacked_dac"]["ok"])
+        self.assertTrue(payload["unpacked_dac"]["help_includes_usage"])
+        self.assertTrue(payload["unpacked_dac"]["help_includes_command_help"])
+        self.assertTrue(payload["unpacked_dac"]["init_check_ok"])
+        self.assertTrue(payload["unpacked_dac"]["init_check_left_target_uninitialized"])
         one_command = payload["consumer_bootstrap_one_command"]
         self.assertTrue(one_command["ok"])
         self.assertTrue(one_command["check_ok"])

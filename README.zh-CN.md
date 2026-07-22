@@ -16,9 +16,26 @@ python -m pip install git+https://github.com/Weiyangccccc423/docs-as-code.git
 
 安装后使用短命令 `dac`。`docs-as-code` 仍然作为兼容别名保留。
 
+如果不想安装 Python 包，也可以直接使用导出工作流包中的同一个短命令：
+
+```text
+my-project/
+├── product.md
+└── docs-as-code-workflow-pack/
+```
+
+```bash
+cd my-project
+./docs-as-code-workflow-pack/bin/dac --help
+./docs-as-code-workflow-pack/bin/dac init --check
+./docs-as-code-workflow-pack/bin/dac init
+```
+
+离线入口会检查 Python 3.10 及以上版本，把工作流包加入 `PYTHONPATH`，并把当前目录作为项目目标。`DOCS_AS_CODE_PYTHON` 可以指定其他兼容的 Python 解释器。
+
 ## 从一份产品文档开始
 
-新项目根目录只需要放一份产品文档，不需要复制或解压工作流包：
+使用已安装 CLI 时，新项目根目录只需要放一份产品文档；工作流包由安装包提供，不需要复制或解压到项目中：
 
 ```text
 my-project/
@@ -84,7 +101,7 @@ dac verify --check --json
 ```text
 .
 ├── docs_as_code/ # 可安装的 dac CLI
-├── bin/          # 源工作流包命令包装器
+├── bin/          # 源工作流包命令包装器，包含短命令 dac
 ├── scripts/      # 确定性检查和初始化脚本
 ├── skills/       # Agent 使用的 skills
 ├── references/   # 方法和实践参考

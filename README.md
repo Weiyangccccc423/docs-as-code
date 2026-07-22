@@ -16,9 +16,26 @@ python -m pip install git+https://github.com/Weiyangccccc423/docs-as-code.git
 
 The command is intentionally short: `dac`. The long `docs-as-code` command remains available as an alias.
 
+If you do not want to install the Python package, use the same short CLI from an exported workflow pack:
+
+```text
+my-project/
+├── product.md
+└── docs-as-code-workflow-pack/
+```
+
+```bash
+cd my-project
+./docs-as-code-workflow-pack/bin/dac --help
+./docs-as-code-workflow-pack/bin/dac init --check
+./docs-as-code-workflow-pack/bin/dac init
+```
+
+The offline wrapper checks for Python 3.10+, keeps the pack on `PYTHONPATH`, and uses the current directory as the project target. `DOCS_AS_CODE_PYTHON` can select another compatible interpreter.
+
 ## Quick Start
 
-Put exactly one product document in the new project root. Do not put the workflow pack inside the project.
+For the installed CLI path, put exactly one product document in the new project root; the workflow pack is provided by the installation and does not need to be copied into the project.
 
 ```text
 my-project/
@@ -84,7 +101,7 @@ The generated project contains its own `bin/governance` runtime, `docs/` governa
 ```text
 .
 ├── docs_as_code/ # installable dac CLI
-├── bin/          # source-pack command wrappers
+├── bin/          # source-pack command wrappers, including the short dac entry point
 ├── scripts/      # deterministic checks and bootstrap utilities
 ├── skills/       # agent skills used by the workflow
 ├── references/   # supporting methods and practice references
