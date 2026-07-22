@@ -18,6 +18,7 @@ One-sentence project summary.
 - `make workflow-plan` - print current workflow route plus active queue and skill summaries as JSON.
 - `make work-package` - print one evidence-selected agent work package with skill readiness as JSON.
 - `make workflow-resume` - select one evidence-derived next action with a stale-snapshot guard as JSON.
+- `dac next --apply --json` (when the installable CLI is available) - execute one validated selected action and refresh its workflow evidence.
 - `make product-plan` - print product structuring plan as JSON.
 - `make design-plan` - print design derivation plan as JSON.
 - `make implementation-plan` - print Ready implementation task execution plan as JSON.

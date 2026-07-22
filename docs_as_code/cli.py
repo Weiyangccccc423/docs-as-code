@@ -61,6 +61,7 @@ def build_parser() -> tuple[argparse.ArgumentParser, dict[str, argparse.Argument
             "  dac init /path/to/product.pdf\n"
             "  dac status\n"
             "  dac next\n"
+            "  dac next --apply\n"
             "  dac -C /path/to/project verify --check\n\n"
             "help:\n"
             "  dac help\n"
@@ -146,9 +147,17 @@ def build_parser() -> tuple[argparse.ArgumentParser, dict[str, argparse.Argument
     next_command = subparsers.add_parser(
         "next",
         help="Describe the next evidence-backed workflow action.",
-        description="Select and summarize one snapshot-bound next action without executing it.",
-        epilog="examples:\n  dac next\n  dac next --json",
+        description=(
+            "Select and summarize one snapshot-bound next action without executing it. "
+            "Use --apply only when the action contract exposes safe executable steps."
+        ),
+        epilog="examples:\n  dac next\n  dac next --apply\n  dac next --apply --json",
         formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    next_command.add_argument(
+        "--apply",
+        action="store_true",
+        help="Execute one validated snapshot-bound action, then refresh workflow evidence.",
     )
     next_command.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     commands["next"] = next_command
@@ -522,6 +531,34 @@ def _render_next(payload: dict[str, Any]) -> None:
     print("Agent details: dac next --json")
 
 
+def _render_next_apply(payload: dict[str, Any]) -> None:
+    status = payload.get("status")
+    action = _dict(payload.get("selected_action"))
+    action_id = action.get("id") or action.get("kind") or "none"
+    if status == "completed":
+        print("Workflow action applied.")
+    elif status == "complete":
+        print("No workflow action applied; workflow is complete.")
+    else:
+        print("Workflow action was not applied.")
+    print(f"Action: {action_id}")
+    steps = _items(payload.get("step_results"))
+    if steps:
+        passed = sum(_dict(step).get("passed") is True for step in steps)
+        print(f"Steps: {passed}/{len(steps)} passed")
+    refresh = _dict(payload.get("refresh"))
+    if refresh.get("passed") is True:
+        print("Workflow: refreshed")
+    snapshot = payload.get("snapshot_id")
+    if isinstance(snapshot, str) and snapshot:
+        print(f"Snapshot: {snapshot[:12]}...")
+    recovery = payload.get("recovery")
+    if not recovery and status == "completed":
+        recovery = "Run dac next to inspect the refreshed workflow state."
+    if isinstance(recovery, str) and recovery:
+        print(f"Next: {recovery}")
+
+
 def _render_verify(payload: dict[str, Any], *, check: bool) -> None:
     print("Governance verification passed.")
     print(f"Mode: {'read-only' if check else 'state updated'}")
@@ -647,6 +684,8 @@ def _run_target_command(args: argparse.Namespace, target: Path) -> int:
     runtime = _target_runtime(target)
     if runtime is None:
         return 2
+    if args.command == "next" and getattr(args, "apply", False):
+        return _run_next_apply(args, target)
     commands = {
         "status": ["status", "."],
         "next": ["workflow", "resume", "."],
@@ -673,6 +712,23 @@ def _run_target_command(args: argparse.Namespace, target: Path) -> int:
         _render_next(result.payload)
     else:
         _render_verify(result.payload, check=args.check)
+    return 0
+
+
+def _run_next_apply(args: argparse.Namespace, target: Path) -> int:
+    result = _run_pack_json(
+        [
+            "scripts/workflow_executor.py",
+            "--target",
+            str(target),
+        ]
+    )
+    if args.json:
+        return _emit_json_result(result)
+    if not _result_ok(result):
+        return _render_failure("Workflow action", result, help_command="dac next --apply --json")
+    assert result.payload is not None
+    _render_next_apply(result.payload)
     return 0
 
 

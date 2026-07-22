@@ -56,6 +56,7 @@ dac --help
 | `dac help COMMAND` | 查看某个命令的参数和示例，例如 `dac help init`。 |
 | `dac status` | 查看当前项目和工作流阶段。 |
 | `dac next` | 只读查看下一个有证据支持的工作流动作。 |
+| `dac next --apply` | 执行一个经过校验的动作，然后刷新工作流证据。 |
 | `dac verify --check` | 验证治理状态，不更新状态。 |
 | `dac doctor` | 检查必需工具并给出安全修复建议。 |
 | `dac upgrade --check` | 预览目标项目运行时升级。 |
@@ -70,8 +71,11 @@ dac --help
 dac init --check --json
 dac init --json
 dac next --json
+dac next --apply --json
 dac verify --check --json
 ```
+
+`dac next` 始终是只读的。`dac next --apply` 才是显式写入路径；遇到快照过期、审批、命令结构异常、步骤失败或刷新失败时会停止。
 
 初始化后，项目会包含自己的 `bin/governance` 运行时、`docs/` 治理文档、`AGENTS.md` 和工作流包快照。阶段规则见 [`workflows/00-overview.md`](workflows/00-overview.md)。
 

@@ -585,6 +585,7 @@ README_AGENT_AUTOMATION_REQUIRED_COMMANDS = (
     "dac init --check --json",
     "dac init --json",
     "dac next --json",
+    "dac next --apply --json",
     "dac verify --check --json",
 )
 README_ARTIFACT_CONSUMER_QUICK_START_REQUIRED_PHRASES = (
@@ -1137,6 +1138,8 @@ PYTHON_DISTRIBUTION_REQUIREMENTS = {
         '"upgrade"',
         '"help"',
         "dac help <command>",
+        "--apply",
+        "scripts/workflow_executor.py",
         "getting started:",
         "Put exactly one product document in the project root",
         "dac COMMAND --help",
@@ -1146,6 +1149,15 @@ PYTHON_DISTRIBUTION_REQUIREMENTS = {
         '"writes_state": False',
         "Agent details: dac next --json",
         "Files to refresh:",
+    ),
+    "scripts/workflow_executor.py": (
+        "execute_workflow_action",
+        "assert_snapshot_command",
+        "run_bounded_command",
+        "allowed_returncodes",
+        "action_command_cwd_outside_target",
+        "refresh_failed",
+        "--target",
     ),
     "docs_as_code/packaging.py": (
         "EMBEDDED_PACK_RESOURCE_PATHS",
@@ -3913,6 +3925,7 @@ WORKFLOW_RESUME_DOC_REQUIREMENTS = {
         "approval_required",
         "action_count: 0",
         "not a repository lock",
+        "dac next --apply",
     ),
     "workflows/00-overview.md": (
         "workflow resume . --json",
@@ -3924,6 +3937,7 @@ WORKFLOW_RESUME_DOC_REQUIREMENTS = {
         "refresh_command.argv",
         "action_count: 0",
         "not a repository lock",
+        "dac next --apply",
     ),
     "workflows/05-verification-and-drift-control.md": (
         "make workflow-resume",
@@ -3932,6 +3946,7 @@ WORKFLOW_RESUME_DOC_REQUIREMENTS = {
         "selected_action",
         "refresh_command.argv",
         "status: stale",
+        "dac next --apply",
     ),
     "skills/using-governance-workflow/SKILL.md": (
         "workflow resume <target> --json",
@@ -3943,6 +3958,7 @@ WORKFLOW_RESUME_DOC_REQUIREMENTS = {
         "refresh_command.argv",
         "action_count",
         "not a concurrency lock",
+        "dac next --apply",
     ),
     "references/workflow-routing-checklist.md": (
         "workflow resume --json",
@@ -3956,10 +3972,12 @@ WORKFLOW_RESUME_DOC_REQUIREMENTS = {
         "refresh_command.argv",
         "action_count: 0",
         "repository lock",
+        "dac next --apply",
     ),
     "templates/root/README.md": (
         "make workflow-resume",
         "stale-snapshot guard",
+        "dac next --apply --json",
     ),
     "templates/docs/agent-workflow/command-contract.md": (
         "workflow-resume",
@@ -5965,6 +5983,7 @@ SOURCE_PACK_REQUIRED_PATHS = tuple(
             "docs_as_code/packaging.py",
             "tests/test_distribution_cli.py",
             "scripts/run_tests.py",
+            "scripts/workflow_executor.py",
             "scripts/pack_version.py",
             SOURCE_PROCESS_PATH,
             "scripts/authority_skills.py",

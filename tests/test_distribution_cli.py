@@ -113,6 +113,16 @@ class DistributionCliTest(unittest.TestCase):
                 self.assertIn("examples:", output)
                 self.assertIn(f"dac {command}", output)
 
+    def test_next_help_documents_explicit_apply_mode(self) -> None:
+        stdout = io.StringIO()
+
+        with contextlib.redirect_stdout(stdout):
+            returncode = main(["help", "next"])
+
+        self.assertEqual(0, returncode)
+        self.assertIn("--apply", stdout.getvalue())
+        self.assertIn("without executing", stdout.getvalue())
+
     def test_init_dispatches_to_safe_consumer_bootstrap(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "project"
@@ -331,6 +341,37 @@ class DistributionCliTest(unittest.TestCase):
         self.assertIn("Enter product structuring.", output)
         self.assertIn("Skills: structuring-product-requirements, verifying-governance-docs", output)
         self.assertIn("Agent details: dac next --json", output)
+
+    def test_next_apply_dispatches_to_snapshot_bound_executor(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp)
+            runtime = target / "scripts/governance_cli.py"
+            runtime.parent.mkdir()
+            runtime.write_text("", encoding="utf-8")
+            payload = {
+                "ok": True,
+                "status": "completed",
+                "phase": "initialized",
+                "selected_action": {"id": "advance-product-structuring", "writes_state": True},
+                "snapshot_id": "a" * 64,
+                "writes_state": True,
+                "step_results": [{"passed": True}, {"passed": True}],
+                "refresh": {"passed": True},
+            }
+            stdout = io.StringIO()
+            with mock.patch(
+                "docs_as_code.cli._run_pack_json",
+                return_value=cli.CommandResult(0, payload, "", ""),
+            ) as run, contextlib.redirect_stdout(stdout):
+                returncode = main(["-C", str(target), "next", "--apply"])
+
+        self.assertEqual(0, returncode)
+        executor_argv = run.call_args.args[0]
+        self.assertEqual("scripts/workflow_executor.py", executor_argv[0])
+        self.assertIn("--target", executor_argv)
+        self.assertIn(str(target.resolve()), executor_argv)
+        self.assertIn("Workflow action applied.", stdout.getvalue())
+        self.assertIn("Next: Run dac next", stdout.getvalue())
 
     def test_human_upgrade_output_summarizes_paths(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

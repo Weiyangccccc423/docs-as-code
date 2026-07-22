@@ -56,6 +56,7 @@ dac --help
 | `dac help COMMAND` | Show options and examples for one command, such as `dac help init`. |
 | `dac status` | Show the current project and workflow phase. |
 | `dac next` | Inspect the next evidence-backed action without executing it. |
+| `dac next --apply` | Execute one validated action, then refresh workflow evidence. |
 | `dac verify --check` | Verify governance state without updating it. |
 | `dac doctor` | Check required tools and show safe repair guidance. |
 | `dac upgrade --check` | Preview a target runtime upgrade. |
@@ -70,8 +71,11 @@ For agents and scripts, use the read-only JSON contract before writes:
 dac init --check --json
 dac init --json
 dac next --json
+dac next --apply --json
 dac verify --check --json
 ```
+
+`dac next` is read-only. `dac next --apply` is the explicit state-changing path; it stops on stale snapshots, approvals, malformed commands, failed steps, or refresh failures.
 
 The generated project contains its own `bin/governance` runtime, `docs/` governance documents, `AGENTS.md`, and a local workflow-pack snapshot. Read [`workflows/00-overview.md`](workflows/00-overview.md) for phase rules.
 

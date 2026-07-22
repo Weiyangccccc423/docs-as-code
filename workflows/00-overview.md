@@ -20,12 +20,13 @@ After initialization, the normal command surface is:
 ```bash
 dac status
 dac next
+dac next --apply
 dac verify
 dac doctor
 dac upgrade --check
 ```
 
-Run `dac --help` for the command index and `dac help <command>` for command-specific options. Human mode prints bounded summaries; `--json` preserves the complete evidence, blocker, snapshot, and continuation contract for agents. The installed wheel carries a manifest-checked workflow-pack snapshot; the longer source-pack commands documented below remain the offline artifact and maintainer interface.
+Run `dac --help` for the command index and `dac help <command>` for command-specific options. `dac next` is read-only; `dac next --apply` executes one validated snapshot-bound action and refreshes the workflow. Human mode prints bounded summaries; `--json` preserves the complete evidence, blocker, snapshot, and continuation contract for agents. The installed wheel carries a manifest-checked workflow-pack snapshot; the longer source-pack commands documented below remain the offline artifact and maintainer interface.
 
 ## Operating Model
 
