@@ -33,6 +33,10 @@ dac init --json
 
 The project root must contain exactly one supported product document unless `dac init <product-document>` selects one explicitly. Use `dac -C <project> ...` to select another working directory. Normal CLI operation must remain local after installation; initialization, verification, status, continuation routing, and runtime refresh must not require network access.
 
+Human mode invokes the same JSON contracts internally and renders bounded summaries instead of unbounded path or evidence lists. `--json` remains the lossless automation interface. Before any `dac init` write, the CLI runs a read-only bootstrap preflight and requires product selection `explicit` or `auto-discovered`; `none` and `ambiguous` stop with `writes_state: false`. The selected absolute product path is pinned into the apply command, and JSON apply output records the read-only selection under `cli_preflight`.
+
+For source-checkout development, `python -m docs_as_code.cli` and editable installs prepare a temporary embedded pack with a fresh SHA-256 manifest, execute from that immutable temporary copy, and remove it afterward. They do not write a manifest into the checkout. This fallback is allowed only when the resolved pack root is the CLI's own source root; an installed pack whose manifest is missing remains a hard integrity failure.
+
 Generated target repositories receive their own copy of this core runtime under:
 
 ```text

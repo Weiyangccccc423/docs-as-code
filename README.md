@@ -38,6 +38,8 @@ dac init
 dac init /path/to/product.pdf
 ```
 
+Zero or multiple discovered product documents stop before any project files are written.
+
 ## Daily Commands
 
 ```bash
@@ -48,6 +50,8 @@ dac doctor
 dac --help
 dac help init
 ```
+
+Commands print concise human summaries by default. Add `--json` for the complete evidence and continuation contract used by agents and scripts.
 
 For agents and scripts, use the read-only JSON contract before writes:
 

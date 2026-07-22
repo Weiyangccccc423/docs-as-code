@@ -23,7 +23,7 @@ Load:
    dac init --json
    ```
 
-   `dac init` enables safe automatic environment repair, selects the current directory as the target, derives the project name from that directory, and uses `target-root-auto-discovery` to select exactly one root product document. Use `dac init <product-document>` for a reviewed explicit source, or `dac -C <target> init ...` when operating outside the target. Check mode stays no-write; write mode applies only no-approval, non-manual environment repairs. Run `dac help init` before adding options instead of reconstructing the underlying bootstrap command.
+   `dac init` enables safe automatic environment repair, selects the current directory as the target, derives the project name from that directory, and uses `target-root-auto-discovery` to select exactly one root product document. Use `dac init <product-document>` for a reviewed explicit source, or `dac -C <target> init ...` when operating outside the target. The CLI always performs a read-only product preflight before write mode; zero or multiple candidates return `writes_state: false`. A successful selection is pinned by absolute path into apply, and JSON output preserves it under `cli_preflight`. Check mode stays no-write; write mode applies only no-approval, non-manual environment repairs. Run `dac help init` before adding options instead of reconstructing the underlying bootstrap command.
 
    When pip installation is unavailable and the target contains an unpacked `docs-as-code-workflow-pack/`, use the equivalent offline artifact entry:
 

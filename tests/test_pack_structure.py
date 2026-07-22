@@ -1057,6 +1057,35 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_missing_source_pack_preparation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            cli = target / "docs_as_code/cli.py"
+            cli.write_text(
+                cli.read_text(encoding="utf-8").replace(
+                    "_prepared_pack_root",
+                    "_unsafe_pack_root",
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_distribution_cli_incomplete"
+                    and finding.path == "docs_as_code/cli.py"
+                    and "_prepared_pack_root" in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_missing_pack_manifest_verify_script(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"

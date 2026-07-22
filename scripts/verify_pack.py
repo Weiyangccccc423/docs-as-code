@@ -1124,6 +1124,11 @@ PYTHON_DISTRIBUTION_REQUIREMENTS = {
     ),
     "docs_as_code/cli.py": (
         'prog="dac"',
+        "CommandResult",
+        "_prepared_pack_root",
+        "_run_python_json",
+        "_require_cli_product",
+        'payload["cli_preflight"]',
         '"init"',
         '"doctor"',
         '"status"',
@@ -1135,6 +1140,9 @@ PYTHON_DISTRIBUTION_REQUIREMENTS = {
         "PRODUCT_SUFFIXES",
         "_run_pack_command",
         "_target_runtime",
+        '"writes_state": False',
+        "Agent details: dac next --json",
+        "Files to refresh:",
     ),
     "docs_as_code/packaging.py": (
         "EMBEDDED_PACK_RESOURCE_PATHS",

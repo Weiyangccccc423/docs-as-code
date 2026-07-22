@@ -7,6 +7,7 @@ Calibrate against Git repository initialization, repository entry-point document
 ## Target Safety
 
 - For the standard installed-CLI path, was exactly one supported product document placed in the target root, and did `dac init --check --json` pass before `dac init --json`?
+- Do zero or multiple product candidates stop at the CLI preflight with `writes_state: false` and no generated target files?
 - If product auto-discovery was ambiguous, was a reviewed source selected explicitly with `dac init <product-document>` instead of guessing?
 - When operating outside the target, was the reviewed target selected with `dac -C <target> ...`?
 - If pip installation was unavailable, did the offline artifact entry `./docs-as-code-workflow-pack/bin/governance-bootstrap --check --json` pass before `./docs-as-code-workflow-pack/bin/governance-bootstrap --json`?

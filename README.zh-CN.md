@@ -38,6 +38,8 @@ dac init
 dac init /path/to/product.pdf
 ```
 
+没有产品文档或发现多份产品文档时，命令会在写入任何项目文件之前停止。
+
 ## 常用命令
 
 ```bash
@@ -48,6 +50,8 @@ dac doctor
 dac --help
 dac help init
 ```
+
+默认输出简短的人类可读摘要；Agent 和脚本使用 `--json` 获取完整证据与后续动作契约。
 
 给 Agent 或脚本使用时，先用只读 JSON 模式检查，再执行写操作：
 

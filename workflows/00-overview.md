@@ -13,7 +13,7 @@ dac init --check --json
 dac init --json
 ```
 
-Put exactly one supported product document in the project root before running `dac init`. Supported inputs are Markdown, TXT, DOCX, PDF, and HTML. If discovery is ambiguous, pass the reviewed source explicitly as `dac init <product-document>`. Use `dac -C <project> ...` to operate from another directory.
+Put exactly one supported product document in the project root before running `dac init`. Supported inputs are Markdown, TXT, DOCX, PDF, and HTML. If discovery is ambiguous, pass the reviewed source explicitly as `dac init <product-document>`. Zero or multiple candidates stop before target writes. Use `dac -C <project> ...` to operate from another directory.
 
 After initialization, the normal command surface is:
 
@@ -25,7 +25,7 @@ dac doctor
 dac upgrade --check
 ```
 
-Run `dac --help` for the command index and `dac help <command>` for command-specific options. The installed wheel carries a manifest-checked workflow-pack snapshot; the longer source-pack commands documented below remain the offline artifact and maintainer interface.
+Run `dac --help` for the command index and `dac help <command>` for command-specific options. Human mode prints bounded summaries; `--json` preserves the complete evidence, blocker, snapshot, and continuation contract for agents. The installed wheel carries a manifest-checked workflow-pack snapshot; the longer source-pack commands documented below remain the offline artifact and maintainer interface.
 
 ## Operating Model
 
