@@ -11,6 +11,7 @@ from scripts.release_readiness import (
     _artifact_smoke_work_package_ok,
     _dry_run_implementation_task_package_ok,
     _dry_run_implementation_runner_ok,
+    _installable_cli_smoke_ok,
     _run_local_unit_test_gate,
 )
 from scripts.pack_version import read_pack_version
@@ -151,6 +152,31 @@ class ReleaseReadinessTest(unittest.TestCase):
         self.assertTrue(_dry_run_implementation_runner_ok(payload))
         payload["implementation_run"]["snapshot_guarded_closeout"] = False
         self.assertFalse(_dry_run_implementation_runner_ok(payload))
+
+    def test_installable_cli_smoke_requires_complete_consumer_evidence(self) -> None:
+        evidence = {
+            "version": PACK_VERSION,
+            "help": True,
+            "alias": True,
+            "init_check": True,
+            "init_check_read_only": True,
+            "init": True,
+            "status": True,
+            "next": True,
+            "verify": True,
+            "target_help": True,
+            "target_status": True,
+        }
+        payload = {
+            "ok": True,
+            "offline": True,
+            "write_scope": "temporary-workspace",
+            "evidence": evidence,
+        }
+
+        self.assertTrue(_installable_cli_smoke_ok(payload))
+        payload["evidence"] = {**evidence, "target_status": False}
+        self.assertFalse(_installable_cli_smoke_ok(payload))
 
     def test_design_review_checks_require_exact_authority_and_decision_report_counts(self) -> None:
         reviews = {
@@ -337,6 +363,7 @@ class ReleaseReadinessTest(unittest.TestCase):
             "cached-diff-whitespace",
             "release-changelog",
             "pack-verification",
+            "installable-cli-smoke",
             "environment-inventory",
             "authority-skill-inventory",
             "fresh-target-dry-run",
@@ -351,6 +378,8 @@ class ReleaseReadinessTest(unittest.TestCase):
             "continue_workflow",
             criteria["environment-inventory"]["details"]["repair_decision"]["decision"],
         )
+        self.assertEqual(PACK_VERSION, criteria["installable-cli-smoke"]["details"]["version"])
+        self.assertTrue(criteria["installable-cli-smoke"]["details"]["init_check_read_only"])
         self.assertFalse(
             criteria["environment-inventory"]["details"]["repair_decision"]["stop_before_workflow"],
         )
@@ -778,6 +807,7 @@ class ReleaseReadinessTest(unittest.TestCase):
         )
         step_ids = {step["id"] for step in payload["steps"]}
         self.assertIn("pack_verification", step_ids)
+        self.assertIn("installable_cli_smoke", step_ids)
         self.assertIn("environment_inventory", step_ids)
         self.assertIn("authority_skill_inventory", step_ids)
         self.assertIn("fresh_target_dry_run", step_ids)

@@ -11,7 +11,7 @@ Create the minimum structure needed for reliable docs-as-code work.
 
 1. Read `references/repository-initialization-checklist.md`. For the standard installed-CLI path, put exactly one supported product document in the target root, run `dac init --check --json`, inspect `input_resolution`, and then run `dac init --json`. The defaults are current-directory target selection, target-directory-name project naming, target-root-auto-discovery for exactly one product, and profile `unknown`. Use `dac init <product-document>` only for a reviewed explicit source, `dac -C <target> init ...` only for a reviewed target, and `dac help init` when command options are needed. Require zero or multiple candidates to stop with `writes_state: false` before generated target files exist.
 
-   If pip installation is unavailable and the target contains an unpacked `docs-as-code-workflow-pack/`, use the short offline CLI for the ordinary product-only path:
+   If package installation is unavailable and the target contains an unpacked `docs-as-code-workflow-pack/`, use the short offline CLI for the ordinary product-only path:
 
    ```bash
    ./docs-as-code-workflow-pack/bin/dac --help

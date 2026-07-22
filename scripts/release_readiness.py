@@ -53,6 +53,19 @@ DESIGN_AUTHORING_QUEUE_IDS = [
     "implementation-planning-authoring",
     "architecture-decisions-authoring",
 ]
+INSTALLABLE_CLI_EVIDENCE_FIELDS = (
+    "version",
+    "help",
+    "alias",
+    "init_check",
+    "init_check_read_only",
+    "init",
+    "status",
+    "next",
+    "verify",
+    "target_help",
+    "target_status",
+)
 
 
 def _agent_env() -> dict[str, str]:
@@ -233,6 +246,25 @@ def _dry_run_implementation_runner_ok(payload: dict[str, object] | None) -> bool
         and runner.get("snapshot_guarded_closeout") is True
         and runner.get("closeout_applied") is True
         and runner.get("complete") is True
+    )
+
+
+def _installable_cli_smoke_ok(payload: dict[str, object] | None) -> bool:
+    if payload is None:
+        return False
+    evidence = payload.get("evidence")
+    if not isinstance(evidence, dict):
+        return False
+    return (
+        payload.get("ok") is True
+        and payload.get("offline") is True
+        and payload.get("write_scope") == "temporary-workspace"
+        and all(
+            isinstance(evidence.get(field), str) and bool(evidence[field])
+            if field == "version"
+            else evidence.get(field) is True
+            for field in INSTALLABLE_CLI_EVIDENCE_FIELDS
+        )
     )
 
 
@@ -987,6 +1019,39 @@ def run_release_readiness(*, skip_tests: bool = False) -> dict[str, object]:
         bool(steps[-1]["ok"]) and bool(pack_payload and pack_payload.get("ok") is True),
         evidence="python3 scripts/verify_pack.py --json",
         details={"findings": pack_payload.get("findings", []) if pack_payload else []},
+    )
+
+    installable_cli_payload = _run_step(
+        steps,
+        "installable_cli_smoke",
+        [sys.executable, "scripts/smoke_installable_cli.py", "--json"],
+        parse_json=True,
+    )
+    installable_cli_evidence = (
+        installable_cli_payload.get("evidence", {}) if installable_cli_payload else {}
+    )
+    _criterion(
+        criteria,
+        "installable-cli-smoke",
+        bool(steps[-1]["ok"]) and _installable_cli_smoke_ok(installable_cli_payload),
+        evidence="python3 scripts/smoke_installable_cli.py --json",
+        details={
+            "version": installable_cli_evidence.get("version", "")
+            if isinstance(installable_cli_evidence, dict)
+            else "",
+            "offline": installable_cli_payload.get("offline") if installable_cli_payload else False,
+            "builder": installable_cli_payload.get("builder", {}) if installable_cli_payload else {},
+            "wheel": installable_cli_payload.get("wheel", {}) if installable_cli_payload else {},
+            "init_check_read_only": installable_cli_evidence.get("init_check_read_only") is True
+            if isinstance(installable_cli_evidence, dict)
+            else False,
+            "generated_markers_after_check": installable_cli_payload.get(
+                "generated_markers_after_check",
+                {},
+            )
+            if installable_cli_payload
+            else {},
+        },
     )
 
     env_payload = _run_step(

@@ -38,6 +38,10 @@ class PackStructureTest(unittest.TestCase):
         self.assertTrue(wrapper.is_file())
         self.assertTrue(wrapper.stat().st_mode & 0o111)
 
+    def test_installable_cli_smoke_contract_is_required(self) -> None:
+        self.assertIn("scripts/smoke_installable_cli.py", SOURCE_PACK_REQUIRED_PATHS)
+        self.assertIn("tests/test_installable_cli_smoke.py", SOURCE_PACK_REQUIRED_PATHS)
+
     def test_runtime_wrappers_use_posix_sh_contract(self) -> None:
         for rel in (
             "bin/dac",

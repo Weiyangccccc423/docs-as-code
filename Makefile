@@ -1,4 +1,4 @@
-.PHONY: test test-serial dry-run dry-run-golden stack-acceptance package artifact-smoke release-check authority-skills verify-pack check-env ci
+.PHONY: test test-serial dry-run dry-run-golden stack-acceptance package install-smoke-check install-smoke artifact-smoke release-check authority-skills verify-pack check-env ci
 
 test:
 	python3 scripts/run_tests.py
@@ -17,6 +17,12 @@ stack-acceptance:
 
 package:
 	python3 scripts/export_workflow_pack.py --output dist/docs-as-code-workflow-pack --archive dist/docs-as-code-workflow-pack.tar.gz --force --json
+
+install-smoke-check:
+	python3 scripts/smoke_installable_cli.py --check --json
+
+install-smoke:
+	python3 scripts/smoke_installable_cli.py --json
 
 artifact-smoke:
 	python3 scripts/smoke_workflow_pack_artifact.py --json

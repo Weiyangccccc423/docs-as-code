@@ -24,12 +24,23 @@ Core runtime includes:
 The standard consumer interface is the installed `dac` command. Its wheel embeds a manifest-checked copy of the complete workflow pack and dispatches to the same standard-library Python implementation used by source checkouts:
 
 ```bash
-python -m pip install git+https://github.com/Weiyangccccc423/docs-as-code.git
+uv tool install git+https://github.com/Weiyangccccc423/docs-as-code.git
 dac --help
 dac help init
 dac init --check --json
 dac init --json
 ```
+
+`uv tool install` is the preferred consumer path because it creates an isolated tool environment. If `uv` is unavailable, use `python3 -m pip install git+https://github.com/Weiyangccccc423/docs-as-code.git` with Python 3.10+ or use the exported offline pack. Neither `uv` nor pip becomes a generated-target runtime dependency.
+
+Source-pack maintainers verify packaging separately from normal target operation:
+
+```bash
+python3 scripts/smoke_installable_cli.py --check --json
+python3 scripts/smoke_installable_cli.py --json
+```
+
+Check mode only probes `uv` and returns the temporary-write plan. Full mode defaults to offline `uv` operation, builds exactly one wheel, installs it into a disposable Python 3.10+ environment, verifies `dac`, its compatibility alias and help, proves `dac init --check` leaves the fresh target unchanged, initializes the target, and verifies installed plus generated-target continuation commands. Missing `uv` returns `install_smoke_uv_unavailable` with a no-write manual repair route.
 
 The project root must contain exactly one supported product document unless `dac init <product-document>` selects one explicitly. Use `dac -C <project> ...` to select another working directory. Normal CLI operation must remain local after installation; initialization, verification, status, continuation routing, and runtime refresh must not require network access.
 

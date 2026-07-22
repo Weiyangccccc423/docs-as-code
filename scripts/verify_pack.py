@@ -2298,6 +2298,60 @@ ARTIFACT_SMOKE_DOC_REQUIREMENTS = {
         "design_reviews.ok: true",
     ),
 }
+INSTALLABLE_CLI_SMOKE_PATH = "scripts/smoke_installable_cli.py"
+INSTALLABLE_CLI_SMOKE_TEST_PATH = "tests/test_installable_cli_smoke.py"
+INSTALLABLE_CLI_SMOKE_REQUIRED_PHRASES = (
+    "run_installable_cli_smoke",
+    "run_source_command",
+    "INSTALL_SMOKE_STEP_TIMEOUT_SECONDS",
+    "build-wheel",
+    "create-isolated-environment",
+    "install-wheel",
+    "verify-entry-points",
+    "initialize-fresh-project",
+    "verify-generated-target",
+    "--offline",
+    "--allow-network",
+    "--uv-cache-dir",
+    "install_smoke_uv_unavailable",
+    "uv tool install",
+    "init_check_read_only",
+    "target_status",
+)
+INSTALLABLE_CLI_SMOKE_TEST_REQUIRED_PHRASES = (
+    "run_installable_cli_smoke",
+    "test_check_mode_reports_read_only_plan",
+    "test_missing_uv_returns_structured_no_write_repair_route",
+    "test_run_step_rejects_unsafe_or_invalid_json_output",
+    "test_success_contract_requires_installed_and_generated_cli_evidence",
+    "test_cli_json_failure_is_machine_readable",
+)
+INSTALLABLE_CLI_SMOKE_DOC_REQUIREMENTS = {
+    "README.md": (
+        "uv tool install",
+        "python3 -m pip install",
+        "make install-smoke-check",
+        "make install-smoke",
+    ),
+    "README.zh-CN.md": (
+        "uv tool install",
+        "python3 -m pip install",
+    ),
+    "workflows/00-overview.md": (
+        "uv tool install",
+        "make install-smoke",
+    ),
+    "references/runtime-strategy.md": (
+        "uv tool install",
+        "scripts/smoke_installable_cli.py --check --json",
+        "scripts/smoke_installable_cli.py --json",
+    ),
+    "references/release-readiness-checklist.md": (
+        "make install-smoke-check",
+        "make install-smoke",
+        "installable-cli-smoke",
+    ),
+}
 RELEASE_READINESS_PATH = "scripts/release_readiness.py"
 RELEASE_READINESS_REQUIRED_PHRASES = (
     "run_release_readiness",
@@ -2313,6 +2367,10 @@ RELEASE_READINESS_REQUIRED_PHRASES = (
     "unit_tests",
     "python3 scripts/run_tests.py",
     "pack_verification",
+    "installable_cli_smoke",
+    '"installable-cli-smoke"',
+    "_installable_cli_smoke_ok",
+    "scripts/smoke_installable_cli.py",
     "environment_inventory",
     "authority_skill_inventory",
     "_authority_skill_inventory_ok",
@@ -5700,6 +5758,8 @@ MAKEFILE_REQUIRED_TARGETS = (
     "dry-run-golden",
     "stack-acceptance",
     "package",
+    "install-smoke-check",
+    "install-smoke",
     "artifact-smoke",
     "release-check",
     "authority-skills",
@@ -5723,6 +5783,12 @@ MAKEFILE_REQUIRED_TARGET_RECIPES = {
     ),
     "package": (
         "python3 scripts/export_workflow_pack.py --output dist/docs-as-code-workflow-pack --archive dist/docs-as-code-workflow-pack.tar.gz --force --json",
+    ),
+    "install-smoke-check": (
+        "python3 scripts/smoke_installable_cli.py --check --json",
+    ),
+    "install-smoke": (
+        "python3 scripts/smoke_installable_cli.py --json",
     ),
     "artifact-smoke": (
         "python3 scripts/smoke_workflow_pack_artifact.py --json",
@@ -6011,6 +6077,8 @@ SOURCE_PACK_REQUIRED_PATHS = tuple(
             "docs_as_code/cli.py",
             "docs_as_code/packaging.py",
             "tests/test_distribution_cli.py",
+            INSTALLABLE_CLI_SMOKE_PATH,
+            INSTALLABLE_CLI_SMOKE_TEST_PATH,
             "scripts/run_tests.py",
             "scripts/workflow_executor.py",
             "scripts/pack_version.py",
@@ -6299,6 +6367,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_pack_manifest_verify_workflow(root, findings)
     _check_pack_version_propagation(root, findings)
     _check_consumer_bootstrap_workflow(root, findings)
+    _check_installable_cli_smoke_workflow(root, findings)
     _check_artifact_smoke_workflow(root, findings)
     _check_release_readiness_workflow(root, findings)
     _check_ci_workflow(root, findings)
@@ -6321,6 +6390,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_versioning_policy(root, findings)
     _check_consumer_bootstrap_docs(root, findings)
     _check_artifact_smoke_docs(root, findings)
+    _check_installable_cli_smoke_docs(root, findings)
     _check_release_readiness_docs(root, findings)
     _check_target_makefile_command_docs(root, findings)
     _check_env_repair_docs(root, findings)
@@ -6789,6 +6859,43 @@ def _check_artifact_smoke_workflow(root: Path, findings: list[PackFinding]) -> N
             ARTIFACT_SMOKE_PATH,
         )
     )
+
+
+def _check_installable_cli_smoke_workflow(root: Path, findings: list[PackFinding]) -> None:
+    source = root / INSTALLABLE_CLI_SMOKE_PATH
+    test = root / INSTALLABLE_CLI_SMOKE_TEST_PATH
+    for path, required_phrases, missing_code, incomplete_code, label in (
+        (
+            source,
+            INSTALLABLE_CLI_SMOKE_REQUIRED_PHRASES,
+            "pack_installable_cli_smoke_missing",
+            "pack_installable_cli_smoke_incomplete",
+            "installable CLI smoke script",
+        ),
+        (
+            test,
+            INSTALLABLE_CLI_SMOKE_TEST_REQUIRED_PHRASES,
+            "pack_installable_cli_smoke_test_missing",
+            "pack_installable_cli_smoke_test_incomplete",
+            "installable CLI smoke test",
+        ),
+    ):
+        rel = path.relative_to(root).as_posix()
+        if not path.is_file():
+            findings.append(PackFinding(missing_code, f"missing {label}: {rel}", rel))
+            continue
+        text = _read_utf8_text_or_none(path)
+        if text is None:
+            continue
+        missing = [phrase for phrase in required_phrases if phrase not in text]
+        if missing:
+            findings.append(
+                PackFinding(
+                    incomplete_code,
+                    f"{rel} must preserve isolated wheel-install evidence; missing phrase(s): {', '.join(missing)}",
+                    rel,
+                )
+            )
 
 
 def _check_release_readiness_workflow(root: Path, findings: list[PackFinding]) -> None:
@@ -8356,6 +8463,23 @@ def _check_artifact_smoke_docs(root: Path, findings: list[PackFinding]) -> None:
                 PackFinding(
                     "pack_artifact_smoke_doc_missing",
                     f"{rel} must document artifact smoke command or behavior: {phrase}",
+                    rel,
+                )
+            )
+
+
+def _check_installable_cli_smoke_docs(root: Path, findings: list[PackFinding]) -> None:
+    for rel, required_phrases in INSTALLABLE_CLI_SMOKE_DOC_REQUIREMENTS.items():
+        text = _read_utf8_text_or_none(root / rel)
+        if text is None:
+            continue
+        for phrase in required_phrases:
+            if phrase in text:
+                continue
+            findings.append(
+                PackFinding(
+                    "pack_installable_cli_smoke_doc_missing",
+                    f"{rel} must document installable CLI setup or smoke evidence: {phrase}",
                     rel,
                 )
             )

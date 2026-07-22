@@ -7,11 +7,13 @@ This workflow turns an empty folder and a product document into a repository rea
 Install the workflow pack once, then use the short `dac` command from a new project directory:
 
 ```bash
-python -m pip install git+https://github.com/Weiyangccccc423/docs-as-code.git
+uv tool install git+https://github.com/Weiyangccccc423/docs-as-code.git
 cd /path/to/new-project
 dac init --check --json
 dac init --json
 ```
+
+`uv tool install` keeps the CLI isolated from project dependencies. If `uv` is unavailable, use `python3 -m pip install git+https://github.com/Weiyangccccc423/docs-as-code.git` with Python 3.10+ or use the exported offline pack described below.
 
 Put exactly one supported product document in the project root before running `dac init`. Supported inputs are Markdown, TXT, DOCX, PDF, and HTML. If discovery is ambiguous, pass the reviewed source explicitly as `dac init <product-document>`. Zero or multiple candidates stop before target writes. Use `dac -C <project> ...` to operate from another directory.
 
@@ -197,6 +199,8 @@ Use `bin/governance workflow resume . --json` or `make workflow-resume` as the p
 Before tagging or handing off a source workflow-pack release, run the release readiness gate and use `references/release-readiness-checklist.md` as the rubric:
 
 ```bash
+make install-smoke-check
+make install-smoke
 make release-check
 python3 scripts/release_readiness.py --json
 ```

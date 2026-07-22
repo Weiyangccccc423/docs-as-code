@@ -8,13 +8,17 @@ Current release: **2.0.0**. The source of truth is [`VERSION`](VERSION); release
 
 ## Install
 
-Install the CLI directly from this repository:
+Recommended: install the CLI into an isolated tool environment with `uv`:
 
 ```bash
-python -m pip install git+https://github.com/Weiyangccccc423/docs-as-code.git
+uv tool install git+https://github.com/Weiyangccccc423/docs-as-code.git
 ```
 
-The command is intentionally short: `dac`. The long `docs-as-code` command remains available as an alias.
+This exposes the intentionally short `dac` command without modifying a project's Python environment. The long `docs-as-code` command remains available as a compatibility alias. If `uv` is unavailable, use a Python 3.10+ interpreter with pip:
+
+```bash
+python3 -m pip install git+https://github.com/Weiyangccccc423/docs-as-code.git
+```
 
 If you do not want to install the Python package, use the same short CLI from an exported workflow pack:
 
@@ -110,7 +114,7 @@ The generated project contains its own short `bin/dac` entry, full `bin/governan
 └── workflows/    # phase-by-phase operating procedures
 ```
 
-Maintainers should run `make test` and `make verify-pack`. The full source-pack, artifact, release, and migration procedures are in the collapsed reference below and [`references/release-readiness-checklist.md`](references/release-readiness-checklist.md).
+Maintainers should run `make test` and `make verify-pack`. Use `make install-smoke-check` for a read-only packaging preflight and `make install-smoke` to build and install the wheel in a disposable environment. The full source-pack, artifact, release, and migration procedures are in the collapsed reference below and [`references/release-readiness-checklist.md`](references/release-readiness-checklist.md).
 
 <details>
 <summary><strong>Detailed package index and operational reference</strong></summary>
@@ -218,6 +222,8 @@ Run the compact real-stack gate when release or CI evidence needs an implementat
 
 ```bash
 make stack-acceptance
+make install-smoke-check
+make install-smoke
 python3 scripts/stack_acceptance.py --json
 python3 scripts/stack_acceptance.py --strict-rust --json
 ```

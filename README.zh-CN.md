@@ -8,13 +8,17 @@
 
 ## 安装
 
-直接从当前 GitHub 仓库安装：
+推荐使用 `uv` 安装到独立的工具环境：
 
 ```bash
-python -m pip install git+https://github.com/Weiyangccccc423/docs-as-code.git
+uv tool install git+https://github.com/Weiyangccccc423/docs-as-code.git
 ```
 
-安装后使用短命令 `dac`。`docs-as-code` 仍然作为兼容别名保留。
+安装后直接使用短命令 `dac`，不会污染项目自身的 Python 环境。`docs-as-code` 仍然作为兼容别名保留。如果当前环境没有 `uv`，可以使用带 pip 的 Python 3.10 及以上版本：
+
+```bash
+python3 -m pip install git+https://github.com/Weiyangccccc423/docs-as-code.git
+```
 
 如果不想安装 Python 包，也可以直接使用导出工作流包中的同一个短命令：
 
@@ -112,4 +116,4 @@ dac verify --check --json
 └── workflows/    # 分阶段操作流程
 ```
 
-维护者使用 `make test` 和 `make verify-pack`。完整源包、制品和发布流程见英文 README 的折叠参考区，以及 [`references/release-readiness-checklist.md`](references/release-readiness-checklist.md)。
+维护者使用 `make test` 和 `make verify-pack`；`make install-smoke-check` 只读检查打包环境，`make install-smoke` 会在临时目录中真实构建并安装 wheel。完整源包、制品和发布流程见英文 README 的折叠参考区，以及 [`references/release-readiness-checklist.md`](references/release-readiness-checklist.md)。
