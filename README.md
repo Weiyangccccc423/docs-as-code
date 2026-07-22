@@ -1,5 +1,7 @@
 # docs-as-code Workflow Pack
 
+[中文](README.zh-CN.md) | English
+
 Reusable, local-first governance for turning one product document into a traceable docs-as-code project workspace.
 
 Current release: **2.0.0**. The source of truth is [`VERSION`](VERSION); release impact is recorded in [`CHANGELOG.md`](CHANGELOG.md).

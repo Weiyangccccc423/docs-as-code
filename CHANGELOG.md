@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Changed
 
 - Reworked the GitHub README into a concise project overview with the complete operational reference kept in a collapsible section.
+- Added a concise Chinese GitHub README with links between the Chinese and English project introductions.
 
 ## [2.0.0] - 2026-07-21
 
