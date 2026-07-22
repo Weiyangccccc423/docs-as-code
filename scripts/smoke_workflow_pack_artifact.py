@@ -437,6 +437,47 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
             ["make", "workflow-resume"],
             fresh_target,
         )
+        short_cli_help_execution = run_source_command(
+            [str(fresh_target / "bin/dac"), "--help"],
+            cwd=fresh_target,
+            env=_agent_env(),
+            timeout_seconds=ARTIFACT_SMOKE_STEP_TIMEOUT_SECONDS,
+        )
+        short_cli_help_step = {
+            "id": "fresh_target_dac_help",
+            **short_cli_help_execution,
+            "expected_returncode": 0,
+        }
+        steps.append(short_cli_help_step)
+        _require(
+            short_cli_help_execution.get("started") is True
+            and short_cli_help_execution.get("timed_out") is False
+            and short_cli_help_execution.get("output_safe") is True
+            and short_cli_help_execution.get("returncode") == 0
+            and isinstance(short_cli_help_execution.get("stdout"), str)
+            and "usage: dac" in str(short_cli_help_execution.get("stdout"))
+            and "dac help <command>" in str(short_cli_help_execution.get("stdout")),
+            "fresh target short dac help failed",
+            payload=short_cli_help_step,
+        )
+        short_cli_status_payload = _run_json(
+            steps,
+            "fresh_target_dac_status",
+            [fresh_target / "bin/dac", "status", "--json"],
+            fresh_target,
+        )
+        short_cli_next_payload = _run_json(
+            steps,
+            "fresh_target_dac_next",
+            [fresh_target / "bin/dac", "next", "--json"],
+            fresh_target,
+        )
+        short_cli_verify_payload = _run_json(
+            steps,
+            "fresh_target_dac_verify",
+            [fresh_target / "bin/dac", "verify", "--check", "--json"],
+            fresh_target,
+        )
         fresh_target_init = _fresh_target_init_details(
             fresh_target=fresh_target,
             init_payload=init_payload,
@@ -447,9 +488,33 @@ def run_artifact_smoke(*, archive: Path | None = None, keep: bool = False) -> di
             workflow_resume_payload=target_local_workflow_resume_payload,
             expected_pack_version=pack_version,
         )
+        short_cli_status_state = short_cli_status_payload.get("state")
+        short_cli_status_ok = (
+            short_cli_status_payload.get("ok") is True
+            and isinstance(short_cli_status_state, dict)
+            and short_cli_status_state.get("phase") == "initialized"
+        )
+        fresh_target_init["target_local_short_cli"] = {
+            "ok": (
+                short_cli_status_ok
+                and short_cli_next_payload.get("ok") is True
+                and short_cli_next_payload.get("phase") == "initialized"
+                and short_cli_verify_payload.get("ok") is True
+                and short_cli_verify_payload.get("check") is True
+            ),
+            "help_ok": True,
+            "status_ok": short_cli_status_ok,
+            "next_ok": short_cli_next_payload.get("ok") is True,
+            "verify_ok": short_cli_verify_payload.get("ok") is True,
+        }
         _require(
             fresh_target_init.get("ok") is True,
             "unpacked artifact did not initialize a verifiable fresh target",
+            payload=fresh_target_init,
+        )
+        _require(
+            fresh_target_init["target_local_short_cli"].get("ok") is True,
+            "unpacked artifact fresh target short dac CLI failed",
             payload=fresh_target_init,
         )
 
@@ -1189,6 +1254,7 @@ def _fresh_target_init_details(
             and work_package_payload.get("status") == "phase_action_required"
             and workflow_resume.get("ok") is True
             and (fresh_target / "bin/governance").is_file()
+            and (fresh_target / "bin/dac").is_file()
             and (fresh_target / "scripts/governance_cli.py").is_file()
             and (fresh_target / "docs/agent-workflow/runtime-manifest.json").is_file()
             and (fresh_target / "docs/agent-workflow/workflow-pack/manifest.json").is_file()

@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Added bounded `dac next` route modes so executable actions, manual work, approvals, blockers, terminal completion, and failed-action recovery are distinguishable without parsing JSON.
 - Added a guided `dac help` page covering product placement, first-run steps, read-only previews, and command-specific help.
 - Added a manifest-checked POSIX `bin/dac` wrapper so exported workflow packs expose the same short CLI and help without package installation.
+- Added the same manifest-checked `bin/dac` wrapper to generated targets, with target-aware `status`, `next`, `verify`, `doctor`, and command-specific help dispatch.
 - Added manifest-checked source-checkout and editable-install execution without writing generated trust evidence into the checkout.
 
 ### Changed
@@ -24,6 +25,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Added a concise Chinese GitHub README with links between the Chinese and English project introductions.
 - Made installation, product-document placement, `dac init`, and `dac --help` the primary consumer path while retaining unpacked source-pack commands for offline and advanced operation.
 - Made offline `bin/dac` the documented default for product-only initialization, while retaining `bin/governance-bootstrap` for Git, workflow-preset, authority-install, and maintainer operations.
+- Kept generated-target `init`, `upgrade`, and `next --apply` behind the trusted source-pack or installed CLI boundary instead of presenting unavailable target-only execution paths.
 - `dac init` now requires exactly one selected product document, pins that preflight path into apply, and stops before target writes when discovery returns zero or multiple candidates.
 
 ## [2.0.0] - 2026-07-21

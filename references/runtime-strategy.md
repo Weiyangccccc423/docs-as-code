@@ -44,15 +44,20 @@ bin/
 scripts/
 ```
 
-After initialization, use the concise installed CLI for routine work:
+After initialization, use the concise CLI for routine work. An installed `dac` command can target the project with `dac -C <project> ...`; generated targets also carry a dependency-free `bin/dac` wrapper:
 
 ```bash
-dac status
-dac next
-dac verify
-dac doctor
-dac upgrade --check
+dac -C <project> status
+dac -C <project> next
+dac -C <project> verify --check
+dac -C <project> doctor
+bin/dac status
+bin/dac next
+bin/dac verify --check
+bin/dac doctor
 ```
+
+The target-local wrapper exposes `status`, `next`, `verify`, `doctor`, and `help`. `init` and `upgrade` remain source-pack operations: run them from the workflow pack or an installed `dac` command so initialization and runtime refresh use the source pack's trusted implementation.
 
 Use the target-local CLI directly when an Agent needs the full low-level command contract or the installed CLI is unavailable:
 

@@ -10,6 +10,18 @@ One-sentence project summary.
 - Governance rules: `AGENTS.md`
 - Open questions: `docs/unresolved.md`
 
+## Short CLI
+
+After initialization, use the target-local `dac` entry for routine work:
+
+- `bin/dac status` - show the current workflow phase and verification state.
+- `bin/dac next` - show the next evidence-backed workflow action.
+- `bin/dac verify --check` - verify governance without updating state.
+- `bin/dac doctor` - inspect the local environment and repair route.
+- `bin/dac --help` - show the command guide.
+
+Initialization and runtime upgrades are source-pack operations. Run `dac init` or `dac upgrade` from the workflow pack or an installed `dac` command.
+
 ## Development
 
 - `make verify-governance` - run governance verification and update verification state.
@@ -18,7 +30,7 @@ One-sentence project summary.
 - `make workflow-plan` - print current workflow route plus active queue and skill summaries as JSON.
 - `make work-package` - print one evidence-selected agent work package with skill readiness as JSON.
 - `make workflow-resume` - select one evidence-derived next action with a stale-snapshot guard as JSON.
-- `dac next --apply --json` (when the installable CLI is available) - execute one validated selected action and refresh its workflow evidence.
+- `dac next --apply --json` (when an installed/source-pack CLI is available) - execute one validated selected action and refresh its workflow evidence.
 - `make product-plan` - print product structuring plan as JSON.
 - `make design-plan` - print design derivation plan as JSON.
 - `make implementation-plan` - print Ready implementation task execution plan as JSON.

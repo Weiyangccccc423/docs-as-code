@@ -249,6 +249,7 @@ PRODUCT_SOURCE_ARCHIVE_ROOT = Path("docs/product/core/source")
 PRODUCT_SOURCE_MANIFEST_REL = Path("docs/product/core/source/source-manifest.json")
 PRODUCT_SOURCE_MANIFEST_TEMP_REL = Path("docs/product/core/source/.source-manifest.json.tmp")
 RUNTIME_REQUIRED_BIN_FILES = (
+    "dac",
     "governance",
     "governance-init",
     "governance-verify",
@@ -264,6 +265,7 @@ RUNTIME_REQUIRED_SCRIPT_FILES = (
     "bounded_process.py",
     "bootstrap_tree.py",
     "check_env.py",
+    "dac_target_cli.py",
     "design_reviews.py",
     "design_plan.py",
     "gates.py",

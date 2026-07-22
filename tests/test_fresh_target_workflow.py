@@ -130,12 +130,79 @@ class FreshTargetWorkflowTest(unittest.TestCase):
             self.assertEqual([str(product.resolve())], init_payload["product"]["candidates"])
             self.assertEqual("initialized", init_payload["state"]["phase"])
             self.assertEqual("ready_for_structuring", init_payload["state"]["product_import_status"])
+            self.assertTrue((target / "bin/dac").is_file())
             self.assertTrue((target / "bin/governance").is_file())
             self.assertTrue((target / "scripts/governance_cli.py").is_file())
             self.assertTrue((target / "docs/agent-workflow/runtime-manifest.json").is_file())
             self.assertTrue((target / "docs/agent-workflow/workflow-pack/manifest.json").is_file())
             self.assertTrue((target / "docs/product/core/PRD.md").is_file())
             self.assertTrue((target / "docs/product/core/source/source-manifest.json").is_file())
+
+            short_help = subprocess.run(
+                [str(target / "bin/dac"), "--help"],
+                cwd=target,
+                env=_agent_env(),
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, short_help.returncode, short_help.stderr)
+            self.assertEqual("", short_help.stderr)
+            self.assertIn("usage: dac", short_help.stdout)
+            self.assertIn("dac status", short_help.stdout)
+            self.assertIn("dac help <command>", short_help.stdout)
+
+            short_status_help = subprocess.run(
+                [str(target / "bin/dac"), "help", "status"],
+                cwd=target,
+                env=_agent_env(),
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, short_status_help.returncode, short_status_help.stderr)
+            self.assertEqual("", short_status_help.stderr)
+            self.assertIn("usage: dac status", short_status_help.stdout)
+
+            short_status = _run_json(self, [str(target / "bin/dac"), "status", "--json"], cwd=target)
+            self.assertTrue(short_status["ok"])
+            self.assertEqual("initialized", short_status["state"]["phase"])
+
+            short_next = _run_json(self, [str(target / "bin/dac"), "next", "--json"], cwd=target)
+            self.assertTrue(short_next["ok"])
+            self.assertEqual("initialized", short_next["phase"])
+
+            short_verify = _run_json(
+                self,
+                [str(target / "bin/dac"), "verify", "--check", "--json"],
+                cwd=target,
+            )
+            self.assertTrue(short_verify["ok"])
+            self.assertTrue(short_verify["check"])
+
+            state_before_unsupported_commands = (target / ".governance/state.json").read_bytes()
+            short_init = _run_json(
+                self,
+                [str(target / "bin/dac"), "init", "--json"],
+                cwd=target,
+                expected_returncode=2,
+            )
+            self.assertEqual("dac_target_init_unavailable", short_init["error_code"])
+            self.assertFalse(short_init["writes_state"])
+
+            short_apply = _run_json(
+                self,
+                [str(target / "bin/dac"), "next", "--apply", "--json"],
+                cwd=target,
+                expected_returncode=2,
+            )
+            self.assertEqual("dac_target_apply_unavailable", short_apply["error_code"])
+            self.assertFalse(short_apply["writes_state"])
+            self.assertEqual(
+                state_before_unsupported_commands,
+                (target / ".governance/state.json").read_bytes(),
+            )
+
             agents = (target / "AGENTS.md").read_text(encoding="utf-8")
             self.assertIn("## Workflow Startup", agents)
             self.assertIn("`make workflow-resume`", agents)

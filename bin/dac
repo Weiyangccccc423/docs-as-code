@@ -39,6 +39,19 @@ if ! "$PYTHON_BIN" -c 'import sys; raise SystemExit(0 if sys.version_info[:2] >=
         2
 fi
 
-export PYTHONPATH="$ROOT_DIR${PYTHONPATH:+:$PYTHONPATH}"
-export DOCS_AS_CODE_PACK_ROOT="${DOCS_AS_CODE_PACK_ROOT:-$ROOT_DIR}"
-exec "$PYTHON_BIN" -m docs_as_code.cli "$@"
+if [ -f "$ROOT_DIR/docs_as_code/cli.py" ]; then
+    export PYTHONPATH="$ROOT_DIR${PYTHONPATH:+:$PYTHONPATH}"
+    export DOCS_AS_CODE_PACK_ROOT="${DOCS_AS_CODE_PACK_ROOT:-$ROOT_DIR}"
+    exec "$PYTHON_BIN" -m docs_as_code.cli "$@"
+fi
+
+if [ -f "$ROOT_DIR/scripts/dac_target_cli.py" ]; then
+    exec "$PYTHON_BIN" "$ROOT_DIR/scripts/dac_target_cli.py" "$@"
+fi
+
+if [ "$JSON_REQUESTED" = true ]; then
+    printf '{"ok":false,"error_code":"dac_runtime_layout_invalid","error":"dac must run from a workflow pack or an initialized governance project","can_continue":false,"writes_state":false}\n'
+else
+    printf 'dac: dac must run from a workflow pack or an initialized governance project\n' >&2
+fi
+exit 2

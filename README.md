@@ -94,7 +94,7 @@ dac verify --check --json
 
 `dac next` is read-only. Its human output labels the route as `executable`, `manual input required`, `approval required`, `blocked`, or `complete`, and prints `Run: dac next --apply` only for a complete executable `argv` contract. Manual routes show the work item, objective, and primary file; blocked routes show bounded reasons and recovery. `dac next --apply` is the explicit state-changing path and stops on stale snapshots, approvals, malformed commands, failed steps, or refresh failures.
 
-The generated project contains its own `bin/governance` runtime, `docs/` governance documents, `AGENTS.md`, and a local workflow-pack snapshot. Read [`workflows/00-overview.md`](workflows/00-overview.md) for phase rules.
+The generated project contains its own short `bin/dac` entry, full `bin/governance` runtime, `docs/` governance documents, `AGENTS.md`, and a local workflow-pack snapshot. Read [`workflows/00-overview.md`](workflows/00-overview.md) for phase rules.
 
 ## Package Layout
 
@@ -544,7 +544,17 @@ make ci
 
 ## Runtime Strategy
 
-Core governance commands use POSIX shell wrappers and Python standard-library scripts so empty target folders can be initialized without package installation. Generated targets receive their own `bin/` and `scripts/` runtime plus `docs/agent-workflow/runtime-manifest.json`; after initialization, run checks from the target repository with `bin/governance verify .` or the target Makefile entries:
+Core governance commands use POSIX shell wrappers and Python standard-library scripts so empty target folders can be initialized without package installation. Generated targets receive their own `bin/` and `scripts/` runtime plus `docs/agent-workflow/runtime-manifest.json`. After initialization, prefer the short target-local CLI:
+
+```bash
+bin/dac status
+bin/dac next
+bin/dac verify --check
+bin/dac doctor
+bin/dac --help
+```
+
+For the full low-level command contract, run checks from the target repository with `bin/governance verify .` or the target Makefile entries:
 
 ```bash
 make verify-governance
@@ -561,6 +571,8 @@ make check-env
 make repair-env-check
 make project-env-plan
 ```
+
+`bin/dac init` and `bin/dac upgrade` explain that they require the source workflow pack or an installed `dac` command.
 
 Generated targets also receive `docs/agent-workflow/workflow-pack/`, a manifest-verified snapshot of this pack's workflows, skills, references, and templates. Snapshot `VERSION`, both manifests' `pack_version`, and state `workflow_pack_version` must match. `verify` fails if the identity is invalid or drifted, or if a required runtime or workflow-pack snapshot file is missing, omitted from its manifest, or modified. From this source pack, run `bin/governance runtime refresh <target> --check --json` to inspect `would_refresh`, `would_remove`, the structured `version_transition`, and `migration_plan` without writing. The plan lists exact managed files, `preserved_project_document_roots`, ordered argv, rollback requirements, a deterministic `plan_id`, and aggregate `source_identity` and `target_identity` evidence. `source_identity.artifact_verification` reports `manifest`, `present`, `verified`, `manifest_sha256`, and `finding_codes`; this evidence and the source file inventory are bound into the plan ID. Normal same-version, compatible-upgrade, and clean legacy-install transitions can use `bin/governance runtime refresh <target> --json` from a source checkout even when no export manifest is present. A breaking upgrade, rollback, version replacement, or conflicting/invalid installed-version repair additionally requires an exported artifact whose `pack-manifest.json` verification has `verified: true`, plus review of the exact generated `bin/governance runtime refresh <target> --approve-version-transition --expect-migration-plan <plan_id> --json` argv. Check mode remains a no-write plan when artifact verification fails and marks apply `blocked_by: trusted-artifact-verification`; write mode fails before changing target files, and approval cannot override the trust blocker. Refresh records the source version and replaces only generated `bin/`, `scripts/`, `docs/agent-workflow/runtime-manifest.json`, and workflow-pack snapshot files without rewriting product, design, planning, or implementation documents.
 

@@ -5754,6 +5754,7 @@ DAC_WRAPPER_RUNTIME_GUARDS = (
     "sys.version_info[:2] >= (3, 10)",
     'export PYTHONPATH="$ROOT_DIR${PYTHONPATH:+:$PYTHONPATH}"',
     'export DOCS_AS_CODE_PACK_ROOT="${DOCS_AS_CODE_PACK_ROOT:-$ROOT_DIR}"',
+    'exec "$PYTHON_BIN" "$ROOT_DIR/scripts/dac_target_cli.py" "$@"',
     '"writes_state":false',
 )
 BOOTSTRAP_TREE_PATH = Path("scripts/bootstrap_tree.py")
