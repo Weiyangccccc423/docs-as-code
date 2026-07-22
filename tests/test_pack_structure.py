@@ -149,6 +149,7 @@ class PackStructureTest(unittest.TestCase):
         for required_phrase, replacement in (
             ("DOCS_AS_CODE_PYTHON", "GOVERNANCE_PYTHON"),
             ("Bash is not required", "Bash is required"),
+            ("bin/dac init --check", "offline-cli init check missing"),
         ):
             with self.subTest(required_phrase=required_phrase), tempfile.TemporaryDirectory() as tmp:
                 target = Path(tmp) / "pack"

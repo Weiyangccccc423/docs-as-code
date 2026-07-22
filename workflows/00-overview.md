@@ -96,6 +96,16 @@ The non-strict inventory is a portable, offline source-pack check. `--repair --c
 
 For an offline recipient environment that has unpacked the source workflow-pack artifact instead of installing the CLI, use the consumer bootstrap script to compose source-pack checks and target initialization without manually stitching commands:
 
+For the ordinary product-only path, the short offline entry is enough:
+
+```bash
+./docs-as-code-workflow-pack/bin/dac --help
+./docs-as-code-workflow-pack/bin/dac init --check
+./docs-as-code-workflow-pack/bin/dac init
+```
+
+Use the longer `bin/governance-bootstrap` entry below when local Git initialization, workflow presets, authority-install approval, or maintainer-level source-pack evidence must be composed in the same invocation.
+
 From a new project folder containing exactly one supported product document and the unpacked `docs-as-code-workflow-pack/` directory, the standard one-command entry is:
 
 ```bash

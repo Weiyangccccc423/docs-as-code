@@ -91,7 +91,17 @@ bin/governance runtime refresh <target> --json
 
 The refresh command overwrites only generated `bin/`, `scripts/`, `docs/agent-workflow/runtime-manifest.json`, and `docs/agent-workflow/workflow-pack/` snapshot files. It does not rewrite product, design, planning, or implementation documents.
 
-For an unpacked source pack placed inside a new project folder with one product document, use the source-only consumer entry before target-local runtime exists. This is the offline artifact fallback, not the primary installed-CLI path:
+For an unpacked source pack placed inside a new project folder with one product document, use the short source-only entry before target-local runtime exists. This is the offline artifact fallback, not the primary installed-CLI path:
+
+For the ordinary product-only path:
+
+```bash
+./docs-as-code-workflow-pack/bin/dac --help
+./docs-as-code-workflow-pack/bin/dac init --check
+./docs-as-code-workflow-pack/bin/dac init
+```
+
+Use the longer bootstrap entry below when Git initialization or advanced workflow presets must be composed in one invocation.
 
 ```bash
 ./docs-as-code-workflow-pack/bin/governance-bootstrap --check --json

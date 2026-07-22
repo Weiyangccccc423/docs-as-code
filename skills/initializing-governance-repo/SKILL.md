@@ -11,7 +11,22 @@ Create the minimum structure needed for reliable docs-as-code work.
 
 1. Read `references/repository-initialization-checklist.md`. For the standard installed-CLI path, put exactly one supported product document in the target root, run `dac init --check --json`, inspect `input_resolution`, and then run `dac init --json`. The defaults are current-directory target selection, target-directory-name project naming, target-root-auto-discovery for exactly one product, and profile `unknown`. Use `dac init <product-document>` only for a reviewed explicit source, `dac -C <target> init ...` only for a reviewed target, and `dac help init` when command options are needed. Require zero or multiple candidates to stop with `writes_state: false` before generated target files exist.
 
-   If pip installation is unavailable and the target contains an unpacked `docs-as-code-workflow-pack/`, use `./docs-as-code-workflow-pack/bin/governance-bootstrap --check --json` and then `./docs-as-code-workflow-pack/bin/governance-bootstrap --json`. This is the offline artifact equivalent of `dac init`. It enables the same safe `--auto-repair-env`; check mode stays no-write and write mode applies only no-approval, non-manual repairs. Stop when the target resolves to the workflow-pack root or its descendants; nesting the unpacked pack inside the target is valid only on this path. Use explicit flags only from reviewed inputs.
+   If pip installation is unavailable and the target contains an unpacked `docs-as-code-workflow-pack/`, use the short offline CLI for the ordinary product-only path:
+
+   ```bash
+   ./docs-as-code-workflow-pack/bin/dac --help
+   ./docs-as-code-workflow-pack/bin/dac init --check
+   ./docs-as-code-workflow-pack/bin/dac init
+   ```
+
+   This is the offline artifact equivalent of `dac init`; it enables the same safe `--auto-repair-env`, keeps check mode no-write, and applies only no-approval, non-manual repairs. Use the longer `governance-bootstrap` entry when Git initialization or advanced workflow presets must be composed in one invocation. Stop when the target resolves to the workflow-pack root or its descendants; nesting the pack inside the target is valid only on this path. Use explicit flags only from reviewed inputs.
+
+   Advanced source-pack bootstrap reference:
+
+   ```bash
+   ./docs-as-code-workflow-pack/bin/governance-bootstrap --check --json
+   ./docs-as-code-workflow-pack/bin/governance-bootstrap --json
+   ```
 
    Require Python 3.10 or newer before that entry can inspect the pack. Use `DOCS_AS_CODE_PYTHON` only for an already installed compatible interpreter. Treat `bootstrap_python_unavailable` and `bootstrap_python_incompatible` as `writes_state: false` manual-runtime-repair stop states; do not claim that Python-based environment repair can install its own bootstrap prerequisite. Preserve the variable for target-local commands, environment inventory, and the `core-governance` probe; `governance_python_unavailable` and `governance_python_incompatible` are equivalent no-write target-runtime stop states. The wrapper uses POSIX `/bin/sh`; Bash is not required.
 

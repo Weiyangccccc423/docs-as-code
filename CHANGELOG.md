@@ -23,6 +23,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Reworked the GitHub README into a concise project overview with the complete operational reference kept in a collapsible section.
 - Added a concise Chinese GitHub README with links between the Chinese and English project introductions.
 - Made installation, product-document placement, `dac init`, and `dac --help` the primary consumer path while retaining unpacked source-pack commands for offline and advanced operation.
+- Made offline `bin/dac` the documented default for product-only initialization, while retaining `bin/governance-bootstrap` for Git, workflow-preset, authority-install, and maintainer operations.
 - `dac init` now requires exactly one selected product document, pins that preflight path into apply, and stops before target writes when discovery returns zero or multiple candidates.
 
 ## [2.0.0] - 2026-07-21

@@ -1631,6 +1631,8 @@ CONSUMER_BOOTSTRAP_RUNTIME_DOC_REQUIRED_PHRASES = (
     "governance_python_unavailable",
     "governance_python_incompatible",
     "Bash is not required",
+    "bin/dac init --check",
+    "bin/dac init",
 )
 CONSUMER_BOOTSTRAP_DOC_REQUIREMENTS = {
     "README.md": (
