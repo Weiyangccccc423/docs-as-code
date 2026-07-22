@@ -1027,6 +1027,36 @@ class PackStructureTest(unittest.TestCase):
                 )
             )
 
+    def test_verify_pack_reports_missing_short_distribution_cli_entrypoint(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "pack"
+            shutil.copytree(
+                ROOT,
+                target,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            pyproject = target / "pyproject.toml"
+            pyproject.write_text(
+                pyproject.read_text(encoding="utf-8").replace(
+                    'dac = "docs_as_code.cli:main"',
+                    'long-command = "docs_as_code.cli:main"',
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            report = verify_pack(target)
+
+            self.assertFalse(report.ok)
+            self.assertTrue(
+                any(
+                    finding.code == "pack_distribution_cli_incomplete"
+                    and finding.path == "pyproject.toml"
+                    and 'dac = "docs_as_code.cli:main"' in finding.message
+                    for finding in report.findings
+                )
+            )
+
     def test_verify_pack_reports_missing_pack_manifest_verify_script(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
@@ -1884,7 +1914,7 @@ class PackStructureTest(unittest.TestCase):
                 )
 
     def test_verify_pack_reports_missing_one_command_consumer_documentation(self) -> None:
-        required_command = "./docs-as-code-workflow-pack/bin/governance-bootstrap --json"
+        required_command = "dac init --json"
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "pack"
             shutil.copytree(
@@ -2987,7 +3017,7 @@ class PackStructureTest(unittest.TestCase):
             readme = target / "README.md"
             readme.write_text(
                 readme.read_text(encoding="utf-8").replace(
-                    "bin/governance status /path/to/new-project\n",
+                    "dac next\n",
                     "",
                     1,
                 ),
@@ -3001,7 +3031,7 @@ class PackStructureTest(unittest.TestCase):
                 any(
                     finding.code == "pack_readme_quick_start_command_missing"
                     and finding.path == "README.md"
-                    and "bin/governance status" in finding.message
+                    and "dac next" in finding.message
                     for finding in report.findings
                 )
             )
@@ -3017,7 +3047,7 @@ class PackStructureTest(unittest.TestCase):
             readme = target / "README.md"
             readme.write_text(
                 readme.read_text(encoding="utf-8").replace(
-                    "bin/governance verify /path/to/new-project --check --json\n",
+                    "dac init --check --json\n",
                     "",
                     1,
                 ),
@@ -3031,7 +3061,7 @@ class PackStructureTest(unittest.TestCase):
                 any(
                     finding.code == "pack_readme_agent_automation_command_missing"
                     and finding.path == "README.md"
-                    and "verify /path/to/new-project --check --json" in finding.message
+                    and "dac init --check --json" in finding.message
                     for finding in report.findings
                 )
             )

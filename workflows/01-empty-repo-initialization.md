@@ -3,8 +3,8 @@
 ## Input
 
 - Empty or near-empty target folder
-- Optional product document path. If omitted, `init` auto-discovers exactly one supported product document in the target folder root.
-- This workflow pack
+- Optional product document path. If omitted, `dac init` auto-discovers exactly one supported product document in the target folder root.
+- Installed `dac` CLI or a trusted unpacked workflow-pack artifact
 
 ## Skills
 
@@ -16,14 +16,23 @@ Load:
 
 ## Procedure
 
-1. Read `references/repository-initialization-checklist.md` and use it as the rubric for target safety, environment repair, generated entry points, runtime snapshot integrity, product seed, Git readiness, baseline security, tooling consistency, and handoff readiness. When the target root contains exactly one supported product document plus an unpacked `docs-as-code-workflow-pack/`, use the standard consumer entry:
+1. Read `references/repository-initialization-checklist.md` and use it as the rubric for target safety, environment repair, generated entry points, runtime snapshot integrity, product seed, Git readiness, baseline security, tooling consistency, and handoff readiness. For the standard installed-CLI path, put exactly one supported product document in the target root and run:
+
+   ```bash
+   dac init --check --json
+   dac init --json
+   ```
+
+   `dac init` enables safe automatic environment repair, selects the current directory as the target, derives the project name from that directory, and uses `target-root-auto-discovery` to select exactly one root product document. Use `dac init <product-document>` for a reviewed explicit source, or `dac -C <target> init ...` when operating outside the target. Check mode stays no-write; write mode applies only no-approval, non-manual environment repairs. Run `dac help init` before adding options instead of reconstructing the underlying bootstrap command.
+
+   When pip installation is unavailable and the target contains an unpacked `docs-as-code-workflow-pack/`, use the equivalent offline artifact entry:
 
    ```bash
    ./docs-as-code-workflow-pack/bin/governance-bootstrap --check --json
    ./docs-as-code-workflow-pack/bin/governance-bootstrap --json
    ```
 
-   The wrapper enables safe `--auto-repair-env`, uses current-directory target selection, target-directory-name project naming, and target-root-auto-discovery for the product. Check mode stays no-write; write mode applies only no-approval, non-manual environment repairs. Inspect `input_resolution`; stop on ambiguous product selection, and pass `--profile`, `--project-name`, or `--product` only when reviewed explicit values are available. Never use the workflow-pack root or its descendants as targets; nesting the pack inside the target is valid.
+   The wrapper has the same initialization defaults as `dac`. Inspect `input_resolution`; stop on ambiguous product selection, and pass `--profile`, `--project-name`, or `--product` only when reviewed explicit values are available. Never use the workflow-pack root or its descendants as targets; nesting the pack inside the target is valid only for this offline artifact path.
 
    Before any pack or target check, require the wrapper's Python 3.10 probe to pass. Use `DOCS_AS_CODE_PYTHON` only when selecting an already installed compatible interpreter. Treat `bootstrap_python_unavailable` and `bootstrap_python_incompatible` as `writes_state: false` stop states and follow the returned `manual-runtime-repair` route; the bootstrap cannot safely auto-install its own required runtime. Preserve the variable for later target-local commands so `bin/governance`, environment inventory, and the `core-governance` probe use the same interpreter; treat `governance_python_unavailable` and `governance_python_incompatible` as equivalent no-write stop states. The entry uses POSIX `/bin/sh`; Bash is not required.
 
@@ -37,6 +46,8 @@ Load:
    Omit `--git-origin` when no remote is approved. The target directory must already exist. Require `repository_git_check_ok: true` with no `.git` write in check mode, then `repository_git_initialized: true` in apply mode. This creates no commit and never authenticates or pushes.
 
    TXT input is converted automatically with the Python standard library and stops at `product_conversion_status: pending_review`. DOCX/HTML first elevate only `pandoc` through `--require-tool pandoc`; PDF elevates only Poppler `pdftotext` through `--require-tool pdftotext`. Both external paths use bounded no-shell conversion. Require `product_conversion_applied: true`, `docs/product/core/source/conversion-report.json`, and a guarded `product-mark-ready` handoff. PDF tables, diagrams, columns, and layout-dependent meaning require explicit source comparison. No non-Markdown path may advance product structuring before source review closes `U-001`.
+
+   The installed CLI and offline wrapper both compose the authority inventory, environment preflight, initialization preflight, initialization, and target verification described in steps 2-5. Use those expanded steps when auditing, repairing, or operating directly from a source checkout; do not rerun them merely because `dac init --json` already succeeded.
 
 2. From the trusted workflow-pack checkout, inventory authority skills and build the offline repair plan:
 

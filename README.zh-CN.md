@@ -2,82 +2,76 @@
 
 中文 | [English](README.md)
 
-面向本地优先开发的可复用治理工作流：从一份产品文档开始，构建可追踪、可验证的 docs-as-code 项目仓库。
+可安装的本地优先治理工具：从一份产品文档开始，构建可追踪、可验证的 docs-as-code 项目仓库。
 
-当前版本：**2.0.0**。版本源文件是 [`VERSION`](VERSION)，版本变更记录见 [`CHANGELOG.md`](CHANGELOG.md)。
+当前版本：**2.0.0**。版本源文件是 [`VERSION`](VERSION)，变更记录见 [`CHANGELOG.md`](CHANGELOG.md)。
 
-## 提供能力
+## 安装
 
-- 从空文件夹安全初始化项目仓库
-- 归档、转换并结构化产品文档
-- 设计系统架构、API、后端、数据模型、UI、前端和测试方案
-- 通过权威 skill 路由、来源和完整性检查约束设计过程
-- 自动检查运行环境，执行受审阅的环境修复
-- 记录实现证据，进行本地验证和治理文档漂移控制
-- 导出可验证的工作流包，并支持受保护的运行时刷新
-
-## 工作流
-
-| 阶段 | 工作内容 | 主要 skill |
-| --- | --- | --- |
-| 01 | 初始化空仓库 | `initializing-governance-repo` |
-| 02 | 归档产品文档 | `archiving-product-document` |
-| 03 | 结构化产品需求 | `structuring-product-requirements` |
-| 04 | 推导并评审设计 | `designing-system-architecture` 及专业 skills |
-| 05 | 验证文档结构并控制漂移 | `verifying-governance-docs` |
-| 06 | 一次执行一个实现任务 | `executing-implementation-task` |
-
-开始前请阅读 [`workflows/00-overview.md`](workflows/00-overview.md)。
-
-## 快速开始
-
-要求：Python 3.10+、Git 和 POSIX shell。只有 DOCX、HTML 或 PDF 产品文档才需要额外安装 `pandoc` 或 `pdftotext`。
-
-在包含一份产品文档和已解包工作流包的新项目目录中运行：
+直接从当前 GitHub 仓库安装：
 
 ```bash
-./docs-as-code-workflow-pack/bin/governance-bootstrap --check --json
-./docs-as-code-workflow-pack/bin/governance-bootstrap --json
+python -m pip install git+https://github.com/Weiyangccccc423/docs-as-code.git
 ```
 
-手动使用源工作流包时：
+安装后使用短命令 `dac`。`docs-as-code` 仍然作为兼容别名保留。
+
+## 从一份产品文档开始
+
+新项目根目录只需要放一份产品文档，不需要复制或解压工作流包：
+
+```text
+my-project/
+└── product.md
+```
+
+支持 `.md`、`.markdown`、`.txt`、`.docx`、`.pdf`、`.html` 和 `.htm`。DOCX/HTML 转换可能需要 `pandoc`，PDF 转换可能需要 `pdftotext`。
 
 ```bash
-bin/governance env --repair --check --target /path/to/new-project --json
-bin/governance env --repair --target /path/to/new-project --json
-bin/governance init --check --target /path/to/new-project --profile web-app --project-name "Project Name" --json
-bin/governance init --target /path/to/new-project --profile web-app --project-name "Project Name" --json
-bin/governance verify /path/to/new-project --check --json
-bin/governance verify /path/to/new-project --json
-bin/governance gate product-structuring /path/to/new-project --json
-bin/governance status /path/to/new-project
+cd my-project
+dac init
 ```
 
-`--check` 模式只读，不写入状态。执行写操作前，请检查返回结果中的 `argv`、阻塞项、skills 和后续动作。详细阶段流程和命令契约见 [`workflows/`](workflows/) 与 [`references/`](references/)。
-
-## 本地验证
-
-本地验证是权威门禁；GitHub Actions 仅在手动触发时运行。
+`dac init` 会检查工作流包和运行环境，自动发现 `product.md`，归档产品源文档，并生成标准治理仓库结构。如果根目录存在多份产品文档，请明确指定：
 
 ```bash
-make test
-make verify-pack
+dac init /path/to/product.pdf
 ```
 
-发布前的完整检查见 [`references/release-readiness-checklist.md`](references/release-readiness-checklist.md)。
+## 常用命令
+
+```bash
+dac status
+dac next
+dac verify
+dac doctor
+dac --help
+dac help init
+```
+
+给 Agent 或脚本使用时，先用只读 JSON 模式检查，再执行写操作：
+
+```bash
+dac init --check --json
+dac init --json
+dac next --json
+dac verify --check --json
+```
+
+初始化后，项目会包含自己的 `bin/governance` 运行时、`docs/` 治理文档、`AGENTS.md` 和工作流包快照。阶段规则见 [`workflows/00-overview.md`](workflows/00-overview.md)。
 
 ## 目录结构
 
 ```text
 .
-├── CHANGELOG.md # 版本变更和升级影响
-├── bin/          # 命令包装器
+├── docs_as_code/ # 可安装的 dac CLI
+├── bin/          # 源工作流包命令包装器
 ├── scripts/      # 确定性检查和初始化脚本
-├── skills/       # 工作流使用的 agent skills
+├── skills/       # Agent 使用的 skills
 ├── references/   # 方法和实践参考
-├── templates/    # 生成目标仓库文档的模板
+├── templates/    # 目标仓库文档模板
 ├── tests/        # 工作流包测试
 └── workflows/    # 分阶段操作流程
 ```
 
-英文 README 中的 [Detailed package index and operational reference](README.md#detailed-package-index-and-operational-reference) 包含完整的模板、参考资料、skills 和高级运行说明。
+维护者使用 `make test` 和 `make verify-pack`。完整源包、制品和发布流程见英文 README 的折叠参考区，以及 [`references/release-readiness-checklist.md`](references/release-readiness-checklist.md)。

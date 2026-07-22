@@ -6,9 +6,12 @@ Calibrate against Git repository initialization, repository entry-point document
 
 ## Target Safety
 
-- When using the one-command entry, did `./docs-as-code-workflow-pack/bin/governance-bootstrap --check --json` pass before `./docs-as-code-workflow-pack/bin/governance-bootstrap --json`?
+- For the standard installed-CLI path, was exactly one supported product document placed in the target root, and did `dac init --check --json` pass before `dac init --json`?
+- If product auto-discovery was ambiguous, was a reviewed source selected explicitly with `dac init <product-document>` instead of guessing?
+- When operating outside the target, was the reviewed target selected with `dac -C <target> ...`?
+- If pip installation was unavailable, did the offline artifact entry `./docs-as-code-workflow-pack/bin/governance-bootstrap --check --json` pass before `./docs-as-code-workflow-pack/bin/governance-bootstrap --json`?
 - When Git initialization is requested, did `./docs-as-code-workflow-pack/bin/governance-bootstrap --initialize-git --git-default-branch main --git-author-name "<name>" --git-author-email "<email>" --git-origin "<url>" --reviewed-git --check --json` pass before `./docs-as-code-workflow-pack/bin/governance-bootstrap --initialize-git --git-default-branch main --git-author-name "<name>" --git-author-email "<email>" --git-origin "<url>" --reviewed-git --json`?
-- Does `input_resolution` prove current-directory target selection, target-directory-name project naming, and reviewed product/profile inputs, and are the workflow-pack root and its descendants excluded as targets?
+- Does `input_resolution` prove current-directory target selection, target-directory-name project naming, and reviewed product/profile inputs, and, for the offline artifact path, are the workflow-pack root and its descendants excluded as targets?
 - Did wrapper-driven `--auto-repair-env` remain no-write in check mode and apply only no-approval, non-manual repairs in write mode?
 - Is the target folder empty or near-empty enough that generated governance files can be created without hiding user work?
 - Does `bin/governance init --check --target <target> --json` auto-discover exactly one root product document when `--product` is omitted?

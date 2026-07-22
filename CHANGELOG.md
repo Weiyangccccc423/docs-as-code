@@ -6,10 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Added an installable Python wheel that embeds and integrity-manifests the complete workflow pack.
+- Added the short `dac` CLI with `init`, `doctor`, `status`, `next`, `verify`, `upgrade`, and command-specific help; retained `docs-as-code` as a compatibility alias.
+- Added product-document auto-discovery from the project root plus explicit `PRODUCT`, `-C`, read-only `--check`, and machine-readable `--json` interfaces.
+
 ### Changed
 
 - Reworked the GitHub README into a concise project overview with the complete operational reference kept in a collapsible section.
 - Added a concise Chinese GitHub README with links between the Chinese and English project introductions.
+- Made installation, product-document placement, `dac init`, and `dac --help` the primary consumer path while retaining unpacked source-pack commands for offline and advanced operation.
 
 ## [2.0.0] - 2026-07-21
 

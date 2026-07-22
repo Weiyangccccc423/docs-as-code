@@ -1,0 +1,16 @@
+include AGENTS.md
+include CHANGELOG.md
+include Makefile
+include README.md
+include README.zh-CN.md
+include VERSION
+recursive-include .github *
+recursive-include bin *
+recursive-include docs_as_code *.py
+recursive-include references *
+recursive-include scripts *.py
+recursive-include skills *
+recursive-include templates *
+recursive-include tests *.py *.md *.json *.txt
+recursive-include workflows *
+global-exclude __pycache__ *.py[cod]

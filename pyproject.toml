@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "docs-as-code-workflow-pack"
+dynamic = ["version"]
+description = "Initialize and operate governed docs-as-code project workspaces."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+  { name = "Weiyangccccc423", email = "1809835575@qq.com" },
+]
+keywords = ["docs-as-code", "governance", "workflow", "agents"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Documentation",
+  "Topic :: Software Development :: Quality Assurance",
+]
+
+[project.urls]
+Homepage = "https://github.com/Weiyangccccc423/docs-as-code"
+Repository = "https://github.com/Weiyangccccc423/docs-as-code.git"
+Changelog = "https://github.com/Weiyangccccc423/docs-as-code/blob/main/CHANGELOG.md"
+
+[project.scripts]
+dac = "docs_as_code.cli:main"
+docs-as-code = "docs_as_code.cli:main"
+
+[tool.setuptools]
+packages = ["docs_as_code"]
+include-package-data = false
+
+[tool.setuptools.dynamic]
+version = { file = ["VERSION"] }

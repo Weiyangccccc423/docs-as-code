@@ -2,6 +2,31 @@
 
 This workflow turns an empty folder and a product document into a repository ready for reliable agent-driven implementation.
 
+## Standard Consumer Entry
+
+Install the workflow pack once, then use the short `dac` command from a new project directory:
+
+```bash
+python -m pip install git+https://github.com/Weiyangccccc423/docs-as-code.git
+cd /path/to/new-project
+dac init --check --json
+dac init --json
+```
+
+Put exactly one supported product document in the project root before running `dac init`. Supported inputs are Markdown, TXT, DOCX, PDF, and HTML. If discovery is ambiguous, pass the reviewed source explicitly as `dac init <product-document>`. Use `dac -C <project> ...` to operate from another directory.
+
+After initialization, the normal command surface is:
+
+```bash
+dac status
+dac next
+dac verify
+dac doctor
+dac upgrade --check
+```
+
+Run `dac --help` for the command index and `dac help <command>` for command-specific options. The installed wheel carries a manifest-checked workflow-pack snapshot; the longer source-pack commands documented below remain the offline artifact and maintainer interface.
+
 ## Operating Model
 
 Each phase has:
@@ -68,7 +93,7 @@ python3 scripts/authority_skills.py --strict-provenance --json
 
 The non-strict inventory is a portable, offline source-pack check. `--repair --check` validates `references/authority-skills.lock.json`, classifies current, missing, drifted, unmanaged, and source-unregistered skills, and returns a no-write repair plan. It never guesses a source. `--repair --apply --approve-installs` executes only locked missing-skill actions after one explicit approval, without a shell, and verifies each complete tree digest before continuing; it refuses drift, ambiguity, unmanaged sources, source registration work, and unavailable installers. `--strict` gates availability; `--strict-provenance` additionally requires an approved immutable source and matching digest before authority-dependent work. Read `references/authority-skills-source-review.md` for the pinned community-source boundary, inspection evidence, runtime controls, and upgrade procedure; an approved authority-routing skill is reviewed guidance and tooling, not a substitute for primary standards or project evidence.
 
-For a recipient environment that has already unpacked the source workflow-pack artifact, use the consumer bootstrap script to compose source-pack checks and target initialization without manually stitching commands:
+For an offline recipient environment that has unpacked the source workflow-pack artifact instead of installing the CLI, use the consumer bootstrap script to compose source-pack checks and target initialization without manually stitching commands:
 
 From a new project folder containing exactly one supported product document and the unpacked `docs-as-code-workflow-pack/` directory, the standard one-command entry is:
 

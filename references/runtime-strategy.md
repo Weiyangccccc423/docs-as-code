@@ -21,6 +21,18 @@ Core runtime includes:
 - machine-readable status and verification output
 - initialization preflight and conflict reporting
 
+The standard consumer interface is the installed `dac` command. Its wheel embeds a manifest-checked copy of the complete workflow pack and dispatches to the same standard-library Python implementation used by source checkouts:
+
+```bash
+python -m pip install git+https://github.com/Weiyangccccc423/docs-as-code.git
+dac --help
+dac help init
+dac init --check --json
+dac init --json
+```
+
+The project root must contain exactly one supported product document unless `dac init <product-document>` selects one explicitly. Use `dac -C <project> ...` to select another working directory. Normal CLI operation must remain local after installation; initialization, verification, status, continuation routing, and runtime refresh must not require network access.
+
 Generated target repositories receive their own copy of this core runtime under:
 
 ```text
@@ -28,7 +40,17 @@ bin/
 scripts/
 ```
 
-After initialization, prefer the target-local CLI:
+After initialization, use the concise installed CLI for routine work:
+
+```bash
+dac status
+dac next
+dac verify
+dac doctor
+dac upgrade --check
+```
+
+Use the target-local CLI directly when an Agent needs the full low-level command contract or the installed CLI is unavailable:
 
 ```bash
 bin/governance verify .
@@ -65,7 +87,7 @@ bin/governance runtime refresh <target> --json
 
 The refresh command overwrites only generated `bin/`, `scripts/`, `docs/agent-workflow/runtime-manifest.json`, and `docs/agent-workflow/workflow-pack/` snapshot files. It does not rewrite product, design, planning, or implementation documents.
 
-For an unpacked source pack placed inside a new project folder with one product document, use the source-only consumer entry before target-local runtime exists:
+For an unpacked source pack placed inside a new project folder with one product document, use the source-only consumer entry before target-local runtime exists. This is the offline artifact fallback, not the primary installed-CLI path:
 
 ```bash
 ./docs-as-code-workflow-pack/bin/governance-bootstrap --check --json

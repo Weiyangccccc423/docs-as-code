@@ -61,6 +61,7 @@ WORKFLOW_PACK_RESOURCE_PATHS = (
 PACK_LINK_CHECK_RESOURCE_PATHS = (
     "CHANGELOG.md",
     "README.md",
+    "README.zh-CN.md",
     "AGENTS.md",
     "workflows",
     "skills",
@@ -565,6 +566,7 @@ TEMPLATE_REQUIRED_SECTIONS = {
 }
 README_PACKAGE_LAYOUT_DIRECTORIES = (
     "bin",
+    "docs_as_code",
     "scripts",
     "skills",
     "references",
@@ -573,18 +575,17 @@ README_PACKAGE_LAYOUT_DIRECTORIES = (
     "workflows",
 )
 README_QUICK_START_REQUIRED_COMMANDS = (
-    "bin/governance env --repair --check --target",
-    "bin/governance init --check --target",
-    "bin/governance init --target",
-    "bin/governance verify",
-    "bin/governance gate product-structuring",
-    "bin/governance status",
+    "dac init",
+    "dac status",
+    "dac next",
+    "dac verify",
+    "dac --help",
 )
 README_AGENT_AUTOMATION_REQUIRED_COMMANDS = (
-    "bin/governance verify /path/to/new-project --check --json",
-    "bin/governance verify /path/to/new-project --json",
-    "bin/governance env --repair --check --target /path/to/new-project --json",
-    "bin/governance env --repair --target /path/to/new-project --json",
+    "dac init --check --json",
+    "dac init --json",
+    "dac next --json",
+    "dac verify --check --json",
 )
 README_ARTIFACT_CONSUMER_QUICK_START_REQUIRED_PHRASES = (
     "## Artifact Consumer Quick Start",
@@ -1106,7 +1107,43 @@ SOURCE_PACK_EXPORT_REQUIRED_PHRASES = (
     "--no-archive",
     "dist/docs-as-code-workflow-pack",
     "docs-as-code source workflow pack",
+    '"docs_as_code"',
+    '"pyproject.toml"',
 )
+PYTHON_DISTRIBUTION_REQUIREMENTS = {
+    "pyproject.toml": (
+        '[project.scripts]',
+        'dac = "docs_as_code.cli:main"',
+        'docs-as-code = "docs_as_code.cli:main"',
+        'requires-python = ">=3.10"',
+        'version = { file = ["VERSION"] }',
+    ),
+    "setup.py": (
+        "build_embedded_pack",
+        'Path(self.build_lib) / "docs_as_code" / "pack"',
+    ),
+    "docs_as_code/cli.py": (
+        'prog="dac"',
+        '"init"',
+        '"doctor"',
+        '"status"',
+        '"next"',
+        '"verify"',
+        '"upgrade"',
+        '"help"',
+        "dac help <command>",
+        "PRODUCT_SUFFIXES",
+        "_run_pack_command",
+        "_target_runtime",
+    ),
+    "docs_as_code/packaging.py": (
+        "EMBEDDED_PACK_RESOURCE_PATHS",
+        '"README.zh-CN.md"',
+        '"pack-manifest.json"',
+        '"sha256"',
+        '"executable"',
+    ),
+}
 SOURCE_PACK_EXPORT_DOC_REQUIREMENTS = {
     "README.md": (
         "make package",
@@ -1570,8 +1607,9 @@ CONSUMER_BOOTSTRAP_RUNTIME_DOC_REQUIRED_PHRASES = (
 CONSUMER_BOOTSTRAP_DOC_REQUIREMENTS = {
     "README.md": (
         *CONSUMER_BOOTSTRAP_RUNTIME_DOC_REQUIRED_PHRASES,
-        ONE_COMMAND_CONSUMER_CHECK,
-        ONE_COMMAND_CONSUMER_APPLY,
+        "dac init --check --json",
+        "dac init --json",
+        "dac help init",
         ONE_COMMAND_CONSUMER_GIT_CHECK,
         ONE_COMMAND_CONSUMER_GIT_APPLY,
         "python3 scripts/bootstrap_consumer_project.py --target /path/to/new-project --product /path/to/product.md --profile web-app --project-name \"Project Name\" --check --json",
@@ -5908,6 +5946,13 @@ SOURCE_PACK_REQUIRED_PATHS = tuple(
             "README.md",
             "AGENTS.md",
             "Makefile",
+            "MANIFEST.in",
+            "pyproject.toml",
+            "setup.py",
+            "docs_as_code/__init__.py",
+            "docs_as_code/cli.py",
+            "docs_as_code/packaging.py",
+            "tests/test_distribution_cli.py",
             "scripts/run_tests.py",
             "scripts/pack_version.py",
             SOURCE_PROCESS_PATH,
@@ -6190,6 +6235,7 @@ def verify_pack(root: Path) -> PackReport:
     _check_dry_run_golden_fixture(root, findings)
     _check_stack_acceptance_workflow(root, findings)
     _check_source_pack_export_workflow(root, findings)
+    _check_python_distribution(root, findings)
     _check_pack_manifest_verify_workflow(root, findings)
     _check_pack_version_propagation(root, findings)
     _check_consumer_bootstrap_workflow(root, findings)
@@ -6577,6 +6623,23 @@ def _check_source_pack_export_workflow(root: Path, findings: list[PackFinding]) 
             SOURCE_PACK_EXPORT_PATH,
         )
     )
+
+
+def _check_python_distribution(root: Path, findings: list[PackFinding]) -> None:
+    for rel, required_phrases in PYTHON_DISTRIBUTION_REQUIREMENTS.items():
+        text = _read_utf8_text_or_none(root / rel)
+        if text is None:
+            continue
+        missing = [phrase for phrase in required_phrases if phrase not in text]
+        if not missing:
+            continue
+        findings.append(
+            PackFinding(
+                "pack_distribution_cli_incomplete",
+                f"{rel} must preserve installable dac CLI phrase(s): {', '.join(missing)}",
+                rel,
+            )
+        )
 
 
 def _check_pack_manifest_verify_workflow(root: Path, findings: list[PackFinding]) -> None:
@@ -8080,9 +8143,17 @@ def _check_readme_quick_start(root: Path, findings: list[PackFinding]) -> None:
         text = readme.read_text(encoding="utf-8")
     except (UnicodeDecodeError, OSError):
         return
-    quick_start = _markdown_section(text, "Quick Start") or ""
+    quick_start = "\n".join(
+        section
+        for section in (
+            _markdown_section(text, "Quick Start"),
+            _markdown_section(text, "Daily Commands"),
+        )
+        if section
+    )
+    documented_commands = {line.strip() for line in quick_start.splitlines()}
     for command in README_QUICK_START_REQUIRED_COMMANDS:
-        if command in quick_start:
+        if command in documented_commands:
             continue
         findings.append(
             PackFinding(
@@ -8092,7 +8163,7 @@ def _check_readme_quick_start(root: Path, findings: list[PackFinding]) -> None:
             )
         )
     for command in README_AGENT_AUTOMATION_REQUIRED_COMMANDS:
-        if command in quick_start:
+        if command in documented_commands:
             continue
         findings.append(
             PackFinding(
@@ -10178,7 +10249,12 @@ def _check_readme_index_entry_descriptions(
 
 
 def _package_layout_directories(text: str) -> set[str]:
-    return set(re.findall(r"\b([A-Za-z0-9_.-]+)/", text))
+    return set(
+        re.findall(
+            r"(?m)^[^A-Za-z0-9_.-]+([A-Za-z0-9_.-]+)/\s+#",
+            text,
+        )
+    )
 
 
 def _makefile_target_recipes(text: str) -> dict[str, list[str]]:

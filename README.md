@@ -2,75 +2,70 @@
 
 [中文](README.zh-CN.md) | English
 
-Reusable, local-first governance for turning one product document into a traceable docs-as-code project workspace.
+Installable local-first governance for turning one product document into a traceable docs-as-code project workspace.
 
 Current release: **2.0.0**. The source of truth is [`VERSION`](VERSION); release impact is recorded in [`CHANGELOG.md`](CHANGELOG.md).
 
-## What It Provides
+## Install
 
-- Safe repository initialization from an empty folder
-- Product document preservation, conversion, and requirement structuring
-- Source-backed architecture, API, backend, data-model, UI, frontend, test, and ADR workflows
-- Authority-skill routing with provenance and integrity checks
-- Environment preflight, reviewed repair, implementation evidence, and drift control
-- Local verification, deterministic package export, and guarded runtime refresh
+Install the CLI directly from this repository:
 
-## Workflow
+```bash
+python -m pip install git+https://github.com/Weiyangccccc423/docs-as-code.git
+```
 
-| Phase | Procedure | Primary skill |
-| --- | --- | --- |
-| 01 | Initialize an empty repository | `initializing-governance-repo` |
-| 02 | Archive the product document | `archiving-product-document` |
-| 03 | Structure product requirements | `structuring-product-requirements` |
-| 04 | Derive and review the design | `designing-system-architecture` and specialist skills |
-| 05 | Verify structure and control drift | `verifying-governance-docs` |
-| 06 | Execute one implementation task at a time | `executing-implementation-task` |
-
-Read [`workflows/00-overview.md`](workflows/00-overview.md) before running a phase.
+The command is intentionally short: `dac`. The long `docs-as-code` command remains available as an alias.
 
 ## Quick Start
 
-Requirements: Python 3.10+, Git, and a supported POSIX shell. `pandoc` and `pdftotext` are only needed for DOCX/HTML/PDF product sources.
+Put exactly one product document in the new project root. Do not put the workflow pack inside the project.
 
-For a new target containing one product document and an unpacked workflow pack:
-
-```bash
-./docs-as-code-workflow-pack/bin/governance-bootstrap --check --json
-./docs-as-code-workflow-pack/bin/governance-bootstrap --json
+```text
+my-project/
+└── product.md
 ```
 
-For manual source-pack work:
+Supported product formats: `.md`, `.markdown`, `.txt`, `.docx`, `.pdf`, `.html`, and `.htm`. DOCX/HTML conversion may require `pandoc`; PDF conversion may require `pdftotext`.
 
 ```bash
-bin/governance env --repair --check --target /path/to/new-project --json
-bin/governance env --repair --target /path/to/new-project --json
-bin/governance init --check --target /path/to/new-project --profile web-app --project-name "Project Name" --json
-bin/governance init --target /path/to/new-project --profile web-app --project-name "Project Name" --json
-bin/governance verify /path/to/new-project --check --json
-bin/governance verify /path/to/new-project --json
-bin/governance gate product-structuring /path/to/new-project --json
-bin/governance status /path/to/new-project
+cd my-project
+dac init
 ```
 
-`--check` commands are read-only. Agents must review returned `argv`, blockers, skills, and next actions before applying state changes. Detailed phase procedures and command contracts live in [`workflows/`](workflows/) and [`references/`](references/).
-
-## Local Verification
-
-Local verification is authoritative; the GitHub Actions workflow is manual-only.
+`dac init` checks the workflow pack and environment, discovers `product.md`, archives the source, and creates the governed repository structure. If more than one product document exists, pass one explicitly:
 
 ```bash
-make test
-make verify-pack
+dac init /path/to/product.pdf
 ```
 
-Use [`references/release-readiness-checklist.md`](references/release-readiness-checklist.md) for the full dry-run, export, artifact-smoke, and release gate.
+## Daily Commands
+
+```bash
+dac status
+dac next
+dac verify
+dac doctor
+dac --help
+dac help init
+```
+
+For agents and scripts, use the read-only JSON contract before writes:
+
+```bash
+dac init --check --json
+dac init --json
+dac next --json
+dac verify --check --json
+```
+
+The generated project contains its own `bin/governance` runtime, `docs/` governance documents, `AGENTS.md`, and a local workflow-pack snapshot. Read [`workflows/00-overview.md`](workflows/00-overview.md) for phase rules.
 
 ## Package Layout
 
 ```text
 .
-├── CHANGELOG.md # reviewed release changes and upgrade impact
-├── bin/          # command wrappers
+├── docs_as_code/ # installable dac CLI
+├── bin/          # source-pack command wrappers
 ├── scripts/      # deterministic checks and bootstrap utilities
 ├── skills/       # agent skills used by the workflow
 ├── references/   # supporting methods and practice references
@@ -78,6 +73,8 @@ Use [`references/release-readiness-checklist.md`](references/release-readiness-c
 ├── tests/        # workflow-pack tests
 └── workflows/    # phase-by-phase operating procedures
 ```
+
+Maintainers should run `make test` and `make verify-pack`. The full source-pack, artifact, release, and migration procedures are in the collapsed reference below and [`references/release-readiness-checklist.md`](references/release-readiness-checklist.md).
 
 <details>
 <summary><strong>Detailed package index and operational reference</strong></summary>
