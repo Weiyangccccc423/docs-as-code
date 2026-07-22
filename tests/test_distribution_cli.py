@@ -307,12 +307,22 @@ class DistributionCliTest(unittest.TestCase):
                 "ok": True,
                 "phase": "initialized",
                 "status": "action_ready",
+                "can_continue": True,
+                "stop_before_action": False,
                 "selected_action": {
                     "id": "advance-product-structuring",
                     "description": "Enter product structuring.",
                     "writes_state": True,
                     "steps": [
                         {
+                            "argv": [
+                                "bin/governance",
+                                "advance",
+                                "product-structuring",
+                                ".",
+                                "--check",
+                                "--json",
+                            ],
                             "skills": [
                                 "structuring-product-requirements",
                                 "verifying-governance-docs",
@@ -340,7 +350,174 @@ class DistributionCliTest(unittest.TestCase):
         self.assertIn("Next action: advance-product-structuring", output)
         self.assertIn("Enter product structuring.", output)
         self.assertIn("Skills: structuring-product-requirements, verifying-governance-docs", output)
+        self.assertIn("Action mode: executable", output)
+        self.assertIn("Run: dac next --apply", output)
         self.assertIn("Agent details: dac next --json", output)
+
+    def test_human_next_explains_manual_work_without_suggesting_apply(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp)
+            runtime = target / "scripts/governance_cli.py"
+            runtime.parent.mkdir()
+            runtime.write_text("", encoding="utf-8")
+            next_payload = {
+                "ok": True,
+                "phase": "product-structuring",
+                "status": "work_ready",
+                "can_continue": True,
+                "stop_before_action": False,
+                "selected_action": {
+                    "kind": "decide-product-chapter",
+                    "chapter": "change-log",
+                    "decision_policy": "do_not_guess_product_meaning",
+                    "command_contract": {
+                        "argv_prefix": ["bin/governance", "product", "disposition"],
+                        "required_arguments": ["--decision", "--reason", "--reviewed"],
+                        "writes_state": True,
+                    },
+                },
+                "work_package": {
+                    "work_package": {
+                        "work_id": "PRODUCT-AUTHOR-001",
+                        "objective": "Review the PRD and decide whether this chapter is in scope.",
+                        "write_scope": {"primary_paths": ["docs/product/02-change-log.md"]},
+                    }
+                },
+            }
+            stdout = io.StringIO()
+            with mock.patch(
+                "docs_as_code.cli._run_python_json",
+                return_value=cli.CommandResult(0, next_payload, "", ""),
+            ), contextlib.redirect_stdout(stdout):
+                returncode = main(["-C", str(target), "next"])
+
+        output = stdout.getvalue()
+        self.assertEqual(0, returncode)
+        self.assertIn("Action mode: manual input required", output)
+        self.assertIn("Work item: PRODUCT-AUTHOR-001", output)
+        self.assertIn("Objective: Review the PRD and decide whether this chapter is in scope.", output)
+        self.assertIn("File: docs/product/02-change-log.md", output)
+        self.assertIn("Writes state: yes", output)
+        self.assertNotIn("Run: dac next --apply", output)
+        self.assertIn("Agent details: dac next --json", output)
+
+    def test_human_next_explains_blocked_route_and_recovery(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp)
+            runtime = target / "scripts/governance_cli.py"
+            runtime.parent.mkdir()
+            runtime.write_text("", encoding="utf-8")
+            next_payload = {
+                "ok": True,
+                "phase": "design-derivation",
+                "status": "blocked",
+                "can_continue": False,
+                "stop_before_action": True,
+                "stop_reasons": ["missing_authority_skill", "design_gate_failed"],
+                "selected_action": {},
+            }
+            stdout = io.StringIO()
+            with mock.patch(
+                "docs_as_code.cli._run_python_json",
+                return_value=cli.CommandResult(0, next_payload, "", ""),
+            ), contextlib.redirect_stdout(stdout):
+                returncode = main(["-C", str(target), "next"])
+
+        output = stdout.getvalue()
+        self.assertEqual(0, returncode)
+        self.assertIn("Next action: none", output)
+        self.assertIn("Action mode: blocked", output)
+        self.assertIn("Reason: Missing authority skill", output)
+        self.assertIn("Reason: Design gate failed", output)
+        self.assertIn("Next: Resolve the blocker(s), then run dac next again.", output)
+
+    def test_human_next_explains_approval_route_without_suggesting_apply(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp)
+            runtime = target / "scripts/governance_cli.py"
+            runtime.parent.mkdir()
+            runtime.write_text("", encoding="utf-8")
+            next_payload = {
+                "ok": True,
+                "phase": "implementation",
+                "status": "approval_required",
+                "can_continue": False,
+                "stop_before_action": True,
+                "stop_reasons": ["selected_action_requires_approval"],
+                "selected_action": {
+                    "id": "deploy-production",
+                    "approval_required": True,
+                    "argv": ["bin/governance", "deploy", ".", "--json"],
+                    "writes_state": True,
+                },
+            }
+            stdout = io.StringIO()
+            with mock.patch(
+                "docs_as_code.cli._run_python_json",
+                return_value=cli.CommandResult(0, next_payload, "", ""),
+            ), contextlib.redirect_stdout(stdout):
+                returncode = main(["-C", str(target), "next"])
+
+        output = stdout.getvalue()
+        self.assertEqual(0, returncode)
+        self.assertIn("Action mode: approval required", output)
+        self.assertIn("Reason: Selected action requires approval", output)
+        self.assertIn("Next: Review and approve the action before applying it.", output)
+        self.assertNotIn("Run: dac next --apply", output)
+
+    def test_human_next_explains_terminal_completion(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp)
+            runtime = target / "scripts/governance_cli.py"
+            runtime.parent.mkdir()
+            runtime.write_text("", encoding="utf-8")
+            next_payload = {
+                "ok": True,
+                "phase": "implementation",
+                "status": "complete",
+                "can_continue": False,
+                "stop_before_action": True,
+                "action_count": 0,
+                "selected_action": {},
+            }
+            stdout = io.StringIO()
+            with mock.patch(
+                "docs_as_code.cli._run_python_json",
+                return_value=cli.CommandResult(0, next_payload, "", ""),
+            ), contextlib.redirect_stdout(stdout):
+                returncode = main(["-C", str(target), "next"])
+
+        output = stdout.getvalue()
+        self.assertEqual(0, returncode)
+        self.assertIn("Next action: none", output)
+        self.assertIn("Action mode: complete", output)
+        self.assertIn("Workflow complete.", output)
+        self.assertNotIn("Resolve the blocker", output)
+        self.assertNotIn("Run: dac next --apply", output)
+
+    def test_next_apply_failure_prints_recovery_route(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp)
+            runtime = target / "scripts/governance_cli.py"
+            runtime.parent.mkdir()
+            runtime.write_text("", encoding="utf-8")
+            failure = {
+                "ok": False,
+                "status": "refresh_failed",
+                "errors": ["The selected action completed but workflow refresh failed."],
+                "recovery": "Run dac next --json and inspect the refresh failure first.",
+            }
+            stderr = io.StringIO()
+            with mock.patch(
+                "docs_as_code.cli._run_pack_json",
+                return_value=cli.CommandResult(1, failure, "", ""),
+            ), contextlib.redirect_stderr(stderr):
+                returncode = main(["-C", str(target), "next", "--apply"])
+
+        output = stderr.getvalue()
+        self.assertEqual(1, returncode)
+        self.assertIn("Workflow action failed:", output)
+        self.assertIn("Next: Run dac next --json and inspect the refresh failure first.", output)
 
     def test_next_apply_dispatches_to_snapshot_bound_executor(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

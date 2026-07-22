@@ -1130,6 +1130,7 @@ PYTHON_DISTRIBUTION_REQUIREMENTS = {
         "_run_python_json",
         "_require_cli_product",
         'payload["cli_preflight"]',
+        "MAX_HUMAN_SUMMARY_CHARS",
         '"init"',
         '"doctor"',
         '"status"',
@@ -1148,6 +1149,10 @@ PYTHON_DISTRIBUTION_REQUIREMENTS = {
         "_target_runtime",
         '"writes_state": False',
         "Agent details: dac next --json",
+        "Action mode:",
+        "manual input required",
+        "Run: dac next --apply",
+        "Resolve the blocker(s)",
         "Files to refresh:",
     ),
     "scripts/workflow_executor.py": (
@@ -3926,6 +3931,8 @@ WORKFLOW_RESUME_DOC_REQUIREMENTS = {
         "action_count: 0",
         "not a repository lock",
         "dac next --apply",
+        "manual input required",
+        "Run: dac next --apply",
     ),
     "workflows/00-overview.md": (
         "workflow resume . --json",
@@ -3938,6 +3945,8 @@ WORKFLOW_RESUME_DOC_REQUIREMENTS = {
         "action_count: 0",
         "not a repository lock",
         "dac next --apply",
+        "manual input required",
+        "Run: dac next --apply",
     ),
     "workflows/05-verification-and-drift-control.md": (
         "make workflow-resume",
@@ -3959,6 +3968,8 @@ WORKFLOW_RESUME_DOC_REQUIREMENTS = {
         "action_count",
         "not a concurrency lock",
         "dac next --apply",
+        "Action mode: executable",
+        "manual input required",
     ),
     "references/workflow-routing-checklist.md": (
         "workflow resume --json",

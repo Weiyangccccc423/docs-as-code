@@ -36,6 +36,8 @@ For normal start or resume, prefer `bin/governance workflow resume <target> --js
 
 When the installable CLI is available, `dac next` provides the same read-only route and `dac next --apply --json` is the guarded convenience executor. It re-runs the target-local resume command, validates `assert_snapshot_command`, requires target-local executable `argv` and in-repository `cwd`, executes the returned steps in sequence without a shell, and refreshes through the returned `refresh_command`. Treat its `workflow-execute` payload as the evidence record; a failed refresh is not permission to repeat the action from memory.
 
+In human mode, run `dac next --apply` only when `dac next` reports `Action mode: executable`. For `manual input required`, inspect `dac next --json`, load the work package's ordered skills and read order, then complete its declared write scope; for `approval required` or `blocked`, resolve the displayed stop condition instead of attempting apply.
+
 Before loading downstream skills or changing phase, run the target-local gate when available:
 
 ```bash

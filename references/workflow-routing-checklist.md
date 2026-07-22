@@ -28,6 +28,7 @@ Reference: `https://www.omg.org/spec/BPMN/2.0.2/`
 - Is exactly one `selected_action` executed before refreshing the controller payload?
 - When using `dac next --apply --json`, does the executor re-run the snapshot assertion, reject approval or unsafe target-bound commands, preserve every step result, and refresh before reporting success?
 - Does a refresh failure remain a stop state even when the selected write step already passed?
+- Does human `dac next` distinguish executable, manual-input, approval, blocked, and complete routes, and withhold `dac next --apply` when the selected action lacks complete executable `argv`?
 - When `selected_action.kind` is `guarded-sequence`, is preflight run first and apply run only after preflight succeeds?
 - Are `blocked`, `approval_required`, and `failed` treated as stop states, and is `complete` required to have `action_count: 0`?
 - Is the SHA-256 snapshot treated as a stale-context guard rather than a repository lock or substitute for implementation codebase mapping?

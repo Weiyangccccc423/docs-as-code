@@ -16,6 +16,8 @@ from .packaging import MANIFEST_NAME, build_embedded_pack
 
 
 PRODUCT_SUFFIXES = ".md, .markdown, .txt, .docx, .pdf, .html, .htm"
+MAX_HUMAN_SUMMARY_CHARS = 240
+MAX_HUMAN_REASONS = 3
 PACK_MARKERS = (
     "VERSION",
     "scripts/bootstrap_consumer_project.py",
@@ -149,6 +151,7 @@ def build_parser() -> tuple[argparse.ArgumentParser, dict[str, argparse.Argument
         help="Describe the next evidence-backed workflow action.",
         description=(
             "Select and summarize one snapshot-bound next action without executing it. "
+            "Human output distinguishes executable, manual, approval, blocked, and complete routes. "
             "Use --apply only when the action contract exposes safe executable steps."
         ),
         epilog="examples:\n  dac next\n  dac next --apply\n  dac next --apply --json",
@@ -341,6 +344,64 @@ def _items(value: object) -> list[object]:
     return value if isinstance(value, list) else []
 
 
+def _human_summary(value: object) -> str:
+    if not isinstance(value, str):
+        return ""
+    summary = " ".join(value.split())
+    if len(summary) <= MAX_HUMAN_SUMMARY_CHARS:
+        return summary
+    return summary[: MAX_HUMAN_SUMMARY_CHARS - 3].rstrip() + "..."
+
+
+def _command_has_argv(value: object) -> bool:
+    argv = _dict(value).get("argv")
+    return (
+        isinstance(argv, list)
+        and bool(argv)
+        and all(isinstance(item, str) and bool(item) for item in argv)
+    )
+
+
+def _action_is_executable(action: dict[str, Any]) -> bool:
+    steps = action.get("steps")
+    if isinstance(steps, list) and steps:
+        return all(_command_has_argv(step) for step in steps)
+    return _command_has_argv(action) or _command_has_argv(action.get("command"))
+
+
+def _nested_true(value: object, key: str) -> bool:
+    if isinstance(value, dict):
+        if value.get(key) is True:
+            return True
+        return any(_nested_true(item, key) for item in value.values())
+    if isinstance(value, list):
+        return any(_nested_true(item, key) for item in value)
+    return False
+
+
+def _active_work(payload: dict[str, Any]) -> dict[str, Any]:
+    envelope = _dict(payload.get("work_package"))
+    return _dict(envelope.get("work_package")) or envelope
+
+
+def _work_skills(work: dict[str, Any]) -> list[str]:
+    skills: list[str] = []
+    execution = _dict(work.get("execution"))
+    sources = [
+        execution.get("primary_skill"),
+        execution.get("primary_specialist_skill"),
+        *_items(work.get("skills")),
+        *_items(work.get("specialist_skills")),
+    ]
+    for requirement_key in ("skill_requirements", "authority_skill_requirements"):
+        for requirement in _items(work.get(requirement_key)):
+            sources.append(_dict(requirement).get("name"))
+    for skill in sources:
+        if isinstance(skill, str) and skill and skill not in skills:
+            skills.append(skill)
+    return skills
+
+
 def _display_path(value: object, target: Path) -> str:
     if not isinstance(value, str) or not value:
         return "not selected"
@@ -394,6 +455,9 @@ def _render_failure(label: str, result: CommandResult, *, help_command: str) -> 
         messages = [f"command exited with status {result.returncode}"]
     for message in messages[:8]:
         print(f"- {message}", file=sys.stderr)
+    recovery = _human_summary(payload.get("recovery"))
+    if recovery:
+        print(f"Next: {recovery}", file=sys.stderr)
     print(f"Details: {help_command}", file=sys.stderr)
     return result.returncode or 1
 
@@ -511,23 +575,75 @@ def _render_next(payload: dict[str, Any]) -> None:
     phase = payload.get("phase")
     status = payload.get("status")
     action = _dict(payload.get("selected_action"))
+    work = _active_work(payload)
     if isinstance(phase, str) and phase:
         print(f"Phase: {phase}")
     if isinstance(status, str) and status:
         print(f"Workflow status: {status}")
-    if not action:
-        print("Next action: none")
-        return
-    action_id = action.get("id") or action.get("kind") or "unknown"
+    action_id = action.get("id") or action.get("kind") or "none"
     print(f"Next action: {action_id}")
-    description = action.get("description")
-    if isinstance(description, str) and description:
+    if not action and status == "complete":
+        print("Action mode: complete")
+        print("Workflow complete.")
+        print("Agent details: dac next --json")
+        return
+
+    approval_required = status == "approval_required" or _nested_true(action, "approval_required")
+    blocked = (
+        not action
+        or status in {"blocked", "failed", "stale"}
+        or payload.get("stop_before_action") is True
+        or payload.get("can_continue") is False
+    )
+    executable = _action_is_executable(action)
+    if approval_required:
+        mode = "approval required"
+    elif blocked:
+        mode = "blocked"
+    elif executable:
+        mode = "executable"
+    else:
+        mode = "manual input required"
+
+    description = _human_summary(action.get("description")) or _human_summary(work.get("objective"))
+    if description:
         summary = description[0].upper() + description[1:]
         print(f"Summary: {summary}")
-    skills = _action_skills(action)
+    work_id = _human_summary(work.get("work_id"))
+    if work_id and mode == "manual input required":
+        print(f"Work item: {work_id}")
+    objective = _human_summary(work.get("objective"))
+    if objective and mode == "manual input required":
+        print(f"Objective: {objective}")
+    primary_paths = _items(_dict(work.get("write_scope")).get("primary_paths"))
+    if mode == "manual input required" and primary_paths:
+        primary_path = _human_summary(primary_paths[0])
+        if primary_path:
+            print(f"File: {primary_path}")
+    skills = _action_skills(action) or _work_skills(work)
     if skills:
         print(f"Skills: {', '.join(skills)}")
-    print(f"Writes state: {'yes' if action.get('writes_state') is True else 'no'}")
+    print(f"Action mode: {mode}")
+    if action:
+        print(f"Writes state: {'yes' if _nested_true(action, 'writes_state') else 'no'}")
+    if mode in {"blocked", "approval required"}:
+        reasons = [
+            _human_summary(reason).replace("_", " ").replace("-", " ")
+            for reason in _items(payload.get("stop_reasons"))
+        ]
+        reasons = [reason[0].upper() + reason[1:] for reason in reasons if reason]
+        if not reasons:
+            reasons = [_human_summary(message) for message in _error_messages(payload)]
+        for reason in reasons[:MAX_HUMAN_REASONS]:
+            print(f"Reason: {reason}")
+    if mode == "executable":
+        print("Run: dac next --apply")
+    elif mode == "manual input required":
+        print("Next: Complete the work item, then run dac next again.")
+    elif mode == "approval required":
+        print("Next: Review and approve the action before applying it.")
+    else:
+        print("Next: Resolve the blocker(s), then run dac next again.")
     print("Agent details: dac next --json")
 
 
